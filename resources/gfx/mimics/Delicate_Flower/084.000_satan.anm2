@@ -1,0 +1,47 @@
+﻿<AnimatedActor>
+	<Info CreatedBy="robot" CreatedOn="2022/11/30 18:27:50" Version="121" Fps="30"/>
+	<Content>
+		<Spritesheets>
+			<Spritesheet Path="devilstatue.png" Id="0"/>
+		</Spritesheets>
+		<Layers>
+			<Layer Name="body" Id="0" SpritesheetId="0"/>
+		</Layers>
+		<Nulls>
+			<Null Name="OverlayEffect" Id="0" ShowRect="false"/>
+			<Null Name="BloodGuide" Id="1" ShowRect="false"/>
+		</Nulls>
+		<Events>
+			<Event Name="Bonus" Id="0"/>
+		</Events>
+	</Content>
+	<Animations DefaultAnimation="Happy">
+		<Animation Name="Happy" FrameNum="34" Loop="false">
+			<RootAnimation>
+				<Frame XPosition="0" YPosition="0" XScale="100" YScale="100" Delay="34" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="false"/>
+			</RootAnimation>
+			<LayerAnimations>
+				<LayerAnimation LayerId="0" Visible="true">
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="100" YScale="100" Delay="4" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="112" YScale="88" Delay="2" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="82" YScale="118" Delay="2" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="151" Width="78" Height="70" XScale="82" YScale="118" Delay="2" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="151" Width="78" Height="70" XScale="100" YScale="100" Delay="17" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="112" YScale="88" Delay="2" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="82" YScale="118" Delay="2" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="100" YScale="100" Delay="2" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="-1" YPosition="-1" XPivot="38" YPivot="69" XCrop="939" YCrop="79" Width="78" Height="70" XScale="100" YScale="100" Delay="1" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="true"/>
+				</LayerAnimation>
+			</LayerAnimations>
+			<NullAnimations>
+				<NullAnimation NullId="0" Visible="true">
+					<Frame XPosition="0" YPosition="-58" XScale="100" YScale="100" Delay="1" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="false"/>
+				</NullAnimation>
+				<NullAnimation NullId="1" Visible="true"/>
+			</NullAnimations>
+			<Triggers>
+				<Trigger EventId="0" AtFrame="10"/>
+			</Triggers>
+		</Animation>
+	</Animations>
+</AnimatedActor>

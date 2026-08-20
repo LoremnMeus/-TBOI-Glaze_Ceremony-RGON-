@@ -1,0 +1,275 @@
+<locusts gfxroot="gfx/familiar/locusts/">
+	<!--
+		Color presets
+	-->
+	<!-- Parameters:
+		id - id of the abyssed item
+		damageMultiplier - dmg multiplier for the locust
+		speed - movement speed of the locust
+		collisionInterval - rate of the damage ticks
+		tearFlags - tear flags for the locust
+		color - color of the locust (chosen from the list previously created in the file)
+		scale - size of the locust's hitbox
+		gfx - specifies a custom sprite of the locust
+		count - amount of locusts spawned at once from the abyssed item
+		tearFlags2 - chance based tear flags for the locust
+		procChance - determined chance for tearFlags2
+		overlayGfx - places an additional sprite on top of the locust
+		overlayColor - color of overlayGfx
+		backGfx - places an additional sprite behind the locust
+		backColor - color of backGfx
+	-->
+	
+	<!-- Working Tear Flags:
+		Homing (2)
+		Slow (3)
+		Poison (4)
+		Freeze (5)
+		Explosive (12) [bugged]
+		Charm (13)
+		Confusion (14)
+		Fear (20)
+		Burn (22)
+		Shielded (34)
+		Holy Light (39)
+		Coin Drop (40)
+		Black HP Drop (41)
+		God's Flesh (43)
+		Greed Coin (44)
+		Permament Confusion (47)
+		Midas (53)
+		Jacobs (55) [bugged]
+		Little Horn (56)
+		Punch (64)
+		Ice (65)
+		Magnetize (66)
+		Bait (67)
+		E. Coli (73)
+		Death Coin Drop (74)
+		Death Card Drop (79)
+		Death Rune Drop (80)
+		Teleport (81) [bugged]
+	-->
+	
+	<color name="default" />
+	<color name="fly_red" r="768" g="512" b="512" or="0" og="-255" ob="-255"/>
+	<color name="fly_green" r="512" g="768" b="512" or="-255" og="0" ob="-255"/>
+	<color name="fly_blue" r="512" g="512" b="768" or="-255" og="-255" ob="0"/>
+	<color name="fly_yellow" r="1024" g="768" b="512" or="0" og="0" ob="-255"/>
+	<color name="fly_orange" r="1024" g="512" b="512" or="0" og="0" ob="-255"/>
+	<color name="fly_black" r="255" g="255" b="255"/>
+	<color name="fly_dull" r="50" g="50" b="50"/>
+	<color name="fly_purple" r="768" g="512" b="1024" or="0" og="-255" ob="0"/>
+	<color name="fly_pink" r="1024" g="512" b="768" or="0" og="-255" ob="0"/>
+	<color name="fly_cyan" r="680" g="1024" b="1024" or="0" og="0" ob="0"/>
+	<color name="fly_white" r="768" g="768" b="768"/>
+	<color name="fly_gray" r="384" g="384" b="384"/>
+	<color name="fly_brown" r="296" g="204" b="196" or="0" og="0" ob="0" />
+	<color name="fly_lightblue" r="680" g="680" b="1024" or="-100" og="0" ob="0"/>
+	<color name="fly_tan" r="844" g="752" b="640" or="0" og="0" ob="0"/>
+	<color name="fly_lightgreen" r="544" g="916" b="420" or="0" og="0" ob="0"/>
+	<color name="fly_pale" r="828" g="624" b="620" or="0" og="0" ob="0"/>
+	<color name="fly_darkpurple" r="472" g="284" b="692" or="0" og="-128" ob="0"/>
+	<color name="fly_pure_black" r="0" g="0" b="0" or="0" og="0" ob="0"/>
+	
+	<!--Darkness-->
+	<locust id="1" color="fly_pure_black" tearFlags2="41" procChance2="0.1"/>
+	<!--Touchstone-->
+	<locust id="2" color="fly_yellow"/>
+	<!--My_Hat-->
+	<locust id="3" color="fly_blue"/>
+	<!--Tech_9-->
+	<locust id="4" color="fly_red"/>
+	<!--Assassin_s_Eye-->
+	<locust id="5" color="fly_dull"/>
+	<!--Mental_Hypnosis-->
+	<locust id="6" color="fly_black"/>
+	<!--Gold_Rush-->
+	<locust id="7" color="fly_yellow" tearFlags2="53" procChance2="0.05"/>
+	<!--Air_Flight-->
+	<locust id="8" color="fly_red"/>
+	<!--The_Watcher-->
+	<locust id="9" color="fly_red"/>
+	<!--Giant_Punch-->
+	<locust id="10" color="fly_orange" scale="1.5"/>
+	<!--Memory-->
+	<locust id="11" color="fly_white"/>
+	<!--My_Best_Friend-->
+	<locust id="12" color="fly_white"/>
+	<!--Super_Bombs-->
+	<locust id="13" color="fly_black"/>
+	<!--Brimstream-->
+	<locust id="14" color="fly_red" speed="1.5"/>
+	<!--Crown_of_the_glaze-->
+	<locust id="15" color="fly_red"/>
+	<!--A_Shard_Of_Coin-->
+	<locust id="16" color="fly_red"/>
+	<!--A_Shard_Of_-->
+	<locust id="17" color="fly_red"/>
+	<!--A_Shard_Of_-->
+	<locust id="18" color="fly_red"/>
+	<!--A_Shard_Of_-->
+	<locust id="19" color="fly_red"/>
+	<!--A_Shard_Of_-->
+	<locust id="20" color="fly_red"/>
+	<!--Black_Map-->
+	<locust id="21" color="fly_dull"/>
+	<!--Blaststone-->
+	<locust id="22" color="fly_red"/>
+	<!--Little_Duck-->
+	<locust id="23" color="fly_yellow"/>
+	
+	<!--Alchemy_Pot-->
+	<locust id="25" color="fly_lightblue"/>
+	<!--Air_Terror-->
+	<locust id="26" color="fly_yellow"/>
+	<!--Glaze_Mushroom-->
+	<locust id="27" color="fly_lightgreen"/>
+	<!--Pageant_Cross_dresser-->
+	<locust id="28" color="fly_yellow"/>
+	<!--It_s_a_trick-->
+	<locust id="29" color="fly_pale"/>
+	<!--Tianyi-->
+	<locust id="30" color="fly_lightblue"/>
+	<!--Colorblindness-->
+	<locust id="31" color="fly_green"/>
+	<!--Field-->
+	<locust id="32" color="fly_purple"/>
+	<!--Suture_Needle-->
+	<locust id="33" color="fly_pale"/>
+	
+	
+	
+	<!--More_Options___-->
+	<locust id="44" color="fly_lightblue"/>
+	<!--Fate_s_Draw-->
+	<locust id="45" color="fly_purple"/>
+	<!--My_Emblem-->
+	<locust id="46" color="fly_yellow"/>
+	<!--Ingestion_to_Night-->
+	<locust id="47" color="fly_dull" tearFlags2="20" procChance="0.5"/>
+	<!--D773-->
+	<locust id="48" color="fly_purple"/>
+	<!--Devil_s_Heart-->
+	<locust id="49" color="fly_red"/>
+	<!--DVF-->
+	<locust id="50" color="fly_black"/>
+	<!--Book_of_Future-->
+	<locust id="51" color="fly_brown"/>
+	<!--Hyper_Velocity-->
+	<locust id="52" color="fly_white" speed="2"/>
+	<!--Wavering_Eyes-->
+	<locust id="53" color="fly_purple"/>
+	<!--Pendulum_Star-->
+	<locust id="54" color="fly_gray"/>
+	<!--Book_of_Thoth-->
+	<locust id="55" color="fly_yellow" tearFlags="79"/>
+	<!--Book_of_The_Law-->
+	<locust id="56" color="fly_dull"/>
+	<!--Book_of_Vision-->
+	<locust id="57" color="fly_gray"/>
+	<!--Book_of_Voice-->
+	<locust id="58" color="fly_darkpurple"/>
+	<!--Aphasia-->
+	<locust id="59" color="fly_white"/>
+	<!--Nazca-->
+	<locust id="60" color="fly_red" count="3"/>
+	<!--Cloundy-->
+	<locust id="61" color="fly_brown"/>
+	<!--Skiel-->
+	<locust id="62" color="fly_purple"/>
+	<!--Wisel-->
+	<locust id="63" color="fly_green"/>
+	<!--Granel-->
+	<locust id="64" color="fly_brown"/>
+	<!--Spectralsword-->
+	<locust id="65" color="fly_pale"/>
+	<!--Squiresaga-->
+	<locust id="66" color="fly_red"/>
+	<!--Moment-->
+	<locust id="67" color="fly_pale"/>
+	<!--Lofty-->
+	<locust id="68" color="fly_white"/>
+	<!--Theseus_s_Sign-->
+	<locust id="69" color="fly_black"/>
+	<!--Heart_Change-->
+	<locust id="70" color="fly_purple"/>
+	<!--Cable_Jar-->
+	<locust id="71" color="fly_yellow"/>
+	<!--Gospel-->
+	<locust id="72" color="fly_yellow"/>
+	<!--Tiramisu-->
+	<locust id="73" color="fly_brown"/>
+	<!--Live_Broadcast-->
+	<locust id="74" color="fly_pale"/>
+	<!--Drama_of_sorrow_and_joy-->
+	<locust id="75" color="fly_pink"/>
+	<!--Tzolkin-->
+	<locust id="76" color="fly_red"/>
+	<!--Pareidolia-->
+	<locust id="77" color="fly_yellow"/>
+	<!--Reversal_Film-->
+	<locust id="78" color="fly_dull"/>
+	<!--Tears_of_Pearl-->
+	<locust id="79" color="fly_pink"/>
+	<!--D_NAN-->
+	<locust id="80" color="fly_gray"/>
+	<!--Risemara-->
+	<locust id="81" color="fly_pale"/>
+	<!--Chiastolite-->
+	<locust id="82" color="fly_pink"/>
+	<!--Annihilation-->
+	<locust id="83" color="fly_red"/>
+	<!--Annihilation_-->
+	<locust id="84" color="fly_red"/>
+	<!--Calamity-->
+	<locust id="85" color="fly_red"/>
+	<!--Shadow_Bottle-->
+	<locust id="86" color="fly_purple"/>
+	<!--The_True_Name-->
+	<locust id="87" color="fly_brown"/>
+	<!--Blue_Print-->
+	<locust id="88" color="fly_blue"/>
+	<!--Dyson_Star-->
+	<locust id="89" color="fly_black"/>
+	<!--Hypermnesia-->
+	<locust id="90" color="fly_pale"/>
+	<!--Delicate_Flower-->
+	<locust id="91" color="fly_pale"/>
+	<!--Tech_14-->
+	<locust id="92" color="fly_red"/>
+	<!--Seeker_s_Eye-->
+	<locust id="93" color="fly_white"/>
+	<!--Day_Dreamer-->
+	<locust id="94" color="fly_black"/>
+	<!--Disequilibrium-->
+	<locust id="95" color="fly_black"/>
+	<!--Destruction-->
+	<locust id="96" color="fly_green"/>
+	<!--Philosopher_s_stone-->
+	<locust id="97" color="fly_pale"/>
+	<!--Brilliant-->
+	<locust id="98" color="fly_yellow"/>
+	<!--Fraternity-->
+	<locust id="99" color="fly_red" tearFlags2="13" procChance="0.1"/>
+	<!--Ending_Count-->
+	<locust id="100" color="fly_black"/>
+	<!--Cheater_s_Blessing-->
+	<locust id="101" color="fly_blue"/>
+	<!--Dimension_Contact-->
+	<locust id="102" color="fly_red"/>
+	<!--World_Arc-->
+	<locust id="103" color="fly_darkpurple"/>
+	<!--Final_Prism-->
+	<locust id="104" color="fly_pale"/>
+	<!--Book_of_Rune-->
+	<locust id="105" color="fly_purple"/>
+	<!--Evil_Intervention-->
+	<locust id="106" color="fly_red"/>
+	<!--Book_of_How_to_Fly-->
+	<locust id="107" color="fly_green"/>
+	<!--Reserved_Judgment-->
+	<locust id="160" color="fly_white"/>
+	
+	<!--<locust id="694" damageMultiplier="1" speed="1" collisionInterval="7" tearFlags="0" color="fly_red" />-->
+</locusts>

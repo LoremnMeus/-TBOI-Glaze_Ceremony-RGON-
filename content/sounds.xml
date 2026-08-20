@@ -1,0 +1,124 @@
+<sounds root="sfx/">
+	<sound name="Machine">
+		<sample weight="1" path="Machine.wav" />
+	</sound>
+	<sound name="Betray">
+		<sample weight="1" path="sound_betray.wav" />
+	</sound>
+	<sound name="Rift">
+		<sample weight="1" path="Rift.wav" />
+		<sample weight="1" path="Rift.wav" />
+		<sample weight="1" path="Rift.wav" />
+	</sound>
+	<sound name="Soul of Qing">
+		<sample weight="1" path="voiceover/Soul of Qing.wav" />
+	</sound>
+	<sound name="Soul of Tecro">
+		<sample weight="1" path="voiceover/Soul of Tecro.wav" />
+	</sound>
+	<sound name="Soul of Anna">
+		<sample weight="1" path="voiceover/Soul of Anna.wav" />
+	</sound>
+	<sound name="Soul of Zeis">
+		<sample weight="1" path="voiceover/Soul of Zeis.wav" />
+	</sound>
+	<sound name="Railway Ticket">
+		<sample weight="1" path="voiceover/Railway Ticket.wav" />
+	</sound>
+	<sound name="Adjustment">
+		<sample weight="1" path="voiceover/Adjustment.wav" />
+	</sound>
+	<sound name="Art">
+		<sample weight="1" path="voiceover/Art.wav" />
+	</sound>
+	<sound name="Faint">
+		<sample weight="1" path="voiceover/Faint.wav" />
+	</sound>
+	<sound name="Lure">
+		<sample weight="1" path="voiceover/Lure.wav" />
+	</sound>
+	<sound name="The Aeon">
+		<sample weight="1" path="voiceover/The Aeon.wav" />
+	</sound>
+	<sound name="The Eclipse">
+		<sample weight="1" path="voiceover/The Eclipse.wav" />
+	</sound>
+	<sound name="The Invoker">
+		<sample weight="1" path="voiceover/The Invoker.wav" />
+	</sound>
+	<sound name="The Profound">
+		<sample weight="1" path="voiceover/The Profound.wav" />
+	</sound>
+	<sound name="The Sting">
+		<sample weight="1" path="voiceover/The Sting.wav" />
+	</sound>
+	<sound name="The Universe">
+		<sample weight="1" path="voiceover/The Universe.wav" />
+	</sound>
+	<sound name="The Witch">
+		<sample weight="1" path="voiceover/The Witch.wav" />
+	</sound>
+	<sound name="The Wizard">
+		<sample weight="1" path="voiceover/The Wizard.wav" />
+	</sound>
+	<sound name="Adjustment r">
+		<sample weight="1" path="voiceover/reversed/Adjustment.wav" />
+	</sound>
+	<sound name="Art r">
+		<sample weight="1" path="voiceover/reversed/Art.wav" />
+	</sound>
+	<sound name="Faint r">
+		<sample weight="1" path="voiceover/reversed/Faint.wav" />
+	</sound>
+	<sound name="Lure r">
+		<sample weight="1" path="voiceover/reversed/Lure.wav" />
+	</sound>
+	<sound name="The Aeon r">
+		<sample weight="1" path="voiceover/reversed/The Aeon.wav" />
+	</sound>
+	<sound name="The Corpse r">
+		<sample weight="1" path="voiceover/reversed/The Corpse.wav" />
+	</sound>
+	<sound name="The Eclipse r">
+		<sample weight="1" path="voiceover/reversed/The Eclipse.wav" />
+	</sound>
+	<sound name="The Profound r">
+		<sample weight="1" path="voiceover/reversed/The Profound.wav" />
+	</sound>
+	<sound name="The Sage r">
+		<sample weight="1" path="voiceover/reversed/The Sage.wav" />
+	</sound>
+	<sound name="The Sting r">
+		<sample weight="1" path="voiceover/reversed/The Sting.wav" />
+	</sound>
+	<sound name="The Universe r">
+		<sample weight="1" path="voiceover/reversed/The Universe.wav" />
+	</sound>
+	<sound name="Superholy2">
+		<sample weight="1" path="superholy2.wav" />
+	</sound>
+	<sound name="Misc_Fire">
+		<sample weight="1" path="Misc_Fire.wav" />
+	</sound>
+	<sound name="Qing_smack">
+		<sample weight="1" path="Qing_smack.wav" />
+	</sound>
+	<sound name="Qing_gunshoots">
+		<sample weight="1" path="Qing_gunshoots.wav" />
+	</sound>
+	<sound name="Qing_Hit">
+		<sample weight="1" path="Qing_Hit.wav" />
+	</sound>
+	<sound name="Qing_alarm">
+		<sample weight="1" path="Qing_Alarm.wav" />
+	</sound>
+	<sound name="dialog_type">
+		<sample weight="1" path="dialog_type.wav" />
+	</sound>
+	<sound name="Qing_shoot">
+		<sample weight="1" path="Qing_shoot.wav" />
+	</sound>
+	<sound name="Qing_rocket">
+		<sample weight="1" path="Qing_rocket.wav" />
+	</sound>
+</sounds>

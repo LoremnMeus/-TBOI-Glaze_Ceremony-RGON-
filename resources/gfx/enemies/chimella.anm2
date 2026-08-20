@@ -1,0 +1,39 @@
+﻿<AnimatedActor>
+	<Info CreatedBy="robot" CreatedOn="2022/2/15 19:31:03" Version="208" Fps="30"/>
+	<Content>
+		<Spritesheets>
+			<Spritesheet Path="chimella.png" Id="0"/>
+		</Spritesheets>
+		<Layers>
+			<Layer Name="body" Id="0" SpritesheetId="0"/>
+		</Layers>
+		<Nulls>
+			<Null Name="OverlayEffect" Id="0" ShowRect="false"/>
+		</Nulls>
+		<Events>
+			<Event Name="Switch" Id="0"/>
+		</Events>
+	</Content>
+	<Animations DefaultAnimation="Idle">
+		<Animation Name="Idle" FrameNum="25" Loop="true">
+			<RootAnimation>
+				<Frame XPosition="0" YPosition="0" XScale="100" YScale="100" Delay="1" Visible="true" RedTint="255" GreenTint="255" BlueTint="255" AlphaTint="255" RedOffset="0" GreenOffset="0" BlueOffset="0" Rotation="0" Interpolated="false"/>
+			</RootAnimation>
+			<LayerAnimations>
+				<LayerAnimation LayerId="0" Visible="true">
+					<Frame XPosition="0" YPosition="0" XPivot="32" YPivot="32" XCrop="0" YCrop="0" Width="64" Height="64" XScale="100" YScale="100" Delay="5" Visible="true" RedTint="255" GreenTint="204" BlueTint="204" AlphaTint="255" RedOffset="178" GreenOffset="0" BlueOffset="25" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="0" YPosition="0" XPivot="32" YPivot="32" XCrop="0" YCrop="0" Width="64" Height="64" XScale="100" YScale="100" Delay="5" Visible="true" RedTint="255" GreenTint="204" BlueTint="204" AlphaTint="255" RedOffset="178" GreenOffset="0" BlueOffset="25" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="0" YPosition="0" XPivot="32" YPivot="32" XCrop="0" YCrop="0" Width="64" Height="64" XScale="80" YScale="120" Delay="5" Visible="true" RedTint="255" GreenTint="204" BlueTint="204" AlphaTint="255" RedOffset="255" GreenOffset="0" BlueOffset="25" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="0" YPosition="0" XPivot="32" YPivot="32" XCrop="0" YCrop="0" Width="64" Height="64" XScale="120" YScale="80" Delay="5" Visible="true" RedTint="255" GreenTint="204" BlueTint="204" AlphaTint="255" RedOffset="125" GreenOffset="0" BlueOffset="25" Rotation="0" Interpolated="true"/>
+					<Frame XPosition="0" YPosition="0" XPivot="32" YPivot="32" XCrop="0" YCrop="0" Width="64" Height="64" XScale="100" YScale="100" Delay="5" Visible="true" RedTint="255" GreenTint="204" BlueTint="204" AlphaTint="255" RedOffset="178" GreenOffset="0" BlueOffset="25" Rotation="0" Interpolated="true"/>
+				</LayerAnimation>
+			</LayerAnimations>
+			<NullAnimations>
+				<NullAnimation NullId="0" Visible="true"/>
+			</NullAnimations>
+			<Triggers>
+				<Trigger EventId="0" AtFrame="15"/>
+			</Triggers>
+		</Animation>
+	</Animations>
+</AnimatedActor>

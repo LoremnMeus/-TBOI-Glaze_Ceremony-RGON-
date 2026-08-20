@@ -1,0 +1,5 @@
+<music root="music/">
+	<track id="2033" name="Weapon A" path="H_ P_ Lovecraft Historical Society - The Carol of the Old Ones.ogg" loop="false" />
+	<track id="2034" name="Origin 1" path="A Song of the Origin of the World.ogg" loop="true" />
+	<track id="2035" name="Light and Dark" path="Light and Dark.ogg" loop="true" />
+</music>

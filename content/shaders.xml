@@ -1,0 +1,479 @@
+<shaders>
+    <shader name="Qing_HelpfulShader">
+        <parameters>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                vec4 Color = Color0 * texture2D(Texture0, TexCoord0);
+                gl_FragColor = Color;
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Squiresaga">
+        <parameters>
+			<param name="info1" type="vec4"/>
+			<param name="info2" type="vec4"/>
+			<param name="should_work" type="float"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 info1;
+            attribute vec4 info2;
+			attribute float should_work;
+			varying float Should_Work;
+            varying vec4 infoin1;
+            varying vec4 infoin2;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+				infoin1 = info1;
+				infoin2 = info2;
+				Should_Work = should_work;
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 infoin1;
+            varying vec4 infoin2;
+			varying float Should_Work;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+				if(Should_Work > 0.5){
+					vec2 TCO = TexCoord0;
+					vec4 Color = vec4(0,0,0,0);
+					float res = infoin1.x * TCO.x + infoin1.y * TCO.y + infoin1.z;
+					if(res > infoin1.w){ 
+						TCO = TCO - vec2(infoin2.x,infoin2.y);
+						Color = Color0 * texture2D(Texture0, TCO);
+					}else if(res < -infoin1.w){
+						TCO = TCO + vec2(infoin2.x,infoin2.y);
+						Color = Color0 * texture2D(Texture0, TCO);
+					}else{
+						// 切割缝故意留黑（Saga 效果）；非黑屏 bug
+					}
+					gl_FragColor = Color;
+				}else{
+					gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+				}
+            }
+        ]]></fragment>
+    </shader>
+	<!-- Torsion：线段 from→to；band=垂直半宽（UV）；slide_ang 岔开切向；每 pass 2 刀 -->
+	<shader name="Qing_Torsion_2">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+			<param name="P4" type="vec4"/>
+			<param name="P5" type="vec4"/>
+			<param name="P6" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            attribute vec4 P4;
+            attribute vec4 P5;
+            attribute vec4 P6;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1; Pi2 = P2; Pi3 = P3; Pi4 = P4; Pi5 = P5; Pi6 = P6;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+
+			// fromTo=fromUV.xy+toUV.zw；ang=错位相对切线弧度；band=垂直切开线的半宽（UV）
+			vec4 applyCut(vec2 uv, float en, float slide, float stretch, float gap, vec4 fromTo, float soft, float ang, float band){
+				if(en < 0.5) return vec4(uv, 0.0, 0.0);
+				vec2 fr = fromTo.xy;
+				vec2 to = fromTo.zw;
+				vec2 delta = to - fr;
+				float segLen = length(delta);
+				if(segLen < 0.0001) return vec4(uv, 0.0, 0.0);
+				vec2 tangent = delta / segLen;
+				vec2 n = vec2(tangent.y, -tangent.x);
+				vec2 center = (fr + to) * 0.5;
+				float halfLen = segLen * 0.5;
+				float d = dot(uv - center, n);
+				float along = dot(uv - center, tangent);
+				float ad = abs(d);
+				gap = max(gap, 0.00005);
+				soft = max(soft, 0.0001);
+				band = max(band, soft + gap);
+				// 垂直于切开线：超出 band 完全无效（旧式 edge 会饱和成半平面）
+				float radFade = 1.0 - smoothstep(max(gap, band - soft), band, ad);
+				radFade = radFade * radFade * (3.0 - 2.0 * radFade);
+				if(radFade <= 0.001) return vec4(uv, 0.0, 0.0);
+				// 端点沿切线软收
+				float endSoft = max(soft * 4.0, halfLen * 0.42);
+				float lenFade = 1.0 - smoothstep(max(0.0, halfLen - endSoft), halfLen + soft * 0.8, abs(along));
+				lenFade = lenFade * lenFade * (3.0 - 2.0 * lenFade);
+				if(lenFade <= 0.001) return vec4(uv, 0.0, 0.0);
+				float amp = lenFade * radFade;
+				float gapFade = gap * (0.55 + 0.45 * amp);
+				if(ad < gapFade && abs(along) <= halfLen){
+					float seam = 1.0 - smoothstep(0.0, max(gapFade, soft * 0.15), ad);
+					seam *= amp;
+					if(seam > 0.85) return vec4(uv, 0.0, 1.0);
+				}
+				float side = sign(d);
+				if(side == 0.0) side = 1.0;
+				float sideMul = 1.0;
+				if(en >= 1.5) sideMul = -1.0;
+				float edge = clamp((ad - gapFade) / soft, 0.0, 1.0);
+				edge = edge * edge * (3.0 - 2.0 * edge);
+				float near = 1.0 - edge;
+				float ca = cos(ang);
+				float sa = sin(ang);
+				vec2 dispDir = tangent * ca + n * sa;
+				uv = uv - n * (side * stretch * near * amp);
+				uv = uv - dispDir * (side * sideMul * slide * edge * amp);
+				return vec4(uv, 0.0, 0.0);
+			}
+
+            void main(void) {
+				// P1/P3: en, slide, stretch, gap
+				// P2/P4: fromUV.xy, toUV.zw
+				// P5: soft1, ang1, soft2, ang2
+				// P6: band1, band2, _, _
+				vec4 r1 = applyCut(TexCoord0, Pi1.x, Pi1.y, Pi1.z, Pi1.w, Pi2, Pi5.x, Pi5.y, Pi6.x);
+				vec4 r2 = applyCut(r1.xy, Pi3.x, Pi3.y, Pi3.z, Pi3.w, Pi4, Pi5.z, Pi5.w, Pi6.y);
+				if(r1.w + r2.w > 0.5){
+					gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+				}else{
+					gl_FragColor = Color0 * texture2D(Texture0, r2.xy);
+				}
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Qing_Torsion_1">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+			<param name="P4" type="vec4"/>
+			<param name="P5" type="vec4"/>
+			<param name="P6" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            attribute vec4 P4;
+            attribute vec4 P5;
+            attribute vec4 P6;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1; Pi2 = P2; Pi3 = P3; Pi4 = P4; Pi5 = P5; Pi6 = P6;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+
+			vec4 applyCut(vec2 uv, float en, float slide, float stretch, float gap, vec4 fromTo, float soft, float ang, float band){
+				if(en < 0.5) return vec4(uv, 0.0, 0.0);
+				vec2 fr = fromTo.xy;
+				vec2 to = fromTo.zw;
+				vec2 delta = to - fr;
+				float segLen = length(delta);
+				if(segLen < 0.0001) return vec4(uv, 0.0, 0.0);
+				vec2 tangent = delta / segLen;
+				vec2 n = vec2(tangent.y, -tangent.x);
+				vec2 center = (fr + to) * 0.5;
+				float halfLen = segLen * 0.5;
+				float d = dot(uv - center, n);
+				float along = dot(uv - center, tangent);
+				float ad = abs(d);
+				gap = max(gap, 0.00005);
+				soft = max(soft, 0.0001);
+				band = max(band, soft + gap);
+				float radFade = 1.0 - smoothstep(max(gap, band - soft), band, ad);
+				radFade = radFade * radFade * (3.0 - 2.0 * radFade);
+				if(radFade <= 0.001) return vec4(uv, 0.0, 0.0);
+				float endSoft = max(soft * 4.0, halfLen * 0.42);
+				float lenFade = 1.0 - smoothstep(max(0.0, halfLen - endSoft), halfLen + soft * 0.8, abs(along));
+				lenFade = lenFade * lenFade * (3.0 - 2.0 * lenFade);
+				if(lenFade <= 0.001) return vec4(uv, 0.0, 0.0);
+				float amp = lenFade * radFade;
+				float gapFade = gap * (0.55 + 0.45 * amp);
+				if(ad < gapFade && abs(along) <= halfLen){
+					float seam = 1.0 - smoothstep(0.0, max(gapFade, soft * 0.15), ad);
+					seam *= amp;
+					if(seam > 0.85) return vec4(uv, 0.0, 1.0);
+				}
+				float side = sign(d);
+				if(side == 0.0) side = 1.0;
+				float sideMul = 1.0;
+				if(en >= 1.5) sideMul = -1.0;
+				float edge = clamp((ad - gapFade) / soft, 0.0, 1.0);
+				edge = edge * edge * (3.0 - 2.0 * edge);
+				float near = 1.0 - edge;
+				float ca = cos(ang);
+				float sa = sin(ang);
+				vec2 dispDir = tangent * ca + n * sa;
+				uv = uv - n * (side * stretch * near * amp);
+				uv = uv - dispDir * (side * sideMul * slide * edge * amp);
+				return vec4(uv, 0.0, 0.0);
+			}
+
+            void main(void) {
+				vec4 r1 = applyCut(TexCoord0, Pi1.x, Pi1.y, Pi1.z, Pi1.w, Pi2, Pi5.x, Pi5.y, Pi6.x);
+				vec4 r2 = applyCut(r1.xy, Pi3.x, Pi3.y, Pi3.z, Pi3.w, Pi4, Pi5.z, Pi5.w, Pi6.y);
+				if(r1.w + r2.w > 0.5){
+					gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+				}else{
+					gl_FragColor = Color0 * texture2D(Texture0, r2.xy);
+				}
+            }
+        ]]></fragment>
+    </shader>
+	<!-- D-V-F：波心纵向碾压；恢复只用马赛克+四向模糊（无开窗/无暗→亮） -->
+	<!-- Lua 中心: WorldToScreen / (check_screen_multi(1,1)*256)。禁止 / GetScreenSize() -->
+	<shader name="Qing_DVF_Squash">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1;
+                Pi2 = P2;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+				// P1: crush, waveUV, blur, enabled
+				// P2: centerU, centerV, mosaic, black
+				float crush = clamp(Pi1.x, 0.0, 1.0);
+				float waveR = max(Pi1.y, 0.0);
+				float blur = clamp(Pi1.z, 0.0, 1.0);
+				float mosaic = clamp(Pi2.z, 0.0, 1.0);
+				float blackAmt = clamp(Pi2.w, 0.0, 1.0);
+				float enabled = Pi1.w;
+				if(enabled < 0.5){
+					gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+				}else{
+					vec2 uv = TexCoord0;
+					vec2 center = Pi2.xy;
+					vec2 sampleUV = uv;
+					vec4 color;
+					if(crush > 0.001 && waveR > 0.001){
+						float soft = 0.07;
+						float inside = clamp((waveR - distance(uv, center)) / soft, 0.0, 1.0);
+						float localCrush = inside * crush;
+						if(localCrush < 0.001){
+							sampleUV = uv;
+							if(mosaic > 0.001){
+								float cell = mix(0.003, 0.08, mosaic);
+								vec2 rel = sampleUV - center;
+								sampleUV = floor(rel / cell) * cell + cell * 0.5 + center;
+							}
+							if(blur > 0.001){
+								float o = blur * 0.014;
+								vec4 acc = texture2D(Texture0, sampleUV);
+								acc += texture2D(Texture0, sampleUV + vec2(o, 0.0));
+								acc += texture2D(Texture0, sampleUV + vec2(-o, 0.0));
+								acc += texture2D(Texture0, sampleUV + vec2(0.0, o));
+								acc += texture2D(Texture0, sampleUV + vec2(0.0, -o));
+								color = Color0 * (acc * 0.2);
+							}else{
+								color = Color0 * texture2D(Texture0, sampleUV);
+							}
+						}else{
+							float band = 0.5 * (1.0 - localCrush);
+							float y0 = center.y - band;
+							float y1 = center.y + band;
+							if(band < 0.0008 || uv.y < y0 || uv.y > y1){
+								color = vec4(0.0, 0.0, 0.0, 1.0);
+							}else{
+								float mappedY = (uv.y - y0) / max(2.0 * band, 0.0001);
+								sampleUV = vec2(uv.x, mappedY);
+								color = Color0 * texture2D(Texture0, sampleUV);
+							}
+						}
+					}else{
+						// 恢复：马赛克以 center 为锚（勿用原点，否则像从左上角放大）+ 模糊 + 黑幕淡出
+						sampleUV = uv;
+						if(mosaic > 0.001){
+							float cell = mix(0.003, 0.08, mosaic);
+							vec2 rel = sampleUV - center;
+							sampleUV = floor(rel / cell) * cell + cell * 0.5 + center;
+						}
+						if(blur > 0.001){
+							float o = blur * 0.014;
+							vec4 acc = texture2D(Texture0, sampleUV);
+							acc += texture2D(Texture0, sampleUV + vec2(o, 0.0));
+							acc += texture2D(Texture0, sampleUV + vec2(-o, 0.0));
+							acc += texture2D(Texture0, sampleUV + vec2(0.0, o));
+							acc += texture2D(Texture0, sampleUV + vec2(0.0, -o));
+							color = Color0 * (acc * 0.2);
+						}else{
+							color = Color0 * texture2D(Texture0, sampleUV);
+						}
+					}
+					if(blackAmt > 0.001){
+						color = mix(color, vec4(0.0, 0.0, 0.0, 1.0), blackAmt);
+					}
+					gl_FragColor = color;
+				}
+            }
+        ]]></fragment>
+    </shader>
+	<!-- Dynamic Lighting Phase1：全屏黑暗 overlay + 玩家圆形光（不做房间裁剪；UI 会被盖到属预期） -->
+	<!-- Lua 中心 UV: WorldToScreen / (check_screen_multi(1,1)*256)。禁止 / GetScreenSize() -->
+	<!-- 自定义 attribute 保持 ≤3×vec4，与本模组其它可用 shader 一致 -->
+	<shader name="Qing_DynamicLighting">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1;
+                Pi2 = P2;
+                Pi3 = P3;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+				// P1: enabled, ambient, intensity, soft
+				// P2: centerU, centerV, radiusUV, reserved
+				// P3: colorR, colorG, colorB, reserved
+				float enabled = Pi1.x;
+				if(enabled < 0.5){
+					gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+				}else{
+					vec4 base = Color0 * texture2D(Texture0, TexCoord0);
+					float ambient = clamp(Pi1.y, 0.0, 1.0);
+					float intensity = max(Pi1.z, 0.0);
+					float soft = clamp(Pi1.w, 0.001, 1.0);
+					vec2 center = Pi2.xy;
+					float radius = max(Pi2.z, 0.0001);
+					vec2 d = TexCoord0 - center;
+					float dist2 = dot(d, d);
+					float r2 = radius * radius;
+					// 光圈外：跳过 pow/sqrt，直接 ambient
+					if(dist2 >= r2){
+						gl_FragColor = vec4(base.rgb * ambient, base.a);
+					}else{
+						vec3 lightColor = clamp(Pi3.xyz, 0.0, 4.0);
+						float t = clamp(1.0 - sqrt(dist2) / radius, 0.0, 1.0);
+						float falloff = pow(t, mix(0.85, 3.2, soft));
+						float lit = ambient + intensity * falloff;
+						vec3 tinted = mix(vec3(ambient), lit * lightColor, falloff);
+						tinted = max(tinted, vec3(ambient));
+						gl_FragColor = vec4(base.rgb * tinted, base.a);
+					}
+				}
+            }
+        ]]></fragment>
+    </shader>
+</shaders>

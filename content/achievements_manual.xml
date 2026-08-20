@@ -1,0 +1,6 @@
+<achievements>
+	<!--
+	手写的“其他”成就放在这里。HTML 导出会把它们合并进 achievements.xml，
+	并在名称与自动生成的 QingRemaster_<类型>_<键名> 冲突时拒绝覆盖。
+	-->
+</achievements>

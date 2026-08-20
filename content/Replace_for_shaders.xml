@@ -1,0 +1,244 @@
+<shaders>
+	<!-- 排障用：全部恒等直通。覆盖 content/shaders.xml 后可验证是否为 shader 逻辑/编译导致黑屏。
+	     必须与现行 shaders.xml 同名条目一致（含 DVF / DynamicLighting）。用完请还原。 -->
+    <shader name="Qing_HelpfulShader">
+        <parameters>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Squiresaga">
+        <parameters>
+			<param name="info1" type="vec4"/>
+			<param name="info2" type="vec4"/>
+			<param name="should_work" type="float"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 info1;
+            attribute vec4 info2;
+			attribute float should_work;
+			varying float Should_Work;
+            varying vec4 infoin1;
+            varying vec4 infoin2;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+				infoin1 = info1;
+				infoin2 = info2;
+				Should_Work = should_work;
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 infoin1;
+            varying vec4 infoin2;
+			varying float Should_Work;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Qing_Torsion_2">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+			<param name="P4" type="vec4"/>
+			<param name="P5" type="vec4"/>
+			<param name="P6" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            attribute vec4 P4;
+            attribute vec4 P5;
+            attribute vec4 P6;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1; Pi2 = P2; Pi3 = P3; Pi4 = P4; Pi5 = P5; Pi6 = P6;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Qing_Torsion_1">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+			<param name="P4" type="vec4"/>
+			<param name="P5" type="vec4"/>
+			<param name="P6" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            attribute vec4 P4;
+            attribute vec4 P5;
+            attribute vec4 P6;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1; Pi2 = P2; Pi3 = P3; Pi4 = P4; Pi5 = P5; Pi6 = P6;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Pi4;
+            varying vec4 Pi5;
+            varying vec4 Pi6;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Qing_DVF_Squash">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1;
+                Pi2 = P2;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+            }
+        ]]></fragment>
+    </shader>
+	<shader name="Qing_DynamicLighting">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1;
+                Pi2 = P2;
+                Pi3 = P3;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+                gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+            }
+        ]]></fragment>
+    </shader>
+</shaders>

@@ -1,0 +1,134 @@
+local manifest = {
+	-- Whole-ANM2 Load() path for title/main/controls. Keep disabled until those
+	-- language-specific ANM2 files exist; missing Loads would break the menu.
+	enabled = false,
+	default_language = "en",
+	-- Character select: Reverie-style Load() of language ANM2 onto the
+	-- shared GetModdedMenuBackgroundSprite. Do not ReplaceSpritesheet the
+	-- live vanilla/mod sprites every frame.
+	character_select = {
+		enabled = true,
+		anm2 = {
+			normal = {
+				en = "gfx/charactermenu.anm2",
+				zh = "gfx/ui/lang/zh/character_menu/menu.anm2",
+			},
+			alt = {
+				en = "gfx/charactermenualt.anm2",
+				zh = "gfx/ui/lang/zh/character_menu/menu_b.anm2",
+			},
+		},
+	},
+	languages = {
+		zh = {
+			base = "gfx/ui/lang/zh/",
+			global = {
+				title = "title/titlemenu.anm2",
+				main = "main_menu/mainmenu.anm2",
+			},
+			players = {
+				{
+					key = "wq",
+					anim = "W.Qing",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+				{
+					key = "Spwq",
+					anim = "SP.W.Qing",
+					menu = "character_menu/menu_b.anm2",
+					portrait = "character_menu/portraits_b.anm2",
+					controls = "controls/controls_b.anm2",
+					coop = "coop/coop_menu_b.anm2",
+					game_over = "game_over/death_screen_b.anm2",
+				},
+				{
+					key = "Tecro",
+					anim = "Tecro",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+				{
+					key = "Tecrorun",
+					anim = "Tecrorun",
+					menu = "character_menu/menu_b.anm2",
+					portrait = "character_menu/portraits_b.anm2",
+					controls = "controls/controls_b.anm2",
+					coop = "coop/coop_menu_b.anm2",
+					game_over = "game_over/death_screen_b.anm2",
+				},
+				{
+					key = "Anna",
+					anim = "Anna",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+				{
+					key = "annA",
+					anim = "annA",
+					menu = "character_menu/menu_b.anm2",
+					portrait = "character_menu/portraits_b.anm2",
+					controls = "controls/controls_b.anm2",
+					coop = "coop/coop_menu_b.anm2",
+					game_over = "game_over/death_screen_b.anm2",
+				},
+				{
+					key = "Zeistos",
+					anim = "Zeistos",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+				{
+					key = "Zeiz",
+					anim = "Zeiz",
+					menu = "character_menu/menu_b.anm2",
+					portrait = "character_menu/portraits_b.anm2",
+					controls = "controls/controls_b.anm2",
+					coop = "coop/coop_menu_b.anm2",
+					game_over = "game_over/death_screen_b.anm2",
+				},
+				{
+					key = "Marriano",
+					anim = "Marriano",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+				{
+					key = "Autio",
+					anim = "Autio",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+				{
+					key = "Lu",
+					anim = "Lu",
+					menu = "character_menu/menu.anm2",
+					portrait = "character_menu/portraits.anm2",
+					controls = "controls/controls.anm2",
+					coop = "coop/coop_menu.anm2",
+					game_over = "game_over/death_screen.anm2",
+				},
+			},
+		},
+	},
+}
+
+return manifest

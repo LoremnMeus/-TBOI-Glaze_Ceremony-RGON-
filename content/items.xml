@@ -1,0 +1,511 @@
+<items gfxroot="gfx/items/" version="1" deathanm2="gfx/death_items.anm2">
+    <passive name="Darkness" description="Buried in the past." id="1"
+	gfx="collectibles_Darkness.png" blackhearts="2" quality = "3" craftquality = "3" cache="damage tearcolor healthtype" tags="devil summonable offensive" devilprice="2"
+	/>
+	<active name="Touchstone" description="Borrow my blade" id="2"
+	gfx="collectibles_Touchstone.png" quality = "2" craftquality = "2" tags="summonable offensive" maxcharges="2"
+	/>
+	<passive name="My Hat" description="It’s too big!" id="3"
+	gfx="collectibles_My_Hat.png" quality = "1" craftquality = "1" tags="summonable offensive"
+	/>
+	<passive name="Tech 9" description="Skipped, looped, returned." id="4"
+	gfx="collectibles_Tech_9.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<passive name="Assassin's Eye" description="Savour the Dark" id="5"
+	gfx="collectibles_Assassin_s_Eye.png" quality = "3" craftquality = "3" tags="summonable offensive" devilprice="2"
+	/>
+	<passive name="Mental Hypnosis" description="Would you kindly?" id="6"
+	gfx="collectibles_Mental_Hypnosis.png" quality = "2" craftquality = "2" cache="all" tags="summonable offensive syringe"
+	/>
+	<passive name="Gold Rush" description="All that glitters..." id="7"
+	gfx="collectibles_Gold_Rush.png" quality = "2" craftquality = "2" tags="summonable offensive"
+	/>
+	<passive name="Air Flight" description="Hello World" id="8"
+	gfx="collectibles_Air_Flight.png" quality = "4" craftquality = "4" cache="familiars" tags="summonable offensive"
+	/>
+	<passive name="The Watcher" description="Big Brother is watching" id="9"
+	gfx="collectibles_The_Watcher.png" quality = "0" cache = "speed" tags="summonable offensive"
+	/>
+	<passive name="Giant Punch" description="God-o-hand-o-Crash!" id="10"
+	gfx="collectibles_Giant_Punch.png" quality = "2" craftquality = "2" cache="damage" tags="summonable offensive"
+	/>
+	<active name="Memory" description="I fall in a loop!" id="11"
+	gfx="collectibles_Memory.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<passive name="My Best Friend" description="Do you really have a friend?" id="12"
+	gfx="collectibles_My_Best_Friend.png" quality = "2" craftquality = "2" tags="summonable offensive"
+	/>
+	<passive name="Super Bombs" description="My pocket doomsday" id="13"
+	gfx="collectibles_Super_Bombs.png" quality = "3" craftquality = "2" tags="offensive" bombs = "5"
+	/>
+	<passive name="Brimstream" description="Devil's trick." id="14"
+	gfx="collectibles_Brimstream.png" quality = "2" craftquality = "2" cache="familiars" tags="summonable offensive" devilprice="2"
+	/>
+	
+	<passive name="Crown of the Glaze" description="A king, until it shatters" id="15"
+	gfx="collectibles_Crown_Of_The_Glaze.png" quality = "3" craftquality = "3" cache="damage luck" tags="offensive"
+	/>
+	
+	<passive name="A Shard of Coin" description="Those who shared Pennies have been in pieces" id="16"
+	gfx="collectibles_A_Shard_Of_Coin.png" quality = "0" tags="quest lazarusshared noeden"
+	/>
+	<passive name="A Shard of Glaze" description="Those who honored Pride have been in pieces" id="17"
+	gfx="collectibles_A_Shard_Of_Glaze.png" quality = "0" tags="quest lazarusshared noeden"
+	/>
+	<passive name="A Shard of Lava" description="Those who ingested Heat have been in pieces" id="18"
+	gfx="collectibles_A_Shard_Of_Lava.png" quality = "0" tags="quest lazarusshared noeden"
+	/>
+	<passive name="A Shard of Meat" description="Those who valued Life have been in pieces" id="19"
+	gfx="collectibles_A_Shard_Of_Meat.png" quality = "0" tags="quest lazarusshared noeden"
+	/>
+	<passive name="A Shard of Rock" description="Those who desired Eternal have been in pieces" id="20"
+	gfx="collectibles_A_Shard_Of_Rock.png" quality = "0" tags="quest lazarusshared noeden"
+	/>
+	
+	<passive name="Black Map" description="Into the uncharted" id="21"
+	gfx="collectibles_Black_Map.png" quality = "2" craftquality = "2" tags="summonable offensive"
+	/>
+	<passive name="Blaststone" description="Devil's treachery" id="22"
+	gfx="collectibles_Blaststone.png" quality = "3" craftquality = "3" tags="summonable offensive" devilprice="2"
+	/>
+	<passive name="Little Duck" description="Quack, quack, quack!" id="23"
+	gfx="collectibles_Little_Duck.png" quality = "1" craftquality = "1" tags="summonable offensive"
+	/>
+	<!--passive name="A Shard of Blood" description="Those who thirst for redemption have been in pieces" id="24"
+	gfx="collectibles_A_Shard_Of_Blood.png" quality = "0" tags="quest lazarusshared noeden" hidden="true" 
+	/-->
+	<active name="Alchemy Pot" description="Handle with transmutation" id="25" 
+	gfx="collectibles_Alchemy_Pot.png" quality = "4" craftquality = "4" tags="offensive" maxcharges="8"
+	/>
+	<passive name="Air Terror" description="Hello...Again?" id="26"
+	gfx="collectibles_Air_Terror.png" quality = "3" craftquality = "3" tags="summonable offensive" cache="familiars"
+	/>
+	<passive name="Glaze Mushroom" description="I Feel...Glazed..uh?" id="27"
+	gfx="collectibles_Glaze_Cap.png" quality = "2" craftquality = "2" tags="summonable offensive mushroom" maxhearts = "2" hearts="4" 
+	/>
+	<passive name="Pageant Cross-dresser" description="Ultimate grand sexy" id="28"
+	gfx="collectibles_pageant_cross_dresser.png" quality = "2" craftquality = "2" tags="summonable offensive" cache = "luck"
+	/>
+	<active name="It's a trick!!" description="You Are Fooled Again!!" id="29"
+	gfx="collectibles_Glaze_Collectible.png" quality = "3" craftquality = "3" tags="offensive" maxcharges="2"
+	/>
+	<passive name="Apocalypse" description="Forever and Never" id="30"
+	gfx="collectibles_LuoTianYi.png" quality = "2" craftquality = "2" tags="summonable offensive baby" cache="familiars"
+	/>
+	<passive name="Colorblindness" description="Pride or Prejudice" id="31"
+	gfx="collectibles_colorblindness.png" quality = "0" tags="summonable offensive" cache="tearcolor tearflag range damage"
+	/>
+	<passive name="Field" description="Those who rise up must be drifting down." id="32"
+	gfx="collectibles_Field.png" quality = "2" craftquality = "2" tags="summonable offensive" cache="tearcolor firedelay"
+	/>
+	<active name="Suture Needle" description="Death is only a broken thread" id="33"
+	gfx="collectibles_Suture_Needle.png" quality = "0" tags="offensive" maxcharges="300" initcharge="0" chargetype="timed"
+	/>
+	<passive name="More Options??!" description="Also Double Price" id="44"
+	gfx="collectibles_Glaze_Option.png" quality = "4" craftquality = "4" tags="summonable offensive"
+	/>
+	<passive name="Fate's Draw" description="My Drawwww!!!!" id="45"
+	gfx="collectibles_Fate_s_Draw.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<passive name="My Emblem" description="Finally a home for me.." id="46"
+	gfx="collectibles_My_Emblem.png" quality = "3" craftquality = "3" tags="summonable offensive" cache="familiars"
+	/>
+	<passive name="Ingestion to Night" description="The night has teeth" id="47"
+	gfx="collectibles_Ingestion_to_Night.png" quality = "1" craftquality = "1" tags="summonable offensive" cache="flying damage"
+	/>
+	<active name="D773" description="Life is like an Oreo" id="48"
+	gfx="collectibles_D773.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="1"
+	/>
+	<active name="Devil's Heart" description="Stage a Comeback" id="49"
+	gfx="collectibles_Devil_s_Heart.png" quality = "0" tags="devil offensive" maxcharges="0" devilprice="2"
+	/>
+	<active name="D-V-F" description="At any cost" id="50"
+	gfx="collectibles_Dual_Vector_Foil.png" quality = "3" craftquality = "3" tags="offensive nogreed" maxcharges="0"
+	/>
+	<active name="Book of Future" description="Rewrite what has yet to happen" id="51"
+	gfx="collectibles_Book_of_Future.png" quality = "4" craftquality = "4" tags="offensive book" maxcharges="8"
+	/>
+	<active name="Hyper Velocity" description="Next stop: impact" id="52"
+	gfx="collectibles_Hypervelocity.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="3"
+	/>
+	<passive name="Wavering Eyes" description="Don't blink, don't miss" id="53"
+	gfx="collectibles_Wavering_Eyes.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<passive name="Pendulum Star" description="Pendulum Scale Setting" id="54"
+	gfx="collectibles_Star_Pendulumgraph.png" quality = "1" craftquality = "1" tags="summonable offensive stars" cache="familiars"
+	/>
+	<active name="Book of Thoth" description="Fate is merely a book yet to be put in order." id="55"
+	gfx="collectibles_Book_of_Thoth.png" quality = "4" craftquality = "4" tags="summonable offensive book" maxcharges="12" initcharge="0" chargetype="special"
+	/>
+	<active name="Book of The Law" description="Left is Right.Right is Lefted." id="56"
+	gfx="collectibles_Book_of_The_Law.png" quality = "3" craftquality = "3" tags="offensive book" maxcharges="4"
+	/>
+	<active name="Book of Vision" description="Doubook Vision" id="57"
+	gfx="collectibles_Book_of_Vision.png" quality = "2" craftquality = "2" tags="offensive book" maxcharges="5"
+	/>
+	<active name="Book of Voice" description="Destroy me. Quickly." id="58"
+	gfx="collectibles_Book_of_Voice.png" quality = "0" craftquality = "3" tags="offensive book" maxcharges="6" initcharge="0"
+	/>
+	<passive name="Aphasia" description="Hardly can I ever read" id="59"
+	gfx="collectibles_Aphasia.png" quality = "2" craftquality = "2" tags="summonable offensive"
+	/>
+	<passive name="Nazca" description="Earthbound Deity" id="60"
+	gfx="collectibles_Nazca.png" quality = "4" craftquality = "4" tags="summonable offensive" cache="familiars" devilprice="2"
+	/>
+	<passive name="Cloundy" description="Cloundy knows much more than you" id="61"
+	gfx="collectibles_Cloundy.png" quality = "0" tags="summonable offensive" cache="familiars"
+	/>
+	<passive name="Skiel" description="Your past is lying in pain" id="62"
+	gfx="collectibles_Skiel.png" quality = "2" craftquality = "2" tags="summonable offensive"
+	/>
+	<passive name="Wisel" description="Your present is immersed in dispair" id="63"
+	gfx="collectibles_Wisel.png" quality = "1" craftquality = "1" tags="summonable offensive"
+	/>
+	<passive name="Granel" description="Your future is trailed in vanishment" id="64"
+	gfx="collectibles_Granel.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<active name="Spectralsword" description="Out of its sheath" id="65"
+	gfx="collectibles_Spectralsword.png" quality = "4" craftquality = "4" tags="summonable offensive" maxcharges="0" 
+	/>
+	<active name="Squiresaga" description="My blade burns" id="66"
+	gfx="collectibles_Squiresaga.png" quality = "4" craftquality = "4" tags="offensive" maxcharges="0"
+	/>
+	<passive name="Moment" description="lasrever dlroW" id="67"
+	gfx="collectibles_Moment.png" quality = "4" craftquality = "4" tags="summonable offensive" cache="all"
+	/>
+	<passive name="Lofty" description="Bottomless despair abyss" id="68"
+	gfx="collectibles_Lofty.png" quality = "4" craftquality = "4" tags="summonable offensive"
+	/>
+	<passive name="Theseus's Sign" description="Terms under revision" id="69"
+	gfx="collectibles_Theseus_s_Sign.png" quality = "1" craftquality = "1" tags="summonable"
+	/>
+	<passive name="Heart Change" description="Demon in body,angel in mind" id="70"
+	gfx="collectibles_Heart_Change.png" quality = "3" craftquality = "3" tags="summonable offensive" cache="flying"
+	/>
+	<passive name="Cable Jar" description="Slightly leaky" id="71"
+	gfx="collectibles_Thunder_Jar.png" quality = "3" craftquality = "3" tags="summonable battery"
+	/>
+	<passive name="Gospel" description="Dogmatical Judgement" id="72"
+	gfx="collectibles_Gospel.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<passive name="Tiramisu" description="Health Up + Tastes Tasty" id="73"
+	gfx="collectibles_Tiramisu.png" quality = "2" craftquality = "2" tags="summonable offensive" maxhearts = "2" hearts="4" 
+	/>
+	<passive name="Live Broadcast" description="Going live!" id="74"
+	gfx="collectibles_Live_Broadcast.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<passive name="Drama of sorrow and joy" description="Leader To Despia" id="75"
+	gfx="collectibles_Drama_of_sorrow_and_joy.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<active name="Tzolkin" description="Replay the divine calendar" id="76"
+	gfx="collectibles_Tzolkin.png" quality = "2" craftquality = "2" tags="offensive" maxcharges="6"
+	/>
+	<passive name="Pareidolia" description="Moonlight Domain" id="77"
+	gfx="collectibles_Pareidolia.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	/>
+	<passive name="Reversal Film" description="Cast Fate On Me" id="78"
+	gfx="collectibles_reversal_film.png" quality = "2" craftquality = "2" tags="summonable offensive quest lazarusshared noeden nogreed"
+	/>
+	<passive name="Tears of Pearl" description="Nobility Cherisher" id="79"
+	gfx="collectibles_Tears_of_Pearl.png" quality = "1" craftquality = "1" tags="summonable offensive" 
+	/>
+	<active name="D NAN" description="Warning: division by zero" id="80"
+	gfx="collectibles_D_NAN.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="6"
+	/>
+	<passive name="Risemara" description="Once more again" id="81"
+	gfx="collectibles_Risemara.png" quality = "3" craftquality = "3" tags="summonable offensive" 
+	/>
+	<passive name="Chiastolite" description="Sacrifice with blood" id="82"
+	gfx="collectibles_Chiastolite.png" quality = "2" craftquality = "2" tags="summonable offensive" cache="familiars"
+	/>
+	<passive name="Annihilation" description="Who knows?" id="83"
+	gfx="collectibles_Annihilation.png" quality = "3" craftquality = "3" tags="offensive quest noeden nogreed" hidden="true" 
+	/>
+	<active name="Annihilation " description="Who knows?" id="84"
+	gfx="collectibles_Annihilation.png" quality = "3" craftquality = "3" tags="offensive quest noeden nogreed" hidden="true" maxcharges="0"
+	/>
+	<active name="Calamity" description="II" id="85"
+	gfx="collectibles_Calamity.png" quality = "2" craftquality = "2" tags="offensive nogreed" maxcharges="2" initcharge="1" chargetype="special" shopprice="10"
+	/>
+	<passive name="Shadow Bottle" description="Just like inferno" id="86"
+	gfx="collectibles_Shadow_Selection.png" quality = "1" craftquality = "1" tags="offensive summonable"
+	/>
+	<active name="The True Name" description="ATEM!" id="87"
+	gfx="collectibles_The_True_Name.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="1" shopprice="10"
+	/>
+	<active name="Blue Print" description="Don't worry, I've got the plans" id="88"
+	gfx="collectibles_BluePrint.png" quality = "4" craftquality = "2" tags="offensive" maxcharges="0"
+	/>
+	<passive name="Dyson Star" description="May you be surrounded by stars" id="89"
+	gfx="collectibles_Star_Dyson.png" quality = "2" craftquality = "4" tags="offensive summonable stars" hidden="true"
+	/>
+	<passive name="Hypermnesia" description="Foreverevereverevereverever" id="90"
+	gfx="collectibles_Hypermnesia.png" quality = "2" craftquality = "2" tags="offensive summonable" cache="speed firedelay damage range luck"
+	/>
+	<passive name="Delicate Flower" description="Wish you a better future" id="91"
+	gfx="collectibles_Delicate_Flower.png" quality = "3" craftquality = "3" tags="offensive summonable"
+	/>
+	<passive name="Tech 14" description="Prosperity leads to decline" id="92"
+	gfx="collectibles_Tech_14.png" quality = "2" craftquality = "2" tags="offensive summonable"
+	/>
+	<passive name="Seeker's Eye" description="This path is not the answer" id="93"
+	gfx="collectibles_Seeker_s_Eye.png" quality = "3" craftquality = "3" tags="offensive summonable"
+	/>
+	<passive name="Day Dreamer" description="If only my wish would come true" id="94"
+	gfx="collectibles_Day_Dreamer.png" quality = "4" craftquality = "4" tags="offensive summonable lazarusshared"
+	/>
+	<passive name="Disequilibrium" description="IV" id="95"
+	gfx="collectibles_Disequilibrium.png" quality = "2" craftquality = "2" tags="offensive summonable lazarusshared"
+	/>
+	<passive name="Deconstruction" description="VI" id="96"
+	gfx="collectibles_Destruction.png" quality = "2" craftquality = "2" tags="offensive summonable lazarusshared nogreed"
+	/>
+	<active name="Philosopher's stone" description="Masterpiece" id="97"
+	gfx="collectibles_Philosopher_s_stone.png" quality = "4" craftquality = "4" maxcharges="3" tags="offensive" chargetype="special" shopprice="20"
+	/>
+	<passive name="Brilliant" description="To the gold of eternity" id="98"
+	gfx="collectibles_Brilliant.png" quality = "2" craftquality = "2" tags="offensive summonable" shopprice="13"
+	/>
+	<passive name="Fraternity" description="love me,love my dog" id="99"
+	gfx="collectibles_Fraternity.png" quality = "3" craftquality = "3" tags="offensive summonable" cache="familiars"
+	/>
+	<active name="Ending Count" description="Your time is up" id="100"
+	gfx="collectibles_Ending_Count.png" quality = "3" craftquality = "3" maxcharges="1" tags="offensive"
+	/>
+	<passive name="Cheater's Blessing" description="I'm so glad that you cheat so many times" id="101"
+	gfx="collectibles_Cheater_s_blessing.png" quality = "4" craftquality = "4" tags="offensive summonable" cache="all" hidden = "true"
+	/>
+	<active name="Dimension Contact" description="I found a new channel!" id="102"
+	gfx="collectibles_Dimension_Contact.png" quality = "1" craftquality = "1" maxcharges="1" tags="offensive nogreed"
+	/>
+	<active name="World Arc" description="The world is so small" id="103"
+	gfx="collectibles_World_Arc.png" quality = "2" craftquality = "2" maxcharges="1" tags="offensive nogreed" initcharge="0"
+	/>
+	<active name="Final Prism" description="A gift from another world" id="104"
+	gfx="collectibles_Final_prism.png" quality = "3" craftquality = "3" maxcharges="60" tags="offensive" chargetype="special"
+	/>
+	<active name="Book of Rune" description="Return three, Draw three" id="105"
+	gfx="collectibles_Book_of_Rune.png" quality = "4" craftquality = "4" maxcharges="1" tags="offensive book"
+	/>
+	<passive name="Evil Intervention" description="Embrace ominous" id="106"
+	gfx="collectibles_Evil_Intervention.png" quality = "3" craftquality = "3" tags="offensive summonable" 
+	/>
+	<active name="How to Fly" description="Tap Tap tap!" id="107"
+	gfx="collectibles_Book_of_How_to_Fly.png" quality = "1" craftquality = "1" maxcharges="0" tags="book"
+	/>
+	<active name="Illumination" description="I" id="108"
+	gfx="collectibles_Illumination.png" quality = "2" craftquality = "2" tags="offensive nogreed" maxcharges="6" initcharge="0" 
+	/>
+	<passive name="Contemplation" description="III" id="109"
+	gfx="collectibles_Contemplation.png" quality = "2" craftquality = "2" tags="offensive nogreed" 
+	/>
+	<passive name="Chasm" description="V" id="110"
+	gfx="collectibles_Chasm.png" quality = "2" craftquality = "2" tags="offensive summonable lazarusshared nogreed"
+	/>
+	<passive name="Book of 6 sin" description="Except Anger" id="111"
+	gfx="collectibles_book_of_6_sin.png" quality = "3" craftquality = "3" tags="offensive summonable nogreed book"
+	/>
+	<passive name="Pathetique" description="They die for me" id="112"
+	gfx="collectibles_Pathetique.png" quality = "4" craftquality = "4" tags="summonable"
+	/>
+	<passive name="Dark Mysticism" description="Darkside Reproduction" id="113"
+	gfx="collectibles_Dark_Mysticism.png" quality = "4" craftquality = "4" tags="summonable"
+	/>
+	<passive name="Fresh Death" description="Yuck!" id="114"
+	gfx="collectibles_Fresh_Death.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<active name="The Suture Needle" description="Left Ventricular Puncture" id="115"
+	gfx="collectibles_The_Suture_Needle.png" quality = "4" craftquality = "4" tags="offensive" maxcharges="6"
+	/>
+	<passive name="Glaze Mirror" description="Kind of dazzling" id="116"
+	gfx="collectibles_Glaze_Mirror.png" quality = "1" craftquality = "1" tags="offensive summonable"
+	/>
+	<passive name="Mental Disorder" description="There used to be two." id="117"
+	gfx="collectibles_Mental_disorder.png" quality = "3" craftquality = "3" tags="summonable"
+	/>
+	<passive name="Paranoia" description="There is a dice" id="118"
+	gfx="collectibles_Paranoia.png" quality = "4" craftquality = "4" tags="offensive summonable" devilprice="2"
+	/>
+	<passive name="Cursed Mask" description="You feel dizzy and dizzy" id="119"
+	gfx="collectibles_Cursed_Mask.png" quality = "0" tags="offensive summonable lazarusshared" cache="damage firedelay"
+	/>
+	<active name="Ritual Sting" description="Color with blood" id="120"
+	gfx="collectibles_Ritual_Sting.png" quality = "3" craftquality = "2" tags="offensive" maxcharges="0"
+	/>
+	<passive name="Nihilistic Artificial Eye" description="I can't see..." id="121"
+	gfx="collectibles_Nihilistic_Artificial_Eye.png" quality = "4" craftquality = "4" tags="offensive summonable" cache="damage"
+	/>
+	<passive name="Phantom Crown" description="Mocking Nothingness" id="122"
+	gfx="collectibles_Phantom_Crown.png" quality = "4" craftquality = "4" tags="summonable" devilprice="2"
+	/>
+	<passive name="Blood Wing" description="Flying + Harvesting Blood" id="123"
+	gfx="collectibles_Blood_Wing.png" quality = "3" craftquality = "3" tags="offensive summonable devil" cache="flying" 
+	/>
+	<passive name="Subera Light" description="Break the old days" id="124"
+	gfx="collectibles_Subera_Light.png" quality = "4" craftquality = "4" tags="offensive summonable" cache="familiars" shopprice="30"
+	/>
+	<active name="D Plus" description="Stitching to death" id="125"
+	gfx="collectibles_D_Upper.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="1"
+	/>
+	<passive name="Shangrila" description="Kashtira Arrival" id="126"
+	gfx="collectibles_Shangrila.png" quality = "4" craftquality = "4" tags="offensive summonable stars" 
+	/>
+	<active name="Destiny Anchor" description="This is the choice of Steins;Gate" id="127"
+	gfx="collectibles_Destiny_Anchor.png" quality = "3" craftquality = "3" tags="offensive" maxcharges="0"
+	/>
+	<passive name="Acrotomophilia" description="Rotten and Broken" id="128"
+	gfx="collectibles_Acrotomophilia.png" quality = "2" craftquality = "2" tags="offensive summonable"
+	/>
+	<passive name="Loneliness" description="Journey convergence" id="129"
+	gfx="collectibles_Loneliness.png" quality = "3" craftquality = "3" tags="offensive lazarusshared"
+	/>
+	<active name="Core Brooch" description="Sacrifice of Heavenly Selection" id="130"
+	gfx="collectibles_Core_Brooch.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<passive name="Fantastic Inspiration" description="Redemption by Illusion" id="131"
+	gfx="collectibles_Inspiration.png" quality = "2" craftquality = "2" tags="offensive summonable"
+	/>
+	<passive name="Hunger Burger" description="Delicious finale" id="132" 
+	gfx="collectibles_Hunger_Burger.png" quality = "4" craftquality = "4" tags="offensive summonable" cache = "damage speed" maxhearts = "4" hearts = "4"
+	/>
+	<active name="Muscae Volitantes" description="Magic of Flies" id="133"
+	gfx="collectibles_Fly_of_Jar.png" quality = "2" craftquality = "2" tags="offensive fly" maxcharges="1"
+	/>
+	<passive name="Charon's Sign" description="The Tide is approaching" id="134"
+	gfx="collectibles_Charon_s_Sign.png" quality="0" craftquality="0" tags="offensive"
+	/>
+    <familiar name="Baby Tecro" description="I find!" id="135"
+	gfx="collectibles_Baby_Tecro.png" quality="1" cache="familiars" tags="summonable baby"
+	/>
+    <familiar name="Baby Anna" description="I eat!" id="136"
+	gfx="collectibles_Baby_Anna.png" quality="3" cache="familiars" tags="summonable baby"
+	/>
+    <familiar name="Baby Zeis" description="I know!" id="137"
+	gfx="collectibles_Baby_Zeis.png" quality="2" cache="familiars" tags="summonable baby"
+	/>
+    <familiar name="Baby Marri" description="I ask!" id="138"
+	gfx="collectibles_Baby_Marri.png" quality="3" cache="familiars" tags="summonable baby"
+	/>
+    <familiar name="Baby Autio" description="I hang!" id="139"
+	gfx="collectibles_Baby_Autio.png" quality="1" cache="familiars" tags="summonable baby"
+	/>
+    <familiar name="Baby Lu" description="I plan!" id="140"
+	gfx="collectibles_Baby_Lu.png" quality="2" cache="familiars" tags="summonable nogreed baby"
+	/>
+	<passive name="Kaitian" description="Puncture all rules" id="141" hidden="true" 
+	gfx="collectibles_Kaitian.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<active name="Multiknife" description="Ten years I honed this sword" id="142"
+	gfx="collectibles_Multiknife.png" quality = "3" craftquality = "3" tags="offensive" maxcharges="10"
+	/>
+	<passive name="Dragon Tooth" description="Follow me into the abyss" id="143"
+	gfx="collectibles_Dragon_Tooth.png" quality = "3" craftquality = "3" tags="offensive" cache = "damage" 
+	/>
+	
+	<!--
+	Parked until Zeis rewrite. Restore with Qing_Remaster_scripts/items/Zeiz/*.lua
+	and the matching item_manager requires. Do not nest XML comments here.
+	<active name="D_IIII" description="Roll your Sanity" id="144" hidden="true" 
+	gfx="Zeis/collectibles_DI_III.png" quality = "4" craftquality = "4" tags="offensive" maxcharges="4"
+	/>
+	<passive name="D Heart" description="Sanity fades away with the body" id="145" hidden="true" hearts="99" 
+	gfx="Zeis/collectibles_D_Heart.png" quality = "2" craftquality = "2" tags="offensive"
+	/>
+	<passive name="D Key" description="Open the gate to Sanity" id="146" hidden="true" keys="5"
+	gfx="Zeis/collectibles_D_Keys.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<passive name="D Bomb" description="Sanity blasting" id="147" hidden="true" bombs="5"
+	gfx="Zeis/collectibles_D_Bomb.png" quality = "0" tags="offensive"
+	/>
+	<passive name="D RazorBlade" description="Covered with the blood of Sanity" id="148" hidden="true" 
+	gfx="Zeis/collectibles_D_RazorBlade.png" quality = "1" craftquality = "1" tags="offensive"
+	/>
+	<passive name="D Cross" description="Eternal Sanity?" id="149" hidden="true" 
+	gfx="Zeis/collectibles_D_Cross.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<passive name="D Lusty" description="Sanity is contained within it" id="150" hidden="true" 
+	gfx="Zeis/collectibles_D_Lusty.png" quality = "1" craftquality = "1" tags="offensive"
+	/>
+	<passive name="D Flame" description="Guided by Sanity" id="151" hidden="true" 
+	gfx="Zeis/collectibles_D_Maw.png" quality = "4" craftquality = "4" tags="offensive"
+	/>
+	<passive name="D Rag" description="Come back to Sanity after death" id="152" hidden="true" 
+	gfx="Zeis/collectibles_D_Rag.png" quality = "1" craftquality = "1" tags="offensive"
+	/>
+	<passive name="D Trinity" description="Sanity Tears" id="153" hidden="true" 
+	gfx="Zeis/collectibles_D_Trinity.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<active name="D Soul" description="Sanity sinks" id="154" hidden="true" 
+	gfx="Zeis/collectibles_D_Soul.png" quality = "4" craftquality = "4" tags="offensive" maxcharges="12" initcharge = "0"
+	/>
+	<passive name="D Sacrificalaltar" description="Dedicate your Sanity" id="155" hidden="true" 
+	gfx="Zeis/collectibles_D_Sacrificalaltar.png" quality = "2" craftquality = "2" tags="offensive"
+	/>
+	<passive name="D Coin" description="+25 Sanity" id="156" hidden="true" 
+	gfx="Zeis/collectibles_D_Coin.png" quality = "2" craftquality = "2" tags="offensive"
+	/>
+	<passive name="D Pointyrib" description="Pointing to the Sanity" id="157" hidden="true" 
+	gfx="Zeis/collectibles_D_Pointyrib.png" quality = "2" craftquality = "2" tags="offensive"
+	/>
+	<passive name="Book of Dull" description="You will gain wisdom, fear the Lord, and stay away from evil" id="158" hidden="true" 
+	gfx="Zeis/collectibles_D_BookofDull.png" quality = "3" craftquality = "3" tags="offensive"
+	/>
+	<passive name="D Pack" description="Violating it at any time" id="159" hidden="true" 
+	gfx="Zeis/collectibles_D_Pack.png" quality = "2" craftquality = "2" tags="offensive"
+	/>
+	-->
+	<passive name="Reserved Judgment" description="This isn't final" id="160"
+	gfx="collectibles_Reserved_Judgment.png" quality="3" craftquality="3" tags="summonable"
+	/>
+	<active name="Death Sentence" description="The sentence is final" id="161"
+	gfx="collectibles_Death_Sentence.png" quality="3" craftquality="3" tags="offensive" maxcharges="1"
+	/>
+	<active name="Remaster!" description="Pressing on the bloody blinking button" id="162"
+	gfx="collectibles_Remaster.png" quality="3" craftquality="3" maxcharges="8" tags=""
+	/>
+	<passive name="Bloody Map" description="Drawn in blood" id="163"
+	gfx="collectibles_Bloody_Map.png" quality="0" craftquality="0" tags="summonable"
+	/>
+	<active name="Golden Slot" description="Insert coin to win!" id="164"
+	gfx="collectibles_Golden_slot.png" quality="1" craftquality="1" tags="summonable" maxcharges="0" shopprice="10"
+	/>
+	<passive name="Procrastination" description="I'll do it soon..." id="165"
+	gfx="collectibles_Procrastination.png" quality="1" craftquality="1" tags="summonable" cache="damage"
+	/>
+	<passive name="Sacred Mind Shield" description="Two hearts as one" id="166"
+	gfx="collectibles_Sacred_Mind_Shield.png" quality="4" craftquality="4" tags="summonable offensive" cache="damage shotspeed"
+	/>
+	<passive name="Qing's Faceted Market Diamond" description="Eternity is negotiable" id="167"
+	gfx="collectibles_Diamond.png" quality="1" craftquality="1" tags="summonable" shopprice="5"
+	/>
+	<passive name="Cup Cat" description="Cats don't come alone" id="168"
+	gfx="collectibles_Cup_Cat.png" quality="2" craftquality="2" tags="guppy summonable" maxhearts="2" hearts="2"
+	/>
+	<active name="Abiogenesis" description="Look, it lives on its own" id="169"
+	gfx="collectibles_Abiogenesis.png" quality="3" craftquality="3" tags="summonable offensive" maxcharges="12"
+	/>
+	<passive name="The Voice" description="Now it's just the two of us" id="170"
+	gfx="collectibles_The_Voice.png" quality="3" tags="offensive" hidden="true"
+	/>
+	<passive name="Regenesis" description="Even mistakes are inherited" id="171"
+	gfx="collectibles_Regenesis.png" quality="2" craftquality="2" tags="summonable"
+	/>
+	
+	
+	<trinket id="1" name="Pacification Mark" description="Fair means profitable" gfx="trinkets_Pacification_Mark.png" />
+	<trinket id="2" name="Dark Particle" description="Flammable and delicious" gfx="trinkets_Dark_Particle.png" />
+	<trinket id="3" name="Torn Emperor" description="Oppose esoteric!" gfx="trinkets_Torn_Emperor.png" />
+	<trinket id="4" name="Devil's Joke" description="What an ugly appearance!" gfx="trinkets_Devil_s_Joke.png" />
+	<trinket id="5" name="Torn Moon?" description="Double moon?" gfx="trinkets_Torn_Moon_.png" />
+	<trinket id="6" name="Puncture Symbol" description="Haemospasia" gfx="trinkets_Puncture_Symbol.png" cache="tearflag"/>
+	<trinket id="7" name="Hoarding Symbol" description="Reconstruction" gfx="trinkets_Hoarding_Symbol.png" cache="damage"/>
+	<trinket id="8" name="Transition Symbol" description="Away" gfx="trinkets_Transition_Symbol.png" />
+	<trinket id="9" name="Adhesive Symbol" description="Parasitism" gfx="trinkets_Adhesive_Symbol.png" />
+	<trinket id="10" name="Straining Symbol" description="Depression" gfx="trinkets_Straining_Symbol.png" />
+	<trinket id="11" name="Allocation Symbol" description="Scheme" gfx="trinkets_Allocation_Symbol.png" cache="all"/>
+	<trinket id="12" name="Pause?" description="A Real time game!" gfx="trinkets_Pause_.png" cache="all"/>
+	<trinket id="13" name="Equality Agreement" description="Seemingly equal" gfx="trinkets_Equality_Agreement.png" />
+	<trinket id="14" name="Consistent Expectations" description="Equal in Expection" gfx="trinkets_Consistent_Expectations.png" />
+	<trinket id="15" name="Bundled Sale" description="Buy more, get more" gfx="trinkets_Bundled_Sale.png" />
+	<trinket id="16" name="Broken Brooch" description="Time is enough to change everything" gfx="trinkets_Broken_Brooch.png" />
+</items>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+    <name>[RGON+]Glaze Ceremony: Promised Land</name>
+    <directory>qing_re</directory>
+    <id>0</id>
+    <description>
+	翻越了重重阻碍，舍弃了一切代价，我们终于到达了这片[b]应许之地[/b]。
+	亲友的离去；誓言的破碎；信念的流逝；灵魂的煎熬；
+	我们恐惧被遗忘；我们对未来充满迷茫；
+	但我们从未放弃，从未停止前行。
+	我们的代价一再加大，筹码越积越重，最终连我们的本我也彻底将自己背弃。
+	舍弃一切，方能重置一切。方能获得[b]真正的救赎[/b]。
+	这就是我们的使命。
+
+	曾经，我们只是被燔祭的羔羊，却自以为深受上帝的恩宠；
+	我们标榜着救赎，却从未理解何为救赎。
+	现在，我们终于可以放下一切，去寻找那唯一的[b]希望[/b]。
+	Meus
+
+	[b]模组介绍[/b]
+	本模组是[b]Glaze Ceremony[/b]琉璃圣典模组的完全重制版模组。
+	重制版基于REPENTOGON+重植了本模组的运行底层逻辑。
+	修改和调整了一些较为重复、无趣或冗余的道具、资源以及其他内容。
+	美术方面，大部分风格不符的美术资源得到了重新绘制。
+
+	[b]关于本模组[/b]
+	支持EID、Modconfig menu等模组。
+	进入后黑屏属电脑配置问题，图文步骤见 Wiki：https://loremnmeus.github.io/-TBOI-Glaze_Ceremony-Wiki-/troubleshooting/black-screen
+	旧的琉璃模组已不再维护，请使用本模组替代。
+	
+	如果您在游玩过程中发现了任何问题，请及时联系作者或在本模组讨论区留言。
+	</description>
+    <version>1.0.0</version>
+    <visibility>Public</visibility>
+    <tag id="Lua"/>
+    <tag id="Items"/>
+    <tag id="Active Items"/>
+    <tag id="Cards"/>
+    <tag id="Pickups"/>
+    <tag id="Player Characters"/>
+    <tag id="Familiars"/>
+    <tag id="Babies"/>
+    <tag id="Enemies"/>
+    <tag id="Bosses"/>
+    <tag id="Challenges"/>
+    <tag id="Shaders"/>
+</metadata>

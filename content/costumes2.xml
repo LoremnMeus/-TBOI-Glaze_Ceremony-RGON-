@@ -1,0 +1,57 @@
+<costumes anm2root="gfx/characters/">
+	<costume anm2path="SPWQingHair.anm2" type="none" priority="99" />
+	<costume anm2path="Qingrobes.anm2" type="none" priority="16" />
+	<costume anm2path="Gaint_Punch_Head.anm2" type="passive" id="10"/>
+	<costume anm2path="Qingrobes.anm2" type="passive" id = "3"/>
+	<costume anm2path="My_Best_Friend_Head.anm2" type="passive" id="12"/>
+	<costume anm2path="Assassin_s_eye_head.anm2" type="passive" id="5"/>
+	<costume anm2path="darkness_head.anm2" type="passive" id="1" skinColor="1" overwriteColor="true"/>
+	<costume anm2path="Golden_Rush_Head.anm2" type="passive" id="7"/>
+	<costume anm2path="Tech_nine_Head.anm2" type="passive" id="4"/>
+	<costume anm2path="Coin_Shard_Head.anm2" type="passive" id="16"/>
+	<costume anm2path="Glaze_Shard_Head.anm2" type="passive" id="17"/>
+	<costume anm2path="Lava_Shard_Body.anm2" type="passive" id="18" skinColor="3" overwriteColor="true"/>
+	<costume anm2path="blaststone_Head.anm2" type="passive" id="22" skinColor="3" overwriteColor="true"/>
+	<costume anm2path="Glaze_mushroom.anm2" type="passive" id="27"/>
+	<costume anm2path="Mental_Hypnosis_Head.anm2" type="passive" id="6"/>
+	<costume anm2path="Field_Head.anm2" type="passive" id="32"/>
+	<costume anm2path="Fate_s_Draw_Head.anm2" type="passive" id="45"/>
+	<costume anm2path="Ingestion_to_night_body.anm2" type="passive" id="47" skinColor="0" isFlying="true" />
+	<costume anm2path="Devil_s_Heart_Head.anm2" type="none" priority="99"/>
+	<costume anm2path="D_s_H_2.anm2" type="none" priority="99"/>
+	<costume anm2path="D_s_H_3.anm2" type="none" priority="99"/>
+	<costume anm2path="D_s_H_4.anm2" type="none" priority="99"/>
+	<costume anm2path="Skiel_Head.anm2" type="passive" id="62"/>
+	<costume anm2path="Wisel_Head.anm2" type="passive" id="63"/>
+	<costume anm2path="Granel_Head.anm2" type="passive" id="64"/>
+	<costume anm2path="angel_and_devil_1.anm2" type="none" priority="99" isFlying="true"/>
+	<costume anm2path="angel_and_devil_2.anm2" type="none" priority="99"/>
+	<costume anm2path="angel_and_devil_3.anm2" type="none" priority="99"/>
+	<costume anm2path="angel_and_devil_4.anm2" type="none" priority="99"/>
+	<costume anm2path="Teseus_Head.anm2" type="passive" id="69"/>
+	<costume anm2path="Lofty_Head.anm2" type="passive" id="68"/>
+	<costume anm2path="Despia_Head_1.anm2" type="none" priority="99"/>
+	<costume anm2path="Despia_Head_2.anm2" type="none" priority="99"/>
+	<costume anm2path="Despia_Head_3.anm2" type="none" priority="99"/>
+	<costume anm2path="Tecro_Head.anm2" type="none" priority="99"/>
+	<costume anm2path="Tecro_Face.anm2" type="none" priority="99"/>
+	<costume anm2path="reversal_firm.anm2" type="passive" id="78"/>
+	<costume anm2path="Pareidolia_Head.anm2" type="passive" id="77"/>
+	<costume anm2path="Pareidolia_Head2.anm2" type="none" priority="99"/>
+	<costume anm2path="Anna_body.anm2" type="none" priority="99" isFlying="true"/>
+	<costume anm2path="Anna2_body.anm2" type="none" priority="99" isFlying="true"/>
+	<costume anm2path="Anna_Horn.anm2" type="none" priority="99"/>
+	<costume anm2path="Autio_Hair.anm2" type="none" priority="99"/>
+	<costume anm2path="Delicate_Flower_Head.anm2" type="none" priority="99"/>
+	<costume anm2path="Tech_14_Head.anm2" type="passive" id="92"/>
+	<costume anm2path="Zeistos_Head.anm2" type="none" priority="99"/>
+	<!--costume anm2path="Cheater_s_Head.anm2" type="passive" id="101"/-->
+	<costume anm2path="Cursed_Mark.anm2" type="passive" id="119"/>
+	<costume anm2path="Phantom_Crown_Head.anm2" type="passive" id="122"/>
+	<costume anm2path="blood_wing.anm2" type="passive" id="123" isFlying="true"/>
+	<costume anm2path="Tecrorun_body.anm2" type="none" priority="99" isFlying="true"/>
+	<costume anm2path="Tecrorun_head.anm2" type="none" priority="99"/>
+	<costume anm2path="Shangrila_Head.anm2" type="passive" id="126"/>
+	<costume anm2path="Burger_Head.anm2" type="passive" id="132"/>
+	<costume anm2path="Dragon_Tooth_Head.anm2" type="passive" id="143"/>
+</costumes>

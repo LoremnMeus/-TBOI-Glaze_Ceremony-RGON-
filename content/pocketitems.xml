@@ -1,0 +1,80 @@
+<pocketitems>
+	<card type="object" pickup="2359" id="2359" description="Looking for Assimilation" name="Glazed Dice Shard" announcer="400" announcerdelay="3" mimiccharge="8" hud="Glazed Dice Shard"/>
+	<card type="rune" pickup="2360" id="2360" description="Namely Safe" name="Qing's Soul" mimiccharge="4" hud="Qing's Soul" />
+	<card type="object" pickup="2375" id="2375" description="Granting one meal" name="Round trip Rail Ticket" mimiccharge="3" hud="Round trip Rail Ticket"/>
+	<card type="object" pickup="2376" id="2376" description="Welcome again!" name="One way Rail Ticket" mimiccharge="2" hud="One way Rail Ticket" hidden="true"/>
+	
+	<card type="tarot" pickup="2378" id="2378" description="May you lose more" name="0 - The Fool" announcer="375" announcerdelay="10" mimiccharge="3" hud="The Fool_"/>
+	<card type="tarot" pickup="2378" id="2379" description="I Will Congeal" name="I - The Witch" mimiccharge="2" hud="The Witch_"/>
+	<card type="tarot" pickup="2378" id="2380" description="I Will Invoke" name="I - The Invoker" mimiccharge="1" hud="The Invoker_"/>
+	<card type="tarot" pickup="2378" id="2381" description="I Will Reveal" name="I - The Wizard" greedmode="false" mimiccharge="4" hud="The Wizard_"/>
+	<card type="tarot" pickup="2378" id="2382" description="Mom? It's mom!" name="II - The High Priestess" announcer="379" announcerdelay="10" mimiccharge="3" hud="The High Priestess_"/>
+	<card type="tarot" pickup="2378" id="2383" description="Let them fight for me" name="III - The Empress" announcer="374" announcerdelay="10" mimiccharge="6" hud="The Empress_"/>
+	<card type="tarot" pickup="2378" id="2384" description="Never can we escape" name="IV - The Emperor" announcer="373" announcerdelay="10" mimiccharge="8" hud="The Emperor_"/>
+	<card type="tarot" pickup="2378" id="2385" description="I . I" name="V - The Hierophant" announcer="378" announcerdelay="10" mimiccharge="4" hud="The Hierophant_"/>
+	<card type="tarot" pickup="2378" id="2386" description="A lover in Octave" name="VI - Lover" announcer="380" announcerdelay="10" mimiccharge="6" hud="The Lover_"/>
+	<card type="tarot" pickup="2378" id="2387" description="The earth is tingling for my arrival" name="VII - Chariot" announcer="371" announcerdelay="10" mimiccharge="2" hud="The Chariot_"/>
+	<card type="tarot" pickup="2378" id="2388" description="Power of balance" name="VIII - Adjustment" mimiccharge="2" hud="Adjustment_"/>
+	<card type="tarot" pickup="2378" id="2389" description="Bury your past deeply in mind" name="IX - The Hermit" announcer="377" announcerdelay="10" mimiccharge="12" hud="The Hermit_"/>
+	<card type="tarot" pickup="2378" id="2390" description="Light and dark coexist" name="X - The Wheel of Destiny" announcer="391" announcerdelay="10" mimiccharge="8" hud="The Wheel of Destiny_"/>
+	<card type="tarot" pickup="2378" id="2391" description="Inspire their inner beast" name="XI - Lure" mimiccharge="3" hud="Lure_"/>
+	<card type="tarot" pickup="2378" id="2392" description="Looping and winding" name="XII - The Hanged Man" announcer="376" announcerdelay="10" mimiccharge="12" hud="The Hanged Man_"/>
+	<card type="tarot" pickup="2378" id="2393" description="Dream into a mirror" name="XIII - Faint" mimiccharge="12" hud="Faint_"/>
+	<card type="tarot" pickup="2378" id="2394" description="Perfect Faintless Transcendent Supernatural Maniac Absolute" name="XIV - Art" mimiccharge="4" hud="Art_"/>
+	<card type="tarot" pickup="2378" id="2395" description="Soul = Rebirth" name="XV - The Devil" announcer="372" announcerdelay="10" mimiccharge="4" hud="The Devil_"/>
+	<card type="tarot" pickup="2378" id="2396" description="May you be terialistic" name="XVI - The Tower" announcer="385" announcerdelay="10" mimiccharge="2" hud="The Tower_"/>
+	<card type="tarot" pickup="2378" id="2397" description="Star frost condenses here" name="XVII - The Star" announcer="383" announcerdelay="10" mimiccharge="3" hud="The Star_"/>
+	<card type="tarot" pickup="2378" id="2398" description="Keep watching moon til bright" name="XVIII - The Moon" announcer="382" announcerdelay="10" mimiccharge="4" hud="The Moon_"/>
+	<card type="tarot" pickup="2378" id="2399" description="All that falls again" name="XIX - The Sun" announcer="384" announcerdelay="10" mimiccharge="12" hud="The Sun_"/>
+	<card type="tarot" pickup="2378" id="2400" description="Don't be sad.Don't worry." name="XX - The Aeon" mimiccharge="6" hud="The Aeon_"/>
+	<card type="tarot" pickup="2378" id="2401" description="Ever shinning" name="XXI - The Universe" mimiccharge="12" hud="The Universe_"/>
+	
+	<card type="tarot_reverse" pickup="2379" id="2402" description="May you know less" name="0 - The Fool?" announcer="512" announcerdelay="10" mimiccharge="6" hud="The Fool r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2403" description="I Will Inflame" name="I - The Sage?" mimiccharge="4" hud="The Sage r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2404" description="Hug with your mommy!" name="II - The High Priestess?" announcer="514" announcerdelay="10" mimiccharge="4" hud="The High Priestess r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2405" description="Marked with prices in secret" name="III - The Empress?" announcer="515" announcerdelay="10" mimiccharge="8" hud="The Empress r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2406" description="When you raise the second sun" name="IV - The Emperor?" announcer="516" announcerdelay="10" mimiccharge="12" hud="The Emperor r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2407" description="detautafnI ... ni ... si ... em" name="V - The Hierophant?" announcer="517" announcerdelay="10" mimiccharge="1" hud="The Hierophant r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2408" description="Til blood shedding like river" name="VI - The Lover?" announcer="518" announcerdelay="10" mimiccharge="12" hud="The Lover r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2409" description="Dimensional Trap Pyramid" name="VII - The Chariot?" announcer="519" announcerdelay="10" mimiccharge="3" hud="The Chariot r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2410" description="The Best Adjustment is to Confiscate" name="VIII - Adjustment?" mimiccharge="4" hud="Adjustment r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2411" description="Buried for thousand years" name="IX - The Hermit?" announcer="521" announcerdelay="10" mimiccharge="12" hud="The Hermit r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2412" description="Do you believe in gravitation?" name="X - The Wheel of Destiny?" announcer="522" announcerdelay="10" mimiccharge="8" hud="The Wheel of Destiny r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2413" description="Free your inner slave" name="XI - Lure?" mimiccharge="6" hud="Lure r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2414" description="May you a better escape" name="XII - The Hanged Man?" announcer="524" announcerdelay="10" mimiccharge="12" hud="The Hanged Man r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2415" description="Cross between life and death" name="XIII - Faint?" mimiccharge="12" hud="Faint r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2416" description="Handless combo" name="XIII - Death?" announcer="525" announcerdelay="10" mimiccharge="3" hud="Death r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2417" description="Harbouring heresy" name="XIII - The Corpse?" mimiccharge="4" hud="The Corpse r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2418" description="Art is explosion" name="XIV - Art?" mimiccharge="3" hud="Art r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2419" description="Zero = Infinity" name="XV - The Devil?" announcer="527" announcerdelay="10" mimiccharge="12" hud="The Devil r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2420" description="Collapse..." name="XVI - The Tower?" announcer="528" announcerdelay="10" mimiccharge="8" hud="The Tower r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2421" description="As bright as stars" name="XVII - The Stars?" announcer="529" announcerdelay="10" mimiccharge="6" hud="The Stars r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2422" description="Look to the sky,Way up on high" name="XVIII - The Moon?" announcer="530" announcerdelay="10" mimiccharge="3" hud="The Moon r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2423" description="We are the SOL!" name="XIX - The Sun?" announcer="531" announcerdelay="10" mimiccharge="1" hud="The Sun r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2424" description="Instant becomes eternity" name="XX - The Aeon?" mimiccharge="6" hud="The Aeon r_"/>
+	<card type="tarot_reverse" pickup="2379" id="2425" description="Above heaven,Unique and alone" name="XXI - The Universe?" mimiccharge="12" hud="The Universe r_"/>
+	
+	<card type="tarot" pickup="2378" id="2426" description="Your long night is coming" name="XIX - The Eclipse" mimiccharge="3" hud="The Eclipse"/>
+	<card type="tarot_reverse" pickup="2379" id="2427" description="Polar Day Reaches Again" name="XIX - The Eclipse?" mimiccharge="6" hud="The Eclipse r"/>
+	
+	<card type="rune" pickup="2421" id="2428" description="I Hate" name="Tecro's Soul" mimiccharge="3" hud="Tecro's Soul" />
+	<card type="rune" pickup="2422" id="2429" description="I Want" name="Anna's Soul" mimiccharge="6" hud="Anna's Soul" />
+	<card type="rune" pickup="2423" id="2430" description="I Know" name="Zeis's Soul" mimiccharge="6" hud="Zeis's Soul" />
+	
+	<card type="tarot" pickup="2378" id="2431" description="From the well" name="XXI - The Profound" mimiccharge="3" hud="The Profound"/>
+	<card type="tarot_reverse" pickup="2379" id="2432" description="No sky nor moon" name="XXI - The Profound?" mimiccharge="12" hud="The Profound r"/>
+	<card type="tarot" pickup="2378" id="2433" description="Deity ceremony" name="V - The Sting" mimiccharge="6" hud="The Sting"/>
+	<card type="tarot_reverse" pickup="2379" id="2434" description="Fall to abyss" name="V - The Sting?" mimiccharge="2" hud="The Sting r"/>
+	<!--
+	<card type="tarot" pickup="2378" id="2378" description="Power of balance" name="VIII - Adjustment" mimiccharge="2" hud="Adjustment"/>
+	<card type="tarot" pickup="2378" id="2379" description="Inspire their inner beast" name="XI - Lure" mimiccharge="3" hud="Lure"/>
+	<card type="tarot" pickup="2378" id="2380" description="Perfect Faintless Transcendent Supernatural Maniac Absolute" name="XIV - Art" mimiccharge="4" hud="Art"/>
+	<card type="tarot" pickup="2378" id="2381" description="Don't be sad.Don't worry." name="XX - The Aeon" mimiccharge="12" hud="The Aeon"/>
+	<card type="tarot" pickup="2378" id="2382" description="Ever shinning" name="XXI - The Universe" mimiccharge="12" hud="The Universe"/>
+	<card type="tarot_reverse" pickup="2379" id="2383" description="The Best Adjustment is to Confiscate" name="VIII - Adjustment?" mimiccharge="4" hud="Adjustment r"/>
+	<card type="tarot_reverse" pickup="2379" id="2384" description="Free your inner slave" name="XI - Lure?" mimiccharge="12" hud="Lure r"/>
+	<card type="tarot_reverse" pickup="2379" id="2385" description="Art is explosion" name="XIV - Art?" mimiccharge="3" hud="Art r"/>
+	<card type="tarot_reverse" pickup="2379" id="2386" description="Instant becomes eternity" name="XX - The Aeon?" mimiccharge="8" hud="The Aeon r"/>
+	<card type="tarot_reverse" pickup="2379" id="2387" description="Above heaven,Unique and alone" name="XXI - The Universe?" mimiccharge="12" hud="The Universe r"/>
+	-->
+</pocketitems>

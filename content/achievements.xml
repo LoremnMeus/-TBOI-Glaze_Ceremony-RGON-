@@ -1,0 +1,72 @@
+<achievements gfxroot="gfx/ui/Some achievements/">
+	<achievement name="QingRemaster_Item_Darkness" text="Unlocked: Darkness" gfx="achievement_Darkness.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Touchstone" text="Unlocked: Touchstone" gfx="achievement_Touchstone.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_My_Hat" text="Unlocked: My Hat" gfx="achievement_My_Hat.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Tech_9" text="Unlocked: Tech 9" gfx="achievement_Tech_9.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Assassin_s_Eye" text="Unlocked: Assassin's Eye" gfx="achievement_Assassin_s_Eye.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Mental_Hypnosis" text="Unlocked: Mental Hypnosis" gfx="achievement_Mental_Hypnosis.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Gold_Rush" text="Unlocked: Gold Rush" gfx="achievement_Golden_Rush.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Air_Flight" text="Unlocked: Air Flight" gfx="achievement_Air_Flight.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_The_Watcher" text="Unlocked: The Watcher" gfx="achievement_The_Watcher.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Giant_Punch" text="Unlocked: Giant Punch" gfx="achievement_Gaint_Punch.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Memory" text="Unlocked: Memory" gfx="achievement_Memory.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_My_Best_Friend" text="Unlocked: My Best Friend" gfx="achievement_My_Best_Friend.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Super_Bombs" text="Unlocked: Super Bombs" gfx="achievement_Super_Bombs.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Brimstream" text="Unlocked: Brimstream" gfx="achievement_Brimstream.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Crown_of_the_glaze" text="Unlocked: Crown of the Glaze" gfx="achievement_Glaze_Crown.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_A_Shard_Of_Coin" text="Unlocked: A Shard of Coin" gfx="achievement_Coin_Shard.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Black_Map" text="Unlocked: Black Map" gfx="achievement_Black_Map.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Blaststone" text="Unlocked: Blaststone" gfx="achievement_Brimstream.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Little_Duck" text="Unlocked: Little Duck" gfx="achievement_Little_Duck.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Alchemy_Pot" text="Unlocked: Alchemy Pot" gfx="achievement_Alchemy_Pot.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Air_Terror" text="Unlocked: Air Terror" gfx="achievement_Air_Flight.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Glaze_Mushroom" text="Unlocked: Glaze Mushroom" gfx="achievement_Glazed_Cap.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Pageant_Cross_dresser" text="Unlocked: Pageant Cross-dresser" gfx="achievement_Pageant_Cross_Dresser.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_It_s_a_trick" text="Unlocked: It's a trick!!" gfx="achievement_a_tricky_one.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Tianyi" text="Unlocked: Apocalypse" gfx="achievement_TianYi.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Colorblindness" text="Unlocked: Colorblindness" gfx="achievement_ColorBlinder.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Field" text="Unlocked: Field" gfx="achievement_Field.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Suture_Needle" text="Unlocked: Suture Needle" gfx="achievement_Suture_Needle.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_More_Options___" text="Unlocked: More Options??!" gfx="achievement_More_Options___.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Fate_s_Draw" text="Unlocked: Fate's Draw" gfx="achievement_Fate_s_Draw.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_My_Emblem" text="Unlocked: My Emblem" gfx="achievement_My_Emblem.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Ingestion_to_Night" text="Unlocked: Ingestion to Night" gfx="achievement_Ingestion_to_Night.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_D773" text="Unlocked: D773" gfx="achievement_D773.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Devil_s_Heart" text="Unlocked: Devil's Heart" gfx="achievement_Devil_s_Heart.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_DVF" text="Unlocked: D-V-F" gfx="achievement_DVF.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Book_of_Future" text="Unlocked: Book of Future" gfx="achievement_Book_of_Future.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Hyper_Velocity" text="Unlocked: Hyper Velocity" gfx="achievement_Hyper_Velocity.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Wavering_Eyes" text="Unlocked: Wavering Eyes" gfx="achievement_wavering_eye.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Pendulum_Star" text="Unlocked: Pendulum Star" gfx="achievement_Pendulum_star.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Book_of_Thoth" text="Unlocked: Book of Thoth" gfx="achievement_Book_of_Thoth.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Book_of_The_Law" text="Unlocked: Book of The Law" gfx="achievement_Book_of_Law.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Book_of_Vision" text="Unlocked: Book of Vision" gfx="achievement_Book_of_Vision.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Book_of_Voice" text="Unlocked: Book of Voice" gfx="achievement_Book_of_Voice.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Aphasia" text="Unlocked: Aphasia" gfx="achievement_Aphasia.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Nazca" text="Unlocked: Nazca" gfx="achievement_Nazca.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Cloundy" text="Unlocked: Cloundy" gfx="achievement_cloudy.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Skiel" text="Unlocked: Skiel" gfx="achievement_Ilasters.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Wisel" text="Unlocked: Wisel" gfx="achievement_Ilasters.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Granel" text="Unlocked: Granel" gfx="achievement_Ilasters.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Spectralsword" text="Unlocked: Spectralsword" gfx="achievement_SpectralSword.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Squiresaga" text="Unlocked: Squiresaga" gfx="achievement_Squiresaga.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Moment" text="Unlocked: Moment" gfx="achievement_moment.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Lofty" text="Unlocked: Lofty" gfx="achievement_Lofty.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Theseus_s_Sign" text="Unlocked: Theseus's Sign" gfx="achievement_theseus_s_sign.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Heart_Change" text="Unlocked: Heart Change" gfx="achievement_HeartChange.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Cable_Jar" text="Unlocked: Cable Jar" gfx="achievement_CableJar.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Gospel" text="Unlocked: Gospel" gfx="achievement_gospel.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Tiramisu" text="Unlocked: Tiramisu" gfx="achievement_tiramisu.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Live_Broadcast" text="Unlocked: Live Broadcast" gfx="achievement_live_Broadcast.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Drama_of_sorrow_and_joy" text="Unlocked: Drama of sorrow and joy" gfx="achievement_Dosaj.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Tzolkin" text="Unlocked: Tzolkin" gfx="achievement_Tzolkin.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Pareidolia" text="Unlocked: Pareidolia" gfx="achievement_pareidolia.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Reversal_Film" text="Unlocked: Reversal Film" gfx="achievement_reversal_film.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Tears_of_Pearl" text="Unlocked: Tears of Pearl" gfx="achievement_pearl_tears.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_D_NAN" text="Unlocked: D NAN" gfx="achievement_dnan.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Risemara" text="Unlocked: Risemara" gfx="achievement_risemara.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Chiastolite" text="Unlocked: Chiastolite" gfx="achievement_Chiastolite.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Book_of_6_sin" text="Unlocked: Book of 6 sin" gfx="achievement_Book_of_6_sin.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Card_Qing_s_Soul" text="Unlocked: Qing's Soul" gfx="achievement_Soul_of_WQ.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Pickup_Glaze_Bomb" text="Unlocked: Glaze bomb" gfx="achievement_Glaze_Bomb.png" steam_name="" steam_description="" steam_icon="" />
+</achievements>
