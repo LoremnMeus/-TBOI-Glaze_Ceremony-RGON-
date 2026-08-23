@@ -85,6 +85,18 @@ local function register_key_task_for_chest(ent)
 	local d = ent:GetData()
 	d[item.own_key.."key_room"] = tg
 	d[item.own_key.."chest_seed"] = seed
+	local rooms2 = level:GetRooms()
+	for i = 0, rooms2.Size do
+		local targ = rooms2:Get(i)
+		if targ and targ.ListIndex == tg then
+			local desc = level:GetRoomByIdx(targ.SafeGridIndex, -1)
+			if desc then
+				desc.DisplayFlags = desc.DisplayFlags | 5
+			end
+			break
+		end
+	end
+	level:UpdateVisibility()
 	return true
 end
 
@@ -635,6 +647,11 @@ Function = function(_,ent)
 		end
 	end
 end,
+})
+
+glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
+	zh = "辉片满层时开箱额外+4个琉璃掉落",
+	en = "At 5 shards: +4 glazed pickups when opened",
 })
 
 return item

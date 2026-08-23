@@ -6,6 +6,8 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local ModConfig = require("Qing_Remaster_scripts.others.Mod_Config_Menu_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
+local translations = include("Qing_Remaster_scripts.translations.translate")
+local menu_lang = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -27,16 +29,6 @@ local item = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Qing.png",
 				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：万青",
-						Description = "插在物体上的小刀可以作为瞬移标记点#按下Alt键进行瞬移#必要情况下小刀会自动扎在墙上让玩家瞬移出来",
-					},
-					["en"] = {
-						Name = "Operation Guide:W.Q.",
-						Description = "A small knife inserted into an object can serve as a teleportation marker #Press the Alt key to teleport",
-					},
-				},
 			},
 		},
 		[enums.Players.Spwq] = {
@@ -46,16 +38,6 @@ local item = {
 			Description = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Qing.png",
-				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：万青",
-						Description = "攻击键或按住鼠标左键移动指挥准星#Ctrl 或鼠标中键切换巡航/护卫#鼠标右键或短按蓝图切换自动/压制开火#长按蓝图打开面板",
-					},
-					["en"] = {
-						Name = "Operation Guide:W.Qing",
-						Description = "Attack or hold LMB to move the command mark#Ctrl or MMB toggles Cruise/Guard#RMB or tap Blueprint toggles Auto/Force fire#Hold Blueprint to open the panel",
-					},
 				},
 			},
 		},
@@ -73,16 +55,6 @@ local item = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Tecro.png",
 				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：泰克罗",
-						Description = "按下鼠标中键开关鼠标控制",
-					},
-					["en"] = {
-						Name = "Operation Guide:Tecro",
-						Description = "Press the middle mouse button to switch mouse control",
-					},
-				},
 			},
 		},
 		[enums.Players.Tecrorun] = {
@@ -94,16 +66,6 @@ local item = {
 			Description = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Tecro.png",
-				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：泰克罗· 罗恩",
-						Description = "按下鼠标中键开关鼠标控制#瞄准门口瞬移可以出门#满蓄力造成更高伤害",
-					},
-					["en"] = {
-						Name = "Operation Guide:Tecro",
-						Description = "Press the middle mouse button to switch mouse control",
-					},
 				},
 			},
 		},
@@ -117,16 +79,6 @@ local item = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Anna.png",
 				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：安娜",
-						Description = "按住 {{ButtonRT}} 时松开攻击键就不会发射#清理房间后按住攻击键并双击 {{ButtonRT}} 可快速收回捕获物#稀有的掉落物造成更高伤害",
-					},
-					["en"] = {
-						Name = "Operation Guide:Anna",
-						Description = "Releasing the attack key while holding down {{ButtonRT}} will not emit #After cleaning the room, holding down the attack key and double clicking {ButtonRT}} can quickly retrieve the captured item # Rare dropped items cause higher damage",
-					},
-				},
 			},
 		},
 		[enums.Players.annA] = {
@@ -139,16 +91,6 @@ local item = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Anna.png",
 				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：安奈",
-						Description = "蓄力轰炸目标#攻击后有0.25秒无敌时间",
-					},
-					["en"] = {
-						Name = "Operation Guide:Anna",
-						Description = "Accumulated and bomb target # Gain 0.25 seconds of invincibility after attack",
-					},
-				},
 			},
 		},
 		[enums.Players.Zeistos] = {
@@ -159,16 +101,7 @@ local item = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Zeistos.png",
 				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：泽·伊斯托斯",
-						Description = "第一层自由选择一个被动道具#此后可以选择与获得的道具一定距离内的被动道具#未正式获得的被动道具最多只能选一次",
-					},
-					["en"] = {
-						Name = "Operation Guide:Zeis",
-						Description = "The first layer freely selects a passive item #Afterwards, you can choose passive items within a certain distance from the obtained item #Passive items that have not been officially obtained can only be selected once at most",
-					},
-				},
+				dogma_shader = true,
 			},
 		},
 		[enums.Players.Zeiz] = {
@@ -179,16 +112,7 @@ local item = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Zeistos.png",
 				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：泽伊兹",
-						Description = "每层进入控制中枢#接触候选虚影以任命管理员#其愚见会错误地管理世界",
-					},
-					["en"] = {
-						Name = "Operation Guide:Zeiz",
-						Description = "Enter the Control Hub each floor#Touch a candidate phantom to appoint them#Their Folly mismanages the world",
-					},
-				},
+				dogma_shader = true,
 			},
 		},
 		[enums.Players.Marriano] = {
@@ -197,12 +121,6 @@ local item = {
 			Description = {
 				loader = {
 					[1] = "gfx/effects/signs/notice_sign_Marriano.png",
-				},
-				Desc = {
-					["zh"] = {
-						Name = "操作指南：玛利亚诺",
-						Description = "将道具重置为面具#面具全部破碎后堕入恶魔",
-					},
 				},
 			},
 		},
@@ -221,6 +139,11 @@ local item = {
 		[enums.Players.Tecro] = {
 			Name = "gfx/ui/stage/playername_Tecro.png",
 			Portrait = "gfx/ui/stage/TecroPortrait.png",
+			NoShake = false,
+		},
+		[enums.Players.Tecrorun] = {
+			Name = "gfx/ui/stage/playername_Tecrorun.png",
+			Portrait = "gfx/ui/stage/TecroPortrait3.png",
 			NoShake = false,
 		},
 		[enums.Players.Anna] = {
@@ -245,6 +168,21 @@ local item = {
 		},
 	},
 }
+
+local function apply_notice_dogma(sprite)
+	if not REPENTOGON or not sprite then return end
+	local temp_hud = require("Qing_Remaster_scripts.callbacks.temp_item_hud_holder")
+	temp_hud.apply_sprite_shader(sprite, temp_hud.DOGMA_CHROMATIC_SHADER)
+	local col = sprite.Color
+	local t = temp_hud.dogma_shader_time()
+	if col.SetColorize then
+		local next_col = Color(col.R, col.G, col.B, col.A, col.RO, col.GO, col.BO)
+		next_col:SetColorize(0, 0, 0, t)
+		sprite.Color = next_col
+	else
+		sprite.Color = Color(col.R, col.G, col.B, col.A, col.RO, col.GO, col.BO, 0, 0, 0, t)
+	end
+end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = nil,
 Function = function(_,collid, itemRng, player, useFlags, activeSlot, customVarData)
@@ -310,22 +248,36 @@ end,
 function item.spawn_desc_info(tp,params)
 	params = params or {}
 	local info = item.player_info[tp]
-	if info and info.Description then
-		local q = Isaac.Spawn(1000,enums.Entities.EID_Descriptier,0,params.pos or Game():GetRoom():GetGridPosition(auxi.choose(1,2,3,4,5,9,10,12,13)),Vector(0,0),nil)
-		q.SortingLayer = 1
-		local s = q:GetSprite()
-		s:Load("gfx/thread/Notice_board.anm2",true)
-		for u,v in pairs(info.Description.loader) do s:ReplaceSpritesheet(u,v) end s:LoadGraphics()
-		s:SetFrame("Idle1_",1)
-		local d = q:GetData()
-		local language = Options.Language 
-		local desc = info.Description.Desc
-		if desc[language] == nil then language = "zh" end
-		desc = desc[language]
-		d.EID_Description = {Name = desc.Name,Description = desc.Description,}
-		return q
+	local guide = translations.get_player_start_guide(tp, menu_lang.get_language("ControlsLanguage"))
+	if not info or not info.Description or not guide then return nil end
+	local q = Isaac.Spawn(1000,enums.Entities.EID_Descriptier,0,params.pos or Game():GetRoom():GetGridPosition(auxi.choose(1,2,3,4,5,9,10,12,13)),Vector(0,0),nil)
+	q.SortingLayer = 1
+	local s = q:GetSprite()
+	s:Load("gfx/thread/Notice_board.anm2",true)
+	for u,v in pairs(info.Description.loader) do s:ReplaceSpritesheet(u,v) end s:LoadGraphics()
+	s:SetFrame("Idle1_",1)
+	local d = q:GetData()
+	d.EID_Description = {Name = guide.Name, Description = guide.Description,}
+	if info.Description.dogma_shader then
+		item.apply_notice_board_dogma(q)
 	end
+	return q
 end
+
+function item.apply_notice_board_dogma(ent)
+	if not ent then return end
+	ent:GetData()[item.own_key.."dogma_sign"] = true
+	apply_notice_dogma(ent:GetSprite())
+end
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFECT_UPDATE, params = enums.Entities.EID_Descriptier,
+Function = function(_,ent)
+	local d = ent:GetData()
+	if d[item.own_key.."dogma_sign"] then
+		apply_notice_dogma(ent:GetSprite())
+	end
+end,
+})
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
 Function = function(_,continue)
@@ -336,7 +288,7 @@ Function = function(_,continue)
 			for playerNum = 1,Game():GetNumPlayers() do
 				local player = Game():GetPlayer(playerNum - 1)
 				local info = item.player_info[player:GetPlayerType()]
-				if info and info.Description then
+				if info and info.Description and translations.get_player_start_guide(player:GetPlayerType(), menu_lang.get_language("ControlsLanguage")) then
 					item.spawn_desc_info(player:GetPlayerType())
 					break
 				end

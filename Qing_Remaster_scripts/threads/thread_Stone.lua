@@ -52,6 +52,7 @@ local item = {
 function item.set_off()
 	save.elses[item.own_key.."spawn"] = nil
 	save.elses[item.own_key.."effect"] = nil
+	save.elses[item.own_key.."map"] = nil
 end
 
 function item.set_on()
@@ -74,12 +75,12 @@ function item.plan_a_bfs()
 	local rooms = level:GetRooms()
 	local rng = Game():GetPlayer(0):GetCollectibleRNG(333)
 	local tbl = {}
-	for i = 0,rooms.Size do
+	for i = 0,rooms.Size - 1 do
 		local targ = rooms:Get(i)
 		if targ ~= nil and targ.SafeGridIndex >= 0 then
 			local id = targ.SafeGridIndex
 			local desc = level:GetRoomByIdx(id)
-			if item.banish_room_list[desc.Data.Type] ~= true then
+			if desc and desc.Data and item.banish_room_list[desc.Data.Type] ~= true then
 				local doors = desc.Data.Doors
 				local move_info = auxi.get_moves_in_gridroom(desc.Data.Shape)
 				for slot = 0,7 do
@@ -96,7 +97,12 @@ function item.plan_a_bfs()
 			end
 		end
 	end
-	local ret = auxi.random_in_table(tbl,rng) or {id = -1,slot = 0,}
+	local ret = auxi.random_in_table(tbl,rng)
+	if not ret then
+		save.elses[item.own_key.."effect"] = nil
+		save.elses[item.own_key.."map"] = nil
+		return false
+	end
 	save.elses[item.own_key.."effect"] = ret
 	
 	save.elses[item.own_key.."map"] = {}
@@ -105,6 +111,7 @@ function item.plan_a_bfs()
 	while(#tbl > 0) do
 		local tab = tbl[1]
 		local desc = level:GetRoomByIdx(tab.id)
+		if not desc or not desc.Data then break end
 		local move_info = auxi.get_moves_in_gridroom(desc.Data.Shape)
 		for u,v in pairs(move_info) do
 			if auxi.is_safe_move_in_grids(tab.id,v) then
@@ -117,14 +124,15 @@ function item.plan_a_bfs()
 		end
 		table.remove(tbl,1)
 	end
-	
+	return true
 end
 
 function item.generate_chess_broad()
 	local room = Game():GetRoom() local level = Game():GetLevel() local desc = level:GetCurrentRoomDesc()
 	local move_info = auxi.get_moves_in_gridroom(desc.Data.Shape)
 	local pos = room:GetCenterPos()
-	if save.elses[item.own_key.."effect"] == nil then item.plan_a_bfs() end
+	if save.elses[item.own_key.."effect"] == nil and not item.plan_a_bfs() then return end
+	if not save.elses[item.own_key.."map"] then return end
 	if save.elses[item.own_key.."map"][desc.SafeGridIndex] == 0 then 
 		pos = room:GetDoorSlotPosition(save.elses[item.own_key.."effect"].slot)
 		item.generate_stone_door(save.elses[item.own_key.."effect"].slot)
@@ -143,12 +151,15 @@ function item.generate_chess_broad()
 end
 
 function item.generate_stone_door(slot)		--房间的标记还需要放上去
+	local room = Game():GetRoom()
 	local rng = Game():GetPlayer(0):GetCollectibleRNG(333)
-	local rnd = rng:RandomInt(11)
 	if save.elses[item.own_key.."effect"] == nil then return end
+	local effect = save.elses[item.own_key.."effect"]
+	effect.door_variant = effect.door_variant or (rng:RandomInt(11) + 23752)
+	local door_variant = effect.door_variant
 	if save.elses[item.own_key.."effect"].loaded_door then
-		grid_door.try_spawn_grid_door(room,slot,nil,{check_and_leave = "s.default."..tostring(rnd + 23752),should_update = true,loadname = "gfx/grid/door_checkboarddoor.anm2",playname = "Opened",
-		vr = rnd + 23752,special_reminder = function()
+		grid_door.try_spawn_grid_door(room,slot,nil,{check_and_leave = "s.default."..tostring(door_variant),should_update = true,loadname = "gfx/grid/door_checkboarddoor.anm2",playname = "Opened",
+		vr = door_variant,special_reminder = function()
 			local room = Game():GetRoom()
 			local pos = room:GetGridPosition(172)
 			for playerNum = 1, Game():GetNumPlayers() do
@@ -160,8 +171,8 @@ function item.generate_stone_door(slot)		--房间的标记还需要放上去
 		end})
 	else
 		save.elses[item.own_key.."effect"].loaded_door = true
-		grid_door.try_spawn_grid_door(room,slot,nil,{check_and_leave = "s.default."..tostring(rnd + 23752),should_update = true,loadname = "gfx/grid/door_checkboarddoor.anm2",playname = "Appear_and_Open",
-		vr = rnd + 23752,special_reminder = function()
+		grid_door.try_spawn_grid_door(room,slot,nil,{check_and_leave = "s.default."..tostring(door_variant),should_update = true,loadname = "gfx/grid/door_checkboarddoor.anm2",playname = "Appear_and_Open",
+		vr = door_variant,special_reminder = function()
 			local room = Game():GetRoom()
 			local pos = room:GetGridPosition(172)
 			for playerNum = 1, Game():GetNumPlayers() do

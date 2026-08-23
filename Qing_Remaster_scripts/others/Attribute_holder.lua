@@ -2,11 +2,20 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 
 local item = {ToCall = {}, own_key = "Attribute_holder_", state_key = "Attribute_holder_V2", descriptors = {},
 	debug = {probe_enabled = false, last_report = nil, error_count = 0}}
+local remove_probe_observer = nil
+
+function item.set_remove_probe_observer(observer)
+	remove_probe_observer = type(observer) == "function" and observer or nil
+end
 -- 禁止弱键：Isaac 实体 userdata 仅被弱表引用时，任意分配触发的 GC 会清掉 active 条目，
 -- 但 GetData 里的 claim / saga token 仍在 → FREEZE/Position 不再每帧回写，NO_SPRITE 却可能残留。
 -- 强键必须在重开/实体指针复用时 drop：否则旧 FREEZE/Position claim 会套到新准星等 Effect 上。
 local active = {}
 local identities = {}
+local identity_index = {}
+-- 同一原生实体可在不同回调中得到多份 userdata wrapper，但 GetData binder 共享。
+-- 每个 binder 只允许一个 canonical wrapper 进入强表，否则每次 get_effective_value 都会复制 active 键。
+local canonical_by_binder = {}
 local live_tokens, next_token, next_order = {}, 0, 0
 
 -- auxiliary.functions imports Attribute_holder at module scope. Keep this side
@@ -46,6 +55,30 @@ local function identity_matches(ent, id)
 		and cur.SubType == id.SubType
 		and cur.InitSeed == id.InitSeed
 		and cur.Index == id.Index
+end
+
+local function identity_key(id)
+	if not id then return nil end
+	return table.concat({
+		tostring(id.Type), tostring(id.Variant), tostring(id.SubType),
+		tostring(id.InitSeed), tostring(id.Index),
+	}, ":")
+end
+
+local function index_identity(ent, id)
+	local key = identity_key(id)
+	if not key then return end
+	local bucket = identity_index[key]
+	if not bucket then bucket = {}; identity_index[key] = bucket end
+	bucket[ent] = true
+end
+
+local function unindex_identity(ent, id)
+	local key = identity_key(id)
+	local bucket = key and identity_index[key]
+	if not bucket then return end
+	bucket[ent] = nil
+	if not next(bucket) then identity_index[key] = nil end
 end
 
 local function copy(v, copier)
@@ -102,11 +135,19 @@ local function binder(ent)
 	local ok, v = pcall(ent.GetData, ent); if ok then return v end
 end
 local function link_active(ent, bind, s)
+	local canonical = canonical_by_binder[bind]
+	if canonical and active[canonical] then
+		active[canonical][bind] = s
+		return canonical
+	end
+	canonical_by_binder[bind] = ent
 	active[ent] = active[ent] or {}
 	active[ent][bind] = s
 	if identities[ent] == nil and not ent.IsGrid then
 		identities[ent] = read_identity(ent)
+		index_identity(ent, identities[ent])
 	end
+	return ent
 end
 local function state(ent, bind, create)
 	if not bind then return nil end
@@ -134,7 +175,13 @@ end
 local function cleanup(ent, bind, s)
 	if next(s.attrs) then return end
 	bind[item.state_key] = nil
-	local es = active[ent]; if es then es[bind] = nil; if not next(es) then active[ent] = nil; identities[ent] = nil end end
+	local canonical = canonical_by_binder[bind] or ent
+	canonical_by_binder[bind] = nil
+	local es = active[canonical]; if es then es[bind] = nil; if not next(es) then
+		active[canonical] = nil
+		unindex_identity(canonical, identities[canonical])
+		identities[canonical] = nil
+	end end
 end
 local function drop_entity(ent, states)
 	for _, s in pairs(states) do
@@ -142,9 +189,42 @@ local function drop_entity(ent, states)
 			for token in pairs(attr.claims) do live_tokens[tostring(token)] = nil end
 		end
 		if s.binder then s.binder[item.state_key] = nil end
+		if s.binder and canonical_by_binder[s.binder] == ent then canonical_by_binder[s.binder] = nil end
 	end
 	active[ent] = nil
+	unindex_identity(ent, identities[ent])
 	identities[ent] = nil
+end
+
+local function drop_removed_entity(removed)
+	local id = read_identity(removed)
+	local key = identity_key(id)
+	local bucket = key and identity_index[key]
+	if not bucket then
+		if remove_probe_observer then pcall(remove_probe_observer, id, 0, 0, 0) end
+		return 0
+	end
+	local targets = {}
+	for ent in pairs(bucket) do targets[#targets + 1] = ent end
+	local dropped, attrs, claims = 0, 0, 0
+	for i = 1, #targets do
+		local ent = targets[i]
+		local states = active[ent]
+		if states then
+			if remove_probe_observer then
+				for _, state in pairs(states) do
+					for _, attr in pairs(state.attrs) do
+						attrs = attrs + 1
+						for _ in pairs(attr.claims) do claims = claims + 1 end
+					end
+				end
+			end
+			drop_entity(ent, states)
+			dropped = dropped + 1
+		end
+	end
+	if remove_probe_observer then pcall(remove_probe_observer, id, dropped, attrs, claims) end
+	return dropped
 end
 
 --- 丢弃全部活动 claim（重开/退出局）。强表跨局残留 + userdata 复用会导致新实体被旧 FREEZE/Position 冻住。
@@ -154,6 +234,8 @@ function item.drop_all()
 	end
 	active = {}
 	identities = {}
+	identity_index = {}
+	canonical_by_binder = {}
 	live_tokens = {}
 end
 
@@ -314,6 +396,7 @@ local function wipe_session_state()
 	local ok, a = pcall(get_auxi)
 	if ok and a and type(a._time_stop_active) == "table" then
 		a._time_stop_active = {}
+		a._time_stop_refresh_frame = {}
 	end
 end
 
@@ -326,4 +409,10 @@ Function = function() wipe_session_state() end,
 })
 
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_UPDATE,params=nil,Function=item.assign_attribute})
+table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_ENTITY_REMOVE,params=nil,
+Function = function(_, ent)
+	-- 移除回调可能给出另一份 userdata wrapper；按完整身份索引裁断，禁止 `ent == tracked`。
+	drop_removed_entity(ent)
+end,
+})
 return item

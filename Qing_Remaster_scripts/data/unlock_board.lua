@@ -250,11 +250,11 @@ return {
 			-- 解锁条件：撒旦
 			["Satan"] = {
 				{
-					uid = "Book_of_Thoth",
-					id = "55",
-					enum_key = "Book_of_Thoth",
-					name = "Book of Thoth",
-					kind = "active",
+					uid = "Super_Bombs",
+					id = "13",
+					enum_key = "Super_Bombs",
+					name = "Super Bombs",
+					kind = "passive",
 					content_type = "Item",
 				},
 			},
@@ -617,17 +617,6 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：精神错乱
-			["Delirium"] = {
-				{
-					uid = "Moment",
-					id = "67",
-					enum_key = "Moment",
-					name = "Moment",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
 			-- 解锁条件：妈妈的心
 			["MomsHeart"] = {
 				{
@@ -675,11 +664,11 @@ return {
 			-- 解锁条件：母亲
 			["Mother"] = {
 				{
-					uid = "Book_of_Rune",
-					id = "105",
-					enum_key = "Book_of_Rune",
-					name = "Book of Rune",
-					kind = "active",
+					uid = "Moment",
+					id = "67",
+					enum_key = "Moment",
+					name = "Moment",
+					kind = "passive",
 					content_type = "Item",
 				},
 			},
@@ -746,17 +735,6 @@ return {
 					enum_key = "Baby_Anna",
 					name = "Baby Anna",
 					kind = "familiar",
-					content_type = "Item",
-				},
-			},
-			-- 解锁条件：以撒
-			["Isaac"] = {
-				{
-					uid = "How_to_Fly",
-					id = "107",
-					enum_key = "Book_of_How_to_Fly",
-					name = "How to Fly",
-					kind = "active",
 					content_type = "Item",
 				},
 			},
@@ -840,22 +818,22 @@ return {
 			-- 解锁条件：以撒
 			["Isaac"] = {
 				{
-					uid = "Risemara",
-					id = "81",
-					enum_key = "Risemara",
-					name = "Risemara",
-					kind = "passive",
+					uid = "Book_of_Rune",
+					id = "105",
+					enum_key = "Book_of_Rune",
+					name = "Book of Rune",
+					kind = "active",
 					content_type = "Item",
 				},
 			},
 			-- 解锁条件：???
 			["BlueBaby"] = {
 				{
-					uid = "D773",
-					id = "48",
-					enum_key = "D773",
-					name = "D773",
-					kind = "active",
+					uid = "Risemara",
+					id = "81",
+					enum_key = "Risemara",
+					name = "Risemara",
+					kind = "passive",
 					content_type = "Item",
 				},
 			},
@@ -884,10 +862,10 @@ return {
 			-- 解锁条件：Boss Rush
 			["BossRush"] = {
 				{
-					uid = "Hyper_Velocity",
-					id = "52",
-					enum_key = "Hyper_Velocity",
-					name = "Hyper Velocity",
+					uid = "D773",
+					id = "48",
+					enum_key = "D773",
+					name = "D773",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -921,17 +899,6 @@ return {
 					id = "128",
 					enum_key = "Acrotomophilia",
 					name = "Acrotomophilia",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
-			-- 解锁条件：撒旦
-			["Satan"] = {
-				{
-					uid = "Super_Bombs",
-					id = "13",
-					enum_key = "Super_Bombs",
-					name = "Super Bombs",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -994,10 +961,10 @@ return {
 			-- 解锁条件：以撒
 			["Isaac"] = {
 				{
-					uid = "D_NAN",
-					id = "80",
-					enum_key = "D_NAN",
-					name = "D NAN",
+					uid = "Book_of_Vision",
+					id = "57",
+					enum_key = "Book_of_Vision",
+					name = "Book of Vision",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -1189,6 +1156,17 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：Boss Rush
+			["BossRush"] = {
+				{
+					uid = "Colorblindness",
+					id = "31",
+					enum_key = "Colorblindness",
+					name = "Colorblindness",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：贪婪模式
 			["GreedMode"] = {
 				{
@@ -1214,10 +1192,10 @@ return {
 			-- 解锁条件：精神错乱
 			["Delirium"] = {
 				{
-					uid = "Colorblindness",
-					id = "31",
-					enum_key = "Colorblindness",
-					name = "Colorblindness",
+					uid = "Day_Dreamer",
+					id = "94",
+					enum_key = "Day_Dreamer",
+					name = "Day Dreamer",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -1280,17 +1258,6 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：妈妈的心
-			["MomsHeart"] = {
-				{
-					uid = "Fraternity",
-					id = "99",
-					enum_key = "Fraternity",
-					name = "Fraternity",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
 			-- 解锁条件：羔羊
 			["Lamb"] = {
 				{
@@ -1298,17 +1265,6 @@ return {
 					id = "130",
 					enum_key = "Core_Brooch",
 					name = "Core Brooch",
-					kind = "active",
-					content_type = "Item",
-				},
-			},
-			-- 解锁条件：撒旦
-			["Satan"] = {
-				{
-					uid = "Book_of_The_Law",
-					id = "56",
-					enum_key = "Book_of_The_Law",
-					name = "Book of The Law",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -1349,10 +1305,10 @@ return {
 			-- 解锁条件：以撒
 			["Isaac"] = {
 				{
-					uid = "Book_of_Vision",
-					id = "57",
-					enum_key = "Book_of_Vision",
-					name = "Book of Vision",
+					uid = "Book_of_The_Law",
+					id = "56",
+					enum_key = "Book_of_The_Law",
+					name = "Book of The Law",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -1483,14 +1439,6 @@ return {
 			},
 			-- 解锁条件：精神错乱
 			["Delirium"] = {
-				{
-					uid = "Day_Dreamer",
-					id = "94",
-					enum_key = "Day_Dreamer",
-					name = "Day Dreamer",
-					kind = "passive",
-					content_type = "Item",
-				},
 				{
 					uid = "Procrastination",
 					id = "165",
@@ -1810,8 +1758,8 @@ return {
 					content_type = "Card",
 				},
 			},
-			-- 解锁条件：精神错乱
-			["Delirium"] = {
+			-- 解锁条件：母亲
+			["Mother"] = {
 				{
 					uid = "Loneliness",
 					id = "129",
@@ -2806,6 +2754,104 @@ return {
 		},
 	},
 
+	special_events = {
+		{
+			key = "Crushed",
+			label = "被碾碎",
+			category = "Others",
+		},
+		{
+			key = "DefeatGlaze",
+			label = "击败Glaze",
+			category = "Others",
+		},
+		{
+			key = "DefeatZennith",
+			label = "击败zennith",
+			category = "Others",
+		},
+		{
+			key = "custom_event_1785574291152",
+			label = "击败乞丐国王",
+			category = "Others",
+		},
+		{
+			key = "custom_event_1786539528390",
+			label = "用尽恶魔胸针",
+			category = "Others",
+		},
+		{
+			key = "custom_event_1786539547154",
+			label = "进入恶魔房后，在3秒内退出",
+			category = "Others",
+		},
+		{
+			key = "Cookie_Clicker",
+			label = "挑战：曲奇点击者",
+			category = "Others",
+		},
+		{
+			key = "Dragon_Flight",
+			label = "挑战：飞龙在天",
+			category = "Others",
+		},
+		{
+			key = "Fans_Service",
+			label = "挑战：粉丝服务",
+			category = "Others",
+		},
+		{
+			key = "Feels_Like_Dead_Ashes",
+			label = "挑战：心如死灰",
+			category = "Others",
+		},
+		{
+			key = "Fusion_Destiny",
+			label = "挑战：命运融合",
+			category = "Others",
+		},
+		{
+			key = "Heterothermal_Concentric",
+			label = "挑战：异热同心",
+			category = "Others",
+		},
+		{
+			key = "Invisible",
+			label = "挑战：不为人知",
+			category = "Others",
+		},
+		{
+			key = "Louvre_puzzle",
+			label = "挑战：卢浮宫难题",
+			category = "Others",
+		},
+		{
+			key = "Pointing",
+			label = "挑战：指指点点",
+			category = "Others",
+		},
+		{
+			key = "Safe_Driving",
+			label = "挑战：安全驾驶",
+			category = "Others",
+		},
+		{
+			key = "Swallow_The_Sun",
+			label = "挑战：食日",
+			category = "Others",
+		},
+		{
+			key = "Unstable_State",
+			label = "挑战：不稳定体",
+			category = "Others",
+		},
+		{
+			key = "custom_event_1787476895318",
+			label = "击败阿莱斯特",
+			category = "Others",
+		},
+	},
+
 	special_unlocks = {
 		-- 特殊解锁分类：Others
 		["Others"] = {
@@ -2886,13 +2932,125 @@ return {
 					content_type = "Trinket",
 				},
 			},
-			-- 特殊解锁条件：在暂停页面等待超过3分钟
+			-- 特殊解锁条件：custom_event_1786539572973
 			["custom_event_1786539572973"] = {
+			},
+			-- 特殊解锁条件：挑战：曲奇点击者
+			["Cookie_Clicker"] = {
 				{
 					uid = "trinket:Pause_",
 					id = "12",
 					enum_key = "Pause_",
 					name = "Pause?",
+					kind = "trinket",
+					content_type = "Trinket",
+				},
+			},
+			-- 特殊解锁条件：挑战：飞龙在天
+			["Dragon_Flight"] = {
+				{
+					uid = "How_to_Fly",
+					id = "107",
+					enum_key = "Book_of_How_to_Fly",
+					name = "How to Fly",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 特殊解锁条件：挑战：粉丝服务
+			["Fans_Service"] = {
+				{
+					uid = "Fraternity",
+					id = "99",
+					enum_key = "Fraternity",
+					name = "Fraternity",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 特殊解锁条件：挑战：心如死灰
+			["Feels_Like_Dead_Ashes"] = {
+				{
+					uid = "Ember",
+					id = "172",
+					enum_key = "Ember",
+					name = "Ember",
+					kind = "passive",
+					content_type = "Item",
+					note = "完成挑战：心如死灰",
+				},
+			},
+			-- 特殊解锁条件：挑战：命运融合
+			["Fusion_Destiny"] = {
+			},
+			-- 特殊解锁条件：挑战：异热同心
+			["Heterothermal_Concentric"] = {
+			},
+			-- 特殊解锁条件：挑战：不为人知
+			["Invisible"] = {
+			},
+			-- 特殊解锁条件：挑战：卢浮宫难题
+			["Louvre_puzzle"] = {
+				{
+					uid = "trinket:Torn_Moon_",
+					id = "5",
+					enum_key = "Torn_Moon_",
+					name = "Torn Moon?",
+					kind = "trinket",
+					content_type = "Trinket",
+				},
+			},
+			-- 特殊解锁条件：挑战：指指点点
+			["Pointing"] = {
+			},
+			-- 特殊解锁条件：挑战：安全驾驶
+			["Safe_Driving"] = {
+				{
+					uid = "Hyper_Velocity",
+					id = "52",
+					enum_key = "Hyper_Velocity",
+					name = "Hyper Velocity",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 特殊解锁条件：挑战：食日
+			["Swallow_The_Sun"] = {
+				{
+					uid = "trinket:Dark_Particle",
+					id = "2",
+					enum_key = "Dark_Particle",
+					name = "Dark Particle",
+					kind = "trinket",
+					content_type = "Trinket",
+				},
+			},
+			-- 特殊解锁条件：挑战：不稳定体
+			["Unstable_State"] = {
+				{
+					uid = "D_NAN",
+					id = "80",
+					enum_key = "D_NAN",
+					name = "D NAN",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 特殊解锁条件：击败阿莱斯特
+			["custom_event_1787476895318"] = {
+				{
+					uid = "Book_of_Thoth",
+					id = "55",
+					enum_key = "Book_of_Thoth",
+					name = "Book of Thoth",
+					kind = "active",
+					content_type = "Item",
+				},
+				{
+					uid = "trinket:Torn_Emperor",
+					id = "3",
+					enum_key = "Torn_Emperor",
+					name = "Torn Emperor",
 					kind = "trinket",
 					content_type = "Trinket",
 				},

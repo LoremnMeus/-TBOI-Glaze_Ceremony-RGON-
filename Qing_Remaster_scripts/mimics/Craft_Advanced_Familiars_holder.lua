@@ -17,13 +17,17 @@ local function queue_flight_attack(adapter, ctx)
 	end
 	local Air = require("Qing_Remaster_scripts.items.Item_Air_Flight")
 	local mul = is_lilith(ctx.player) and adapter.lilith_damage_mul or adapter.damage_mul
-	return Air.queue_craft_aux_attack(ctx.air, ctx.familiar.Position, ctx.aim_vector, mul, adapter.name)
+	return Air.queue_craft_aux_attack(ctx.air, ctx.familiar.Position, ctx.aim_vector, mul, adapter.name, ctx.familiar, adapter.knife_scale)
 end
 
 local function flight_cooldown(_, ctx)
 	local profile = ctx.bind and ctx.bind.profile
 	if not profile then return 16 end
-	return CraftProfile.craft_fire_delay(profile, profile.weapon or 1)
+	local mods = CraftProfile.attack_modifiers_from_profile(profile)
+	return CraftProfile.attack_delay_from_modifiers(
+		CraftProfile.craft_fire_delay(profile, profile.weapon or 1),
+		mods
+	)
 end
 
 local function ensure_gemini_render_sprite(fam)
@@ -533,6 +537,7 @@ H.register_adapter(FamiliarVariant.INCUBUS, {
 	collectible = CollectibleType.COLLECTIBLE_INCUBUS or 360,
 	formation_priority = -10000,
 	damage_mul = 0.75, lilith_damage_mul = 1,
+	knife_scale = 0.72,
 	get_cooldown = flight_cooldown, fire = queue_flight_attack,
 })
 
@@ -569,7 +574,7 @@ local function queue_cain_other_eye_attack(adapter, ctx)
 		aim = item.random_cain_other_eye_aim(ctx.player)
 	end
 	-- 始终 75%；与 Lilith 无关（有别于 Incubus）。
-	return Air.queue_craft_aux_attack(ctx.air, ctx.familiar.Position, aim, 0.75, adapter.name)
+	return Air.queue_craft_aux_attack(ctx.air, ctx.familiar.Position, aim, 0.75, adapter.name, ctx.familiar, adapter.knife_scale)
 end
 
 H.register_adapter(FamiliarVariant.CAINS_OTHER_EYE, {
@@ -577,6 +582,7 @@ H.register_adapter(FamiliarVariant.CAINS_OTHER_EYE, {
 	collectible = CollectibleType.COLLECTIBLE_CAINS_OTHER_EYE or 319,
 	formation_priority = -9000,
 	damage_mul = 0.75, lilith_damage_mul = 0.75,
+	knife_scale = 0.72,
 	aim_while_shooting = function(_, ctx)
 		return item.random_cain_other_eye_aim(ctx.player)
 	end,
@@ -599,6 +605,7 @@ H.register_adapter(FamiliarVariant.TWISTED_BABY, {
 	collectible = CollectibleType.COLLECTIBLE_TWISTED_PAIR or 698,
 	instances = 2, formation_priority = -9500, exclude_from_formation = true,
 	damage_mul = 0.375, lilith_damage_mul = 0.5,
+	knife_scale = 0.58,
 	follow_position = twisted_position,
 	get_cooldown = flight_cooldown, fire = queue_flight_attack,
 })

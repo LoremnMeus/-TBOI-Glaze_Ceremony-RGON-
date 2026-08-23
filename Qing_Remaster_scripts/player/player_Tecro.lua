@@ -16,6 +16,7 @@ local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_dis
 local Damo_holder = require("Qing_Remaster_scripts.mimics.Damo_holder")
 local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_holder")
 local Flat_Stone_holder = require("Qing_Remaster_scripts.mimics.Flat_Stone_holder")
+local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local player_Tecrorun = require("Qing_Remaster_scripts.player.player_Tecrorun")
 
@@ -634,8 +635,6 @@ local item = {
 	check_rel = {
 		[62] = true,
 	},
-	Tecro_middle_holder = false,
-	Tecro_middle_time_holder = 0,
 	bond_special_spikes = {
 		[LevelStage.STAGE4_1] = true,
 		[LevelStage.STAGE4_2] = true,
@@ -902,14 +901,23 @@ local function reload_spear(ent,player,params)
 	end
 end
 
+local MOUSE_ENABLED_KEY = item.own_key.."mouse_enabled"
+local MOUSE_DEBOUNCE_KEY = item.own_key.."mouse_debounce"
+
+local function mouse_enabled(player)
+	return player and player:GetData()[MOUSE_ENABLED_KEY] == true
+end
+
 local function check_mouse_work(player,ndir,qdir,center)
 	qdir = qdir or player:GetData().now_dir
 	center = center or player.Position
-	if item.Tecro_middle_time_holder <= 0 and Input.IsMouseBtnPressed(2) then 
-		item.Tecro_middle_time_holder = 20 
-		item.Tecro_middle_holder = (not item.Tecro_middle_holder) 
+	local d = player:GetData()
+	-- 鼠标是全局设备，只允许 Controller 0 消费；状态仍按玩家保存，禁止联机串号。
+	if player.ControllerIndex == 0 and (d[MOUSE_DEBOUNCE_KEY] or 0) <= 0 and Input.IsMouseBtnPressed(2) then
+		d[MOUSE_DEBOUNCE_KEY] = 20
+		d[MOUSE_ENABLED_KEY] = not d[MOUSE_ENABLED_KEY]
 	end
-	if ndir:Length() < 0.05 and item.Tecro_middle_holder then
+	if ndir:Length() < 0.05 and mouse_enabled(player) then
 		local ret = Vector(0,0)
 		local mspos = Input.GetMousePosition(true)
 		if Game():GetRoom():IsMirrorWorld() then
@@ -1482,17 +1490,10 @@ local function work_on_Tecro_multi_attack_params(player,params)
 	end
 	if not params.advanced_familiar_copy then
 		local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
-		CharacterFamiliars.for_each_attack_copy(player, function(_, mul, origin, _, aim_dir)
-			work_on_Tecro_multi_attack_params(player, {
-				dir = (aim_dir and aim_dir:Length() >= 0.01) and aim_dir or dir,
-				cnt1 = params.cnt1,
-				TearFlags = CharacterFamiliars.apply_familiar_tear_flags(player, params.TearFlags),
-				multishot = multishot_of_player,
-				charge = (tonumber(params.charge) or 1) * mul,
-				origin = origin,
-				advanced_familiar_copy = true,
-			})
-		end)
+		CharacterFamiliars.dispatch_registered_copies(player, {
+			aim_dir = dir,
+			damage_mul = tonumber(params.charge) or 1,
+		})
 		do
 			local ok, EvilEye = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Evil_Eye_holder")
 			if ok and EvilEye and EvilEye.notify_player_attack then
@@ -1521,8 +1522,6 @@ Function = function(_,continue)
 		for u,v in pairs(item.kill_lists) do save.elses[v.name] = nil end
 		save.elses.Tecro_ludo_buff = {}
 		save.elses.Tecro_knife_buff = {}
-		item.Tecro_middle_time_holder = 0 
-		item.Tecro_middle_holder = false
 	end
 end,
 })
@@ -1549,15 +1548,17 @@ Function = function(_,ent,amt,flag,source,cooldown)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
-Function = function(_)
-	if item.Tecro_middle_time_holder >= 0 then item.Tecro_middle_time_holder = (item.Tecro_middle_time_holder or 0) - 1 end
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
+Function = function(_, player)
+	if player:GetPlayerType() ~= item.entity then return end
+	local d = player:GetData()
+	if (d[MOUSE_DEBOUNCE_KEY] or 0) > 0 then d[MOUSE_DEBOUNCE_KEY] = d[MOUSE_DEBOUNCE_KEY] - 1 end
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = nil,
 Function = function(_,collid, itemRng, player, useFlags, activeSlot, customVarData)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		if item.sharp_items[collid] ~= nil then
 			d.temp_sharp_rate = (d.temp_sharp_rate or 0) + item.sharp_items[collid]
@@ -1577,21 +1578,14 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	for playerNum = 1, Game():GetNumPlayers() do
-		local player = Game():GetPlayer(playerNum - 1)
-		local d = player:GetData()
-		d.temp_sharp_rate = 0
-		d.damaged_sharp_rate = nil
-		d.ludo_init_pos = nil
-		d.Tecro_Tech0_lst_pos = nil
-	end
+	item._room_epoch = (item._room_epoch or 0) + 1
 end,
 })
 
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_PRE_NPC_COLLISION, params = nil,
 Function = function(_,ent, col,low)
 	local player = col:ToPlayer()
-	if player and player:GetName() == "Tecro" then
+	if player and player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		local tg = ent:GetData().Tecro_spear_targeted_player
 		if tg and auxi.check_for_the_same(tg,player) then
@@ -1604,7 +1598,7 @@ end,
 table.insert(item.post_ToCall,#item.post_ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = EntityType.ENTITY_PLAYER,
 Function = function(_,ent, amt, flag, source, cooldown)
 	local player = ent:ToPlayer()
-	if player and player:GetName() == "Tecro" then
+	if player and player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		local list = d.Tecro_list or auxi.get_Tecro_list(player)
 		d.damaged_sharp_rate = true
@@ -1623,7 +1617,7 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_FAMILIAR_U
 Function = function(_,ent)
 	local player = ent.Player
 	if player == nil then return end
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d2 = player:GetData()
 		if d2.linked_spear and d2.linked_spear.Position.X < 1500 then		--除却初始化
 			local spear = d2.linked_spear
@@ -1653,7 +1647,7 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_RENDER, params = nil,
 Function = function(_,player,offset)
 	local d = player:GetData()
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		if (Game():GetRoom():GetRenderMode() ~= RenderMode.RENDER_WATER_REFLECT) then
 			local list = d.Tecro_list or auxi.get_Tecro_list(player)
 			local mx_cnt = d.Tecro_spear_Charge_Bar_buff_mx or 30
@@ -1763,8 +1757,15 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
+		if d[item.own_key.."room_epoch"] ~= (item._room_epoch or 0) then
+			d[item.own_key.."room_epoch"] = item._room_epoch or 0
+			d.temp_sharp_rate = 0
+			d.damaged_sharp_rate = nil
+			d.ludo_init_pos = nil
+			d.Tecro_Tech0_lst_pos = nil
+		end
 		local s = player:GetSprite()
 		local ctrlid = player.ControllerIndex
 		local gdir = auxi.ggdir(player,true,false,false,nil,{real = true})
@@ -1942,7 +1943,7 @@ end,
 
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		if cacheFlag == CacheFlag.CACHE_SPEED then
 			player.MoveSpeed = player.MoveSpeed + 0.11
 		end
@@ -1963,14 +1964,16 @@ Function = function(_,ent)
 	if ent.Variant == enums.Entities.Tecro_Spear then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
-		local player = d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+		if not player then return end
 		reload_spear(ent,player)
 		s:SetFrame("IdleUp",0)
 	end
 	if ent.Variant == enums.Entities.Tecro_Needle then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
-		local player = d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+		if not player then return end
 		reload_needle(ent,player)
 	end
 end,
@@ -2075,7 +2078,8 @@ Function = function(_,ent,offset)
 		local d = ent:GetData()
 		local s = ent:GetSprite()
 		if (Game():GetRoom():GetRenderMode() ~= RenderMode.RENDER_WATER_REFLECT) then
-			local player = d.player or Game():GetPlayer(0)
+			local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+			if not player then return end
 			local d2 = player:GetData()
 			local list = d2.Tecro_list or {}
 			
@@ -2118,7 +2122,8 @@ Function = function(_,ent)
 	local room = Game():GetRoom()
 	
 	d.Tecro_inner_frame = (d.Tecro_inner_frame or 0) + 1
-	local player = d.player or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+	if not player then return end
 	if auxi.check_all_exists(player) then
 		local spear = d.spear
 		if spear == nil then return end
@@ -2174,7 +2179,7 @@ Function = function(_,ent)
 		local tg_pos = room:GetClampedPosition(init_pos + dir * range, - range * 1.3)
 		local dis = (tg_pos - ent.Position)
 		local ttg_pos = room:GetClampedPosition(init_pos + dir * range * (d2.Tecro_spear_charge or 0.2), - range * 1.3)
-		if item.Tecro_middle_holder then 
+		if mouse_enabled(player) then
 			ttg_pos = room:GetClampedPosition(init_pos + dir * math.min((math.max(0.1,(Input.GetMousePosition(true) - init_pos):Length()) - 30),range * 1.2) * (d2.Tecro_spear_charge or 0.2), - range * 1.3)
 		end
 		local ddis = (ttg_pos - ent.Position)
@@ -2638,7 +2643,8 @@ Function = function(_,ent)
 	if ent.Variant == enums.Entities.Tecro_Spear then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
-		local player = d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+		if not player then ent:Remove() return end
 		if auxi.check_all_exists(player) ~= true then ent:Remove() return end
 		local d2 = player:GetData()
 		local list = d2.Tecro_list or {}
@@ -2979,7 +2985,8 @@ Function = function(_,ent)
 	if ent.Variant == enums.Entities.Tecro_Needle then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
-		local player = d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+		if not player then return end
 		local d2 = player:GetData()
 		local source = ent.Parent
 		if source == nil then ent:Remove() return end
@@ -3043,7 +3050,8 @@ Function = function(_,ent,col,low)
 	if ent.Variant == enums.Entities.Tecro_Spear then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
-		local player = d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+		if not player then return end
 		local d2 = player:GetData()
 		local list = d2.Tecro_list or {}
 		local d3 = col:GetData()
@@ -3217,7 +3225,8 @@ Function = function(_,ent,col,low)
 	if ent.Variant == enums.Entities.TecroNeedleNil then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
-		local player = d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+		if not player then return end
 		local d2 = player:GetData()
 		local list = d2.Tecro_list or {}
 		local d3 = col:GetData()
@@ -3270,7 +3279,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.MC_EVALUATE_IMITATE_ITEM, params = nil,
 Function = function(_,player,colid,value)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		local idx = d.__Index
 		local weap = auxi.get_weapon(player)
@@ -3295,7 +3304,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_REASSIGN_IMITATE_ITEM, params = nil,
 Function = function(_,player)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		d.Tecro_list = auxi.get_Tecro_list(player)
 		if d.linked_spear then reload_spear(d.linked_spear,player) end
@@ -3305,7 +3314,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_GAIN_COLLECTIBLE, params = 329,
 Function = function(_,player,collid,cnt,touched)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		local idx = d.__Index
 		save.elses.Tecro_ludo_buff = save.elses.Tecro_ludo_buff or {}
@@ -3316,7 +3325,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = 329,
 Function = function(_,player,collid,count)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		if count < 0 then
 			local d = player:GetData()
 			d.ludo_init_pos = nil
@@ -3327,7 +3336,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_GAIN_COLLECTIBLE, params = 114,
 Function = function(_,player,collid,cnt,touched)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
 		local idx = d.__Index
 		save.elses.Tecro_knife_buff = save.elses.Tecro_knife_buff or {}
@@ -3367,7 +3376,7 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_INPUT_ACTI
 Function = function(_,ent,hook,button)
 	if ent ~= nil then
 		local player = ent:ToPlayer()
-		if player and player:GetName() == "Tecro" then
+		if player and player:GetPlayerType() == item.entity then
 			local d = player:GetData()
 			local dir = (d.now_dir or Vector(0,1))
 			if Game():GetRoom():IsMirrorWorld() == true then dir = Vector(-dir.X,dir.Y) end
@@ -3417,7 +3426,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_DESCRIPT_ITEM, params = nil,
 Function = function(_,player,tp,id,value)
-	if player:GetName() == "Tecro" then
+	if player:GetPlayerType() == item.entity then
 		local ret = nil
 		local language = Options.Language
 		local infos = (item.Special_Des[language] or {})[tp]
@@ -3457,5 +3466,13 @@ function item.fire_familiar_attack(player, request)
 	})
 	return {fired = true, delay = player.MaxFireDelay}
 end
+
+CharacterAttackCompat.register(item.entity, {
+	key = "tecro",
+	module = "Qing_Remaster_scripts.player.player_Tecro",
+	advanced_familiars = true,
+	familiar_attack = item.fire_familiar_attack,
+	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+})
 
 return item

@@ -58,7 +58,23 @@ local TRAIL_PHASE_LAG = 8 -- 相邻轨迹宝宝相位差（约 30Hz 帧）
 local TRAIL_MAX_LEN = 200
 local TRAIL_SNAP_DIST = 140 -- 仅失联时硬钉；平时只写 Velocity 留给引擎插值
 local TRAIL_VEL_BLEND = 0.9 -- 紧跟历史点，略混合当前速避免抖
-local ACTIVE_BOUND = setmetatable({}, {__mode = "k"})
+-- GetPtrHash -> 最新 wrapper；禁止 userdata wrapper 直接作长期键。
+local ACTIVE_BOUND = {}
+
+local function active_key(fam)
+	local ok, ptr = pcall(GetPtrHash, fam)
+	return ok and ptr or nil
+end
+
+local function track_active(fam)
+	local key = fam and active_key(fam)
+	if key then ACTIVE_BOUND[key] = fam end
+end
+
+local function untrack_active(fam)
+	local key = fam and active_key(fam)
+	if key then ACTIVE_BOUND[key] = nil end
+end
 
 local function active_familiar_alive(fam)
 	if not fam then return false end
@@ -531,7 +547,7 @@ function item.release_familiar(fam, reason)
 	local bind = d[item.own_key..BIND_KEY]
 	if not bind then return end
 	restore_bound_weapons(fam)
-	ACTIVE_BOUND[fam] = nil
+	untrack_active(fam)
 	Familiar_Control_Selector.invalidate(fam)
 	local adapter = item.ADAPTERS[fam.Variant]
 	if adapter and adapter.release then
@@ -802,11 +818,11 @@ function item.release_for_air(air)
 	if not air then return end
 	local air_ptr = GetPtrHash(air)
 	local release, seen = {}, {}
-	for fam in pairs(ACTIVE_BOUND) do
+	for key, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
 		if not alive or not bind then
-			ACTIVE_BOUND[fam] = nil
+			ACTIVE_BOUND[key] = nil
 		elseif bind.air_ptr == air_ptr then
 			local ptr = GetPtrHash(fam)
 			if not seen[ptr] then
@@ -864,11 +880,11 @@ find_all_bound_for_air = function(air, variant)
 	if not air then return out end
 	local air_ptr = GetPtrHash(air)
 	local seen = {}
-	for fam in pairs(ACTIVE_BOUND) do
+	for key, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
 		if not alive or not bind then
-			ACTIVE_BOUND[fam] = nil
+			ACTIVE_BOUND[key] = nil
 		elseif fam.Variant == variant and bind.air_ptr == air_ptr then
 			local ptr = GetPtrHash(fam)
 			if not seen[ptr] then
@@ -954,7 +970,7 @@ function item.sync_air_flight(air, player, profile)
 			item.release_familiar(table.remove(bounds), "recipe_drop")
 		end
 		for _, bound in ipairs(bounds) do
-			ACTIVE_BOUND[bound] = true
+			track_active(bound)
 			local bind = bind_data(bound)
 			if bind then
 				bind.air = air
@@ -1016,7 +1032,7 @@ function item.sync_air_flight(air, player, profile)
 					variant = variant,
 					synthetic = synthetic,
 				}
-				ACTIVE_BOUND[fam] = true
+				track_active(fam)
 				Familiar_Control_Selector.invalidate(fam)
 				d[item.own_key..CD_KEY] = 0
 				d[item.own_key..HEAD_KEY] = 0
@@ -1831,11 +1847,11 @@ function item.teleport_bound_to_air(air, position)
 	if not air or not position then return end
 	local air_ptr = GetPtrHash(air)
 	local seen = {}
-	for fam in pairs(ACTIVE_BOUND) do
+	for key, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
 		if not alive or not bind then
-			ACTIVE_BOUND[fam] = nil
+			ACTIVE_BOUND[key] = nil
 		elseif bind.air_ptr == air_ptr then
 			local ptr = GetPtrHash(fam)
 			if not seen[ptr] then
@@ -1885,7 +1901,7 @@ table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
 	Function = function(_, fam)
 		if not fam or (fam.Exists and not fam:Exists()) then return end
 		if not fam or not item.ADAPTERS[fam.Variant] then return end
-		if is_bound(fam) then ACTIVE_BOUND[fam] = true end
+		if is_bound(fam) then track_active(fam) end
 		if not Familiar_Control_Selector.is_owner(fam, Familiar_Control_Selector.BLUEPRINT) then return end
 		local adapter = item.ADAPTERS[fam.Variant]
 		-- AI 前先重申脱离玩家编队，防止原版 FollowParent 把它钉回玩家，也防止
@@ -1938,9 +1954,9 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	Function = function(_)
 		-- full：PRE 已跳过实体更新，帧末完整驱动。
 		-- move_only / keep_vanilla_ai：已在 FAMILIAR_UPDATE 驱动，避免双 tick。
-		for fam in pairs(ACTIVE_BOUND) do
+		for key, fam in pairs(ACTIVE_BOUND) do
 			if not active_familiar_alive(fam) or not is_bound(fam) then
-				ACTIVE_BOUND[fam] = nil
+				ACTIVE_BOUND[key] = nil
 			elseif Familiar_Control_Selector.is_owner(fam, Familiar_Control_Selector.BLUEPRINT) then
 				local adapter = item.ADAPTERS[fam.Variant]
 				if not allows_vanilla_ai(adapter) then update_bound(fam) end

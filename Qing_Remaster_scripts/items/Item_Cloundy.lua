@@ -76,6 +76,16 @@ local item = {
 		"r_prize_counter",
 		"r_prize_counter2",
 	},
+	eat_blacklist = {
+		[996] = true,
+		[EntityType.ENTITY_DOGMA] = true,
+		[EntityType.ENTITY_BEAST] = true,
+		[EntityType.ENTITY_MEGA_SATAN] = true,
+		[EntityType.ENTITY_MEGA_SATAN_2] = true,
+		[EntityType.ENTITY_DELIRIUM] = true,
+		[EntityType.ENTITY_MOTHER] = true,
+		[EntityType.ENTITY_ULTRA_GREED] = true,
+	},
 }
 auxi.add_to_seija(item.entity)
 
@@ -155,8 +165,8 @@ Function = function(_,ent)
 					local n_enemy = auxi.getenemies(n_entity)
 					local tbl = {}
 					local tbl2 = {}
-					for u,v in pairs(n_enemy) do 
-						if v.Type ~= 996 then
+					for u,v in pairs(n_enemy) do
+						if not item.eat_blacklist[v.Type] and v:Exists() and not v:IsDead() then
 							if v:IsBoss() == false then table.insert(tbl,v)
 							elseif not v:GetData()[item.own_key.."effect"] then table.insert(tbl2,v) end
 						end
@@ -325,7 +335,7 @@ Function = function(_,ent)
 	if d[item.own_key.."state"] == 0 then		--飘向角色
 		ent:FollowPosition(player.Position)
 	elseif d[item.own_key.."state"] == 1 then
-		if d[item.own_key.."target"] then
+		if auxi.check_all_exists(d[item.own_key.."target"]) then
 			if (ent.Position - d[item.own_key.."target"].Position):Length() > 150 then
 				ent:FollowPosition(d[item.own_key.."target"].Position)
 			else

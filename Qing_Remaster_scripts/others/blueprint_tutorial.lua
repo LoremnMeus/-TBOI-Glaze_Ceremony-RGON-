@@ -89,8 +89,8 @@ local HINTS = {
 		en = "Open the Brimstone craft and look at its base and module.",
 	},
 	stock_swap = {
-		zh = "把已经装着的底座和模块对调：\n硫磺拖到下面当底座，圣心拖进上面的模块槽。\n别从背包里再拖一份。",
-		en = "Swap the pieces already on the craft:\nBrimstone down to the base, Sacred Heart up into a module slot.\nDon't drag extras from the bag.",
+		zh = "把机体上已经装着的底座和模块对调：\n硫磺拖到下面当底座，圣心拖进上面的模块槽。",
+		en = "Swap the pieces already on the craft:\nBrimstone down to the base, Sacred Heart up into a module slot.",
 	},
 	stock_back = {
 		zh = "对调完了就点「返回」，回到列表。",
@@ -475,8 +475,9 @@ function Tut.bag_collectibles()
 	if step == Tut.STEP.CRAFT_BASE or step == Tut.STEP.CRAFT_MODULE or step == Tut.STEP.CRAFT_CONFIRM then
 		return {Tut.COL_SACRED_HEART, Tut.COL_BRIMSTONE}
 	end
-	-- 仓库对调：空教学背包，逼玩家挪已装件，而不是再从背包拖一份。
-	if step == Tut.STEP.STOCK_OPEN or step == Tut.STEP.STOCK_SWAP or step == Tut.STEP.STOCK_BACK then
+	-- 仓库步骤背包永远是空的：对调已装件，不要让玩家从仓库/目录再拖一份。
+	if step == Tut.STEP.STOCK_TAB or step == Tut.STEP.STOCK_OPEN or step == Tut.STEP.STOCK_SWAP
+		or step == Tut.STEP.STOCK_BACK or step == Tut.STEP.STOCK_DELETE then
 		return {}
 	end
 	return nil
@@ -803,7 +804,12 @@ function Tut.on_panel_closed(player)
 	if not s then return end
 	if s.step == Tut.STEP.FORM_CLOSE then
 		set_session_step(player, s, Tut.STEP.TEST_FORM)
-		if player and player.AddCacheFlags then
+		-- 练习机创建时 skip_eval，避免编队页一次刷三架卡死。
+		-- 关面板后再 imitate：扭曲双子等审计宝宝才会生成临时实体。
+		local BP = get_bp()
+		if BP.refresh_audit_simulates then
+			BP.refresh_audit_simulates(player)
+		elseif player and player.AddCacheFlags then
 			player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
 			player:EvaluateItems()
 		end

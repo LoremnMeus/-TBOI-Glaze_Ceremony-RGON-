@@ -16,6 +16,7 @@ local Shader_holder = require("Qing_Remaster_scripts.others.Shader_holder")
 local Damage_holder = require("Qing_Remaster_scripts.mimics.Damage_holder")
 local Epic_holder = require("Qing_Remaster_scripts.mimics.Epic_holder")
 local Tech_5_holder = require("Qing_Remaster_scripts.mimics.Tech_5_holder")
+local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
 local Shader_holder = require("Qing_Remaster_scripts.others.Shader_holder")
 local Seeker_s_Eye = require("Qing_Remaster_scripts.items.Item_Seeker_s_Eye")
 local Item_Assassin_s_Eye = require("Qing_Remaster_scripts.items.Item_Assassin_s_Eye")
@@ -369,7 +370,6 @@ local item = {
 	eventlist = {"Explosion","Shoot","Jump","Land","BloodStart","BloodStop","Lift","Stop","Slide","Spawn","Shoot2","DeathSound","DropSound","Disappear","Prize",},--"Shuffle",--"CoinInsert",--"Heartbeat",
 	judged_color_map = {},
 	judged_color_dmap = {},
-	Tecro_middle_time_holder = 0,
 	res_length = 60,
 	ignore_type = {
 		[1] = true,
@@ -509,14 +509,22 @@ local function get_spear_range(player,state)
 	return ret
 end
 
+local MOUSE_ENABLED_KEY = item.own_key.."mouse_enabled"
+local MOUSE_DEBOUNCE_KEY = item.own_key.."mouse_debounce"
+
+local function mouse_enabled(player)
+	return player and player:GetData()[MOUSE_ENABLED_KEY] == true
+end
+
 local function check_mouse_work(player,ndir,qdir,center)
 	qdir = qdir or player:GetData().now_dir
 	center = center or player.Position
-	if item.Tecro_middle_time_holder <= 0 and Input.IsMouseBtnPressed(2) then 
-		item.Tecro_middle_time_holder = 20 
-		item.Tecro_middle_holder = (not item.Tecro_middle_holder) 
+	local d = player:GetData()
+	if player.ControllerIndex == 0 and (d[MOUSE_DEBOUNCE_KEY] or 0) <= 0 and Input.IsMouseBtnPressed(2) then
+		d[MOUSE_DEBOUNCE_KEY] = 20
+		d[MOUSE_ENABLED_KEY] = not d[MOUSE_ENABLED_KEY]
 	end
-	if ndir:Length() < 0.05 and item.Tecro_middle_holder then
+	if ndir:Length() < 0.05 and mouse_enabled(player) then
 		local ret = Vector(0,0)
 		local mspos = Input.GetMousePosition(true)
 		if Game():GetRoom():IsMirrorWorld() then
@@ -603,9 +611,11 @@ end,
 })
 --]]
 --l local player_Tecrorun = require("Qing_Remaster_scripts.player.player_Tecrorun") player_Tecrorun.judge_color(118)
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
-Function = function(_)
-	if item.Tecro_middle_time_holder >= 0 then item.Tecro_middle_time_holder = (item.Tecro_middle_time_holder or 0) - 1 end
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
+Function = function(_, player)
+	if player:GetPlayerType() ~= item.entity then return end
+	local d = player:GetData()
+	if (d[MOUSE_DEBOUNCE_KEY] or 0) > 0 then d[MOUSE_DEBOUNCE_KEY] = d[MOUSE_DEBOUNCE_KEY] - 1 end
 end,
 })
 
@@ -740,7 +750,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFEC
 Function = function(_,ent)
 	local s = ent:GetSprite()
 	local d = ent:GetData()
-	local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+	if not player then return end
 	local ctrlvel = false
 	if d[item.own_key.."Tecro_Phantom"] then ctrlvel = true end
 	d[item.own_key.."Base"] = d[item.own_key.."Base"] or {}
@@ -1234,6 +1245,11 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player)
 	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
+		if d[item.own_key.."room_epoch"] ~= (item._room_epoch or 0) then
+			d[item.own_key.."room_epoch"] = item._room_epoch or 0
+			if d[item.own_key.."Impale"] then item.end_impale(player) end
+			if d[item.own_key.."Ludopos"] then d[item.own_key.."Ludopos"] = player.Position end
+		end
 		local s = player:GetSprite()
 		local ctrlid = player.ControllerIndex
 		local gdir = auxi.ggdir(player,true,false,false,nil,{real = true})
@@ -1303,6 +1319,11 @@ Function = function(_,player)
 						if d[item.own_key.."Impale"] then
 							d.Tecro_spear_state = 1
 							d[item.own_key.."Impale"].charge = rate
+							local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
+							CharacterFamiliars.dispatch_registered_copies(player, {
+								aim_dir = d.now_dir,
+								damage_mul = rate,
+							})
 							--d[item.own_key.."Phantom_spear"] = d[item.own_key.."Phantom_spear"] or {}
 							local multishot_of_player = auxi.get_Tecrorun_multishots(player,nil,{allowrand = true,cnt1 = 0,})		--d.Tecro_list
 							for u,v in pairs(multishot_of_player) do
@@ -1384,14 +1405,7 @@ end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	for playerNum = 1,Game():GetNumPlayers() do
-		local player = Game():GetPlayer(playerNum - 1)
-		if player:GetPlayerType() == item.entity then
-			local d = player:GetData()
-			if d[item.own_key.."Impale"] then item.end_impale(player) end
-			if d[item.own_key.."Ludopos"] then d[item.own_key.."Ludopos"] = player.Position end
-		end
-	end
+	item._room_epoch = (item._room_epoch or 0) + 1
 end,
 })
 
@@ -1401,7 +1415,8 @@ Function = function(_,ent,offset)
 		local d = ent:GetData()
 		local s = ent:GetSprite()
 		if (Game():GetRoom():GetRenderMode() ~= RenderMode.RENDER_WATER_REFLECT) then
-			local player = d.player or Game():GetPlayer(0)
+			local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+			if not player then return end
 			local d2 = player:GetData()
 			local list = d2.Tecro_list or {}
 			
@@ -1456,7 +1471,8 @@ function item.find_dir(pos,dir)
 end
 
 function item.fire_tecro_laser(pos,player,dir,params)
-	player = player or Game():GetPlayer(0)
+	player = CharacterAttackCompat.resolve_entity_player(nil, player)
+	if not player then return nil end
 	params = params or {}
 	local tearhitparams = params.tearhitparams or player:GetTearHitParams(WeaponType.WEAPON_LASER,1,auxi.choose(0,-1))
 	local tearflags = params.tearflags or tearhitparams.TearFlags
@@ -1656,7 +1672,7 @@ Function = function(_,ent)
 		local tg_pos = room:GetClampedPosition(init_pos + dir * range, - range * 1.3)
 		local dis = (tg_pos - ent.Position)
 		local ttg_pos = room:GetClampedPosition(init_pos + dir * range * (d2.Tecro_spear_charge or 0.2), - range * 1.3)
-		if item.Tecro_middle_holder then 
+		if mouse_enabled(player) then
 			ttg_pos = room:GetClampedPosition(init_pos + dir * math.min((math.max(0.1,(Input.GetMousePosition(true) - init_pos):Length()) - 30),range * 1.2) * (d2.Tecro_spear_charge or 0.2), - range * 1.3)
 		end
 		local ddis = (ttg_pos - ent.Position)
@@ -1851,5 +1867,13 @@ function item.fire_familiar_attack(player, request)
 		spawned = spawned,
 	}
 end
+
+CharacterAttackCompat.register(item.entity, {
+	key = "tainted_tecro",
+	module = "Qing_Remaster_scripts.player.player_Tecrorun",
+	advanced_familiars = true,
+	familiar_attack = item.fire_familiar_attack,
+	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+})
 
 return item

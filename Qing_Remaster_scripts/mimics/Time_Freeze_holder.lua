@@ -197,6 +197,15 @@ local function pin_familiar_during_time_stop(fam)
 	fam.Velocity = Vector(0, 0)
 end
 
+-- PRE 回调自然覆盖当前仍在更新的宝宝；POST 只复钉这些已见实体，
+-- 避免时间静止期间每帧 FindByType 扫描房间内全部 familiar。
+local time_stop_familiars = {}
+
+local function familiar_runtime_key(fam)
+	local ok, ptr = pcall(GetPtrHash, fam)
+	return ok and ptr or nil
+end
+
 if ModCallbacks.MC_PRE_FAMILIAR_UPDATE then
 	table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
 		CallBack = ModCallbacks.MC_PRE_FAMILIAR_UPDATE,
@@ -204,6 +213,8 @@ if ModCallbacks.MC_PRE_FAMILIAR_UPDATE then
 		priority = -2000,
 		Function = function(_, fam)
 			if not auxi.is_time_stopped() then return end
+			local key = familiar_runtime_key(fam)
+			if key then time_stop_familiars[key] = fam end
 			pin_familiar_during_time_stop(fam)
 			return true
 		end,
@@ -214,9 +225,17 @@ table.insert(item.post_ToCall, #item.post_ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_UPDATE,
 	params = nil,
 	Function = function(_)
-		if not auxi.is_time_stopped() then return end
-		for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, -1, -1, false, false)) do
-			pin_familiar_during_time_stop(ent:ToFamiliar())
+		if not auxi.is_time_stopped() then
+			time_stop_familiars = {}
+			return
+		end
+		for key, fam in pairs(time_stop_familiars) do
+			local ok, live = pcall(function() return fam:Exists() and not fam:IsDead() end)
+			if ok and live then
+				pin_familiar_during_time_stop(fam)
+			else
+				time_stop_familiars[key] = nil
+			end
 		end
 	end,
 })

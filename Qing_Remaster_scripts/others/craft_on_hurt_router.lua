@@ -9,6 +9,9 @@ local item = {
 	own_key = "craft_on_hurt_router_",
 }
 
+-- 仅跟踪真正处于贫血轨迹状态的 Flight；按 InitSeed 避免 userdata wrapper 身份不稳定。
+local active_anemic_airs = {}
+
 local IDS = {
 	BLACK_BEAN = 180,
 	ANEMIC = 214,
@@ -154,6 +157,7 @@ local function effect_anemic(air, _player, _profile, _event, _budget)
 	d[Air.own_key.."anemic_room"] = Game():GetLevel():GetCurrentRoomIndex()
 	-- 本房间持续，直到换房清除；不再限时 8 秒
 	d[Air.own_key.."anemic_active"] = true
+	active_anemic_airs[air.InitSeed] = air
 end
 
 local function effect_varicose(air, player, profile, event, budget)
@@ -338,15 +342,21 @@ function item.dispatch(player, event)
 end
 
 function item.tick_anemic_trails()
+	if next(active_anemic_airs) == nil then return end
 	local Air = get_air_mod()
 	local room = Game():GetLevel():GetCurrentRoomIndex()
-	for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, Air.familiar or enums.Familiars.QingsAirs, -1, false, false)) do
-		local air = ent:ToFamiliar()
+	for seed, air in pairs(active_anemic_airs) do
+		local ok, live = pcall(function() return air and air:Exists() and not air:IsDead() end)
+		if not ok or not live then
+			active_anemic_airs[seed] = nil
+			goto continue
+		end
 		local d = air:GetData()
 		if d[Air.own_key.."anemic_active"] and d[Air.own_key.."anemic_room"] == room then
 			if Air.combat_allowed and not Air.combat_allowed(air) then
 				d[Air.own_key.."anemic_active"] = nil
 				d[Air.own_key.."anemic_room"] = nil
+				active_anemic_airs[seed] = nil
 			elseif Game():GetFrameCount() % 4 == 0 then
 				local creep = Isaac.Spawn(
 					EntityType.ENTITY_EFFECT, EffectVariant.PLAYER_CREEP_RED or 46, 0,
@@ -361,7 +371,11 @@ function item.tick_anemic_trails()
 		elseif d[Air.own_key.."anemic_active"] then
 			d[Air.own_key.."anemic_active"] = nil
 			d[Air.own_key.."anemic_room"] = nil
+			active_anemic_airs[seed] = nil
+		else
+			active_anemic_airs[seed] = nil
 		end
+		::continue::
 	end
 end
 
@@ -465,6 +479,7 @@ table.insert(item.ToCall, {
 	CallBack = ModCallbacks.MC_POST_NEW_ROOM,
 	params = nil,
 	Function = function()
+		active_anemic_airs = {}
 		local Air = get_air_mod()
 		for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, Air.familiar or enums.Familiars.QingsAirs, -1, false, false)) do
 			local d = ent:GetData()

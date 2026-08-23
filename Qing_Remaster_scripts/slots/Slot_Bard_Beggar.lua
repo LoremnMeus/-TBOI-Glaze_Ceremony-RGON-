@@ -7,6 +7,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local every_entity_holder = require("Qing_Remaster_scripts.callbacks.every_entity_holder")
+local slot_offer_lift = require("Qing_Remaster_scripts.slots.slot_offer_lift")
 
 local item = {
 	myToCall = {},
@@ -397,6 +398,8 @@ local item = {
 	},
 }
 
+local spec
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_SLOT_INIT, params = item.entity.Variant,
 Function = function(_,ent)
 	local s = ent:GetSprite()
@@ -407,11 +410,10 @@ Function = function(_,ent)
 		consistance_holder.try_hold_over_entity(ent,item.own_key)
 		consistance_holder.try_hold_entity(ent,item.own_key)
 	end
-	if d._Data[item.own_key]["State"] then
-		s:Play("Idle",true)
-	else
-		s:Play("Idle0",true)
-	end
+	s:Play("Idle",true)
+	d._Data = d._Data or {}
+	d._Data[item.own_key] = d._Data[item.own_key] or {}
+	d._Data[item.own_key]["State"] = true
 end,
 })
 
@@ -421,6 +423,10 @@ Function = function(_,ent)
 	local s = ent:GetSprite()
 	local d = ent:GetData()
 	local rng = ent:GetDropRNG()
+	local anim = s:GetAnimation()
+	if anim == "Idle0" or anim == "Appearing" then
+		s:Play("Idle",true)
+	end
 	if d.tosay == nil or #d.tosay == 0 then	d.should_prize = false end
 	if s:IsPlaying("Idle") then
 		if d.should_prize then s:Play("Prize",true) end
@@ -432,11 +438,6 @@ Function = function(_,ent)
 				table.remove(d.tosay,1)
 				if #d.tosay == 0 then	
 					consistance_holder.try_hold_over_entity(ent,item.own_key)
-					if (d._Data[item.own_key]["Counter"] or 0) >= 7 then 
-						d._Data[item.own_key]["Counter"] = -1000
-						local q = Isaac.Spawn(5,100,CollectibleType.COLLECTIBLE_MYSTERY_GIFT,room:FindFreePickupSpawnPosition(ent.Position,10,true),Vector(0,0),nil):ToPickup() 
-						Game():GetPlayer(0):AnimateHappy()
-					end
 					consistance_holder.try_hold_entity(ent,item.own_key)
 				end
 			end
@@ -444,23 +445,15 @@ Function = function(_,ent)
 	end
 	
 	if s:IsFinished("Teleport") then ent:Remove() return end
-	if s:IsFinished("Prize") then s:Play("Idle",true) end
-	if s:IsFinished("PayPrize") then s:Play("Prize",true) end
-	if s:IsFinished("Appearing") then
-		local language = Options.Language
-		if item.Tosay[language] == nil then language = "zh"	end
-		local to_say = item.Tosay[language].Special_words[1]
-		if (save.elses.times_meet_beggar or 0) ~= 0 then to_say = item.Tosay[language].Special_words[2] end
-		d.tosay = d.tosay or {}
-		for j = 1,#to_say do table.insert(d.tosay,to_say[j]) end
-		d.should_prize = true
-		s:Play("Prize",true)
-		save.elses.times_meet_beggar = (save.elses.times_meet_beggar or 0) + 1
-		
-		consistance_holder.try_hold_over_entity(ent,item.own_key)
-		d._Data[item.own_key]["State"] = true
-		consistance_holder.try_hold_entity(ent,item.own_key)
+	if s:IsFinished("Prize") then
+		if d._Data and d._Data[item.own_key] and d._Data[item.own_key].Accepted then
+			s:Play("Teleport",true)
+			ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+			return
+		end
+		s:Play("Idle",true)
 	end
+	if s:IsFinished("PayPrize") then s:Play("Prize",true) end
 end,
 })
 
@@ -511,18 +504,157 @@ local function try_prize(player,rng,ent)
 	end
 end
 
+local function blessing_bag()
+	return save.elses[item.own_key.."bless"]
+end
+
+local function set_blessing(kind,rng)
+	rng = auxi.rng_for_sake(rng or RNG())
+	save.elses[item.own_key.."bless"] = {
+		kind = kind,
+		pending = true,
+		shop_refund = rng:RandomInt(5) + 8,
+		bomb_left = 3,
+		heart_left = 1,
+		in_combat = false,
+	}
+end
+
+local function clear_blessing()
+	save.elses[item.own_key.."bless"] = nil
+end
+
+local function can_pay_heart(player)
+	return player:GetHearts() >= 2 or player:GetSoulHearts() >= 2
+end
+
+local function pay_heart(player)
+	if player:GetHearts() >= 2 then
+		player:AddHearts(-2)
+	else
+		player:AddSoulHearts(-2)
+	end
+end
+
+local OFFERS = {
+	{
+		id = "coin",
+		anm2 = "gfx/005.021_penny.anm2",
+		replacer = "gfx/items/slots/item_to_pay_coin.png",
+		hud_num = "5",
+		title_zh = "富饶之歌",
+		title_en = "Song of Plenty",
+		eid_zh = "{{Coin}} 富饶之歌#支付5枚硬币#下层首次购物返还8-12枚硬币",
+		eid_en = "{{Coin}} Song of Plenty#Pay 5 coins#First shop buy next floor refunds 8-12¢",
+		can = function(player) return player:GetNumCoins() >= 5 end,
+		take = function(player) player:AddCoins(-5) end,
+	},
+	{
+		id = "key",
+		anm2 = "gfx/005.031_key.anm2",
+		replacer = "gfx/items/slots/item_to_pay_key.png",
+		hud_num = "1",
+		title_zh = "旅途之歌",
+		title_en = "Song of the Road",
+		eid_zh = "{{Key}} 旅途之歌#支付1把钥匙#下层揭示{{TreasureRoom}}宝箱房",
+		eid_en = "{{Key}} Song of the Road#Pay 1 key#Next floor reveals the {{TreasureRoom}}",
+		can = function(player) return player:GetNumKeys() >= 1 end,
+		take = function(player) player:AddKeys(-1) end,
+	},
+	{
+		id = "bomb",
+		anm2 = "gfx/005.041_bomb.anm2",
+		replacer = "gfx/items/slots/item_to_pay_bomb.png",
+		hud_num = "1",
+		title_zh = "战歌",
+		title_en = "War Song",
+		eid_zh = "{{Bomb}} 战歌#支付1个炸弹#下层前3个战斗房{{Damage}} +1",
+		eid_en = "{{Bomb}} War Song#Pay 1 bomb#{{Damage}} +1 in the first 3 enemy rooms next floor",
+		can = function(player) return player:GetNumBombs() >= 1 end,
+		take = function(player) player:AddBombs(-1) end,
+	},
+	{
+		id = "heart",
+		anm2 = "gfx/005.011_heart.anm2",
+		replacer = "gfx/items/slots/item_to_pay_heart.png",
+		replacer_fn = function(player)
+			if player:GetHearts() >= 2 then
+				return "gfx/items/slots/item_to_pay_heart.png"
+			end
+			return "gfx/items/slots/item_to_pay_soulheart.png"
+		end,
+		hud_num = "1",
+		title_zh = "安魂曲",
+		title_en = "Requiem",
+		eid_zh = "{{Heart}} 安魂曲#支付1颗心#下层第一次受伤时抵挡伤害",
+		eid_en = "{{Heart}} Requiem#Pay 1 heart#Block the first hit next floor",
+		can = can_pay_heart,
+		take = pay_heart,
+	},
+}
+
+spec = {
+	key = item.own_key,
+	variant = item.entity.Variant,
+	range = 48,
+	render_hud = false,
+	can_open = function(ent)
+		if not ent or not ent:Exists() then return false end
+		local s = ent:GetSprite()
+		if not s:IsPlaying("Idle") then return false end
+		local d = ent:GetData()
+		if d.should_prize then return false end
+		if d._Data and d._Data[item.own_key] and d._Data[item.own_key].Accepted then return false end
+		return true
+	end,
+	get_options = function(player,ent)
+		local list = {}
+		for _,info in ipairs(OFFERS) do
+			if info.can(player) then list[#list + 1] = info end
+		end
+		return list
+	end,
+	on_confirm = function(player,ent,opt)
+		if not opt or not opt.take then return end
+		if opt.can and not opt.can(player) then return end
+		local s = ent:GetSprite()
+		local replacer = opt.replacer
+		if opt.replacer_fn then replacer = opt.replacer_fn(player) end
+		if replacer then
+			s:ReplaceSpritesheet(2, replacer)
+			s:LoadGraphics()
+		end
+		opt.take(player)
+		set_blessing(opt.id,ent:GetDropRNG())
+		local d = ent:GetData()
+		addtosay(ent,1,ent:GetDropRNG())
+		s:Play("PayPrize",true)
+		d.should_prize = true
+		consistance_holder.try_hold_over_entity(ent,item.own_key)
+		d._Data[item.own_key] = d._Data[item.own_key] or {}
+		d._Data[item.own_key].Accepted = true
+		consistance_holder.try_hold_entity(ent,item.own_key)
+		local hud = Game():GetHUD()
+		if hud and hud.ShowItemText then
+			if slot_offer_lift.lang_zh() then
+				hud:ShowItemText(opt.title_zh or "吟游乞丐", "")
+			else
+				hud:ShowItemText(opt.title_en or "Bard Beggar", "")
+			end
+		end
+	end,
+}
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_SLOT_COLLISION, params = item.entity.Variant,
-Function = function(_,ent,player,low)
+Function = function(_,ent,col,low)
+	local player = col and col:ToPlayer()
+	if not player then return end
 	local s = ent:GetSprite()
 	local d = ent:GetData()
 	if s:IsPlaying("Idle") and d.should_prize ~= true then
-		local succ = try_prize(player,ent:GetDropRNG(),ent)
-		if succ then
-			s:Play("PayPrize",true)
-			d.should_prize = true
-		end
+		spec.variant = item.entity.Variant
+		slot_offer_lift.try_confirm(player,ent,spec)
 	end
-	if s:IsPlaying("Idle0") then s:Play("Appearing",true) end
 end,
 })
 
@@ -542,5 +674,156 @@ Function = function(_)
 	end
 end,
 })
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
+Function = function(_,player)
+	spec.variant = item.entity.Variant
+	slot_offer_lift.tick(player,spec)
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_INPUT_ACTION, params = nil,
+Function = function(_,ent,hook,button)
+	if ent == nil then return end
+	local player = ent:ToPlayer()
+	if not player then return end
+	return slot_offer_lift.block_input(player,item.own_key,hook,button)
+end,
+})
+
+local function refresh_damage()
+	for i = 0,Game():GetNumPlayers() - 1 do
+		local p = Game():GetPlayer(i)
+		if p then
+			p:AddCacheFlags(CacheFlag.CACHE_DAMAGE)
+			p:EvaluateItems()
+		end
+	end
+end
+
+local function reveal_treasure()
+	local level = Game():GetLevel()
+	local rooms = level:GetRooms()
+	for i = 0,rooms.Size do
+		local targ = rooms:Get(i)
+		if targ and targ.Data and targ.Data.Type == RoomType.ROOM_TREASURE then
+			local desc = level:GetRoomByIdx(targ.SafeGridIndex)
+			if desc then
+				desc.DisplayFlags = desc.DisplayFlags | 5
+			end
+		end
+	end
+	level:UpdateVisibility()
+end
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_LEVEL, params = nil,
+Function = function(_)
+	local bless = blessing_bag()
+	if not bless then return end
+	if bless.pending then
+		bless.pending = false
+		bless.active = true
+		if bless.kind == "key" then reveal_treasure() end
+		local hud = Game():GetHUD()
+		if hud and hud.ShowItemText then
+			if slot_offer_lift.lang_zh() then
+				hud:ShowItemText("吟游祝福","本层生效")
+			else
+				hud:ShowItemText("Bard Blessing","Active this floor")
+			end
+		end
+		refresh_damage()
+	else
+		clear_blessing()
+		refresh_damage()
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
+Function = function(_)
+	local bless = blessing_bag()
+	if not bless or not bless.active or bless.kind ~= "bomb" then return end
+	if bless.in_combat then
+		bless.bomb_left = (bless.bomb_left or 0) - 1
+		bless.in_combat = false
+		if bless.bomb_left <= 0 then bless.kind = "spent" end
+		refresh_damage()
+	end
+	local room = Game():GetRoom()
+	if (bless.bomb_left or 0) > 0 and room:GetAliveEnemiesCount() > 0 then
+		bless.in_combat = true
+		refresh_damage()
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = CacheFlag.CACHE_DAMAGE,
+Function = function(_,player,flag)
+	local bless = blessing_bag()
+	if bless and bless.active and bless.kind == "bomb" and bless.in_combat and (bless.bomb_left or 0) > 0 then
+		player.Damage = player.Damage + 1
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = 1,
+Function = function(_,ent,amt,flag,source,cooldown)
+	local bless = blessing_bag()
+	if not bless or not bless.active or bless.kind ~= "heart" then return end
+	if (bless.heart_left or 0) <= 0 then return end
+	if amt <= 0 then return end
+	if flag & DamageFlag.DAMAGE_FAKE ~= 0 then return end
+	local player = ent:ToPlayer()
+	if not player then return end
+	bless.heart_left = 0
+	bless.kind = "spent"
+	player:SetMinDamageCooldown(30)
+	return false
+end,
+})
+
+if ModCallbacks.MC_POST_PICKUP_SHOP_PURCHASE then
+	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_SHOP_PURCHASE, params = nil,
+	Function = function(_,pickup,player,moneySpent)
+		local bless = blessing_bag()
+		if not bless or not bless.active or bless.kind ~= "coin" or bless.shop_done then return end
+		if not player or (moneySpent or 0) <= 0 then return end
+		local refund = math.min(bless.shop_refund or 3,moneySpent)
+		player:AddCoins(refund)
+		bless.shop_done = true
+		bless.kind = "spent"
+	end,
+	})
+end
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
+Function = function(_,continue)
+	if continue then
+	else
+		clear_blessing()
+	end
+end,
+})
+
+local function static_eid()
+	if slot_offer_lift.lang_zh() then
+		return "赠予一份资源，换取下层祝福"..
+			"#靠近后左右切换馈赠，走进确认"..
+			"#按{{ButtonRT}}取消"
+	end
+	return "Offer a resource for a blessing on the next floor"..
+		"#Switch gifts with left/right, walk in to confirm"..
+		"#Press {{ButtonRT}} to cancel"
+end
+
+local function option_eid(player, opt)
+	if slot_offer_lift.lang_zh() then
+		return opt.eid_zh or static_eid()
+	end
+	return opt.eid_en or static_eid()
+end
+
+slot_offer_lift.install_eid("qing_bard_beggar_eid", item.entity.Variant, item.own_key, static_eid, option_eid)
 
 return item

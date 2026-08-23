@@ -2,6 +2,7 @@ local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local Nil_holder = require("Qing_Remaster_scripts.others.Nil_holder")
 
 local item = {
 	ToCall = {},
@@ -12,6 +13,9 @@ local item = {
 	damage_per_tick = 0.1,
 	frames_per_tick = 30 * 30, -- 30 秒
 	floor_cap = 1,
+	ghost_life = 42,
+	ghost_start_alpha = 0.72,
+	ghost_lift = 54,
 }
 
 local function bonus_bucket()
@@ -46,6 +50,27 @@ end
 
 function item.stop_growth_this_floor()
 	floor_bucket().stopped = true
+end
+
+function item.spawn_stop_ghost(pos)
+	if not pos then return end
+	local q = auxi.fire_nil(pos, Vector(0, 0), {cooldown = item.ghost_life})
+	if not q then return end
+	q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	q.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE
+	q.DepthOffset = 40
+	local d = q:GetData()
+	d.skip_nil_distance_cull = true
+	local s = q:GetSprite()
+	auxi.load_item(item.entity, {sprite = s})
+	s.Color = Color(1, 1, 1, item.ghost_start_alpha)
+	d[Nil_holder.own_key.."work"] = function(self)
+		local dd = self:GetData()
+		local life = (dd.Params and dd.Params.cooldown) or item.ghost_life
+		local t = math.max(0, (dd.removecd or 0) / math.max(1, life))
+		self.PositionOffset = Vector(0, -8 - (1 - t) * item.ghost_lift)
+		self:GetSprite().Color = Color(1, 1, 1, item.ghost_start_alpha * t)
+	end
 end
 
 local function reset_floor_counters()
@@ -139,7 +164,9 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NPC_D
 Function = function(_,npc)
 	if not npc or not npc:IsBoss() then return end
 	if not auxi.have_player_has_collectible(item.entity) then return end
+	if item.is_growth_stopped() then return end
 	item.stop_growth_this_floor()
+	item.spawn_stop_ghost(npc.Position)
 end,
 })
 

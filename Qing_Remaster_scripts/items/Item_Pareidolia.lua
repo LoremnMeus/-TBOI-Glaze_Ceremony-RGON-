@@ -5,6 +5,7 @@ local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local Nil_holder = require("Qing_Remaster_scripts.others.Nil_holder")
 local moon = require("Qing_Remaster_scripts.others.pareidolia_moon_render")
 
 local item = {
@@ -35,7 +36,7 @@ local item = {
 			[CollectibleType.COLLECTIBLE_LUDOVICO_TECHNIQUE] = {desc = "注视中的路德维希之泪也会受到圣光打击",},
 			[CollectibleType.COLLECTIBLE_TECHNOLOGY] = {desc = "满月时还会短暂射出一道科技激光",},
 			[CollectibleType.COLLECTIBLE_TECHNOLOGY_2] = {desc = "满月时还会持续射出一道科技激光",},
-			[CollectibleType.COLLECTIBLE_TECH_X] = {desc = "满月时会在目标处生成一圈逐渐收缩的科技激光环",},
+			[CollectibleType.COLLECTIBLE_TECH_X] = {desc = "月亮开始注视时，目标处出现悬浮的科技激光圈并逐渐收缩消失",},
 		},
 		en_us = {
 			[CollectibleType.COLLECTIBLE_20_20] = {desc = "An extra pupil appears while gazing; holy light also strikes again for half damage",},
@@ -50,7 +51,7 @@ local item = {
 			[CollectibleType.COLLECTIBLE_LUDOVICO_TECHNIQUE] = {desc = "Holy light also strikes your controlled Ludovico tear",},
 			[CollectibleType.COLLECTIBLE_TECHNOLOGY] = {desc = "Full moon also fires a brief Technology laser",},
 			[CollectibleType.COLLECTIBLE_TECHNOLOGY_2] = {desc = "Full moon also sustains a Technology laser",},
-			[CollectibleType.COLLECTIBLE_TECH_X] = {desc = "Full moon creates a shrinking Technology ring on the target",},
+			[CollectibleType.COLLECTIBLE_TECH_X] = {desc = "When the moon begins gazing, a hovering Technology ring appears on the target and shrinks away",},
 		},
 	},
 }
@@ -132,9 +133,12 @@ local TECH_OFFSET = {r = 0.38, g = 0.06, b = 0.04}
 local TECH_LIFT_PO_MUL = 0.72 -- 已弃用：激光改用世界坐标 Y-lift，不再叠 PositionOffset
 local TECH_DEPTH = 280 -- 画在前方
 local TECH_LASER_VAR = (LaserVariant and LaserVariant.THIN_RED) or 2
-local TECHX_RING_SUB = 3 -- Tech X 环 SubType
+-- SubType 1 = RING_LUDOVICO（科技X+Ludo 悬浮圈）
+-- SubType 2 = 射出去的科技X 投射环；SubType 3 = 虚空之口跟随环
+local TECHX_RING_SUB = (LaserSubType and LaserSubType.LASER_SUBTYPE_RING_LUDOVICO) or 1
+local LASER_TAG = "qing_pareidolia_laser" -- 探针/所有权标记；ShootAngle 内部 INIT 时尚无此标记
 local TECHX_START_R = 120
-local TECHX_SHRINK = 8
+local TECHX_ANCHOR_H = -23 -- RING_LUDOVICO 无泪 Height，用 ParentOffset 抬到 Ludo 悬浮高度
 local FLASH_INTERVAL = 28 -- 多数时间原色；每隔这么多帧开始一次闪烁
 local FLASH_HOLD = 3      -- 每种闪烁色持续帧数
 local FLASH_FADE = 2      -- 闪烁起止各插值帧数（色相与瞳孔形变共用）
@@ -307,14 +311,33 @@ local function release_owned_laser(las)
 	end
 end
 
+local function release_techx_hover(fx)
+	if not fx then return end
+	-- RING_LUDOVICO 会忽略 SetTimeout(1)，必须 Remove（同 Craft_Ludovico_holder.clear_slot_ring）
+	local las = fx.techx_ring
+	fx.techx_ring = nil
+	if auxi.check_all_exists(las) then
+		if las.Radius ~= nil then las.Radius = 0 end
+		las.Visible = false
+		if las.CollisionDamage ~= nil then las.CollisionDamage = 0 end
+		if las.Remove then las:Remove() end
+	end
+	local a = fx.techx_anchor
+	fx.techx_anchor = nil
+	if auxi.check_all_exists(a) then
+		local ad = a:GetData()
+		if ad then ad.removecd = 0 end
+		if a.Remove then a:Remove() end
+	end
+end
+
 local function clear_fx_tech_lasers(fx)
 	if not fx then return end
 	release_owned_laser(fx.tech2_laser)
 	release_owned_laser(fx.tech1_laser)
-	release_owned_laser(fx.techx_ring)
+	release_techx_hover(fx)
 	fx.tech2_laser = nil
 	fx.tech1_laser = nil
-	fx.techx_ring = nil
 	fx.tech1_fired = nil
 end
 
@@ -366,6 +389,7 @@ local function moon_pupil_world_pos_legacy(fx)
 end
 
 --- 独立生成科技激光（不用 player:FireTech*，避免继承镜像/弯勺等）
+--- 不要用 ShootAngle(..., timeout=-1)：INIT 阶段可能直接判死，探针/画面都抓不到。
 local function spawn_standalone_tech_laser(origin, aim, opts)
 	opts = opts or {}
 	if not origin or not aim then return nil end
@@ -378,16 +402,11 @@ local function spawn_standalone_tech_laser(origin, aim, opts)
 		dir = dir:Normalized()
 	end
 	local ang = dir:GetAngleDegrees()
-	local timeout = opts.one_hit and 2 or -1
 	local source = opts.source
-	local las
-	if EntityLaser and EntityLaser.ShootAngle then
-		las = EntityLaser.ShootAngle(TECH_LASER_VAR, origin, ang, timeout, Vector.Zero, source)
-	else
-		las = Isaac.Spawn(EntityType.ENTITY_LASER, TECH_LASER_VAR, 0, origin, Vector.Zero, source)
-	end
+	local las = Isaac.Spawn(EntityType.ENTITY_LASER, TECH_LASER_VAR, 0, origin, Vector.Zero, source)
 	if not las then return nil end
 	las = las:ToLaser() or las
+	las:GetData()[LASER_TAG] = opts.kind or "beam"
 	sanitize_gaze_laser(las)
 	las.Position = Vector(origin.X, origin.Y)
 	las.Velocity = Vector.Zero
@@ -400,8 +419,10 @@ local function spawn_standalone_tech_laser(origin, aim, opts)
 	if opts.one_hit then
 		if las.SetOneHit then las:SetOneHit(true) end
 		las.OneHit = true
+		if las.SetTimeout then las:SetTimeout(2) end
+	elseif las.SetTimeout then
+		las:SetTimeout(-1)
 	end
-	if las.SetTimeout then las:SetTimeout(timeout) end
 	las.CollisionDamage = tonumber(opts.damage) or 3.5
 	las.SpawnerEntity = source
 	if las.ClearTearFlags and TearFlags and TearFlags.TEAR_NORMAL then
@@ -417,7 +438,7 @@ local function spawn_standalone_tech_laser(origin, aim, opts)
 end
 
 local function update_standalone_tech_laser(las, origin, aim)
-	if not las or not las:Exists() or not origin or not aim then return end
+	if not auxi.check_all_exists(las) or not origin or not aim then return end
 	local dir = aim - origin
 	local dist = dir:Length()
 	if dist < 0.05 then
@@ -1402,8 +1423,54 @@ end
 tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 	if not player or not fx or not syn then return end
 	local aim = hit_pos or fx.lock_pos or fx.anchor_target or fx.anchor
+
+	-- 科技X 悬浮圈不依赖瞳孔射线；视线失败时仍继续缩圈。
+	-- RING_LUDOVICO 必须挂在 MeusNil 锚点上，禁止每帧 Parent=nil。
+	do
+		local pos = fx.lock_pos or aim
+		local anchor = fx.techx_anchor
+		if pos and auxi.check_all_exists(anchor) then
+			anchor.Position = Vector(pos.X, pos.Y)
+			anchor.Velocity = Vector.Zero
+			anchor.Visible = false
+			local ad = anchor:GetData()
+			if (ad.removecd or 0) < 120 then ad.removecd = 999999 end
+		elseif not auxi.check_all_exists(anchor) then
+			fx.techx_anchor = nil
+			anchor = nil
+		end
+		local ring = fx.techx_ring
+		if auxi.check_all_exists(ring) and auxi.check_all_exists(anchor) then
+			local life = math.max(24, tonumber(fx.techx_life) or 48)
+			local age = (tonumber(fx.techx_age) or 0) + 1
+			fx.techx_age = age
+			local u = math.min(1, age / life)
+			local r0 = tonumber(fx.techx_r0) or TECHX_START_R
+			local r = r0 * (1 - u)
+			if age >= life or r <= 2 then
+				release_techx_hover(fx)
+			else
+				ring.Position = Vector(anchor.Position.X, anchor.Position.Y)
+				ring.Velocity = Vector.Zero
+				ring.Parent = anchor
+				if ring.ParentOffset ~= nil then ring.ParentOffset = Vector(0, TECHX_ANCHOR_H) end
+				if ring.DisableFollowParent ~= nil then ring.DisableFollowParent = false end
+				if ring.SetDisableFollowParent then ring:SetDisableFollowParent(false) end
+				ring.SubType = TECHX_RING_SUB
+				if ring.SetTimeout then ring:SetTimeout(999999) end
+				if ring.Shrink ~= nil then ring.Shrink = false end
+				if ring.Radius ~= nil then ring.Radius = r end
+			end
+		else
+			release_techx_hover(fx)
+		end
+	end
+
 	if not aim or not fx.anchor then
-		clear_fx_tech_lasers(fx)
+		release_owned_laser(fx.tech2_laser)
+		release_owned_laser(fx.tech1_laser)
+		fx.tech2_laser = nil
+		fx.tech1_laser = nil
 		return
 	end
 	local room = Game():GetRoom()
@@ -1422,7 +1489,10 @@ tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 	end
 	local origin = eye_screen and moon.screen_to_world(eye_screen) or moon_pupil_world_pos(fx, aim, apply_opts)
 	if not origin then
-		clear_fx_tech_lasers(fx)
+		release_owned_laser(fx.tech2_laser)
+		release_owned_laser(fx.tech1_laser)
+		fx.tech2_laser = nil
+		fx.tech1_laser = nil
 		return
 	end
 	fx._tech_laser_dbg = {
@@ -1441,7 +1511,7 @@ tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 	-- 科技2：持续激光（跟瞳孔视觉点 → 目标落点）
 	if syn.tech2 and want_beam then
 		local las = fx.tech2_laser
-		if las and las:Exists() then
+		if auxi.check_all_exists(las) then
 			update_standalone_tech_laser(las, origin, aim)
 			las.CollisionDamage = dmg * 0.13
 		else
@@ -1449,6 +1519,7 @@ tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 				source = player,
 				damage = dmg * 0.13,
 				one_hit = false,
+				kind = "tech2",
 			})
 		end
 	else
@@ -1463,28 +1534,10 @@ tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 			source = player,
 			damage = dmg * 0.85,
 			one_hit = true,
+			kind = "tech1",
 		})
-	elseif fx.tech1_laser and (not fx.tech1_laser:Exists()) then
+	elseif not auxi.check_all_exists(fx.tech1_laser) then
 		fx.tech1_laser = nil
-	end
-
-	-- 科技X：环向中心收缩（独立 Spawn，不用 FireTechXLaser）
-	if fx.techx_ring then
-		local ring = fx.techx_ring
-		if ring:Exists() then
-			ring.Position = Vector(aim.X, aim.Y)
-			ring.Velocity = Vector.Zero
-			sanitize_gaze_laser(ring)
-			if ring.Radius ~= nil then
-				ring.Radius = math.max(0, (tonumber(ring.Radius) or 0) - TECHX_SHRINK)
-				if ring.Radius <= 1.5 then
-					release_owned_laser(ring)
-					fx.techx_ring = nil
-				end
-			end
-		else
-			fx.techx_ring = nil
-		end
 	end
 
 	-- 激光闪烁染色（短 duration，不影响圣光柱 -1 染色）
@@ -1496,12 +1549,29 @@ tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 	end
 	local dbg = fx._tech_laser_dbg
 	if dbg then
-		local las = fx.tech2_laser
-		if las and las.Exists and las:Exists() then
+		dbg.owned_tech1 = auxi.check_all_exists(fx.tech1_laser)
+		dbg.owned_tech2 = auxi.check_all_exists(fx.tech2_laser)
+		dbg.owned_techx = auxi.check_all_exists(fx.techx_ring)
+		local las, kind = nil, nil
+		if auxi.check_all_exists(fx.tech2_laser) then
+			las = fx.tech2_laser
+			kind = "tech2"
+		elseif auxi.check_all_exists(fx.tech1_laser) then
+			las = fx.tech1_laser
+			kind = "tech1"
+		elseif auxi.check_all_exists(fx.techx_ring) then
+			las = fx.techx_ring
+			kind = "techx"
+		end
+		if las then
+			dbg.laser_kind = kind
 			dbg.laser_pos = Vector(las.Position.X, las.Position.Y)
 			dbg.laser_po = las.PositionOffset and Vector(las.PositionOffset.X, las.PositionOffset.Y) or nil
 			dbg.laser_height = las.Height
 			dbg.laser_angle = las.Angle
+			dbg.laser_variant = las.Variant
+			dbg.laser_subtype = las.SubType
+			dbg.laser_timeout = las.Timeout
 			if room then
 				dbg.laser_screen = room:WorldToScreenPosition(las.Position)
 				if las.PositionOffset then
@@ -1514,32 +1584,61 @@ tick_fx_tech_lasers = function(player, fx, syn, hit_pos)
 	end
 end
 
-local function spawn_fx_techx_ring(player, fx, strike_pos)
-	if not player or not fx or not strike_pos then return end
+local function spawn_fx_techx_anchor(player, pos)
+	if not pos then return nil end
+	-- MeusNil 当圆心：不会被泪弹捕捉/20/20 分叉。跳过 Nil_holder 默认运动与距离清杀。
+	local q = auxi.fire_nil(pos, Vector(0, 0), {cooldown = 999999, player = player})
+	if not q then return nil end
+	q:ClearEntityFlags(EntityFlag.FLAG_APPEAR)
+	q.Visible = false
+	q.Velocity = Vector.Zero
+	q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	q.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE
+	local d = q:GetData()
+	d[item.own_key.."techx_anchor"] = true
+	d.skip_nil_distance_cull = true
+	d.nil_mode = "visual_only"
+	d[Nil_holder.own_key.."work"] = function() return true end
+	return q
+end
+
+local function spawn_fx_techx_ring(player, fx, pos)
+	if not player or not fx or not pos then return end
 	if not eye_synergies(player).techx then return end
-	release_owned_laser(fx.techx_ring)
-	local pos = Vector(strike_pos.X, strike_pos.Y)
-	local ring = Isaac.Spawn(
-		EntityType.ENTITY_LASER,
-		TECH_LASER_VAR,
-		TECHX_RING_SUB,
-		pos,
-		Vector.Zero,
-		player
-	)
-	if not ring then return end
+	if auxi.check_all_exists(fx.techx_ring) then return end
+	local origin = Vector(pos.X, pos.Y)
+	local anchor = fx.techx_anchor
+	if not auxi.check_all_exists(anchor) then
+		anchor = spawn_fx_techx_anchor(player, origin)
+		fx.techx_anchor = anchor
+	end
+	if not auxi.check_all_exists(anchor) then return end
+	-- 与 Craft_Ludovico_holder.spawn_ring 同序：FireTechXLaser → Parent=锚点 → RING_LUDOVICO
+	local ring = player:FireTechXLaser(anchor.Position, Vector.Zero, TECHX_START_R, player, 0.4)
+	if not ring then
+		release_techx_hover(fx)
+		return
+	end
 	ring = ring:ToLaser() or ring
-	sanitize_gaze_laser(ring)
-	ring.Variant = TECH_LASER_VAR
+	ring:GetData()[LASER_TAG] = "techx"
+	ring.Parent = anchor
 	ring.SubType = TECHX_RING_SUB
 	ring.Velocity = Vector.Zero
-	ring.Position = pos
-	ring.CollisionDamage = resonance_damage(player) * 0.4
+	if ring.DisableFollowParent ~= nil then ring.DisableFollowParent = false end
+	if ring.SetDisableFollowParent then ring:SetDisableFollowParent(false) end
+	if ring.SetTimeout then ring:SetTimeout(999999) end
+	ring.Variant = TECH_LASER_VAR
+	ring.SubType = TECHX_RING_SUB
+	ring.Position = Vector(anchor.Position.X, anchor.Position.Y)
+	if ring.ParentOffset ~= nil then ring.ParentOffset = Vector(0, TECHX_ANCHOR_H) end
+	if ring.Shrink ~= nil then ring.Shrink = false end
 	if ring.Radius ~= nil then ring.Radius = TECHX_START_R end
-	if ring.SetTimeout then ring:SetTimeout(45) end
 	if ring.CurveStrength ~= nil then ring.CurveStrength = 0 end
 	if ring.HomingType ~= nil then ring.HomingType = 0 end
 	fx.techx_ring = ring
+	fx.techx_r0 = TECHX_START_R
+	fx.techx_age = 0
+	fx.techx_life = math.max(24, tonumber(fx.ascend_frames) or 48)
 end
 
 local function holy_radius_for(player)
@@ -2131,6 +2230,7 @@ local function begin_fx(player, target, lock_pos)
 	}
 	-- 进度月藏起；月相清零留到 end_fx，期间 counting=false 禁止攒相
 	rec.vis_alpha = 0
+	spawn_fx_techx_ring(player, rec.fx, rec.fx.lock_pos)
 end
 
 local function fx_total(stage, cfg, fx)
@@ -2276,8 +2376,6 @@ local function tick_fx(player, rec)
 			spawn_light_pillar(player, strike_pos, dmg, pillar_opts(strike_pos, {radius = radius}))
 			apply_synergies(player, target, {damage = dmg, pos = strike_pos, radius = radius})
 			if target then note_mark_hurt(target, dmg) end
-			-- 科技X：目标周围大型激光环并向中心收缩
-			spawn_fx_techx_ring(player, fx, strike_pos)
 			-- 玄秘魔眼：准星位置额外光柱
 			if syn.occult then
 				local mark = find_aim_mark_pos(player)

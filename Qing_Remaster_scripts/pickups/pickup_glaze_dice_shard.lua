@@ -2,6 +2,7 @@ local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local pickup_glaze_enemy = require("Qing_Remaster_scripts.pickups.pickup_glaze_enemy")
@@ -283,5 +284,176 @@ Function = function(_,player,card,slot)
 	end
 end,
 })
+
+local HUD_ANIM = "Glazed Dice Shard"
+local HUD_ANIM_LEN = 36
+local hud_spr = nil
+local hud_anim_logic_frame = -1
+local default_hidden = false
+
+local function ensure_hud_spr()
+	if hud_spr == nil then
+		hud_spr = Sprite()
+		hud_spr:Load("gfx/ui/content/ui_cardfronts.anm2", true)
+	end
+	return hud_spr
+end
+
+local function sync_hud_anim(spr)
+	local logic_frame = Game():GetFrameCount()
+	if hud_anim_logic_frame == logic_frame then return end
+	hud_anim_logic_frame = logic_frame
+	spr:SetFrame(HUD_ANIM, logic_frame % HUD_ANIM_LEN)
+end
+
+local function set_default_hidden(hidden)
+	if not REPENTOGON then return end
+	local cfg = Isaac.GetItemConfig():GetCard(item.pickup)
+	local front = cfg and cfg.ModdedCardFront
+	if front == nil then return end
+	if hidden then
+		front:Stop()
+		front:SetFrame(HUD_ANIM, 0)
+		front.PlaybackSpeed = 0
+		front.Scale = Vector(0, 0)
+		front.Color = Color(1, 1, 1, 0)
+	else
+		front.PlaybackSpeed = 1
+		front.Scale = Vector(1, 1)
+		front.Color = Color(1, 1, 1, 1)
+	end
+	default_hidden = hidden
+end
+
+local function player_dice_slots(player)
+	local slots = {}
+	if player == nil or player.Parent then return slots end
+	if player.Variant ~= 0 then return slots end
+	for slot = 0, 1 do
+		if player:GetCard(slot) == item.pickup then
+			slots[#slots + 1] = slot
+		end
+	end
+	return slots
+end
+
+local function any_player_holds_dice()
+	local game = Game()
+	for i = 0, game:GetNumPlayers() - 1 do
+		local player = game:GetPlayer(i)
+		if player and #player_dice_slots(player) > 0 then
+			return true
+		end
+	end
+	return false
+end
+
+local function card_hud_state(player)
+	if auxi.is_double_player() then
+		if player:GetPlayerType() == PlayerType.PLAYER_ESAU then
+			return 3
+		end
+		return 2
+	end
+	return 1
+end
+
+local function sprite_snapshot(spr)
+	if spr == nil then return nil end
+	local col = spr.Color
+	local tint = auxi.color2table(col)
+	local playing_hud = false
+	local playing_any = false
+	local finished_hud = false
+	pcall(function()
+		playing_hud = spr:IsPlaying(HUD_ANIM)
+		playing_any = spr:IsPlaying()
+		finished_hud = spr:IsFinished(HUD_ANIM)
+	end)
+	return {
+		hash = GetPtrHash(spr),
+		anim = spr:GetAnimation(),
+		frame = spr:GetFrame(),
+		playing_hud = playing_hud,
+		playing_any = playing_any,
+		finished_hud = finished_hud,
+		speed = spr.PlaybackSpeed,
+		scale_x = spr.Scale and spr.Scale.X,
+		scale_y = spr.Scale and spr.Scale.Y,
+		tint_r = tint.R, tint_g = tint.G, tint_b = tint.B, tint_a = tint.A,
+		off_r = tint.RO, off_g = tint.GO, off_b = tint.BO,
+		cz_r = tint.RC, cz_g = tint.GC, cz_b = tint.BC, cz_a = tint.AC,
+	}
+end
+
+function item.debug_hud_snapshot()
+	local front = nil
+	if REPENTOGON then
+		local cfg = Isaac.GetItemConfig():GetCard(item.pickup)
+		front = cfg and cfg.ModdedCardFront
+	end
+	local game_frame = Game():GetFrameCount()
+	local custom = sprite_snapshot(hud_spr)
+	local default_front = sprite_snapshot(front)
+	local same_sprite = false
+	if custom and default_front then
+		same_sprite = custom.hash == default_front.hash
+	end
+	return {
+		holds = any_player_holds_dice(),
+		hud_visible = Game():GetHUD():IsVisible(),
+		default_hidden = default_hidden,
+		logic_latch = hud_anim_logic_frame,
+		target_frame = game_frame % HUD_ANIM_LEN,
+		anim_len = HUD_ANIM_LEN,
+		same_sprite = same_sprite,
+		custom = custom,
+		default_front = default_front,
+	}
+end
+
+if REPENTOGON and ModCallbacks.MC_POST_HUD_UPDATE and ModCallbacks.MC_POST_HUD_RENDER then
+	table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_HUD_UPDATE, params = nil,
+	Function = function(_)
+		if any_player_holds_dice() then
+			set_default_hidden(true)
+		elseif default_hidden then
+			set_default_hidden(false)
+		end
+	end,
+	})
+
+	table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_HUD_RENDER, params = nil,
+	Function = function(_)
+		if not Game():GetHUD():IsVisible() then return end
+		if not any_player_holds_dice() then return end
+		local spr = ensure_hud_spr()
+		sync_hud_anim(spr)
+		local game = Game()
+		for i = 0, game:GetNumPlayers() - 1 do
+			local player = game:GetPlayer(i)
+			if player then
+				local slots = player_dice_slots(player)
+				if #slots > 0 then
+					local pos = ui.UICardPos(card_hud_state(player))
+					for _, slot in ipairs(slots) do
+						local draw_pos = pos
+						if slot > 0 then
+							draw_pos = pos + Vector(-12, 1)
+						end
+						spr:Render(draw_pos, Vector(0, 0), Vector(0, 0))
+					end
+				end
+			end
+		end
+	end,
+	})
+
+	table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_PRE_GAME_EXIT, params = nil,
+	Function = function(_)
+		if default_hidden then set_default_hidden(false) end
+	end,
+	})
+end
 
 return item

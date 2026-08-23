@@ -517,7 +517,8 @@ table.insert(holder.ToCall, #holder.ToCall + 1, {
 					session.was_paused = true
 				else
 					if spec and spec.time_stop ~= false then
-						auxi.time_stop(spec.own_key)
+						-- open() 已完成首次全量冻结；这里只低频接管会话期间的新实体。
+						auxi.refresh_time_stop(spec.own_key, 15)
 					end
 					if spec and spec.lift_item ~= false and spec.item_id then
 						if not player:IsHoldingItem() then

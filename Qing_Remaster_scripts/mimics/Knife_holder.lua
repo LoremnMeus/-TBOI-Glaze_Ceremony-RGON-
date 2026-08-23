@@ -10,6 +10,11 @@ local item = {
 	own_key = "Knife_holder_",
 }
 
+local function knife_should_hide(flight)
+	if not flight then return false end
+	return (flight.hide_frames or 0) > 0
+end
+
 local function try_craft_haemo_knife(ent, at_pos)
 	local d = ent:GetData()
 	local params = d.params
@@ -43,8 +48,17 @@ Function = function(_,ent,colli,low)
 end,
 })
 
---- Shoot 飞到最大距离后引擎会反转 PathFollowSpeed（回程），与 MeusNil Accerate 叠加会造成 PathOffset/PositionOffset 跳变。
---- hold_knife_path：在顶点锁住 PathOffset，继续随父体前飞。
+local function remove_engine_knife(ent)
+	local parent = ent.Parent
+	if ent:Exists() then
+		ent:Remove()
+	end
+	if parent and parent.Exists and parent:Exists() then
+		parent:Remove()
+	end
+end
+
+--- hold_knife_path：MeusNil Accerate 叠加时锁 PathOffset。引擎刀不走这条。
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_KNIFE_UPDATE, params = nil,
 Function = function(_, ent)
 	local d = ent:GetData()
@@ -53,11 +67,62 @@ Function = function(_, ent)
 	local k = ent:ToKnife()
 	if not k then return end
 
+	if (flight.hide_frames or 0) > 0 then
+		flight.hide_frames = flight.hide_frames - 1
+	end
+	if knife_should_hide(flight) then
+		ent.Visible = false
+		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	else
+		ent.Visible = true
+		ent.EntityCollisionClass = flight.coll_class or EntityCollisionClass.ENTCOLL_ENEMIES
+	end
+
 	if flight.PosOffset then
 		ent.PositionOffset = flight.PosOffset
 		local parent = ent.Parent
 		if parent and parent:Exists() then
 			parent.PositionOffset = flight.PosOffset
+		end
+	end
+
+	-- 持刀 Nil 跟飞行器：收回落点始终是当前机主，而不是生成时的静止点。
+	if flight.engine_throw then
+		local air = flight.air
+		local parent = ent.Parent
+		if air and air.Exists and air:Exists() and parent and parent.Exists and parent:Exists() then
+			parent.Position = air.Position
+			parent.Velocity = air.Velocity or Vector.Zero
+		end
+	end
+
+	if flight.engine_throw and flight.remove_after_return then
+		local isfly = k.IsFlying
+		local flying
+		if type(isfly) == "function" then
+			flying = k:IsFlying()
+		else
+			flying = isfly == true or isfly == 1
+		end
+		if flying == true or flying == 1 then
+			flight.did_fly = true
+			flight.return_wait = 0
+			flight.spawn_wait = 0
+		elseif flight.did_fly then
+			flight.return_wait = (flight.return_wait or 0) + 1
+			if flight.return_wait >= 3 then
+				flight.out_of_room = true
+				try_craft_haemo_knife(ent, ent.Position)
+				remove_engine_knife(ent)
+				return
+			end
+		else
+			flight.spawn_wait = (flight.spawn_wait or 0) + 1
+			if flight.spawn_wait > 90 then
+				try_craft_haemo_knife(ent, ent.Position)
+				remove_engine_knife(ent)
+				return
+			end
 		end
 	end
 
@@ -101,5 +166,19 @@ Function = function(_, ent)
 	end
 end,
 })
+
+if ModCallbacks.MC_PRE_KNIFE_RENDER then
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = ModCallbacks.MC_PRE_KNIFE_RENDER,
+		params = nil,
+		Function = function(_, ent)
+			local d = ent:GetData()
+			local flight = d and d.knife_flight
+			if knife_should_hide(flight) then
+				return false
+			end
+		end,
+	})
+end
 
 return item

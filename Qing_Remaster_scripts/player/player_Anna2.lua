@@ -23,6 +23,8 @@ local Flat_Stone_holder = require("Qing_Remaster_scripts.mimics.Flat_Stone_holde
 local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_holder")
 local Jacob_ladder_holder = require("Qing_Remaster_scripts.mimics.Jacob_ladder_holder")
 local tear_trigger_holder = require("Qing_Remaster_scripts.callbacks.tear_trigger_holder")
+local Familiar_Control_Selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
+local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
 
 local item = {
 	pre_ToCall = {},
@@ -560,7 +562,8 @@ Function = function(_,ent)
 		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 		if ent.PositionOffset.Y > -5 then
 			if d[item.own_key.."effect"].Rocket then 
-				local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+				local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+				if not player then ent:SetExplosionCountdown(0) d[item.own_key.."effect"] = nil return end
 				Epic_holder.trigger_epic_effect(ent.Position,ent.ExplosionDamage,ent.TearFlags,ent.Color,player,ent,auxi.get_epic_list(player),{dmgself = not d[item.own_key.."safe"],})
 				ent:SetExplosionCountdown(0) d[item.own_key.."effect"] = nil
 			else
@@ -578,7 +581,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFEC
 Function = function(_,ent)
 	local s = ent:GetSprite()
 	local d = ent:GetData()
-	local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+	if not player then return end
 	local ctrlvel = false
 	if d[item.own_key.."Anna"] then ctrlvel = true end
 	d[item.own_key.."Base"] = d[item.own_key.."Base"] or {}
@@ -1083,22 +1087,10 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	-- 因此不会被引入里 Anna 的 Maw/black-hole 等新效果。
 	if not params.advanced_familiar_copy then
 		local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
-		CharacterFamiliars.for_each_attack_copy(player, function(fam, mul, origin, _, aim_dir)
-			local copied_info = {}
-			for k, v in pairs(einfo) do copied_info[k] = v end
-			copied_info.dmgmul = (tonumber(einfo.dmgmul) or 1) * mul
-			copied_info.tearflags = CharacterFamiliars.apply_familiar_tear_flags(player, copied_info.tearflags)
-			if aim_dir and aim_dir:Length() >= 0.01 then
-				copied_info.dir = aim_dir
-			end
-			local copied_params = {}
-			for k, v in pairs(params) do copied_params[k] = v end
-			copied_params.advanced_familiar_copy = true
-			if aim_dir and aim_dir:Length() >= 0.01 then
-				copied_params.dir = aim_dir
-			end
-			item.anna_attack(player, fam, origin, copied_info, copied_params)
-		end)
+		CharacterFamiliars.dispatch_registered_copies(player, {
+			aim_dir = params.dir or einfo.dir,
+			damage_mul = tonumber(einfo.dmgmul) or 1,
+		})
 		do
 			local ok, EvilEye = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Evil_Eye_holder")
 			if ok and EvilEye and EvilEye.notify_player_attack then
@@ -1380,8 +1372,50 @@ function item.anna_plan(player,dinfo,tab,i,params)
 	return ret
 end
 
+local SIZE_CACHE_SIGNATURE_KEY = item.own_key.."size_cache_signature"
+local SIZE_CACHE_FRAME_KEY = item.own_key.."size_cache_frame"
+
+local function quantize_scale_value(value)
+	return math.floor((tonumber(value) or 0) * 32 + 0.5)
+end
+
+local function size_cache_signature(player)
+	local d = player:GetData()
+	local attack = d[item.own_key.."Attack"]
+	local info = attack and attack.info
+	local extra = attack and attack.einfo
+	local scale = info and info.scale or Vector(1, 1)
+	local extra_scale = extra and extra.scale or Vector(1, 1)
+	local charge = auxi.has_have_coll(player, CollectibleType.COLLECTIBLE_CHOCOLATE_MILK)
+		and (d[item.own_key.."charge"] or 0) or 0
+	return table.concat({
+		quantize_scale_value(charge / math.max(1, player.MaxFireDelay)),
+		quantize_scale_value(scale.X), quantize_scale_value(scale.Y),
+		quantize_scale_value(extra_scale.X), quantize_scale_value(extra_scale.Y),
+		attack and attack.birth and 1 or 0,
+	}, ":")
+end
+
+local function request_size_cache(player, force)
+	local d = player:GetData()
+	local frame = Game():GetFrameCount()
+	local signature = size_cache_signature(player)
+	if not force and d[SIZE_CACHE_SIGNATURE_KEY] == signature then return end
+	-- 动画期间最多每 3 帧重算一次；结束/中断仍立即恢复。
+	if not force and frame - (d[SIZE_CACHE_FRAME_KEY] or -1000) < 3 then return end
+	d[SIZE_CACHE_SIGNATURE_KEY] = signature
+	d[SIZE_CACHE_FRAME_KEY] = frame
+	player:AddCacheFlags(CacheFlag.CACHE_SIZE)
+	player:EvaluateItems()
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
+	local room_data = player:GetData()
+	if room_data[item.own_key.."room_epoch"] ~= (item._room_epoch or 0) then
+		room_data[item.own_key.."room_epoch"] = item._room_epoch or 0
+		if item.has_attack_state(player) then item.force_break(player) end
+	end
 	-- 死亡 / 换角残留：先安全退出攻击，再走正常逻辑
 	if item.should_abort_attack(player) then
 		item.force_break(player)
@@ -1403,8 +1437,7 @@ Function = function(_,player)
 			end
 			d[item.own_key.."charge"] = (d[item.own_key.."charge"] or 0) + 1
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CHOCOLATE_MILK) then
-				player:AddCacheFlags(CacheFlag.CACHE_SIZE)
-				player:EvaluateItems()
+				request_size_cache(player, false)
 			end
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ANTI_GRAVITY) then
 				d[item.own_key.."anti_counter_Charge_Bar_buff"] = (d[item.own_key.."anti_counter_Charge_Bar_buff"] or 0) + 1
@@ -1561,8 +1594,7 @@ Function = function(_,player)
 			if not birth_succ then d[item.own_key.."Attack"].birth = nil player:AddControlsCooldown(math.max(0,3 - player.ControlsCooldown)) end
 			--player:AddControlsCooldown(math.max(0,3 - player.ControlsCooldown))
 			player:SetMinDamageCooldown(math.max(0,3 - player:GetDamageCooldown()))
-			player:AddCacheFlags(CacheFlag.CACHE_SIZE)
-			player:EvaluateItems()
+			request_size_cache(player, false)
 			if d[item.own_key.."Attack"].birth then s.Color = Color(1,1,1,1)
 			else s.Color = auxi.MulColor(auxi.table2color(info),d[item.own_key.."Attack"].extra_color or Color(1,1,1,1,1,1,1)) end
 			local tgpos = player.Position + player_offset_holder.GetPlayerOffset(player)
@@ -1626,7 +1658,18 @@ Function = function(_,player)
 							local delta = nxeinfo.pos - player.Position
 							player.Position = nxeinfo.pos
 							--l local n_entity = Isaac.GetRoomEntities() for u,v in pairs(n_entity) do if v.Type == 3 then print(v.Variant.." "..v:ToFamiliar().OrbitLayer) end end
-							local n_entity = Isaac.GetRoomEntities() for u,v in pairs(n_entity) do if v.Type == 3 and v:ToFamiliar().OrbitLayer >= 0 then v.Position = v.Position + delta end end
+							-- 只携带本玩家且仍由原版管理的环绕宝宝。蓝图、My Emblem、国王宝宝等
+							-- 已由 Familiar_Control_Selector 接管的实体拥有自己的空间语义，禁止一起平移。
+							for _, ent in pairs(Isaac.GetRoomEntities()) do
+								local fam = ent:ToFamiliar()
+								if fam and fam.OrbitLayer >= 0 then
+									local owner = fam.Player or auxi.check_spawner_player(fam)
+									if owner and auxi.check_for_the_same(owner, player)
+									and Familiar_Control_Selector.get_owner(fam) == Familiar_Control_Selector.VANILLA then
+										fam.Position = fam.Position + delta
+									end
+								end
+							end
 						end
 					end
 				end
@@ -1654,8 +1697,7 @@ Function = function(_,player)
 				if (d[item.own_key.."Attack"].step >= d[item.own_key.."Attack"].total) then 
 					d[item.own_key.."Attack"] = nil 
 					local desc = Game():GetLevel():GetCurrentRoomDesc() if desc.Data.Type == 16 then player.Position = Game():GetRoom():FindFreeTilePosition(player.Position,20) end
-					player:AddCacheFlags(CacheFlag.CACHE_SIZE)
-					player:EvaluateItems()
+					request_size_cache(player, true)
 					player:SetMinDamageCooldown(math.max(0,15 - player:GetDamageCooldown()))
 					if d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] then Attribute_holder.try_rewind_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK)) d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] = nil end
 				end
@@ -1709,8 +1751,7 @@ function item.force_break(player)
 	end
 	s.Color = Color(1, 1, 1, 1)
 	player.SpriteScale = Vector(1, 1)
-	player:AddCacheFlags(CacheFlag.CACHE_SIZE)
-	player:EvaluateItems()
+	request_size_cache(player, true)
 	item.release_launch(player, player)
 end
 
@@ -1741,17 +1782,15 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	for playerNum = 1, Game():GetNumPlayers() do
-		local player = Game():GetPlayer(playerNum - 1)
-		if item.has_attack_state(player) then item.force_break(player) end
-	end
+	item._room_epoch = (item._room_epoch or 0) + 1
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFECT_INIT, params = nil,
 Function = function(_,ent)
 	if ent.Variant == 30 or ent.Variant == 153 then
-		local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+		if not player then return end
 		if player:GetPlayerType() == item.entity and auxi.check_for_the_same(ent.SpawnerEntity,player) then
 			local d2 = player:GetData()
 			d2[item.own_key.."Focus_target"] = ent
@@ -1966,7 +2005,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFEC
 Function = function(_,ent)
 	local s = ent:GetSprite()
 	local d = ent:GetData()
-	local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+	if not player then return end
 	if s:IsPlaying("Fade") or s:IsFinished("Fade") then 
 		ent.Velocity = ent.Velocity * 0.5
 		if s:IsFinished("Fade") then ent:Remove() return end
@@ -2124,5 +2164,13 @@ function item.fire_familiar_attack(player, request)
 	item.anna_attack(player, source or player, origin, einfo, params)
 	return {fired = true, delay = player.MaxFireDelay}
 end
+
+CharacterAttackCompat.register(item.entity, {
+	key = "tainted_anna",
+	module = "Qing_Remaster_scripts.player.player_Anna2",
+	advanced_familiars = true,
+	familiar_attack = item.fire_familiar_attack,
+	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+})
 
 return item

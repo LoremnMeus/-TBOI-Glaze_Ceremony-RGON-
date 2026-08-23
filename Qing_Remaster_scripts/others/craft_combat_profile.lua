@@ -2171,7 +2171,7 @@ end
 function M.list_from_counts(counts)
 	counts = counts or {}
 	local function n(id) return counts[id] or 0 end
-	return {
+	local result = {
 		brimstone = n(118),
 		tech = n(68),
 		techX = n(395),
@@ -2271,6 +2271,11 @@ function M.list_from_counts(counts)
 		wiz = n(358),
 		sacred = n(182),
 	}
+	-- 新兼容只需 register_compat 一次，不再要求手工补本函数。
+	for id, def in pairs(M.COMPAT_REGISTRY or {}) do
+		if def.list then result[def.list] = n(id) end
+	end
+	return result
 end
 
 --- Recipe-only multishot count (mirrors attack_list_calculator manual path).
@@ -3261,6 +3266,126 @@ for _, row in ipairs(M.CRAFT_ORBITAL_EXTRAS) do
 	M.CRAFT_ORBITAL_EXTRAS_KEY_SET[row.key] = true
 end
 
+-- 新增蓝图兼容的单一登记入口。旧表继续可读；新模块禁止再分别手写
+-- EXTRA_IMPL / EXTRA_NAME / CRAFT_FAMILIAR_EXTRAS / CRAFT_ORBITAL_EXTRAS。
+M.COMPAT_REGISTRY = {}
+M.COMPAT_RUNTIME_ADAPTERS = {}
+
+local function upsert_row(rows, key, row)
+	for index, old in ipairs(rows) do
+		if old.key == key then rows[index] = row return end
+	end
+	rows[#rows + 1] = row
+end
+
+--- def = {id, key, zh, en, category="effect|familiar|orbital", list, movement,
+---        also_fx, status, runtime_adapter}
+function M.register_compat(def)
+	if type(def) ~= "table" then return nil, "definition must be a table" end
+	local id = tonumber(def.id)
+	local key = def.key
+	if not id or id <= 0 or type(key) ~= "string" or key == "" then
+		return nil, "id and key are required"
+	end
+	local old = M.COMPAT_REGISTRY[id]
+	if old and old.key ~= key then return nil, "collectible already registered as "..tostring(old.key) end
+	M.COMPAT_REGISTRY[id] = def
+	M.EXTRA_IMPL[id] = key
+	if def.zh or def.en then
+		M.EXTRA_NAME[key] = {zh = def.zh or key, en = def.en or key}
+	end
+	if def.category == "familiar" then
+		local row = {
+			key = key, list = def.list or key,
+			zh = def.zh or key, en = def.en or key,
+			movement = def.movement or "follow",
+			also_fx = def.also_fx == true,
+			status = def.status,
+		}
+		upsert_row(M.CRAFT_FAMILIAR_EXTRAS, key, row)
+		M.CRAFT_FAMILIAR_EXTRAS_KEY_SET[key] = true
+		M.CRAFT_FAMILIAR_EXTRA_LIST_KEY[key] = row.list
+		M.CRAFT_FAMILIAR_ALSO_FX[key] = row.also_fx or nil
+	elseif def.category == "orbital" then
+		local row = {key = key, id = id, zh = def.zh or key, en = def.en or key, status = def.status}
+		upsert_row(M.CRAFT_ORBITAL_EXTRAS, key, row)
+		M.CRAFT_ORBITAL_EXTRAS_KEY_SET[key] = true
+	end
+	if def.runtime_adapter then M.COMPAT_RUNTIME_ADAPTERS[key] = def.runtime_adapter end
+	_impl_cache = nil
+	return def
+end
+
+function M.register_runtime_adapter(key, adapter_id)
+	if type(key) ~= "string" or key == "" then return false end
+	M.COMPAT_RUNTIME_ADAPTERS[key] = adapter_id or true
+	return true
+end
+
+--- 将现有稳定表投影到统一 manifest。这里只建立索引，不重写旧表或改变运行行为；
+--- 后续迁移某一项时，用 register_compat 同 id/key 覆盖 legacy 定义即可。
+function M.bootstrap_legacy_compat_registry()
+	local familiar_rows, orbital_rows = {}, {}
+	for _, row in ipairs(M.CRAFT_FAMILIAR_EXTRAS) do familiar_rows[row.key] = row end
+	for _, row in ipairs(M.CRAFT_ORBITAL_EXTRAS) do orbital_rows[row.key] = row end
+	for id, key in pairs(M.EXTRA_IMPL) do
+		if type(key) == "string" and M.COMPAT_REGISTRY[id] == nil then
+			local name = M.EXTRA_NAME[key] or {}
+			local familiar = familiar_rows[key]
+			local orbital = orbital_rows[key]
+			local category = familiar and "familiar" or (orbital and "orbital" or "effect")
+			M.COMPAT_REGISTRY[id] = {
+				id = id,
+				key = key,
+				zh = familiar and familiar.zh or (orbital and orbital.zh or name.zh),
+				en = familiar and familiar.en or (orbital and orbital.en or name.en),
+				category = category,
+				list = familiar and (familiar.list or key) or nil,
+				movement = familiar and familiar.movement or nil,
+				status = familiar and familiar.status or (orbital and orbital.status or nil),
+				legacy = true,
+			}
+			M.COMPAT_RUNTIME_ADAPTERS[key] = M.COMPAT_RUNTIME_ADAPTERS[key]
+				or (category == "familiar" and "legacy:Craft_Familiar_holder")
+				or (category == "orbital" and "legacy:Craft_Orbital_holder")
+				or "legacy:effect_router"
+		end
+	end
+end
+
+--- 启动/ImGui 可调用的纯只读接线审计。
+function M.compatibility_audit()
+	local issues = {}
+	local familiar_keys = {}
+	for _, row in ipairs(M.CRAFT_FAMILIAR_EXTRAS) do
+		familiar_keys[row.key] = true
+		if not row.list or row.list == "" then issues[#issues + 1] = "familiar "..tostring(row.key).." missing list" end
+	end
+	local orbital_keys = {}
+	for _, row in ipairs(M.CRAFT_ORBITAL_EXTRAS) do orbital_keys[row.key] = true end
+	for id, key in pairs(M.EXTRA_IMPL) do
+		if type(key) == "string" and not M.EXTRA_NAME[key]
+		and key ~= "multishot" then
+			issues[#issues + 1] = "collectible "..tostring(id).." key "..key.." missing EXTRA_NAME"
+		end
+		if familiar_keys[key] and not M.CRAFT_FAMILIAR_EXTRA_LIST_KEY[key] then
+			issues[#issues + 1] = "familiar "..key.." missing derived list mapping"
+		end
+		if orbital_keys[key] and not M.CRAFT_ORBITAL_EXTRAS_KEY_SET[key] then
+			issues[#issues + 1] = "orbital "..key.." missing derived key"
+		end
+	end
+	for id, def in pairs(M.COMPAT_REGISTRY) do
+		if not M.COMPAT_RUNTIME_ADAPTERS[def.key] then
+			issues[#issues + 1] = "registered collectible "..tostring(id).." ("..def.key..") missing runtime adapter"
+		end
+	end
+	table.sort(issues)
+	return {ok = #issues == 0, issues = issues, registered = M.COMPAT_REGISTRY}
+end
+
+M.bootstrap_legacy_compat_registry()
+
 --- 制造宝宝审计短名（独立「宝宝」行；不挤占特效）
 function M.familiar_labels(extras, zh)
 	local labels = {}
@@ -3454,6 +3579,14 @@ function M.audit_lines(profile, zh, player)
 			.. (zh and " 环×" or " rad×") .. M.fmt_num(mods.techx_radius_mul, 2)
 			.. (zh and " 伤×" or " dmg×") .. M.fmt_num(mods.techx_damage_mul, 2)
 			.. (zh and " 间隔×" or " delay×") .. M.fmt_num(mods.techx_delay_mul, 2)
+	end
+	if mods and mods.knife then
+		local pct = math.floor((mods.knife_ratio or 1) * 100 + 0.5)
+		lines[#lines + 1] = (zh and "妈刀蓄力 " or "Knife ")
+			.. tostring(pct) .. "%"
+			.. (zh and " 伤×" or " dmg×") .. M.fmt_num(mods.knife_damage_mul, 2)
+			.. (zh and " 距×" or " rng×") .. M.fmt_num(mods.knife_range_mul, 2)
+			.. (zh and " 蓄" or " charge ") .. tostring(mods.knife_charge_frames or 0) .. (zh and "帧" or "f")
 	end
 	if profile.extras and profile.extras.cursed_eye then
 		lines[#lines + 1] = (zh and "诅咒眼 " or "CursedEye ")
@@ -4740,7 +4873,24 @@ function M.techx_charge_modifiers(ratio)
 	}
 end
 
---- 把 per-craft 设置合并进 profile（巧克力 / Tech X 蓄力）
+--- 妈刀蓄力（wiki）：蓄力时长约 4/t 秒，t 为眼泪射速 30/(tearDelay+1)。
+--- 满蓄力帧 = 4*(tearDelay+1)；未蓄 200%，1/3 蓄力起 600%，再蓄只加射程。
+--- tearDelay 用 firedelay_base（武器倍率之前），不要把妈刀 ×2 再乘进 4/t。
+function M.knife_charge_modifiers(ratio, base_delay)
+	local r = math.min(1, M.clamp_charge_ratio(ratio, 1))
+	local dmg_t = math.min(1, r / (1 / 3))
+	base_delay = math.max(-0.75, tonumber(base_delay) or 10)
+	local full_frames = math.max(1, math.floor(4 * (base_delay + 1) + 0.5))
+	return {
+		ratio = r,
+		damage_mul = 2 + 4 * dmg_t,
+		range_mul = r,
+		maxdist_mul = 0.6 * r,
+		charge_frames = math.max(1, math.floor(full_frames * r + 0.5)),
+	}
+end
+
+--- 把 per-craft 设置合并进 profile（巧克力 / Tech X / 妈刀蓄力）
 function M.apply_craft_settings(profile, settings)
 	if not profile then return profile end
 	settings = settings or {}
@@ -4753,6 +4903,11 @@ function M.apply_craft_settings(profile, settings)
 		profile.techx_charge_ratio = math.min(1, profile.main_charge_ratio)
 	else
 		profile.techx_charge_ratio = nil
+	end
+	if (profile.weapon or 1) == 4 then
+		profile.knife_charge_ratio = math.min(1, profile.main_charge_ratio)
+	else
+		profile.knife_charge_ratio = nil
 	end
 	return profile
 end
@@ -4772,6 +4927,11 @@ function M.attack_modifiers_from_profile(profile)
 		techx_radius_mul = 1,
 		techx_damage_mul = 1,
 		techx_delay_mul = 1,
+		knife = false,
+		knife_ratio = 1,
+		knife_range_mul = 1,
+		knife_damage_mul = 1,
+		knife_charge_frames = nil,
 	}
 	if not profile then return mods end
 	mods.charge_ratio = M.clamp_charge_ratio(profile.main_charge_ratio, M.charge_ratio_max(profile))
@@ -4795,6 +4955,18 @@ function M.attack_modifiers_from_profile(profile)
 		mods.techx_damage_mul = t.damage_mul
 		mods.techx_delay_mul = t.delay_mul
 	end
+	if (profile.weapon or 1) == 4 then
+		local k = M.knife_charge_modifiers(
+			profile.knife_charge_ratio,
+			profile.stats and (profile.stats.firedelay_base or profile.stats.firedelay)
+		)
+		mods.knife = true
+		mods.knife_ratio = k.ratio
+		mods.knife_range_mul = k.range_mul
+		mods.knife_damage_mul = k.damage_mul
+		mods.knife_charge_frames = k.charge_frames
+		mods.knife_maxdist_mul = k.maxdist_mul
+	end
 	return mods
 end
 
@@ -4802,6 +4974,9 @@ function M.attack_delay_from_modifiers(base_delay, mods)
 	base_delay = math.max(1, tonumber(base_delay) or 10)
 	mods = mods or {}
 	if mods.delay_override ~= nil then return math.max(1, mods.delay_override) end
+	if mods.knife_charge_frames then
+		return math.max(1, mods.knife_charge_frames)
+	end
 	return math.max(1, base_delay * (mods.techx_delay_mul or 1))
 end
 

@@ -11,6 +11,13 @@ local item = {
 	own_key = "Thread_Glaze",
 }
 
+local tracked_bombs = {} -- [GetPtrHash] = 最新 wrapper；行为追踪不得使用可能被 GC 丢弃的弱键
+
+local function bomb_runtime_key(ent)
+	local ok, ptr = pcall(GetPtrHash, ent)
+	return ok and ptr or nil
+end
+
 local function checkBaseConditions()
     local level = Game():GetLevel()
     return save.UnlockData.Others.Ending1.Unlock and
@@ -97,17 +104,18 @@ local function handleMirrorWorldDelay()
     for _, gridIndex in pairs({60, 74}) do
         local door = room:GetGridEntity(gridIndex)
         if isValidDoor(door) and door:ToDoor().Desc.Variant ~= 8 then
-            local n_entity = Isaac.GetRoomEntities()
-            local n_bomb = auxi.getothers(n_entity, 4)
 			local mxn = 10000
             local mrdl = mxn
             local mrd2 = mxn
 
-            for _, ent in ipairs(n_bomb) do
+			for key, ent in pairs(tracked_bombs) do
+				local ok, exists = pcall(function() return ent:Exists() and not ent:IsDead() end)
+				if not ok or not exists then
+					tracked_bombs[key] = nil
+				else
                 local s = ent:GetSprite()
                 local succ = consistance_holder.try_check_entity(ent, glaze_bomb.own_key)
                 if s:IsPlaying("Pulse") and succ and (ent.Position - door.Position):Length() < 100 then
-					print((ent.Position + ent.Velocity * 2 - door.Position):Length())
 					if (ent.Position + ent.Velocity * 2 - door.Position):Length() < 30 then  -- 当炸弹非常接近门时
 						mrd2 = math.min(mrdl, 58 - s:GetFrame())
 						ent:Remove()
@@ -119,7 +127,9 @@ local function handleMirrorWorldDelay()
 					end
 
                 end
+				end
             end
+			save.elses.mirror_delay = save.elses.mirror_delay or {-1,-1}
 			local currentWorld = room:IsMirrorWorld() and 2 or 1  -- 1: 正常世界, 2: 镜像世界
 			local oppositeWorld = 3 - currentWorld
 	
@@ -145,6 +155,15 @@ local function handleMirrorWorldDelay()
         end
     end
 end
+
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_BOMB_INIT,
+	params = nil,
+	Function = function(_, bomb)
+		local key = bomb_runtime_key(bomb)
+		if key then tracked_bombs[key] = bomb end
+	end,
+})
 
 -- 娉ㄥ唽鍥炶皟
 table.insert(item.ToCall, #item.ToCall + 1, {

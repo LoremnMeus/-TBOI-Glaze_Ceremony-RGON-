@@ -23,6 +23,7 @@ function Others_manager.Init(mod)
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Dropping_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Attribute_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Charging_Bar_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.HUD_Chargebar_Overlay_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Costume_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Consistance_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Tarot_Cloth_holder"))
@@ -47,7 +48,8 @@ function Others_manager.Init(mod)
 			"Qing_Remaster_scripts.others.vengeful_spirit_vanilla_probe",
 			"Qing_Remaster_scripts.others.vengeful_craft_lifecycle_probe",
 			"Qing_Remaster_scripts.others.craft_path_tear_vanilla_probe",
-			"Qing_Remaster_scripts.others.pareidolia_tech_laser_probe",
+			"Qing_Remaster_scripts.others.craft_floor_stat_counter_probe",
+			"Qing_Remaster_scripts.others.time_stop_probe",
 		}
 		for _, path in ipairs(probes) do
 			local mod = dev_env.require_probe(path)

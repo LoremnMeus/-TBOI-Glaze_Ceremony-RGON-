@@ -114,13 +114,10 @@ Function = function(_,ent)
 	if s:IsFinished("Prize") then 
 		local room = Game():GetRoom()
 		local colid = item.select_items(rng)
-		local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(ent.Position + Vector(0,40),10,true),Vector(0,0),ent)
-		local succ = false
-		for playerNum = 1, Game():GetNumPlayers() do
-			local player = Game():GetPlayer(playerNum - 1)
-			if player:GetPlayerType() == item.entity and auxi.has_have_coll(player,619) then succ = true break end
-		end
-		if rng:RandomFloat() > 0.25 and succ ~= true then s:Play("Teleport",true) end
+		Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(ent.Position + Vector(0,40),10,true),Vector(0,0),ent)
+		s:Play("Teleport",true)
+		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+		return
 	end
 	if anim == "PayNothing" or anim == "PayPrize" then
 		if auxi.check_all_exists(d[item.own_key.."tg"]) then
@@ -164,7 +161,7 @@ Function = function(_,ent)
 			if v.TargetPosition:Length() > 1 then v.TargetPosition = v.TargetPosition + dir * 0.1 end
 		end
 	end
-	if s:IsFinished("Prize") or s:IsFinished("PayNothing") then s:Play("Idle",true) end
+	if s:IsFinished("PayNothing") then s:Play("Idle",true) end
 	if s:IsFinished("PayPrize") then s:Play("Prize",true) end
 end,
 })

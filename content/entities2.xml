@@ -252,7 +252,7 @@
 	<entity anm2path="mimics/Damocles/mimic_damocles.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="10" friction="1" id="1000" name="Mimic Damocles" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2402">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
     </entity>
-	<entity anm2path="items/slots/time_beggar.anm2" baseHP="1" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="6" name="Time Beggar" numGridCollisionPoints="24" shadowSize="15" stageHP="0" variant="24003" shutdoors="false">
+	<entity anm2path="items/slots/Tomorrows_Creditor.anm2" baseHP="1" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="6" name="Tomorrows Creditor" numGridCollisionPoints="24" shadowSize="15" stageHP="0" variant="24003" shutdoors="false">
         <gibs amount="6" blood="1" bone="1" eye="1" gut="1" large="0"/>
     </entity>
 	<entity anm2path="player/anna/_anna_port.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" shutdoors="false" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Anna Portal" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2404">

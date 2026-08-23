@@ -43,7 +43,7 @@
 	/>
 	
 	<passive name="Crown of the Glaze" description="A king, until it shatters" id="15"
-	gfx="collectibles_Crown_Of_The_Glaze.png" quality = "3" craftquality = "3" cache="damage luck" tags="offensive"
+	gfx="collectibles_Crown_Of_The_Glaze.png" quality = "4" craftquality = "3" cache="damage luck" tags="offensive"
 	/>
 	
 	<passive name="A Shard of Coin" description="Those who shared Pennies have been in pieces" id="16"
@@ -87,7 +87,7 @@
 	gfx="collectibles_pageant_cross_dresser.png" quality = "2" craftquality = "2" tags="summonable offensive" cache = "luck"
 	/>
 	<active name="It's a trick!!" description="You Are Fooled Again!!" id="29"
-	gfx="collectibles_Glaze_Collectible.png" quality = "3" craftquality = "3" tags="offensive" maxcharges="2"
+	gfx="collectibles_Glaze_Collectible.png" quality = "2" craftquality = "3" tags="offensive" maxcharges="2"
 	/>
 	<passive name="Apocalypse" description="Forever and Never" id="30"
 	gfx="collectibles_LuoTianYi.png" quality = "2" craftquality = "2" tags="summonable offensive baby" cache="familiars"
@@ -108,7 +108,7 @@
 	gfx="collectibles_Fate_s_Draw.png" quality = "3" craftquality = "3" tags="offensive"
 	/>
 	<passive name="My Emblem" description="Finally a home for me.." id="46"
-	gfx="collectibles_My_Emblem.png" quality = "3" craftquality = "3" tags="summonable offensive" cache="familiars"
+	gfx="collectibles_My_Emblem.png" quality = "2" craftquality = "3" tags="summonable offensive" cache="familiars"
 	/>
 	<passive name="Ingestion to Night" description="The night has teeth" id="47"
 	gfx="collectibles_Ingestion_to_Night.png" quality = "1" craftquality = "1" tags="summonable offensive" cache="flying damage"
@@ -129,13 +129,13 @@
 	gfx="collectibles_Hypervelocity.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="3"
 	/>
 	<passive name="Wavering Eyes" description="Don't blink, don't miss" id="53"
-	gfx="collectibles_Wavering_Eyes.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	gfx="collectibles_Wavering_Eyes.png" quality = "1" craftquality = "3" tags="summonable offensive"
 	/>
 	<passive name="Pendulum Star" description="Pendulum Scale Setting" id="54"
 	gfx="collectibles_Star_Pendulumgraph.png" quality = "1" craftquality = "1" tags="summonable offensive stars" cache="familiars"
 	/>
 	<active name="Book of Thoth" description="Fate is merely a book yet to be put in order." id="55"
-	gfx="collectibles_Book_of_Thoth.png" quality = "4" craftquality = "4" tags="summonable offensive book" maxcharges="12" initcharge="0" chargetype="special"
+	gfx="collectibles_Book_of_Thoth.png" quality = "4" craftquality = "4" tags="summonable offensive book" maxcharges="12" initcharge="3" chargetype="special"
 	/>
 	<active name="Book of The Law" description="Left is Right.Right is Lefted." id="56"
 	gfx="collectibles_Book_of_The_Law.png" quality = "3" craftquality = "3" tags="offensive book" maxcharges="4"
@@ -186,7 +186,7 @@
 	gfx="collectibles_Thunder_Jar.png" quality = "3" craftquality = "3" tags="summonable battery"
 	/>
 	<passive name="Gospel" description="Dogmatical Judgement" id="72"
-	gfx="collectibles_Gospel.png" quality = "3" craftquality = "3" tags="summonable offensive"
+	gfx="collectibles_Gospel.png" quality = "4" craftquality = "3" tags="summonable offensive"
 	/>
 	<passive name="Tiramisu" description="Health Up + Tastes Tasty" id="73"
 	gfx="collectibles_Tiramisu.png" quality = "2" craftquality = "2" tags="summonable offensive" maxhearts = "2" hearts="4" 
@@ -249,7 +249,7 @@
 	gfx="collectibles_Tech_14.png" quality = "2" craftquality = "2" tags="offensive summonable"
 	/>
 	<passive name="Seeker's Eye" description="This path is not the answer" id="93"
-	gfx="collectibles_Seeker_s_Eye.png" quality = "3" craftquality = "3" tags="offensive summonable"
+	gfx="collectibles_Seeker_s_Eye.png" quality = "2" craftquality = "3" tags="offensive summonable"
 	/>
 	<passive name="Day Dreamer" description="If only my wish would come true" id="94"
 	gfx="collectibles_Day_Dreamer.png" quality = "4" craftquality = "4" tags="offensive summonable lazarusshared"
@@ -267,7 +267,7 @@
 	gfx="collectibles_Brilliant.png" quality = "2" craftquality = "2" tags="offensive summonable" shopprice="13"
 	/>
 	<passive name="Fraternity" description="love me,love my dog" id="99"
-	gfx="collectibles_Fraternity.png" quality = "3" craftquality = "3" tags="offensive summonable" cache="familiars"
+	gfx="collectibles_Fraternity.png" quality = "2" craftquality = "3" tags="offensive summonable" cache="familiars"
 	/>
 	<active name="Ending Count" description="Your time is up" id="100"
 	gfx="collectibles_Ending_Count.png" quality = "3" craftquality = "3" maxcharges="1" tags="offensive"
@@ -321,7 +321,7 @@
 	gfx="collectibles_Glaze_Mirror.png" quality = "1" craftquality = "1" tags="offensive summonable"
 	/>
 	<passive name="Mental Disorder" description="There used to be two." id="117"
-	gfx="collectibles_Mental_disorder.png" quality = "3" craftquality = "3" tags="summonable"
+	gfx="collectibles_Mental_disorder.png" quality = "2" craftquality = "3" tags="summonable"
 	/>
 	<passive name="Paranoia" description="There is a dice" id="118"
 	gfx="collectibles_Paranoia.png" quality = "4" craftquality = "4" tags="offensive summonable" devilprice="2"
@@ -378,7 +378,7 @@
 	gfx="collectibles_Baby_Tecro.png" quality="1" cache="familiars" tags="summonable baby"
 	/>
     <familiar name="Baby Anna" description="I eat!" id="136"
-	gfx="collectibles_Baby_Anna.png" quality="3" cache="familiars" tags="summonable baby"
+	gfx="collectibles_Baby_Anna.png" quality="1" cache="familiars" tags="summonable baby"
 	/>
     <familiar name="Baby Zeis" description="I know!" id="137"
 	gfx="collectibles_Baby_Zeis.png" quality="2" cache="familiars" tags="summonable baby"
@@ -396,7 +396,7 @@
 	gfx="collectibles_Kaitian.png" quality = "3" craftquality = "3" tags="offensive"
 	/>
 	<active name="Multiknife" description="Ten years I honed this sword" id="142"
-	gfx="collectibles_Multiknife.png" quality = "3" craftquality = "3" tags="offensive" maxcharges="10"
+	gfx="collectibles_Multiknife.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="10" initcharge="0"
 	/>
 	<passive name="Dragon Tooth" description="Follow me into the abyss" id="143"
 	gfx="collectibles_Dragon_Tooth.png" quality = "3" craftquality = "3" tags="offensive" cache = "damage" 
@@ -455,7 +455,7 @@
 	/>
 	-->
 	<passive name="Reserved Judgment" description="This isn't final" id="160"
-	gfx="collectibles_Reserved_Judgment.png" quality="3" craftquality="3" tags="summonable"
+	gfx="collectibles_Reserved_Judgment.png" quality="2" craftquality="3" tags="summonable"
 	/>
 	<active name="Death Sentence" description="The sentence is final" id="161"
 	gfx="collectibles_Death_Sentence.png" quality="3" craftquality="3" tags="offensive" maxcharges="1"
@@ -489,6 +489,9 @@
 	/>
 	<passive name="Regenesis" description="Even mistakes are inherited" id="171"
 	gfx="collectibles_Regenesis.png" quality="2" craftquality="2" tags="summonable"
+	/>
+	<passive name="Ember" description="What remains" id="172"
+	gfx="collectibles_Embers.png" quality="3" craftquality="3" tags="offensive summonable"
 	/>
 	
 	

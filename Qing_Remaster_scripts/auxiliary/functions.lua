@@ -1609,6 +1609,90 @@ function funct.fire_knife(position,velocity,dmg,targ,params)	--params可以传�
 	return q2
 end
 
+--- 飞行器妈刀：MeusNil 当独立刀柄，由 FireKnife 完成引擎武器初始化。
+--- 锚点跟飞行器位置（不是把刀 Parent 到机体）；刀仍挂在 Nil 上。
+--- 飞出期间飞行器停住，避免机体把刀带着飞、射程看起来过长。
+--- CantOverwrite=false 且每把刀使用独立 Nil，不会覆写玩家或其他宝宝的刀。
+--- 生成当帧先藏 2 帧；knife_flight 让宝宝武器压制跳过这把刀。
+function funct.fire_engine_knife(parent, direction, dmg, params)
+	params = params or {}
+	local player = params.player or Game():GetPlayer(0)
+	local dir = direction
+	if not dir or dir:Length() < 0.01 then
+		dir = Vector(1, 0)
+	end
+	dir = dir:Normalized()
+	local ang = dir:GetAngleDegrees()
+	local pos = params.position or (parent and parent.Position) or player.Position
+	local q1 = Isaac.Spawn(EntityType.ENTITY_EFFECT, ID_EFFECT_MeusNIL, 0, pos, Vector.Zero, nil)
+	local d = q1:GetData()
+	d.player = player
+	d.removecd = params.cooldown or 300
+	d.Params = funct.copy(params)
+	d.Params.Accerate = nil
+	d.skip_nil_distance_cull = true
+	if parent and parent.Exists and parent:Exists() then
+		d.follower = parent
+		d.ignore_follower_distance = true
+		d.nw_follow_pos = Vector(0, 0)
+		d.Params.remove_with_ent = parent
+	end
+	q1.Velocity = Vector.Zero
+	if params.PosOffset then
+		q1.PositionOffset = params.PosOffset
+	end
+	-- 裸 Spawn 的 ENTITY_KNIFE 缺少玩家武器内部状态，Shoot/IsFlying 会失效。
+	-- FireKnife 的 RotationOffset 就是初始射击角；不要在 Update 再强写 Rotation。
+	local q2 = player:FireKnife(q1, ang, false, 0, 0)
+	if not q2 then
+		q1:Remove()
+		return nil
+	end
+	q2.Parent = q1
+	q1.Child = q2
+	d.fired_knife = q2
+	q2.SpawnerEntity = parent or player
+	q2.CollisionDamage = dmg
+	-- FireKnife 已用 RotationOffset 参数初始化方向；不要再把它清零。
+	local hide_coll = q2.EntityCollisionClass
+	q2.Visible = false
+	q2.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	q1.Visible = false
+	if params.PathOffset ~= nil then
+		q2.PathOffset = params.PathOffset
+	end
+	if params.PosOffset then
+		q2.PositionOffset = params.PosOffset
+	end
+	local d2 = q2:GetData()
+	d2.params = funct.copy(params)
+	d2.knife_flight = {
+		PosOffset = params.PosOffset,
+		hold_knife_path = false,
+		engine_throw = true,
+		remove_after_return = params.remove_after_return ~= false,
+		hide_frames = 2,
+		coll_class = hide_coll,
+		peak_path = 0,
+		air = parent,
+		craft_air = params.craft_air or parent,
+		aim_ang = ang,
+	}
+	if params.player then
+		d2.player = params.player
+	end
+	if params.Explosive and params.Explosive > 0 then
+		d2.Explosive_cnt = params.Explosive
+	end
+	if params.tearflags then
+		q2.TearFlags = params.tearflags
+	end
+	if params.Color then
+		q2:SetColor(params.Color, 3, 99, false, false)
+	end
+	return q2
+end
+
 function funct.fire_lung(pos,vel,player,params)
 	player = player or Game():GetPlayer(0)
 	pos = pos or player.Position
@@ -5877,6 +5961,12 @@ local eventlist = {
 
 -- 活跃时停源（按 name）；宝宝自驱会无视 FLAG_FREEZE，需配合 is_time_stopped 早退 / PRE 跳过 AI。
 funct._time_stop_active = funct._time_stop_active or {}
+funct._time_stop_refresh_frame = funct._time_stop_refresh_frame or {}
+funct._time_stop_probe_observer = funct._time_stop_probe_observer or nil
+
+function funct.set_time_stop_probe_observer(observer)
+	funct._time_stop_probe_observer = type(observer) == "function" and observer or nil
+end
 
 function funct.is_time_stopped(name)
 	if name ~= nil then return funct._time_stop_active[name] == true end
@@ -5891,33 +5981,92 @@ local function time_stop_vel_compare(v1, v2)
 	return (v1 - v2):Length() < 0.001
 end
 
-function funct.time_stop(name)
-	name = name or ""
-	funct._time_stop_active[name] = true
-	local n_entity = Isaac.GetRoomEntities() 
-	for u,v in pairs(n_entity) do 
+local function apply_time_stop_claims(name)
+	local observer = funct._time_stop_probe_observer
+	local audit = observer and {
+		name = name, frame = Game():GetFrameCount(), scanned = 0, eligible = 0,
+		already_complete = 0, entities_missing = 0, claim_attempts = 0,
+		claim_created = 0, claim_failed = 0, player_claim_attempts = 0,
+		player_claim_created = 0,
+	} or nil
+	local n_entity = Isaac.GetRoomEntities()
+	for _,v in pairs(n_entity) do
+		if audit then audit.scanned = audit.scanned + 1 end
 		if funct.check_if_any(unstopable[v.Type],v) ~= true then
-			local s = v:GetSprite()
-			for u,v in pairs(eventlist) do if s:IsEventTriggered(v) ~= false then s:Update() end end
+			if audit then audit.eligible = audit.eligible + 1 end
 			local d = v:GetData()
+			local keys = {
+				name.."_freeze_succ", name.."_no_sprite_update_succ",
+				name.."_position_succ", name.."_velocity_succ",
+			}
+			local missing = 0
+			if audit then
+				for i = 1, #keys do if d[keys[i]] == nil then missing = missing + 1 end end
+				if missing == 0 then audit.already_complete = audit.already_complete + 1
+				else audit.entities_missing = audit.entities_missing + 1; audit.claim_attempts = audit.claim_attempts + missing end
+			end
+			-- 已接管实体在增量刷新时不再重复检查事件或推进 Sprite。
+			if d[name.."_freeze_succ"] == nil or d[name.."_no_sprite_update_succ"] == nil then
+				local s = v:GetSprite()
+				for _,event_name in pairs(eventlist) do if s:IsEventTriggered(event_name) ~= false then s:Update() end end
+			end
 			if d[name.."_freeze_succ"] == nil then d[name.."_freeze_succ"] = Attribute_holder.try_hold_attribute(v,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) end
 			if d[name.."_no_sprite_update_succ"] == nil then d[name.."_no_sprite_update_succ"] = Attribute_holder.try_hold_attribute(v,"EntityFlag_FLAG_NO_SPRITE_UPDATE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE)) end
 			-- protect：FollowPosition / 自驱写 Position 时不要把冻结原点跟着滑走
 			if d[name.."_position_succ"] == nil then d[name.."_position_succ"] = Attribute_holder.try_hold_attribute(v,"Position",Vector(v.Position.X,v.Position.Y),{protect = true,tocompare = time_stop_pos_compare,}) end
 			if d[name.."_velocity_succ"] == nil then d[name.."_velocity_succ"] = Attribute_holder.try_hold_attribute(v,"Velocity",Vector(0,0),{protect = true,tocompare = time_stop_vel_compare,})	end
+			if audit and missing > 0 then
+				local still_missing = 0
+				for i = 1, #keys do if d[keys[i]] == nil then still_missing = still_missing + 1 end end
+				audit.claim_created = audit.claim_created + missing - still_missing
+				audit.claim_failed = audit.claim_failed + still_missing
+			end
 		end
 	end
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		local d = player:GetData()
-		if d[name.."_entitycollisionclass_none_succ"] == nil then d[name.."_entitycollisionclass_none_succ"] = Attribute_holder.try_hold_attribute(player,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)	end
-		if d[name.."_data_should_not_attack_succ"] == nil then d[name.."_data_should_not_attack_succ"] = Attribute_holder.try_hold_attribute(player,"Data_should_not_attack",true,Attribute_holder.descriptors.data_field("should_not_attack")) end
+		local collision_key = name.."_entitycollisionclass_none_succ"
+		local attack_key = name.."_data_should_not_attack_succ"
+		if d[collision_key] == nil then
+			if audit then audit.player_claim_attempts = audit.player_claim_attempts + 1 end
+			d[collision_key] = Attribute_holder.try_hold_attribute(player,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
+			if audit and d[collision_key] ~= nil then audit.player_claim_created = audit.player_claim_created + 1 end
+		end
+		if d[attack_key] == nil then
+			if audit then audit.player_claim_attempts = audit.player_claim_attempts + 1 end
+			d[attack_key] = Attribute_holder.try_hold_attribute(player,"Data_should_not_attack",true,Attribute_holder.descriptors.data_field("should_not_attack"))
+			if audit and d[attack_key] ~= nil then audit.player_claim_created = audit.player_claim_created + 1 end
+		end
 	end
+	if observer then pcall(observer, audit) end
+end
+
+function funct.refresh_time_stop(name, interval)
+	name = name or ""
+	if funct._time_stop_active[name] ~= true then return false end
+	local frame = Game():GetFrameCount()
+	interval = math.max(1, math.floor(tonumber(interval) or 15))
+	if frame - (funct._time_stop_refresh_frame[name] or -interval) < interval then return false end
+	funct._time_stop_refresh_frame[name] = frame
+	apply_time_stop_claims(name)
+	return true
+end
+
+function funct.time_stop(name)
+	name = name or ""
+	-- 已开启时必须是常数级；增量接管新实体请显式调用 refresh_time_stop。
+	if funct._time_stop_active[name] == true then return false end
+	funct._time_stop_active[name] = true
+	funct._time_stop_refresh_frame[name] = Game():GetFrameCount()
+	apply_time_stop_claims(name)
+	return true
 end
 
 function funct.time_free(name)
 	name = name or ""
 	funct._time_stop_active[name] = nil
+	funct._time_stop_refresh_frame[name] = nil
 	local n_entity = Isaac.GetRoomEntities() 
 	for u,v in pairs(n_entity) do 
 		if funct.check_if_any(unstopable[v.Type],v) ~= true then

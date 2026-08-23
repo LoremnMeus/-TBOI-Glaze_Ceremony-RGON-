@@ -29,12 +29,16 @@ manager.modules = {
 	"Qing_Remaster_scripts.others.vengeful_spirit_vanilla_probe",
 	"Qing_Remaster_scripts.others.vengeful_craft_lifecycle_probe",
 	"Qing_Remaster_scripts.others.craft_path_tear_vanilla_probe",
-	"Qing_Remaster_scripts.others.pareidolia_tech_laser_probe",
+	"Qing_Remaster_scripts.others.craft_floor_stat_counter_probe",
+	"Qing_Remaster_scripts.others.time_stop_probe",
 	"Qing_Remaster_scripts.others.craft_tear_color_data",
 	"Qing_Remaster_scripts.others.craft_tear_params_data",
 	"Qing_Remaster_scripts.others.sprite_trail_presets",
 	"Qing_Remaster_scripts.others.temporary_revive_manager",
 	"Qing_Remaster_scripts.core.completion_marks_manager",
+	"Qing_Remaster_scripts.core.thread_runtime",
+	"Qing_Remaster_scripts.player.character_attack_compat",
+	"Qing_Remaster_scripts.player.character_attack_compat_manifest",
 	"Qing_Remaster_scripts.mimics.Familiar_Control_Selector",
 	"Qing_Remaster_scripts.mimics.Craft_Bandwidth_Manager",
 	"Qing_Remaster_scripts.mimics.Familiar_Follower_Arbiter",
@@ -59,6 +63,7 @@ manager.modules = {
 	"Qing_Remaster_scripts.mimics.Craft_Evil_Eye_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Aux_Entities_holder",
 	"Qing_Remaster_scripts.pickups.pickup_blueprint_prototype",
+	"Qing_Remaster_scripts.slots.slot_offer_lift",
 }
 
 local function is_probe_module(module_path)

@@ -68,7 +68,23 @@ local item = {
 }
 
 local BIND_KEY = "orbital_bind"
-local ACTIVE_BOUND = setmetatable({}, {__mode = "k"})
+-- GetPtrHash -> 最新 wrapper；避免同一 orbital 的 userdata wrapper 重复进入运行集合。
+local ACTIVE_BOUND = {}
+
+local function active_key(fam)
+	local ok, ptr = pcall(GetPtrHash, fam)
+	return ok and ptr or nil
+end
+
+local function track_active(fam)
+	local key = fam and active_key(fam)
+	if key then ACTIVE_BOUND[key] = fam end
+end
+
+local function untrack_active(fam)
+	local key = fam and active_key(fam)
+	if key then ACTIVE_BOUND[key] = nil end
+end
 
 local function active_familiar_alive(fam)
 	if not fam then return false end
@@ -425,11 +441,11 @@ find_all_bound = function(air)
 	local seen = {}
 	if not air then return out end
 	local air_ptr = GetPtrHash(air)
-	for fam in pairs(ACTIVE_BOUND) do
+	for active_id, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
 		if not alive or not bind then
-			ACTIVE_BOUND[fam] = nil
+			ACTIVE_BOUND[active_id] = nil
 		elseif bind.air and GetPtrHash(bind.air) == air_ptr then
 			local ptr = GetPtrHash(fam)
 			if not seen[ptr] then
@@ -772,7 +788,7 @@ end
 
 local function set_bind(fam, bind)
 	fam:GetData()[item.own_key..BIND_KEY] = bind
-	if bind then ACTIVE_BOUND[fam] = true else ACTIVE_BOUND[fam] = nil end
+	if bind then track_active(fam) else untrack_active(fam) end
 	Familiar_Control_Selector.invalidate(fam)
 end
 
@@ -1165,11 +1181,11 @@ local function find_bound(air, kind)
 	local out = {}
 	local seen = {}
 	local air_ptr = GetPtrHash(air)
-	for fam in pairs(ACTIVE_BOUND) do
+	for active_id, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
 		if not alive or not bind then
-			ACTIVE_BOUND[fam] = nil
+			ACTIVE_BOUND[active_id] = nil
 		elseif bind.air and GetPtrHash(bind.air) == air_ptr and bind.kind == kind then
 			-- 同一实体可能被引擎以不同 userdata wrapper 访问；弱键表会同时保留这些 wrapper。
 			-- 配额必须按实体指针去重，否则单个环绕物会被误判为 excess，周期性释放/重绑。
@@ -1816,11 +1832,11 @@ function item.release_for_air(air)
 	if not air then return end
 	local air_ptr = GetPtrHash(air)
 	local release, seen = {}, {}
-	for fam in pairs(ACTIVE_BOUND) do
+	for active_id, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
 		if not alive or not bind then
-			ACTIVE_BOUND[fam] = nil
+			ACTIVE_BOUND[active_id] = nil
 		elseif bind.air and GetPtrHash(bind.air) == air_ptr then
 			local ptr = GetPtrHash(fam)
 			if not seen[ptr] then
@@ -1890,10 +1906,10 @@ local function rebuild_buckets()
 	frame_buckets = {by_air = {}, group_n = {}, kind_n = {}, layout_ring_n = {}}
 	local airs_seen = {}
 	local seen = {}
-	for fam in pairs(ACTIVE_BOUND) do
+	for active_id, fam in pairs(ACTIVE_BOUND) do
 		local alive = active_familiar_alive(fam)
 		local bind = alive and bind_data(fam) or nil
-		if not alive or not bind then ACTIVE_BOUND[fam] = nil end
+		if not alive or not bind then ACTIVE_BOUND[active_id] = nil end
 		local ptr = bind and GetPtrHash(fam) or nil
 		if ptr and seen[ptr] then goto continue end
 		if ptr then seen[ptr] = true end
@@ -2302,7 +2318,7 @@ table.insert(item.pre_ToCall, {
 	CallBack = ModCallbacks.MC_PRE_FAMILIAR_UPDATE,
 	params = nil,
 	Function = function(_, fam)
-		if fam and bind_data(fam) then ACTIVE_BOUND[fam] = true end
+		if fam and bind_data(fam) then track_active(fam) end
 		if fam and fam.Variant == (FamiliarVariant.WISP or 206)
 			and fam.SubType == (CollectibleType.COLLECTIBLE_VENGEFUL_SPIRIT or 702) then
 			local d = fam:GetData()
@@ -2360,9 +2376,9 @@ table.insert(item.ToCall, {
 		promote_pending_orbitals()
 		local buckets = rebuild_buckets()
 		local seen = {}
-		for fam in pairs(ACTIVE_BOUND) do
+		for active_id, fam in pairs(ACTIVE_BOUND) do
 				if not active_familiar_alive(fam) then
-					ACTIVE_BOUND[fam] = nil
+					ACTIVE_BOUND[active_id] = nil
 					goto continue
 				end
 				local ptr = GetPtrHash(fam)

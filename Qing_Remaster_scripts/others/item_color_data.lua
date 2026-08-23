@@ -28,9 +28,9 @@ local data = {
 			20,102,173,182,184,198,209,217,221,223,256,257,282,285,401,414,
 			427,444,456,479,523,528,546,574,579,585,604,624,640,665,685,691,
 			709,715,722,732,
-			enums.Items.A_Shard_Of_Lava,enums.Items.Core_Brooch,enums.Items.Cursed_Mask,enums.Items.Gold_Rush,enums.Items.Golden_Slot,enums.Items.Granel,
-			enums.Items.Hunger_Burger,enums.Items.Little_Duck,enums.Items.Live_Broadcast,enums.Items.Lofty,enums.Items.Multiknife,enums.Items.Philosopher_s_stone,
-			enums.Items.Qing_Faceted_Market_Diamond,enums.Items.Reserved_Judgment,enums.Items.Sacred_Mind_Shield,enums.Items.Touchstone,
+			enums.Items.A_Shard_Of_Lava,enums.Items.Core_Brooch,enums.Items.Cursed_Mask,enums.Items.Ember,enums.Items.Gold_Rush,enums.Items.Golden_Slot,
+			enums.Items.Granel,enums.Items.Hunger_Burger,enums.Items.Little_Duck,enums.Items.Live_Broadcast,enums.Items.Lofty,enums.Items.Multiknife,
+			enums.Items.Philosopher_s_stone,enums.Items.Qing_Faceted_Market_Diamond,enums.Items.Reserved_Judgment,enums.Items.Sacred_Mind_Shield,enums.Items.Touchstone,
 		},
 		yellow = {
 			6,26,56,66,101,108,146,183,192,199,202,223,228,238,239,240,
@@ -96,8 +96,8 @@ local data = {
 			433,441,442,468,482,483,496,498,503,517,545,575,582,583,617,633,
 			645,646,647,661,672,676,679,693,698,699,701,712,722,723,
 			enums.Items.Assassin_s_Eye,enums.Items.Baby_Anna,enums.Items.Baby_Marri,enums.Items.Baby_Zeis,enums.Items.Book_of_Future,enums.Items.Charon_s_Sign,
-			enums.Items.DVF,enums.Items.Disequilibrium,enums.Items.Ending_Count,enums.Items.Granel,enums.Items.Ingestion_to_Night,enums.Items.My_Hat,
-			enums.Items.Skiel,enums.Items.The_Voice,enums.Items.Tiramisu,enums.Items.Wisel,
+			enums.Items.DVF,enums.Items.Disequilibrium,enums.Items.Ember,enums.Items.Ending_Count,enums.Items.Granel,enums.Items.Ingestion_to_Night,
+			enums.Items.My_Hat,enums.Items.Skiel,enums.Items.The_Voice,enums.Items.Tiramisu,enums.Items.Wisel,
 		},
 		white = {
 			5,25,41,77,86,126,127,129,143,158,160,163,169,170,181,185,

@@ -15,6 +15,7 @@ local Damo_holder = require("Qing_Remaster_scripts.mimics.Damo_holder")
 local Flat_Stone_holder = require("Qing_Remaster_scripts.mimics.Flat_Stone_holder")
 local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_holder")
 local Damage_holder = require("Qing_Remaster_scripts.mimics.Damage_holder")
+local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
 
 local item = {
 	pre_ToCall = {},
@@ -559,7 +560,7 @@ Function = function(_,continue)
 end,
 })
 
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_EVERY_ENTITY_UPDTAE, params = nil,
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_EVERY_ENTITY_UPDATE, params = nil,
 Function = function(_,ent)
 	local d = ent:GetData()
 	if (d[item.own_key.."counter"] or 0) > 0 then d[item.own_key.."counter"] = d[item.own_key.."counter"] - 1 end
@@ -568,11 +569,7 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	for playerNum = 1, Game():GetNumPlayers() do
-		local player = Game():GetPlayer(playerNum - 1)
-		local d = player:GetData()
-		d[item.own_key.."Ludo_pos"] = nil
-	end
+	item._room_epoch = (item._room_epoch or 0) + 1
 end,
 })
 
@@ -593,11 +590,11 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
 	local d = player:GetData()
-	if player:GetName() == "W.Qing" then
-		if player.FrameCount % 60 == 1 then
-			player:AddCacheFlags(CacheFlag.CACHE_FLYING)
-			player:GetData().should_evaluate_on_update_once = true
-		end
+	if d[item.own_key.."room_epoch"] ~= (item._room_epoch or 0) then
+		d[item.own_key.."room_epoch"] = item._room_epoch or 0
+		d[item.own_key.."Ludo_pos"] = nil
+	end
+	if player:GetPlayerType() == item.entity then
 		if Game():GetFrameCount() % (30 * 5) == 1 and player.CanFly ~= true and player.GridCollisionClass ~= EntityGridCollisionClass.GRIDCOLL_NONE then
 			d[item.own_key.."Kept"] = (auxi.check_path_to_door(player.Position) and auxi.has_door())
 		end
@@ -846,18 +843,12 @@ Function = function(_,player)
 				local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
 				local attack_call_params = {tearflag = info.tearflag,color = info.color,state = d[item.own_key.."State"],weap = weap,list = list,charge = (d[item.own_key.."Charge"] or 1),pos = (d[item.own_key.."Ludo_Mark"] or {}).Position,}
 				local ret = auxi.check_if_any(weapinfo,player,dir,tearHitParams,weapinfo,item,attack_call_params) or {delay = player.MaxFireDelay,}
-				-- 表 Qing 的 Incubus / Twisted Pair 完整复用当前攻击分支；不推进宝宝自己的状态机。
+				-- 高级宝宝统一通过角色 Provider 复制本次已确认的真实攻击。
 				local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
-				CharacterFamiliars.for_each_attack_copy(player, function(_, mul, origin, _, aim_dir)
-					local copied = {}
-					for k, v in pairs(attack_call_params) do copied[k] = v end
-					copied.pos = origin
-					copied.dmgmul = (tonumber(copied.dmgmul) or 1) * mul
-					copied.tearflag = CharacterFamiliars.apply_familiar_tear_flags(player, copied.tearflag)
-					copied.advanced_familiar_copy = true
-					local copy_dir = (aim_dir and aim_dir:Length() >= 0.01) and aim_dir or dir
-					auxi.check_if_any(weapinfo,player,copy_dir,tearHitParams,weapinfo,item,copied)
-				end)
+				CharacterFamiliars.dispatch_registered_copies(player, {
+					aim_dir = dir,
+					damage_mul = tonumber(attack_call_params.dmgmul) or 1,
+				})
 				if type(ret) == "number" then ret = {mul = ret,} end
 				if ret.special then auxi.check_if_any(ret.special,player,dir,tearHitParams,ret.special,item,{tearflag = info.tearflag,color = info.color,state = d[item.own_key.."State"],weap = weap,list = list,charge = (d[item.own_key.."Charge"] or 1),pos = (d[item.own_key.."Ludo_Mark"] or {}).Position,}) end
 				if weap_listinfo.special then auxi.check_if_any(weap_listinfo.special,player,dir,tearHitParams,ret.special,item,{tearflag = info.tearflag,color = info.color,state = d[item.own_key.."State"],weap = weap,list = list,charge = (d[item.own_key.."Charge"] or 1),pos = (d[item.own_key.."Ludo_Mark"] or {}).Position,}) end
@@ -900,7 +891,8 @@ end,
 function item.dealt_extra_effect_to_col(ent,col,tp)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
-	local player = d.player or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
+	if not player then return end
 	if d.tearflags and auxi.isenemies(col) then Damage_holder.damage_with(player,col,{Luck = player.luck,dmg = dmg,tearflags = d.tearflags,tearcolor = player.TearColor,player = player,Qing = true,}) end
 end
 
@@ -916,7 +908,8 @@ Function = function(_,ent,col,tp)
 	local damageflag = d.damageflag or 0
 	d.params = d.params or {}
 	d.params.list = d.params.list or {}
-	local player = d.params.player or d.player or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, d.params.player or d.player)
+	if not player then return end
 	local d3 = player:GetData()
 	if Game():GetRoom():GetFrameCount() <= 0 then return end
 	if col.IsGrid then
@@ -1066,7 +1059,8 @@ Function = function(_,ent)
 		d.params.list = d.params.list or {}
 		d.params.color = d.params.color or Color(1,1,1,1)
 		local range = ent:GetSprite().Scale:Length()
-		local player = d.params.player or d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.params.player or d.player)
+		if not player then return end
 		local d3 = player:GetData()
 		local damage = d.damage or ent.CollisionDamage
 		local damageflag = d.damageflag or 0
@@ -1184,7 +1178,7 @@ Function = function(_,ent)
 							if vel:Length() < 0.005 then
 								vel = auxi.MakeVector(ent.RotationOffset) * 0.005
 							end
-							local q1 = auxi.fire_Sword(ent.Position,vel,ent.CollisionDamage/3,nil,{cooldown = 14,Accerate = 0.5,player = player,tearflags = player.TearFlags,Color = player.TearColor,Qing = (player:GetName() == "W.Qing")})
+							local q1 = auxi.fire_Sword(ent.Position,vel,ent.CollisionDamage/3,nil,{cooldown = 14,Accerate = 0.5,player = player,tearflags = player.TearFlags,Color = player.TearColor,Qing = (player:GetPlayerType() == item.entity)})
 							sound_tracker.PlayStackedSound(SoundEffect.SOUND_SWORD_SPIN,math.random(1000)/2000 + 1,math.random(1000)/5000 + 0.8,false,0,2)
 						end
 						d.Dr_fetus_firedelay = math.random(65) + 10 + player.MaxFireDelay
@@ -1640,7 +1634,8 @@ Function = function(_,ent,col,low)
 		if not ent.Parent then return end
 		local d2 = ent.Parent:GetData()
 		d.params = d.params or {}
-		local player = d.params.player or d.player or Game():GetPlayer(0)
+		local player = CharacterAttackCompat.resolve_entity_player(ent, d.params.player or d.player)
+		if not player then return end
 		local d3 = player:GetData()
 		qing_s_knife_holder.collide_knife_on_it(ent,col,"Collision")
 		
@@ -1767,7 +1762,8 @@ Function = function(_,ent,offset)
 					d[item.own_key.."Dual_effect"].Rotation = d[item.own_key.."Dual_effect"].Rotation + 360/60
 				end
 				d[item.own_key.."Dual_effect"]:Update()
-				local player = d[item.own_key.."Dual_player"] or Game():GetPlayer(0)
+				local player = CharacterAttackCompat.resolve_entity_player(ent, d[item.own_key.."Dual_player"])
+				if not player then return end
 				if d[item.own_key.."Dual_effect"]:IsEventTriggered("Attack") then
 					local col = Color(1,1,1,1)
 					d[item.own_key.."Dual_Color"] = math.random(2)
@@ -1801,7 +1797,7 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = EntityType.ENTITY_PLAYER,
 Function = function(_,ent, amt, flag, source, cooldown)
 	local d = ent:GetData()	
-	if ent.Type == 1 and ent:ToPlayer():GetName() == "W.Qing" then
+	if ent.Type == 1 and ent:ToPlayer():GetPlayerType() == item.entity then
 		local player = ent:ToPlayer()
 		if player:HasCollectible(316) and player:HasCollectible(260) == false and (d[item.own_key.."cursed_counter"] or 0) > 0 then	--受伤传送
 			player:AnimateTeleport(true)
@@ -1941,5 +1937,13 @@ function item.fire_familiar_attack(player, request)
 	end
 	return {fired = true, delay = delay_out}
 end
+
+CharacterAttackCompat.register(item.entity, {
+	key = "qing",
+	module = "Qing_Remaster_scripts.player.player_wq",
+	advanced_familiars = true,
+	familiar_attack = item.fire_familiar_attack,
+	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+})
 
 return item

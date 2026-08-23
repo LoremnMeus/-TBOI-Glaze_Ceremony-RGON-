@@ -84,6 +84,7 @@
 		<Item DecreaseBy="1" Name="Baby Lu" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Abiogenesis" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Remaster!" RemoveOn="0.1" Weight="0.5" />
 		<Item DecreaseBy="1" Name="Super Bombs" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Blue Print" RemoveOn="0.1" Weight="1" />
@@ -178,6 +179,7 @@
 		<Item DecreaseBy="1" Name="Loneliness" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Sacred Mind Shield" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="secret">
 		<Item DecreaseBy="1" Name="Death Sentence" RemoveOn="0.1" Weight="1" />
@@ -207,6 +209,7 @@
 		<Item DecreaseBy="1" Name="Spectralsword" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="D-V-F" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Remaster!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="library">
@@ -434,6 +437,7 @@
 		<Item DecreaseBy="1" Name="Golden Slot" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Abiogenesis" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Blue Print" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="greedCurse">

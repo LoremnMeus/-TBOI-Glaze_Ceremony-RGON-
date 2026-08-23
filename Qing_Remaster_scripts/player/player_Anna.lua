@@ -22,6 +22,7 @@ local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_hol
 local player_offset_holder = require("Qing_Remaster_scripts.callbacks.player_offset_holder")
 local card_06r_lover = require("Qing_Remaster_scripts.cards.Card_06r_lover")
 local Crane_Game_holder = require("Qing_Remaster_scripts.mimics.Crane_Game_holder")
+local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
 local Entity_holder = require("Qing_Remaster_scripts.others.Entity_holder")
 local Nil_holder = require("Qing_Remaster_scripts.others.Nil_holder")
 
@@ -1052,11 +1053,17 @@ local item = {
 	},
 }
 
-function item.get_anna()
+function item.get_anna(player_key)
+	local only, count = nil, 0
 	for playerNum = 1,Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
-		if player:GetPlayerType() == item.entity then return player end
+		if player:GetPlayerType() == item.entity then
+			if player_key ~= nil and player:GetData().__Index == player_key then return player end
+			only, count = player, count + 1
+		end
 	end
+	-- 旧记录没有 PlayerKey 时只允许单安娜局兜底，禁止多人串池。
+	if player_key == nil and count == 1 then return only end
 end
 
 function item.ent2info(ent)
@@ -1185,17 +1192,22 @@ local function time_free(ent)
 		d[item.own_key.."Priceeffect"] = nil
 	end
 	if auxi.check_if_any(item.target[ent.Type],ent) then ent.TargetPosition = Game():GetRoom():FindFreeTilePosition(ent.Position,ent.Size) end
-	if auxi.check_if_any(item.middle_target[ent.Type],ent) then ent.TargetPosition = Game():GetRoom():FindFreeTilePosition(ent.Position * 0.9 + Game():GetPlayer(0).Position * 0.1,10) end
+	if auxi.check_if_any(item.middle_target[ent.Type],ent) then
+		local owner = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+		if owner then ent.TargetPosition = Game():GetRoom():FindFreeTilePosition(ent.Position * 0.9 + owner.Position * 0.1,10) end
+	end
 end
 --l local n_entity = Isaac.GetRoomEntities() for u,v in pairs(n_entity) do if v.Type == 3 and v.Variant == 202 then print(v:ToFamiliar():GetDropRNG()) end end
 --l local n_entity = Isaac.GetRoomEntities() for u,v in pairs(n_entity) do if v.Type == 7 then print(v:ToLaser().SubType) end end
 function item.get_anna_size(player)
-	player = player or Game():GetPlayer(0)
+	player = CharacterAttackCompat.resolve_entity_player(nil, player)
+	if not player then return Vector(1, 1) end
 	return player.SpriteScale * 0.5 + Vector(1,1) * 0.5
 end
 
 function item.get_anna_color(player,id)
-	player = player or Game():GetPlayer(0)
+	player = CharacterAttackCompat.resolve_entity_player(nil, player)
+	if not player then return Color(1, 1, 1, 1) end
 	local d = player:GetData()
 	local c1 = d[item.own_key.."effect_color"] or player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1)).TearColor
 	--local c1 = player.TearColor
@@ -1220,6 +1232,9 @@ function item.recatch(player,ent,col,params)
 	params = params or {ent = col,}
 	local d2 = ent:GetData()
 	local d3 = col:GetData()
+	if d3[item.own_key.."Record"] then
+		d3[item.own_key.."Record"].PlayerKey = player:GetData().__Index
+	end
 	stop_time(col)
 	d3[item.own_key.."Catcher"] = ent
 	d3[item.own_key.."Catcherer"] = player
@@ -1234,7 +1249,7 @@ function item.replace_with(ent,params)
 	params = params or {}
 	local pos = params.Position or ent.Position
 	if params.AddPosOffset then pos = pos + ent.PositionOffset end
-	local q = Isaac.Spawn(1000,enums.Entities.Anna_Partical,0,pos,Vector(0,0),player):ToEffect()	--Entity_holder.generate()
+	local q = Isaac.Spawn(1000,enums.Entities.Anna_Partical,0,pos,Vector(0,0),params.Player):ToEffect()	--Entity_holder.generate()
 	if params.Sprite then
 		auxi.copy_sprite(ent:GetSprite(),q:GetSprite())
 		auxi.illustrate_sprite(ent,q:GetSprite())
@@ -1259,7 +1274,7 @@ function item.try_catch(player,ent,col,params)
 			local d3 = q:GetData()
 			save.elses[item.own_key.."Record"] = save.elses[item.own_key.."Record"] or {}
 			save.elses[item.own_key.."Record"][idx] = save.elses[item.own_key.."Record"][idx] or {}
-			d3[item.own_key.."Record"] = {Record = grid_morpher.gent2info(col:get_grid()),Sprite = auxi.sprite2table(col:GetSprite()),}
+			d3[item.own_key.."Record"] = {Record = grid_morpher.gent2info(col:get_grid()),Sprite = auxi.sprite2table(col:GetSprite()),PlayerKey = idx,}
 			table.insert(save.elses[item.own_key.."Record"][idx],#save.elses[item.own_key.."Record"][idx] + 1,d3[item.own_key.."Record"])
 			auxi.tryremovegrid(col.grididx,true)
 			col = q
@@ -1269,7 +1284,7 @@ function item.try_catch(player,ent,col,params)
 		if info.Replace then
 			Replace = true
 			local idx = player:GetData().__Index
-			local q = item.replace_with(col,{Sprite = true,AddPosOffset = info.AddPosOffset,})
+			local q = item.replace_with(col,{Sprite = true,AddPosOffset = info.AddPosOffset,Player = player,})
 			local d3 = q:GetData()
 			local tbl = {}
 			for u,v in pairs(info.Load or {}) do 
@@ -1279,7 +1294,7 @@ function item.try_catch(player,ent,col,params)
 			--l local save = require("Qing_Remaster_scripts.core.savedata") local auxi = require("Qing_Remaster_scripts.auxiliary.functions") auxi.PrintTable(save.elses["Player_Anna_Record"])
 			save.elses[item.own_key.."Record"] = save.elses[item.own_key.."Record"] or {}
 			save.elses[item.own_key.."Record"][idx] = save.elses[item.own_key.."Record"][idx] or {}
-			d3[item.own_key.."Record"] = {Record = tbl,Sprite = auxi.sprite2table(col:GetSprite()),}
+			d3[item.own_key.."Record"] = {Record = tbl,Sprite = auxi.sprite2table(col:GetSprite()),PlayerKey = idx,}
 			table.insert(save.elses[item.own_key.."Record"][idx],#save.elses[item.own_key.."Record"][idx] + 1,d3[item.own_key.."Record"])
 			auxi.safely_remove(col)
 			col = q
@@ -1336,15 +1351,17 @@ function item.fire_anna_tear(player,pos,vel,params)
 	end
 	local d = q:GetData()
 	d[item.own_key.."Catched"] = true
-	-- 每帧最多一次邪眼判定（同 volley 多发不叠）
-	local pd = player:GetData()
-	local frame = Game():GetFrameCount()
-	if pd[item.own_key.."evil_eye_frame"] ~= frame then
-		pd[item.own_key.."evil_eye_frame"] = frame
-		local ok, EvilEye = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Evil_Eye_holder")
-		if ok and EvilEye and EvilEye.notify_player_attack then
-			local aim = vel and vel:Length() > 0.01 and vel:Normalized() or nil
-			EvilEye.notify_player_attack(player, aim)
+	if not params.SuppressAttackNotify then
+		-- 每帧最多一次邪眼判定（同 volley 多发不叠）
+		local pd = player:GetData()
+		local frame = Game():GetFrameCount()
+		if pd[item.own_key.."evil_eye_frame"] ~= frame then
+			pd[item.own_key.."evil_eye_frame"] = frame
+			local ok, EvilEye = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Evil_Eye_holder")
+			if ok and EvilEye and EvilEye.notify_player_attack then
+				local aim = vel and vel:Length() > 0.01 and vel:Normalized() or nil
+				EvilEye.notify_player_attack(player, aim)
+			end
 		end
 	end
 	return q
@@ -1589,9 +1606,10 @@ function item.generate_port(player)
 	d[item.own_key.."Catch_pool"] = d[item.own_key.."Catch_pool"] or {}
 	--print("Reloaded:"..#((save.elses[item.own_key.."Record"] or {})[idx] or {}))
 	for u,v in pairs((save.elses[item.own_key.."Record"] or {})[idx] or {}) do 
-		local q = item.replace_with(v.Record,{Position = player.Position,})
+		local q = item.replace_with(v.Record,{Position = player.Position,Player = player,})
 		local d2 = q:GetData()
 		d2[item.own_key.."Record"] = auxi.deepCopy(v)
+		d2[item.own_key.."Record"].PlayerKey = idx
 		item.recatch(player,ent,q,{ent = q,Virtual = true,})
 	end
 	return ent
@@ -1662,6 +1680,10 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player)
 	if player:GetPlayerType() == item.entity then
 		local d = player:GetData()
+		if item._room_reget_done_epoch ~= (item._room_epoch or 0) then
+			item._room_reget_done_epoch = item._room_epoch or 0
+			for _, ent in pairs(Isaac.GetRoomEntities()) do item.reget_ent(ent) end
+		end
 		local s = player:GetSprite()
 		local dir2 = auxi.ggdir(player,false,true,nil,nil,{ignore_canwork = true,real = true,})
 		local dir = auxi.ggdir(player,true,true,nil,nil,{real = true,})
@@ -1968,6 +1990,12 @@ Function = function(_,player)
 								end
 							end
 						end
+						-- 主齐射已经成功生成，且 Catch_pool2 已保存本次捕获物快照后再复制。
+						local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
+						CharacterFamiliars.dispatch_registered_copies(player, {
+							aim_dir = d[item.own_key.."DirRecord"] or dir2,
+							damage_mul = charge,
+						})
 						SFXManager():Stop(SoundEffect.SOUND_TEARS_FIRE)
 						for j = 1,2 do delay_buffer.addeffe(function(params) SFXManager():Stop(SoundEffect.SOUND_TEARS_FIRE) end,{},j) end
 					end
@@ -2024,7 +2052,17 @@ end,
 --]]
 function item.check_for_laser(ent)
 	if ent.SubType == 0 and auxi.check_spawner_player(ent) == nil then
-		local tg = Game():GetPlayer(0):GetData()[item.own_key.."Port"]
+		local tg, best_distance = nil, nil
+		for i = 0, Game():GetNumPlayers() - 1 do
+			local candidate_player = Isaac.GetPlayer(i)
+			if candidate_player:GetPlayerType() == item.entity then
+				local candidate = candidate_player:GetData()[item.own_key.."Port"]
+				if auxi.check_all_exists(candidate) then
+					local distance = (candidate.Position - ent.Position):LengthSquared()
+					if best_distance == nil or distance < best_distance then tg, best_distance = candidate, distance end
+				end
+			end
+		end
 		if not tg then return end
 		if (tg:GetData()[item.own_key.."Scaler"] or 0) < 0.8 then return end
 		local ang = ent.Angle
@@ -2164,7 +2202,9 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTIT
 Function = function(_,ent)
 	local d = ent:GetData()
 	if ent.Variant == enums.Entities.Anna_Partical and Game():GetRoom():GetFrameCount() == 0 and d[item.own_key.."Record"] and d[item.own_key.."Record"].Fired then
-		local player = d[item.own_key.."Record"].Player or item.get_anna()
+		local record = d[item.own_key.."Record"]
+		local player = CharacterAttackCompat.resolve_entity_player(ent, record.Player)
+			or item.get_anna(record.PlayerKey)
 		if player then
 			local idx = player:GetData().__Index
 			d[item.own_key.."Record"].Fired = nil
@@ -2184,7 +2224,8 @@ function item.break_anna_tear(ent,col,tp)
 	if (d[item.own_key.."effect"].Delay or 0) > 0 then return end
 	d[item.own_key.."effect"].Delay = 5
 	--print((d[item.own_key.."effect"].Dis or 0))
-	local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+	if not player then return end
 	if tp ~= "Trail" then sound_tracker.PlayStackedSound(SoundEffect.SOUND_DEATH_BURST_SMALL,1 + auxi.random_1() * 0.5,1,false,0,2) end
 	if (d[item.own_key.."effect"].counter or 0) > 0 then return end
 	for u,v in pairs(d[item.own_key.."effect"].linkers) do 
@@ -2273,7 +2314,8 @@ Function = function(_,ent)
 	end
 	--if ent.FrameCount > 3 then if ent.GridCollisionClass == EntityGridCollisionClass.GRIDCOLL_NONE and not (ent.TearFlags & BitSet128(1<<38,0) == BitSet128(1<<38,0)) then ent.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_WALLS end end
 	local d = ent:GetData()
-	local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
+	local player = CharacterAttackCompat.resolve_entity_player(ent, auxi.check_spawner_player(ent))
+	if not player then return end
 	if d[item.own_key.."effect"] then
 		if d[item.own_key.."effect"].Delay then d[item.own_key.."effect"].Delay = d[item.own_key.."effect"].Delay - 1 end
 		d[item.own_key.."effect"].Dis = (d[item.own_key.."effect"].Dis or 0) + ent.Velocity:Length()
@@ -2441,7 +2483,10 @@ Function = function(_,ent)
 		local v = d[item.own_key.."Catch_pool"][i]
 		if auxi.check_exists(v.ent) ~= true then table.remove(d[item.own_key.."Catch_pool"],i)
 		else 
-			local val = item.check_charge(v.ent,v)
+			-- 捕获后的类型/虚拟记录/首领倍率均不再变化，缓存静态 charge；
+			-- 入场过渡比例仍逐帧计算。
+			v[item.own_key.."cached_charge"] = v[item.own_key.."cached_charge"] or item.check_charge(v.ent,v)
+			local val = v[item.own_key.."cached_charge"]
 			if not v.Virtual then val = val * math.min(1,math.max(0,v.ent:GetData()[item.own_key.."Catch"]["counter"] - item.delayoffset)/30) end
 			--print(v.ent.Type.." "..v.ent.Variant)
 			charge = charge + val 
@@ -2452,7 +2497,19 @@ Function = function(_,ent)
 	if boss then d2[item.own_key.."Catch_BossCharge"] = (d2[item.own_key.."Catch_BossCharge"] or 0) + 0.5
 	else d2[item.own_key.."Catch_BossCharge"] = 0 end
 	d[item.own_key.."Catch_Charge2"] = charge * 10 / item.Range2charge(player.TearRange)
-	if Game():GetFrameCount() % 5 == 2 then player:AddCacheFlags(CacheFlag.CACHE_SPEED) player:GetData().should_evaluate_on_update_once = true end
+	-- CACHE_SPEED 只在实际移速惩罚跨过 0.01 档时 dirty；Birthright 下惩罚恒为 0。
+	local shotinfo = auxi.getshotinfo(player)
+	local excess = math.max(0,
+		(d[item.own_key.."Catch_Charge2"] / 100 - shotinfo.mx) * item.Range2charge(player.TearRange)
+	)
+	local speed_rate = auxi.has_have_coll(player, 619) and 0 or 0.02
+	local speed_signature = math.floor(excess * speed_rate * 100 + 0.5)
+	local pd = player:GetData()
+	if pd[item.own_key.."portal_speed_signature"] ~= speed_signature then
+		pd[item.own_key.."portal_speed_signature"] = speed_signature
+		player:AddCacheFlags(CacheFlag.CACHE_SPEED)
+		pd.should_evaluate_on_update_once = true
+	end
 	d[item.own_key.."Catch_pool2"] = d[item.own_key.."Catch_pool2"] or {}
 	for u,v in pairs(d[item.own_key.."Catch_pool2"]) do
 		if auxi.check_exists(v.ent) then
@@ -2741,8 +2798,7 @@ end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	local n_entity = Isaac.GetRoomEntities()
-	for u,v in pairs(n_entity) do item.reget_ent(v) end
+	item._room_epoch = (item._room_epoch or 0) + 1
 end,
 })
 
@@ -2768,7 +2824,8 @@ Nil_holder.register("anna_nileffect", {
 	detect = function(d) return d[item.own_key.."Nileffect"] end,
 	update = function(ent, d, s, player)
 		local tg = d[item.own_key.."Nileffect"].tg
-		if auxi.check_all_exists(tg) ~= true then tg = Game():GetPlayer(0) end
+		if auxi.check_all_exists(tg) ~= true then tg = CharacterAttackCompat.resolve_entity_player(ent, player) end
+		if not tg then ent:Remove() return end
 		local dir = tg.Position - ent.Position
 		ent.Velocity = ent.Velocity * 0.5 + dir * (d[item.own_key.."Nileffect"].Speed or 0.2) * 0.5
 		if dir:Length() < 10 then ent:Remove() end
@@ -2793,6 +2850,90 @@ Nil_holder.register("anna_nileffect", {
 			d[item.own_key.."Nileffect"].Renderer:GetSprite():Render(Isaac.WorldToScreen(ent.Position + ent.PositionOffset),Vector(0,0),Vector(0,0))
 		end
 	end,
+})
+
+--- 宝宝复制只读当前捕获池；绝不移动、释放、删除实体，也不改存档 Record/Fired。
+function item.get_familiar_ammo_snapshot(player)
+	local out = {count = 0, average_mass = 1, average_damage = 0}
+	if not player then return out end
+	local port = player:GetData()[item.own_key.."Port"]
+	if not auxi.check_all_exists(port) then return out end
+	local pool = port:GetData()[item.own_key.."Catch_pool"] or {}
+	local total_mass, total_damage = 0, 0
+	for _, entry in pairs(pool) do
+		local ent = entry and entry.ent
+		if auxi.check_all_exists(ent) then
+			local record_holder_data = ent:GetData()[item.own_key.."Record"]
+			local record = record_holder_data and record_holder_data.Record
+			local info, info_desc
+			if record then
+				info, info_desc = item.something2info(record.Type, record.Variant, record.SubType, {Price = record.Price})
+			else
+				info, info_desc = item.ent2info(ent)
+			end
+			info = type(info) == "table" and info or {}
+			info_desc = type(info_desc) == "table" and info_desc or {}
+			local adder = type(info_desc.Adder) == "table" and info_desc.Adder or {}
+			local mass = tonumber(info.rate) or tonumber(adder.rate) or 1
+			local damage = (tonumber(info.Dmg) or 0) + (tonumber(adder.Dmg) or 0)
+			out.count = out.count + 1
+			total_mass = total_mass + math.max(0.1, mass)
+			total_damage = total_damage + damage
+		end
+	end
+	if out.count > 0 then
+		out.average_mass = total_mass / out.count
+		out.average_damage = total_damage / out.count
+	end
+	return out
+end
+
+--- Gello / Incubus 等使用捕获池快照生成独立副本；不消耗真实弹药、不推进蓄力和存档。
+function item.fire_familiar_attack(player, request)
+	request = request or {}
+	if not player then return {fired = false} end
+	local origin = request.origin or (request.source and request.source.Position) or player.Position
+	local aim = request.aim_dir or Vector(0, 1)
+	if aim:Length() < 0.01 then aim = Vector(0, 1) else aim = aim:Normalized() end
+	local damage_mul = tonumber(request.damage_mul) or 0.75
+	local list = player:GetData()[item.own_key.."List"] or auxi.get_Anna_list(player)
+	local volley = auxi.get_Anna_multishots(player, list, {charge = 1}) or {}
+	if next(volley) == nil then volley = {{dir = 0}} end
+	local snapshot = item.get_familiar_ammo_snapshot(player)
+	local tear_params = player:GetTearHitParams(WeaponType.WEAPON_TEARS, 1, 0)
+	local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
+	local spawned = {}
+	for _, shot in pairs(volley) do
+		if not shot.Ignore then
+			local direction = auxi.get_by_rotate(aim, shot.dir or 0)
+			local speed = player.ShotSpeed * (10 + (shot.shotspeed or 0))
+			local tear = item.fire_anna_tear(player, origin, direction * speed, {
+				Sprite = true,
+				SuppressAttackNotify = true,
+			})
+			tear.TearFlags = CharacterFamiliars.apply_familiar_tear_flags(
+				player, (tear_params.TearFlags | (shot.tearflag or BitSet128(0, 0))) & (~TearFlags.TEAR_WAIT)
+			)
+			tear.CollisionDamage = math.max(0.1,
+				(tear_params.TearDamage * (snapshot.average_mass * 0.4 + 0.5) + snapshot.average_damage) * damage_mul
+			)
+			if request.source then
+				tear.Parent = request.source
+				tear.SpawnerEntity = request.source
+			end
+			spawned[#spawned + 1] = tear
+		end
+	end
+	return {fired = #spawned > 0, delay = player.MaxFireDelay, spawned = spawned}
+end
+
+CharacterAttackCompat.register(item.entity, {
+	key = "anna",
+	module = "Qing_Remaster_scripts.player.player_Anna",
+	advanced_familiars = true,
+	familiar_attack = item.fire_familiar_attack,
+	capabilities = {projectile = true, volley = true, captured_ammo = true},
+	audit = "familiar copies use a read-only averaged captured-ammo snapshot",
 })
 
 return item

@@ -71,12 +71,17 @@ for _, u in ipairs(languages) do
 		EID:addBirthright(id, br.Description, br.PlayerName,languageCode)
 	end
 
-	local s = Sprite()
-	s:Load("gfx/ui/EID/qing_cardpill_icons2.anm2",true)
-	EID:addIcon("ThothCard", "pickups", 0, 16, 16, 0, 1, s)
-	EID:addIcon("ThothCard2", "pickups", 1, 16, 16, 0, 1, s)
+	for id, playerInfo in pairs(EIDInfo.Players or {}) do
+		if type(id) == "number" and playerInfo.Name and playerInfo.Description and playerInfo.Description ~= "" then
+			EID:addCharacterInfo(id, playerInfo.Description, playerInfo.Name, languageCode)
+		end
+	end
+
 	local cdsprite = Sprite()
 	cdsprite:Load("gfx/ui/EID/qing_cardpill_icons.anm2",true)
+	-- 原版 {{CardN}}（含魂石）= 8,8,0,1；原版 {{Card}} pickup = 12,11,0,-1。
+	EID:addIcon("ThothCard", "pickups", 0, 12, 11, 0, -1, cdsprite)
+	EID:addIcon("ThothCard2", "pickups", 1, 12, 11, 0, -1, cdsprite)
 	for id, cd in pairs(EIDInfo.Cards or {}) do
 		if cd.Description and cd.Name then
 			EID:addCard(id, cd.Description, cd.Name,languageCode)
@@ -84,7 +89,9 @@ for _, u in ipairs(languages) do
 		if cd.tarotClothBuffs then
 			EID.descriptions[languageCode].tarotClothBuffs[id] = cd.tarotClothBuffs
 		end
-		if cd.Frame then EID:addIcon("Card"..id, "Card", cd.Frame, 16, 16, 0, 1, cdsprite) end
+		if cd.Frame then
+			EID:addIcon("Card"..id, "Card", cd.Frame, 8, 8, 0, 1, cdsprite)
+		end
 	end
 
 	for id, pk in pairs(EIDInfo.Pickups or {}) do

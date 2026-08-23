@@ -149,6 +149,7 @@ enums.Items = {
 	Abiogenesis = Isaac.GetItemIdByName("Abiogenesis"),
 	The_Voice = Isaac.GetItemIdByName("The Voice"),
 	Regenesis = Isaac.GetItemIdByName("Regenesis"),
+	Ember = Isaac.GetItemIdByName("Ember"),
 	
 	Baby_Tecro = Isaac.GetItemIdByName("Baby Tecro"),
 	Baby_Anna = Isaac.GetItemIdByName("Baby Anna"),
@@ -263,7 +264,7 @@ enums.Callbacks = {		-- Old misspelled callback names were normalized during the
 
 enums.Slots = {
 	Bard_beggar = {Type = 6,Variant = Isaac.GetEntityVariantByName("Bard Beggar"),},
-	Time_beggar = {Type = 6,Variant = Isaac.GetEntityVariantByName("Time Beggar"),},
+	Tomorrows_creditor = {Type = 6,Variant = Isaac.GetEntityVariantByName("Tomorrows Creditor"),},
 	Rift_beggar = {Type = 6,Variant = Isaac.GetEntityVariantByName("Rift Beggar"),},
 	Bloody_Messenger = {Type = 6,Variant = Isaac.GetEntityVariantByName("Bloody Messenger"),},
 	Qing_Diamond_Merchant = {Type = 6,Variant = Isaac.GetEntityVariantByName("Qing Diamond Merchant"),},
@@ -543,18 +544,6 @@ enums.Pickups = {
 		return true,own_word
 	end,special_to_check = function(ent)
 		return ent:GetData()._Data and ent:GetData()._Data["Glaze_Coin"] and ent:GetData()._Data["Glaze_Coin"].is_glaze_coin == true
-	end,load_EID = function(ent)
-		if EID then
-			local lang = EID.UserConfig.Language
-			if lang == "auto" then
-				lang = Options.Language
-			end
-			if lang == "zh" or lang == "zh_cn" then
-				ent:GetData().EID_Description = {Name = "琉璃硬币",Description = "#缓缓吸引周围的掉落物# {{Coin}} 20%概率给予5枚硬币",}
-			elseif lang == "en" or lang == "en_us" then
-				ent:GetData().EID_Description = {Name = "Glaze Coin",Description = "#Slowly attract surrounding pickups# {{Coin}} 20% chance to give 5 coins",}
-			end
-		end
 	end,
 	},
 	Glaze_grabbag = {Variant = Isaac.GetEntityVariantByName("Glaze_grabbag"),SubType = 2353,wei = 30,heavy = 3,},

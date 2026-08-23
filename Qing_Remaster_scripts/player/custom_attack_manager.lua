@@ -2,6 +2,7 @@ local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local character_attack_compat = require("Qing_Remaster_scripts.player.character_attack_compat")
 
 local manager = {
 	pre_ToCall = {},
@@ -13,6 +14,7 @@ local manager = {
 	layers = {},
 	profiles = {},
 	states = {},
+	roomEpoch = 0,
 	debug = false,
 }
 
@@ -91,6 +93,19 @@ function manager.RegisterProfile(player_type,profile)
 	profile = profile or {}
 	manager.profiles[player_type] = profile
 	return profile
+end
+
+-- 角色的主攻击状态机仍由各角色模块维护；跨角色宝宝复制/能力审计统一登记在这里。
+function manager.RegisterCharacterCompat(player_type, definition)
+	return character_attack_compat.register(player_type, definition)
+end
+
+function manager.DispatchFamiliarAttack(player, request)
+	return character_attack_compat.dispatch_familiar_attack(player, request)
+end
+
+function manager.GetCharacterCompatAudit()
+	return character_attack_compat.audit_snapshot()
 end
 
 function manager.GetProfile(player)
@@ -383,6 +398,11 @@ end
 function manager.UpdatePlayer(player,reason)
 	if player == nil then return end
 	local state = manager.GetState(player)
+	if state.roomEpoch ~= manager.roomEpoch then
+		manager.CleanupPlayer(player, "new_room")
+		state = manager.GetState(player)
+		state.roomEpoch = manager.roomEpoch
+	end
 	local player_type = player:GetPlayerType()
 	if state.playerType ~= player_type then
 		manager.CleanupPlayer(player,"player_type_changed")
@@ -417,15 +437,14 @@ end,
 
 table.insert(manager.ToCall,#manager.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	for _,player in player_pairs() do
-		manager.CleanupPlayer(player,"new_room")
-	end
+	manager.roomEpoch = manager.roomEpoch + 1
 end,
 })
 
 table.insert(manager.ToCall,#manager.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
 Function = function(_)
 	manager.states = {}
+	manager.roomEpoch = 0
 end,
 })
 

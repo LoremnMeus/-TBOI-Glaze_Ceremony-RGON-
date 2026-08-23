@@ -176,11 +176,12 @@ Function = function(_,ent)
 		local hp_rate = ent.HitPoints / ent.MaxHitPoints
 		if move_mode == 1 then
 			local target = auxi.get_acceptible_target(ent)
-			local target_pos = room:GetCenterPos() if target then target_pos = target.Position end
+			target_pos = room:GetCenterPos() if target then target_pos = target.Position end
 			local pos_rate = d[item.own_key.."task"]["pos_rate"] or 1
 			target_pos = pos_rate * target_pos + (1 - pos_rate) * room:GetCenterPos()
 			target_pos = target_pos + (d[item.own_key.."task"].pos_offset or Vector(0,0)) - dir * 60
 		end
+		target_pos = target_pos or room:GetCenterPos()
 		if move_mode > 0 then ent.Velocity = ent.Velocity * 0.5 + 0.5 * (target_pos - ent.Position):Normalized() * (target_pos - ent.Position):Length() * 0.15
 		else ent.Velocity = ent.Velocity * 0.5 end
 		ent.Velocity = auxi.apply_friction(ent.Velocity,1)

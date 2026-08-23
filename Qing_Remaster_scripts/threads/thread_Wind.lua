@@ -104,7 +104,8 @@ function item.plan_a_bfs()
 			if item.banish_room_list[desc.Data.Type] ~= true then table.insert(tg,#tg+1,targ) end
 		end
 	end
-	local targ_id = math.random(#tg)
+	if #tg == 0 then return false end
+	local targ_id = rng:RandomInt(#tg) + 1
 	local targ = tg[targ_id]
 	local id = targ.SafeGridIndex
 	local desc = level:GetRoomByIdx(id)
@@ -119,7 +120,8 @@ function item.plan_a_bfs()
 			local pos_rou = auxi.move_in_rou(v.id,13,13)
 			local pos_tg = {v.id,}
 			for u1,v1 in pairs(pos_rou) do
-				if level:GetRoomByIdx(v1).SafeGridIndex == v.id then		--是同一房间
+				local same_desc = level:GetRoomByIdx(v1)
+				if same_desc and same_desc.Data and same_desc.SafeGridIndex == v.id then		--是同一房间
 					table.insert(pos_tg,#pos_tg+1,v1)
 				end
 			end
@@ -127,7 +129,7 @@ function item.plan_a_bfs()
 				local pos_pos = auxi.move_in_sq(v1,13,13)
 				for u2,v2 in pairs(pos_pos) do
 					local tar = level:GetRoomByIdx(v2.id)
-					local sgid = tar.SafeGridIndex
+					local sgid = tar and tar.Data and tar.SafeGridIndex or -1
 					if sgid > 0 and tar.Data.Type ~= 7 and (save.elses["Zennith_room_conter_"..sgid] == nil or save.elses["Zennith_room_conter_"..sgid] > v.power + 1) then
 						save.elses["Zennith_room_conter_"..sgid] = v.power + 1
 						save.elses["Zennith_room_dir_"..sgid] = v2.dir
@@ -138,6 +140,7 @@ function item.plan_a_bfs()
 		end
 		tg2 = ntg
 	end
+	return true
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,

@@ -12,6 +12,7 @@ local player_offset_holder = require("Qing_Remaster_scripts.callbacks.player_off
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
 local collectible_holder = require("Qing_Remaster_scripts.callbacks.collectible_holder")
 local boss_zeis = require("Qing_Remaster_scripts.bosses.Boss_Zeistos")
+local player_All = require("Qing_Remaster_scripts.player.player_All")
 
 local item = {
 	pre_ToCall = {},
@@ -498,6 +499,7 @@ Function = function(_,ent)
 				s.Rotation = -90
 				local d = q:GetData()
 				d.EID_Description = item.Description
+				player_All.apply_notice_board_dogma(q)
 			end,})
 		end
 	end

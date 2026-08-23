@@ -67,6 +67,12 @@ local item = {
 			
 			[items.My_Hat] = {Special = function() return save.UnlockData.Others["Ending1"].Unlock == true end,},
 			[items.My_Emblem] = {Special = function() return save.UnlockData.Others["Ending1"].Unlock == true end,},
+			[items.Ember] = items.Ember and items.Ember > 0 and {Special = function()
+				local rec = save.UnlockData and save.UnlockData.Others and save.UnlockData.Others.Feels_Like_Dead_Ashes
+				if type(rec) == "table" and rec.Unlock == true then return true end
+				local cid = enums.Challenges.Feels_Like_Dead_Ashes
+				return type(cid) == "number" and cid > 0 and Isaac.GetChallengeCompleted and Isaac.GetChallengeCompleted(cid) == true
+			end,} or nil,
 		},
 		["Trinket"] = {
 			
@@ -134,10 +140,7 @@ for category,columns in pairs(unlock_board.character_unlocks or {}) do
 end
 for category,columns in pairs(unlock_board.special_unlocks or {}) do
 	for mark,entries in pairs(columns) do
-		local record = save.UnlockData and save.UnlockData[category] and save.UnlockData[category][mark]
-		if record then
-			for _,entry in ipairs(entries) do add_board_requirement(entry,category,mark,"Unlock") end
-		end
+		for _,entry in ipairs(entries) do add_board_requirement(entry,category,mark,"Unlock") end
 	end
 end
 local reverse_rows = {Magdalene = "Maggy",JacobEsau = "Jacob_and_Esau",Jacob = "Jacob_and_Esau"}
@@ -249,6 +252,43 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GA
 Function = function(_,continue)
 	configure_card_availability()
 	if not continue then apply_item_pool_options() end
+	if save.ensure_board_special_records then save.ensure_board_special_records() end
+	if Isaac.GetChallengeCompleted then
+		for name,cid in pairs(enums.Challenges or {}) do
+			if type(cid) == "number" and cid > 0 and Isaac.GetChallengeCompleted(cid) then
+				save.UnlockData = save.UnlockData or {}
+				save.UnlockData.Others = save.UnlockData.Others or {}
+				local rec = save.UnlockData.Others[name]
+				if type(rec) ~= "table" then
+					rec = {Unlock = false}
+					save.UnlockData.Others[name] = rec
+				end
+				rec.Unlock = true
+			end
+		end
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_END, params = nil,
+Function = function(_, is_game_over)
+	if is_game_over then return end
+	local cid = Game().Challenge
+	if not cid or cid <= 0 then return end
+	if Isaac.GetChallengeCompleted and not Isaac.GetChallengeCompleted(cid) then return end
+	local key
+	for name,id in pairs(enums.Challenges or {}) do
+		if id == cid then key = name break end
+	end
+	if not key then return end
+	save.UnlockData = save.UnlockData or {}
+	save.UnlockData.Others = save.UnlockData.Others or {}
+	local rec = save.UnlockData.Others[key]
+	if type(rec) ~= "table" then
+		rec = {Unlock = false}
+		save.UnlockData.Others[key] = rec
+	end
+	item.unlock_achievement(rec, "Unlock")
 end,
 })
 

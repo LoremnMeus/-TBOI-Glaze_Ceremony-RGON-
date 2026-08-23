@@ -195,6 +195,8 @@ function holder.end_frame()
 			holder.pressed_id = hit.id
 			holder.active_id = hit.id
 			holder._active_button = btn
+			-- on_render 可能同逻辑帧跑多次；边沿只给第一次 end_frame
+			holder._clicked[btn] = false
 		end
 	end
 

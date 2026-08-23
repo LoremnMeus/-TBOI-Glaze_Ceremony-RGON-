@@ -321,11 +321,10 @@ end
 
 function M.screen_to_world(screen_pos)
 	if not screen_pos then return nil end
-	if Isaac.ScreenToWorldFloat then
-		return Isaac.ScreenToWorldFloat(screen_pos)
-	end
-	if Isaac.ScreenToWorld then
-		return Isaac.ScreenToWorld(screen_pos)
+	-- RenderToWorld 才是 Isaac.WorldToScreen 的逆（渲染坐标）。
+	-- ScreenToWorld / ScreenToWorldFloat 吃窗口像素；把瞳孔渲染坐标喂进去会把世界点甩到房间角落。
+	if Isaac.RenderToWorld then
+		return Isaac.RenderToWorld(screen_pos)
 	end
 	return nil
 end

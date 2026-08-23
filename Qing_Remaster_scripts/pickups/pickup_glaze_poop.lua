@@ -20,54 +20,38 @@ poop_ui:Play("Idle",true)
 poop_ui.Scale = Vector(0.5,0.5)
 local frame = 0
 
+local function first_poop_player(prefer)
+	if prefer and auxi.is_poop_player(prefer) then return prefer end
+	for i = 1,Game():GetNumPlayers() do
+		local p = Game():GetPlayer(i - 1)
+		if auxi.is_poop_player(p) then return p end
+	end
+	return prefer
+end
+
 function item.try_collect(player,ent)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
-	if glaze_crown.should_empower(player) then
-		save.elses.poop_counter = math.min(2,save.elses.poop_counter + 1)
-	else
-		save.elses.poop_counter = 1		
+	local target = first_poop_player(player)
+	if target and auxi.is_poop_player(target) and target.GetPoopSpell and target.SetPoopSpell then
+		local none = (PoopSpellType and PoopSpellType.SPELL_NONE) or 0
+		local basic = (PoopSpellType and PoopSpellType.SPELL_POOP) or 1
+		local copy = target:GetPoopSpell(0)
+		if not copy or copy == none then
+			target:SetPoopSpell(0,basic)
+			if target.AddPoopMana then target:AddPoopMana(1) end
+		else
+			local slot = nil
+			for i = 1,5 do
+				local sp = target:GetPoopSpell(i)
+				if not sp or sp == none then slot = i break end
+			end
+			if target.AddPoopMana then target:AddPoopMana(1) end
+			target:SetPoopSpell(slot or 5,copy)
+		end
 	end
-	if auxi.has_poop_player() then player:AddPoopMana(2) end
 	glaze_crown.notify_pickup(player)
 	return true
 end
-
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = 1,
-Function = function(_,ent,amt,flag,source,cooldown)
-	if amt > 0 and auxi.is_damage_from_enemy(ent, amt, flag, source, cooldown) then
-		local player = ent:ToPlayer()
-		local rng = player:GetDropRNG()
-		rng = auxi.rng_for_sake(rng)
-		if player then
-			if save.elses.poop_counter and save.elses.poop_counter > 0 then
-				player:UsePoopSpell(rng:RandomInt(11) + 1)
-				save.elses.poop_counter = 0
-			end
-		end
-	end
-end,
-})
-
-
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_GET_SHADER_PARAMS, params = nil,
-Function = function(_,shadername)
-	if shadername == "Qing_HelpfulShader" then
-		if save.elses.poop_counter and save.elses.poop_counter > 0 and Game():GetHUD():IsVisible() then
-			if Game():IsPaused() == false then
-				frame = frame + 1
-			else
-				frame = frame - 1
-			end
-			if frame > 47 then frame = 0 end
-			if frame < 0 then frame = 47 end
-			poop_ui:SetFrame(frame)
-			local pos = ui.UIPoopPos(auxi.is_double_player())
-			poop_ui.Color = Color(1,1,1,slot_render_holder.get_alpha())
-			poop_ui:Render(pos,Vector(0,0),Vector(0,0))
-		end
-	end
-end,
-})
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
 Function = function(_,continue)
@@ -117,6 +101,7 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = 42,
 Function = function(_,ent)
 	if Unlocker.should_any_be_done("Pickup","Glaze_Poop",nil,"Pickup_allow") then
+		if not auxi.has_poop_player() then return end
 		if ent.SubType == 1 then
 			local rng = ent:GetDropRNG()
 			rng = auxi.rng_for_sake(rng)

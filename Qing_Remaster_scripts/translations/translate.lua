@@ -923,36 +923,26 @@ item.Collectibles = {
         zh = {
             Name = "透特之书",
             Desc = "命运只是尚未整理的书页",
-            Description = "{{ThothCard}} 获得透特牌时，将对应牌面登记至卡册"..
-            "#{{Battery}} 使用透特牌获得1格启示充能，最多12格"..
-            "#启示不会随清理房间自然恢复，未满也可打开卡册"..
-            "#使用打开全屏卡册：卡册/占卜可翻页浏览，占卜页将已登记牌拖入槽位"..
-            "#占卜可先排出至多3张牌的牌阵，每张消耗1格启示"..
-            "#超出当前启示的牌面会标红，充能不足时无法确认"..
-            "#每清理一个战斗房，依次发动下一张牌"..
-            "#正逆位均被登记后，可自由选择对应牌面"..
-            "#未登记的透特牌更容易出现",
+            Description = "{{ThothCard}} 记录获得过的透特牌面"..
+            "#{{Battery}} 登记新牌面+1启示，使用透特牌+2启示，最多12格"..
+            "#消耗3格启示，选择至多3张记录牌面进行占卜"..
+            "#进入新战斗房时随机发动一张；每个牌面每层限一次",
             AbyssSynic = "命中后概率生成卡牌的蝗虫",
-            BookOfBelial = "使用透特牌获得临时攻击力",
+            BookOfBelial = "占卜时最多可选择4张牌",
             BookOfVirtues = "魂火熄灭时生成一张塔罗牌",
-            SeijaNerf = "所有透特卡以背面表示出现",
+            SeijaNerf = "透特牌以背面出现；卡册先只显示正逆位，首次占卜后才翻开",
         },
         en = {
             Name = "Book of Thoth",
             Desc = "Fate is merely a book yet to be put in order.",
-            Description = "{{ThothCard}} Picking up a Thoth card registers that face in the codex"..
-            "#{{Battery}} Using a Thoth card grants 1 Revelation charge, up to 12"..
-            "#Revelation does not refill by clearing rooms; the book can still be opened when not full"..
-            "#Use to open the fullscreen codex: turn pages on Codex/Reading, drag registered faces into slots on Reading"..
-            "#Draft up to 3 faces first; each costs 1 Revelation"..
-            "#Faces beyond current Revelation are marked red; confirm stays locked until you can pay"..
-            "#Clearing a combat room plays the next card in the spread"..
-            "#Registering both upright and reversed lets you choose either face"..
-            "#Unseen Thoth faces appear more often",
-            AbyssSynic = "Locust that have chance to spawn a tarot card",
-            BookOfBelial = "Damage up when using Thoth cards",
-            BookOfVirtues = "Wisps that spawn a tarot card when extinguished",
-            SeijaNerf = "All Thoth cards appear on the back",
+            Description = "{{ThothCard}} Records obtained Thoth faces"..
+            "#{{Battery}} Registering a new face +1 Revelation, using a Thoth card +2, up to 12"..
+            "#Spend 3 Revelation to read up to 3 recorded faces"..
+            "#Entering a new combat room plays one at random; each face once per floor",
+            AbyssSynic = "Locust that may spawn a card on hit",
+            BookOfBelial = "Readings can hold up to 4 faces",
+            BookOfVirtues = "Wisps spawn a tarot card when extinguished",
+            SeijaNerf = "Thoth cards appear face-down; the codex shows only upright/reversed until the first reading",
         },
     },
     [45] = {
@@ -2809,6 +2799,8 @@ item.Collectibles = {
             "#消耗当前全部充能，向瞄准方向挥出重刃"..
             "#{{Damage}} 1格充能造成1点伤害，攻击范围为1"..
             "#每多1格充能，伤害与范围翻倍",
+            BookOfBelial = "{{Battery}} +2充能上限（最多12格），刀刃变为血红",
+            BookOfVirtues = "每消耗1格充能生成一颗攻击和生命均为1的魂火",
         },
         en = {
             Name = "Multiknife",
@@ -2817,6 +2809,8 @@ item.Collectibles = {
             "#Consumes all current charges to swing a heavy blade in the aiming direction"..
             "#{{Damage}} At 1 charge, deals 1 damage with 1 range"..
             "#Each additional charge doubles damage and range",
+            BookOfBelial = "{{Battery}} +2 charge cap (max 12). Blade turns blood-red",
+            BookOfVirtues = "Spawns a 1 HP / 1 damage wisp per charge spent",
         },
     },
     [132] = {
@@ -3213,16 +3207,26 @@ item.Collectibles = {
         zh = {
             Name = "黄金抽奖机",
             Desc = "投币赢大奖！",
-            Description = "{{Coin}} 消耗金币抽奖"..
-            "#生成金色奖励"..
-            "#极小概率生成金奖杯或超大金箱",
+            Description = "{{Coin}} 每次使用消耗1枚金币进行抽奖"..
+            "#可能获得各种黄金奖励"..
+            "#连续落空会逐渐提高中奖机会"..
+            "#极小概率获得超大金箱或金奖杯",
+            BookOfVirtues = "抽奖落空时生成黄金魂火"..
+            "#黄金魂火的攻击概率使敌人点金",
+            BookOfBelial = "{{Coin}} 每次抽奖改为消耗2枚金币"..
+            "#中奖时抽取两次奖励并保留更高价值的一项",
         },
         en = {
             Name = "Golden Slot",
             Desc = "Insert coin to win!",
-            Description = "{{Coin}} Spend coins to gamble"..
-            "#Spawn golden rewards"..
-            "#Tiny chance for a golden trophy or mega chest",
+            Description = "{{Coin}} Costs 1 coin per use"..
+            "#May grant various golden rewards"..
+            "#Consecutive misses gradually improve win chance"..
+            "#Tiny chance for a mega golden chest or trophy",
+            BookOfVirtues = "Spawns a golden wisp on a miss"..
+            "#Golden wisp attacks have a chance to Midas Freeze enemies",
+            BookOfBelial = "{{Coin}} Each gamble costs 2 coins"..
+            "#On a win, roll twice and keep the higher-value reward",
         },
     },
     [154] = {
@@ -3233,18 +3237,18 @@ item.Collectibles = {
         zh = {
             Name = "拖延症",
             Desc = "马上就做……",
-            Description = "{{Timer}} 每30秒 {{Damage}} +0.1"..
-            "#本层最多 {{Damage}} +1"..
-            "#击杀任意Boss后本层不再增长"..
-            "#包含Boss敌人的房间门保持开启",
+            Description = "{{Timer}} 持有后每经过30秒，{{Damage}} 本层攻击+0.1"..
+            "#本层最多获得 {{Damage}} +1攻击"..
+            "#击杀任意Boss后，立即停止本层的攻击增长"..
+            "#包含Boss敌人的房间门始终保持开启",
         },
         en = {
             Name = "Procrastination",
             Desc = "I'll do it soon...",
-            Description = "{{Timer}} Every 30 seconds {{Damage}} +0.1"..
-            "#Up to {{Damage}} +1 per floor"..
-            "#Stops growing this floor after killing any boss"..
-            "#Doors stay open in rooms with bosses",
+            Description = "{{Timer}} While held, every 30 seconds {{Damage}} +0.1 this floor"..
+            "#Up to {{Damage}} +1 this floor"..
+            "#Killing any boss immediately stops this floor's damage growth"..
+            "#Doors in rooms with living bosses stay open",
         },
     },
     [155] = {
@@ -3393,6 +3397,24 @@ item.Collectibles = {
             "#The Age lasts for the next run only"..
             "#{{DeathMark}} Death still leaves an Age"..
             "#{{Player}} Restarting does not settle",
+        },
+    },
+    [161] = {
+        Name = "余烬",
+        id = Items.Ember,
+        type = "passive",
+        xmlId = 172,
+        zh = {
+            Name = "余烬",
+            Desc = "最后留下的东西",
+            Description = "复制最近一次永久失去的其他被动道具"..
+            "#再次失去道具时，改为复制新的道具",
+        },
+        en = {
+            Name = "Ember",
+            Desc = "What remains",
+            Description = "Copies the last passive item you permanently lost"..
+            "#Losing another item changes the copied item",
         },
     },
 }
@@ -4892,14 +4914,29 @@ item.Players = {
         type = "player",
         zh = {
             Name = "安娜",
-            Desc = "",
-            Description = "灾难之角",
+            Desc = "灾难之角",
+            Description = "操控掌中黑洞吸收敌人与掉落物，并将捕获物重新发射"..
+                "#敌人被吸入后不会立即死亡"..
+                "#越稀有的掉落物，作为弹药时造成的伤害越高",
+            StartGuide = {
+                Name = "操作指南：安娜",
+                Description = "按住 {{ButtonRT}} 时松开攻击键不会发射"..
+                    "#清理房间后按住攻击键并双击 {{ButtonRT}} 可快速收回捕获物",
+            },
         },
         en = {
             Name = "Anna",
-            Description = "The horn of Nitimity",
+            Desc = "The Horn of Nitimity",
+            Description = "Control a handheld black hole to capture enemies and pickups, then launch them as projectiles"..
+                "#Captured enemies remain alive inside the black hole"..
+                "#Rarer pickups deal more damage when launched",
             Animation = "Anna",
             Sprite = "gfx/characterportraits.anm2",
+            StartGuide = {
+                Name = "Operation Guide: Anna",
+                Description = "Release the attack key while holding {{ButtonRT}} to avoid firing"..
+                    "#After clearing a room, hold attack and double-tap {{ButtonRT}} to quickly recall captures",
+            },
         },
     },
     [2] = {
@@ -4908,12 +4945,13 @@ item.Players = {
         type = "player",
         zh = {
             Name = "艾提奥",
-            Desc = "",
-            Description = "灾难之影",
+            Desc = "灾难之影",
+            Description = "",
         },
         en = {
             Name = "Autio",
-            Description = "The shadow of Nitimity",
+            Desc = "The Shadow of Nitimity",
+            Description = "",
             Animation = "Autio",
             Sprite = "gfx/characterportraits.anm2",
         },
@@ -4924,12 +4962,13 @@ item.Players = {
         type = "player",
         zh = {
             Name = "露",
-            Desc = "",
-            Description = "灾难之喉",
+            Desc = "灾难之喉",
+            Description = "",
         },
         en = {
             Name = "Lu",
-            Description = "The throat of Nitimity",
+            Desc = "The Throat of Nitimity",
+            Description = "",
             Animation = "Lu",
             Sprite = "gfx/characterportraits.anm2",
         },
@@ -4941,35 +4980,52 @@ item.Players = {
         zh = {
             Name = "玛丽亚诺",
             Desc = "",
+            StartGuide = {
+                Name = "操作指南：玛利亚诺",
+                Description = "将道具重置为面具#面具全部破碎后堕入恶魔",
+            },
         },
         en = {
+            StartGuide = {
+                Name = "Operation Guide: Marriano",
+                Description = "Reset items into masks#Fall to the Devil when all masks break",
+            },
         },
     },
     [5] = {
-        Name = "万青",
+        Name = "青",
         id = enums.Players.Spwq,
         type = "player",
         zh = {
-            Name = "万青",
-            Desc = "",
-            Description = "{{Collectible"..enums.Items.Air_Flight.."}} 持有飞行器，用射击键抛出指挥标记"..
-            "#Alt（可改键）切换模式：猎杀 / 护航 / 压制"..
-            "#猎杀：飞行器在标记附近自动接敌盘旋"..
-            "#护航：飞行器贴身侧后，朝标记方向开火；走位即改炮位"..
-            "#压制：压进标记点持续开火；拖动标记做战场调度"..
-            "#Ctrl（可改键）收回标记",
+            Name = "青",
+            Desc = "灾难之终械",
+            Description = "{{Collectible"..enums.Items.Air_Flight.."}} 无法直接攻击，通过指挥准星控制飞行器作战"..
+                "#使用蓝图制造飞行器，并为其安装道具模块"..
+                "#飞行器拥有独立属性，只有列队中的飞行器会参与战斗",
+            StartGuide = {
+                Name = "操作指南：青",
+                Description = "攻击键或按住鼠标左键移动指挥准星"..
+                    "#Ctrl 或鼠标中键切换巡航 / 护卫"..
+                    "#鼠标右键或短按蓝图切换自动 / 压制开火"..
+                    "#长按蓝图打开面板",
+            },
         },
         en = {
             Name = "Qing",
-            Description = "{{Collectible"..enums.Items.Air_Flight.."}} Starts with Air Flight and a command mark steered by fire keys"..
-            "#Alt (rebindable) cycles Hunt / Form / Pin"..
-            "#Hunt: auto-engages near the mark"..
-            "#Form: stays on your flank and fires toward the mark"..
-            "#Pin: pins the mark and keeps firing; drag the mark to redirect"..
-            "#Ctrl (rebindable) recalls the mark",
+            Desc = "The Final Machine of Nitimity",
+            Description = "{{Collectible"..enums.Items.Air_Flight.."}} Cannot attack directly; instead, command drones through a targeting reticle"..
+                "#Use Blueprint to manufacture drones and equip them with item modules"..
+                "#Drones have independent stats, and only deployed drones participate in combat",
             Animation = "SP.W.Qing",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
+            StartGuide = {
+                Name = "Operation Guide: Qing",
+                Description = "Attack or hold LMB to move the command reticle"..
+                    "#Ctrl or MMB toggles Cruise / Guard"..
+                    "#RMB or tap Blueprint toggles Auto / Suppression fire"..
+                    "#Hold Blueprint to open the panel",
+            },
         },
     },
     [6] = {
@@ -4978,14 +5034,25 @@ item.Players = {
         type = "player",
         zh = {
             Name = "泰克罗",
-            Desc = "",
-            Description = "灾难之牙",
+            Desc = "灾难之牙",
+            Description = "操纵环绕自身的长枪，以攻击方向调整枪尖朝向"..
+                "#蓄力后松开攻击，向枪尖方向发动突刺",
+            StartGuide = {
+                Name = "操作指南：泰克罗",
+                Description = "按下鼠标中键开关鼠标控制",
+            },
         },
         en = {
             Name = "Tecro",
-            Description = "The tooth of Nitimity",
+            Desc = "The Tooth of Nitimity",
+            Description = "Control a spear that rotates around Tecro, using attack directions to aim its tip"..
+                "#Charge and release to thrust in the aimed direction",
             Animation = "Tecro",
             Sprite = "gfx/characterportraits.anm2",
+            StartGuide = {
+                Name = "Operation Guide: Tecro",
+                Description = "Press the middle mouse button to toggle mouse control",
+            },
         },
     },
     [7] = {
@@ -4994,15 +5061,30 @@ item.Players = {
         type = "player",
         zh = {
             Name = "泰克罗罗恩",
-            Desc = "",
-            Description = "灾难之光",
+            Desc = "灾难之光",
+            Description = "以长枪瞄准并蓄力，使枪尖延伸出在房间中镜像反射的光柱"..
+                "#松开攻击后沿光柱无敌冲刺，并伤害沿途附近的敌人",
+            StartGuide = {
+                Name = "操作指南：泰克罗·罗恩",
+                Description = "按下鼠标中键开关鼠标控制"..
+                    "#瞄准门口冲刺可以直接离开房间"..
+                    "#满蓄力造成更高伤害",
+            },
         },
         en = {
             Name = "Tecrorun",
-            Description = "The light of Nitimity",
+            Desc = "The Light of Nitimity",
+            Description = "Aim and charge the spear to project a beam from its tip that reflects across the room"..
+                "#Release to dash invincibly along the beam, damaging nearby enemies",
             Animation = "Tecrorun",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
+            StartGuide = {
+                Name = "Operation Guide: Tecrorun",
+                Description = "Press the middle mouse button to toggle mouse control"..
+                    "#Dash toward a door to leave the room"..
+                    "#Fully charged attacks deal more damage",
+            },
         },
     },
     [8] = {
@@ -5011,14 +5093,31 @@ item.Players = {
         type = "player",
         zh = {
             Name = "泽伊斯托斯",
-            Desc = "",
-            Description = "灾难之眼",
+            Desc = "灾难之眼",
+            Description = "每层可进入死亡证明，从已获得道具附近寻找新的道具"..
+                "#正式获得的道具会扩展之后的可选择范围"..
+                "#临时取得的道具只能使用一层，也不会继续扩展选择范围",
+            StartGuide = {
+                Name = "操作指南：泽·伊斯托斯",
+                Description = "第一层可自由选择一个被动道具"..
+                    "#此后只能选择已获得道具附近的被动道具"..
+                    "#未正式获得的被动道具最多只能选择一次",
+            },
         },
         en = {
             Name = "Zeis",
-            Description = "The eye of Nitimity",
+            Desc = "The Eye of Nitimity",
+            Description = "Enter Death Certificate each floor and discover new items near those you have already obtained"..
+                "#Permanently obtained items expand your future choices"..
+                "#Temporary items last only for the floor and cannot expand your choices further",
             Animation = "Zeistos",
             Sprite = "gfx/characterportraits.anm2",
+            StartGuide = {
+                Name = "Operation Guide: Zeis",
+                Description = "On the first floor, freely choose one passive item"..
+                    "#Afterward, only choose passives near permanently obtained items"..
+                    "#Temporary passives can only be chosen once",
+            },
         },
     },
     [9] = {
@@ -5027,15 +5126,32 @@ item.Players = {
         type = "player",
         zh = {
             Name = "安奈",
-            Desc = "",
-            Description = "灾难之魔",
+            Desc = "灾难之魔",
+            Description = "操纵准星选择坠落位置，同时使自身持续蓄力"..
+                "#满蓄力后瞬移至准星上方，并高速下落造成范围伤害"..
+                "#攻击后的短时间内处于无敌状态",
+            StartGuide = {
+                Name = "操作指南：安奈",
+                Description = "使用攻击方向移动准星"..
+                    "#等待满蓄力后发动坠落攻击"..
+                    "#攻击后有0.25秒无敌时间",
+            },
         },
         en = {
             Name = "Anna",
-            Description = "The devil of Nitimity",
+            Desc = "The Devil of Nitimity",
+            Description = "Move a targeting reticle while Anna continuously charges her attack"..
+                "#At full charge, she teleports above the target and crashes down for area damage"..
+                "#She becomes briefly invincible after attacking",
             Animation = "annA",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
+            StartGuide = {
+                Name = "Operation Guide: annA",
+                Description = "Use attack directions to move the targeting reticle"..
+                    "#Wait for a full charge to perform the dive attack"..
+                    "#Gain 0.25s of invincibility after attacking",
+            },
         },
     },
     [10] = {
@@ -5044,14 +5160,29 @@ item.Players = {
         type = "player",
         zh = {
             Name = "小青",
-            Desc = "",
-            Description = "灾难之先导",
+            Desc = "灾难之先导",
+            Description = "投掷小刀攻击敌人，插入物体的小刀同时会成为可返回的瞬移坐标"..
+                "#利用小刀可在攻击与位移之间快速改变自身位置"..
+                "#必要时会自动留下小刀，避免玩家被困",
+            StartGuide = {
+                Name = "操作指南：青",
+                Description = "按下Alt键瞬移至已插入的小刀"..
+                    "#必要情况下小刀会自动扎在墙上",
+            },
         },
         en = {
             Name = "Qing",
-            Description = "The precursor of Nitimity",
+            Desc = "The Precursor of Nitimity",
+            Description = "Throw knives to attack; knives lodged in objects also become teleport coordinates"..
+                "#Use them to rapidly reposition between attacks"..
+                "#When necessary, a knife is automatically placed to prevent becoming trapped",
             Animation = "W.Qing",
             Sprite = "gfx/characterportraits.anm2",
+            StartGuide = {
+                Name = "Operation Guide: W.Q.",
+                Description = "Press Alt to teleport to a lodged knife"..
+                    "#When necessary, a knife automatically sticks into a wall",
+            },
         },
     },
     [11] = {
@@ -5060,19 +5191,32 @@ item.Players = {
         type = "player",
         zh = {
             Name = "泽伊兹",
-            Desc = "",
-            Description = "每层进入控制中枢"..
-            "#接触候选虚影以任命管理员"..
-            "#其愚见会错误地管理世界",
+            Desc = "灾难之理",
+            Description = "每层从控制中枢任命一名管理员，由其愚见改变世界的运行规则"..
+                "#不同管理员会依照自己的错误认知解释并管理游戏机制"..
+                "#引起管理员的兴趣后，可获得其提出的提案",
+            StartGuide = {
+                Name = "操作指南：泽伊兹",
+                Description = "每层进入控制中枢"..
+                    "#接触候选虚影以任命管理员"..
+                    "#按照管理员的愚见行动以引起其兴趣",
+            },
         },
         en = {
             Name = "Zeiz",
-            Description = "Enter the Control Hub each floor"..
-            "#Touch a candidate phantom to appoint them"..
-            "#Their Folly mismanages the world",
+            Desc = "The Reason of Nitimity",
+            Description = "Appoint an administrator in the Control Hub each floor, whose Folly alters how the world operates"..
+                "#Each administrator interprets and manages game rules through their own mistaken reasoning"..
+                "#Draw their interest to receive a Proposal",
             Animation = "Zeiz",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
+            StartGuide = {
+                Name = "Operation Guide: Zeiz",
+                Description = "Enter the Control Hub each floor"..
+                    "#Touch a candidate phantom to appoint an administrator"..
+                    "#Act according to their Folly to draw their interest",
+            },
         },
     },
 }
@@ -5111,7 +5255,7 @@ item.Birthrights = {
         type = "birthright",
         zh = {
             Description = "浮游炮+3",
-            PlayerName = "万青？",
+            PlayerName = "青？",
         },
         en = {
             Description = "+3 Funnel",
@@ -5182,7 +5326,7 @@ item.Birthrights = {
             Description = "极大提升瞬移攻击与伤害"..
             "#无目标时按下瞬移键快速移动"..
             "#存在目标时快速暗杀敌人",
-            PlayerName = "万青",
+            PlayerName = "青",
         },
         en = {
             Description = "Greatly evolves teleportation attack"..
@@ -5201,15 +5345,15 @@ item.Challenges = {
         zh = {
             Name = "挑战：曲奇点击者",
             Description = "{{Player15}} 亚波伦开局"..
-            "#!!! 不能发射眼泪"..
-            "#鼠标点击敌人以造成伤害"..
+            "#!!! 无法发射眼泪"..
+            "#使用鼠标点击敌人造成伤害"..
             "#难度等级：普通",
         },
         en = {
             Name = "Cookie Clicker",
             Description = "{{Player15}} Play as Apollyon"..
-            "#!!! Can't shoot"..
-            "#Press enemies with mouse to deal damage"..
+            "#!!! Cannot shoot tears"..
+            "#Click enemies with the mouse to deal damage"..
             "#Difficulty: Normal",
         },
     },
@@ -5219,16 +5363,16 @@ item.Challenges = {
         type = "challenge",
         zh = {
             Name = "挑战：飞龙在天",
-            Description = "#{{Player3}} 犹大开局"..
-            "#{{Collectible"..enums.Items.Book_of_How_to_Fly.."}} 使用飞行书+{{Collectible619}}长子权空战"..
-            "#{{Collectible641}} 使用书本发射的眼泪像血田一样跟在角色身后"..
+            Description = "{{Player3}} 犹大开局"..
+            "#{{Collectible"..enums.Items.Book_of_How_to_Fly.."}} 使用飞行书与{{Collectible619}}长子权进行空战"..
+            "#{{Collectible641}} 书本发射的眼泪会沿飞行轨迹留在角色身后"..
             "#难度等级：普通",
         },
         en = {
             Name = "Dragon Flight",
-            Description = "#{{Player3}} Play as Judas"..
-            "#{{Collectible"..enums.Items.Book_of_How_to_Fly.."}} Use How to Fly and {{Collectible619}}Birthright to fight in air"..
-            "#{{Collectible641}} Tears emitted from books follow the character"..
+            Description = "{{Player3}} Play as Judas"..
+            "#{{Collectible"..enums.Items.Book_of_How_to_Fly.."}} Fight in the air with How to Fly and {{Collectible619}}Birthright"..
+            "#{{Collectible641}} Tears fired by books remain along your flight path"..
             "#Difficulty: Normal",
         },
     },
@@ -5239,19 +5383,19 @@ item.Challenges = {
         zh = {
             Name = "挑战：粉丝服务",
             Description = "{{Player1}} 抹大拉开局"..
-            "#{{Charm}} 角色接近的敌人被永久魅惑"..
-            "#{{ArrowUp}} 被魅惑的敌人每经过一个房间就会稍微成长"..
-            "#!!! 每层第一次进入Boss房后，解除所有被魅惑的敌人"..
-            "#超级撒旦的房间总是解除所有被魅惑的敌人"..
+            "#{{Charm}} 接近普通敌人会将其永久魅惑"..
+            "#{{ArrowUp}} 被魅惑的敌人每清理一个房间都会稍微成长"..
+            "#!!! 每层第一次进入Boss房时，所有被魅惑敌人解除魅惑"..
+            "#超级撒旦房间始终解除所有被魅惑敌人"..
             "#难度等级：困难",
         },
         en = {
             Name = "Fans Service",
-            Description = "{{Player1}} Play as Maggy"..
-            "#{{Charm}} Constantly charm enemies getting closed"..
-            "#{{ArrowUp}} Enchanted enemies grow slightly every time clearing a room"..
-            "#!!! After entering the Boss room for the first time on each floor, release all enchanted enemies"..
-            "#The room of Super Satan always relieves all enchanted enemies"..
+            Description = "{{Player1}} Play as Magdalene"..
+            "#{{Charm}} Walking near normal enemies charms them permanently"..
+            "#{{ArrowUp}} Charmed enemies grow slightly each time a room is cleared"..
+            "#!!! Entering the first Boss room on each floor removes Charm; they become hostile again"..
+            "#Super Satan's room always removes Charm from all charmed enemies"..
             "#Difficulty: Hard",
         },
     },
@@ -5262,15 +5406,21 @@ item.Challenges = {
         zh = {
             Name = "挑战：心如死灰",
             Description = "{{Player21}} 里以撒开局"..
-            "#!!! 所有道具无效化，但保留血量和基础变化效果"..
+            "#{{Collectible"..enums.Items.Ember.."}} 持有8个余烬"..
+            "#!!! 除余烬外，所有被动道具效果无效"..
+            "#{{Collectible"..enums.Items.Ember.."}} 余烬复制最近一次永久失去的被动道具"..
+            "#!!! 8个余烬不占用里以撒的道具槽"..
             "#不可打开控制台"..
             "#难度等级：噩梦",
         },
         en = {
             Name = "Feels Like Dead Ashes",
             Description = "{{Player21}} Play as Tainted Isaac"..
-            "#!!! All items are invalidated"..
-            "#Forbids console"..
+            "#{{Collectible"..enums.Items.Ember.."}} Start with 8 Embers"..
+            "#!!! All passive items except Ember are disabled"..
+            "#{{Collectible"..enums.Items.Ember.."}} Embers copy the last passive item permanently lost"..
+            "#!!! Embers do not occupy Tainted Isaac's item slots"..
+            "#Console is disabled"..
             "#Difficulty: Nightmare",
         },
     },
@@ -5281,19 +5431,19 @@ item.Challenges = {
         zh = {
             Name = "挑战：命运融合",
             Description = "{{Player23}} 里该隐开局"..
-            "#!!! 不能发射眼泪"..
-            "#{{Collectible710}} 用你的袋子将敌人当做基础掉落捕获"..
-            "#对Boss捕获一个基础掉落并打出更多基础掉落"..
+            "#!!! 无法发射眼泪"..
+            "#{{Collectible710}} 使用合成袋捕获敌人，并将其转化为基础掉落"..
+            "#对Boss使用合成袋会获得基础掉落，并从Boss身上打出更多素材"..
             "#!!! 没有{{TreasureRoom}}宝箱房与{{Shop}}商店"..
             "#难度等级：简单",
         },
         en = {
             Name = "Fusion Destiny",
-            Description = "{{Player23}} Played as tainted Cain"..
-            "#!!! Can't shoot"..
-            "#{{Collectible710}} Capture enemies as pickup using craft bag"..
-            "#Capture a pickup on the boss and hit out more"..
-            "#!!! No {{TreasureRoom}}TreasureRoom nor {{Shop}}Shop"..
+            Description = "{{Player23}} Play as Tainted Cain"..
+            "#!!! Cannot shoot tears"..
+            "#{{Collectible710}} Capture enemies as pickups with the Bag of Crafting"..
+            "#Using the bag on a Boss grants a pickup and knocks extra ingredients out of it"..
+            "#!!! No {{TreasureRoom}}Treasure Rooms or {{Shop}}Shops"..
             "#Difficulty: Easy",
         },
     },
@@ -5303,15 +5453,17 @@ item.Challenges = {
         type = "challenge",
         zh = {
             Name = "挑战：异热同心",
-            Description = "{{Player19}} 双子开局"..
-            "#!!! 双方只能向对方的方向射击"..
+            Description = "{{Player19}} 雅各与以扫开局"..
+            "#!!! 双方只能朝彼此所在的方向射击"..
+            "#{{ArrowUp}} 眼泪穿过另一人后获得强化"..
             "#难度等级：普通",
         },
         en = {
             Name = "Heterothermal Concentric",
-            Description = "{{Player19}} Play as Esau and Jacob"..
-            "#!!! They can only shoot in the other's direction"..
-            "#Difficulty: Hard",
+            Description = "{{Player19}} Play as Jacob and Esau"..
+            "#!!! Both can only shoot toward each other"..
+            "#{{ArrowUp}} Tears that pass through the other character are boosted"..
+            "#Difficulty: Normal",
         },
     },
     [7] = {
@@ -5321,15 +5473,17 @@ item.Challenges = {
         zh = {
             Name = "挑战：不为人知",
             Description = "{{Player24}} 里犹大开局"..
-            "#!!! 一切逐渐隐形"..
+            "#!!! 房间中的一切都会逐渐隐形"..
+            "#{{Collectible705}} 黑暗艺术经过的区域会暂时重新显形"..
             "#!!! 没有{{TreasureRoom}}宝箱房与{{Shop}}商店"..
             "#难度等级：简单",
         },
         en = {
             Name = "Invisible",
             Description = "{{Player24}} Play as Tainted Judas"..
-            "#!!! Everything gradually become invisible"..
-            "#!!! No {{TreasureRoom}}TreasureRoom nor {{Shop}}Shop"..
+            "#!!! Everything in the room gradually turns invisible"..
+            "#{{Collectible705}} Dark Arts briefly reveals the area it passes through"..
+            "#!!! No {{TreasureRoom}}Treasure Rooms or {{Shop}}Shops"..
             "#Difficulty: Easy",
         },
     },
@@ -5340,17 +5494,17 @@ item.Challenges = {
         zh = {
             Name = "挑战：卢浮宫难题",
             Description = "{{Player0}} 以撒开局"..
-            "#{{Collectible628}} 每层从死亡证明层开始游戏"..
-            "#!!! 越接近道具，道具被重置的速度越快"..
-            "#{{Collectible478}} 使用暂停可以暂停重置道具2s"..
+            "#{{Collectible628}} 每层从死亡证明区域开始"..
+            "#!!! 越接近道具，道具轮换得越快"..
+            "#{{Collectible478}} 使用暂停可使所有道具停止轮换2秒"..
             "#难度等级：简单",
         },
         en = {
-            Name = "Louvre puzzle",
+            Name = "Louvre Puzzle",
             Description = "{{Player0}} Play as Isaac"..
-            "#{{Collectible628}} Start from death certificate room"..
-            "#!!! The closer to item, the faster it will be rolled"..
-            "#{{Collectible478}} Using Pause will pause the rolling in 2 seconds"..
+            "#{{Collectible628}} Each floor starts in the Death Certificate area"..
+            "#!!! The closer you are to an item, the faster it rerolls"..
+            "#{{Collectible478}} Using Pause freezes all rerolls for 2 seconds"..
             "#Difficulty: Easy",
         },
     },
@@ -5360,14 +5514,16 @@ item.Challenges = {
         type = "challenge",
         zh = {
             Name = "挑战：指指点点",
-            Description = "#{{Player6}} 叁孙开局"..
-            "#{{Collectible"..tostring(enums.Items.Cloundy).."}} 持有5个云玩大佬和一个{{Collectible583}}火箭炸弹"..
+            Description = "{{Player6}} 参孙开局"..
+            "#{{Collectible"..tostring(enums.Items.Cloundy).."}} 持有5个云玩大佬"..
+            "#{{Collectible583}} 持有火箭炸弹，云玩大佬放置的炸弹也会变成火箭"..
             "#难度等级：困难",
         },
         en = {
             Name = "Pointing and Disappointing",
-            Description = "#{{Player6}} Play as Samson"..
-            "#{{Collectible"..tostring(enums.Items.Cloundy).."}} Start with 5 Cloundy and a {{Collectible583}}rocket in a jar"..
+            Description = "{{Player6}} Play as Samson"..
+            "#{{Collectible"..tostring(enums.Items.Cloundy).."}} Start with 5 Cloundies"..
+            "#{{Collectible583}} Start with Rocket in a Jar; bombs placed by Cloundies also become rockets"..
             "#Difficulty: Hard",
         },
     },
@@ -5377,16 +5533,16 @@ item.Challenges = {
         type = "challenge",
         zh = {
             Name = "挑战：安全驾驶",
-            Description = "#{{Player18}} 伯大尼开局"..
-            "#!!! 不能发射眼泪"..
-            "#{{Collectible"..enums.Items.Hyper_Velocity.."}} 召唤列车冲击敌人"..
+            Description = "{{Player18}} 伯大尼开局"..
+            "#!!! 无法发射眼泪"..
+            "#{{Collectible"..enums.Items.Hyper_Velocity.."}} 召唤列车撞击敌人"..
             "#难度等级：普通",
         },
         en = {
             Name = "Safe Driving",
-            Description = "#{{Player18}} Play as Bethany"..
-            "#!!! Can't shoot"..
-            "#{{Collectible"..enums.Items.Hyper_Velocity.."}} Summon train to squash enemies"..
+            Description = "{{Player18}} Play as Bethany"..
+            "#!!! Cannot shoot tears"..
+            "#{{Collectible"..enums.Items.Hyper_Velocity.."}} Summon trains to ram enemies"..
             "#Difficulty: Normal",
         },
     },
@@ -5396,18 +5552,19 @@ item.Challenges = {
         type = "challenge",
         zh = {
             Name = "挑战：食日",
-            Description = "#{{Player"..enums.Players.Anna.."}} 安娜开局"..
+            Description = "{{Player"..enums.Players.Anna.."}} 安娜开局"..
+            "#{{ArrowUp}} 掌中黑洞会直接吞噬吸入的普通敌人"..
             "#!!! 无法拾取任何掉落物"..
-            "#每层下层后回复两颗黑心，获得一颗炸弹，一把钥匙"..
+            "#每层下层后恢复2颗黑心，并获得1炸弹与1钥匙"..
             "#难度等级：简单",
         },
         en = {
             Name = "Swallow the Sun",
-            Description = "#{{Player"..enums.Players.Anna.."}} Play as Anna"..
-            "#!!! Can't pickup items and pickup"..
-            "#Consume everything"..
-            "#Restore two black hearts, obtain one bomb and one key every level"..
-            "#Difficulty: Normal",
+            Description = "{{Player"..enums.Players.Anna.."}} Play as Anna"..
+            "#{{ArrowUp}} Enemies sucked into the handheld black hole are devoured immediately"..
+            "#!!! Cannot pick up any pickups"..
+            "#Restore 2 Black Hearts and gain 1 bomb and 1 key on each new floor"..
+            "#Difficulty: Easy",
         },
     },
     [12] = {
@@ -5417,13 +5574,19 @@ item.Challenges = {
         zh = {
             Name = "挑战：不稳定体",
             Description = "{{Player9}} 伊甸开局"..
-            "#!!! 受伤后你的道具全部落在地上"..
+            "#!!! 受伤时随机3个被动道具从身上脱落"..
+            "#及时触碰可以重新拾取"..
+            "#!!! 敌人可以抢走脱落的道具并获得强化"..
+            "#击杀携带道具的敌人可重新取回道具"..
             "#难度等级：普通",
         },
         en = {
             Name = "Unstable State",
             Description = "{{Player9}} Play as Eden"..
-            "#!!! All your items fell to the ground on hit"..
+            "#!!! Taking damage knocks 3 random passive items out of you"..
+            "#Touch them to pick them back up"..
+            "#!!! Enemies can steal dropped items and become stronger"..
+            "#Kill the thief to recover the stolen item"..
             "#Difficulty: Normal",
         },
     },
@@ -5463,11 +5626,13 @@ item.Pickups = {
         SubType = Pickups.Glaze_key.SubType,
         zh = {
             Name = "琉璃之匙",
-            Description = "点亮一个随机地图",
+            Description = "优先揭示未探索的{{TreasureRoom}}/{{Shop}}/{{BossRoom}}等特殊房（不含隐藏系）"..
+            "#没有则揭示最多3个普通房间",
         },
         en = {
             Name = "Glaze Key",
-            Description = "Illuminate a random room on map",
+            Description = "Reveal an unexplored special room (Treasure/Shop/Boss; not secret)"..
+            "#If none, reveal up to 3 normal rooms",
         },
     },
     [4] = {
@@ -5475,11 +5640,11 @@ item.Pickups = {
         SubType = Pickups.Glaze_bomb.SubType,
         zh = {
             Name = "琉璃之炸弹",
-            Description = "下个使用的炸弹爆炸时会消除弹幕",
+            Description = "下一次炸弹爆炸时清除本房间所有弹幕",
         },
         en = {
             Name = "Glaze Bomb",
-            Description = "The next bomb will eliminate the projectiles when it explodes",
+            Description = "The next bomb explosion clears all projectiles in the room",
         },
     },
     [5] = {
@@ -5487,14 +5652,17 @@ item.Pickups = {
         SubType = Pickups.Glaze_grabbag.SubType,
         zh = {
             Name = "琉璃之福袋",
-            Description = "打开后，消耗你的基础掉落生成等量琉璃化掉落物 "..
-            "#{{PoopPickup}} 没有基础掉落的场合生成琉璃的便便"..
-            "# 不会带来负收益",
+            Description = "消耗富余的硬币/钥匙/炸弹，生成对应琉璃掉落"..
+            "#硬币>5、钥匙>1、炸弹>1才会计入"..
+            "#最多约3份"..
+            "#{{PoopPickup}} 没有可消耗资源时生成琉璃便便",
         },
         en = {
             Name = "Glaze Grabbag",
-            Description = "Consume your pickup to generate an equal amount of glazed pickup"..
-            "#{{PoopPickup}}Spawns a glaze poop when nothing to convert",
+            Description = "Convert surplus coins/keys/bombs into glazed pickups"..
+            "#Only coins>5, keys>1, bombs>1 count"..
+            "#Up to about 3"..
+            "#{{PoopPickup}} Spawns a glaze poop if nothing to convert",
         },
     },
     [6] = {
@@ -5502,13 +5670,11 @@ item.Pickups = {
         SubType = Pickups.Glaze_battery.SubType,
         zh = {
             Name = "琉璃之电池",
-            Description = "!!! 消耗主动的所有充能 "..
-            "#在接下来的房间清理中，获得充能的数量+2",
+            Description = "下次使用普通主动时，返还一半消耗的充能（向上取整）",
         },
         en = {
             Name = "Glaze Battery",
-            Description = "!!! Consume all active charges"..
-            "#In the following room cleaning, +2 the number of charges obtained",
+            Description = "Next normal active use refunds half the charges spent (rounded up)",
         },
     },
     [7] = {
@@ -5516,14 +5682,15 @@ item.Pickups = {
         SubType = Pickups.Glaze_chest.SubType,
         zh = {
             Name = "琉璃之宝箱",
-            Description = "本层随机方位出现一把钥匙跟班，只能用钥匙跟班打开"..
-            "#给予数个琉璃化掉落物或一个重复道具",
+            Description = "本层随机房间出现一把钥匙跟班，只能用它打开"..
+            "#地图会标出钥匙所在房间"..
+            "#给予数个琉璃掉落或一个重复道具",
         },
         en = {
             Name = "Glaze Chest",
-            Description = "A key appears at random positions in this level"..
-            "#Can only be opened with that key"..
-            "#Spawns several glazed pickup or a repetitive item",
+            Description = "A key familiar appears in a random room this floor"..
+            "#The key's room is marked on the map"..
+            "#Spawns glazed pickups or a duplicate item",
         },
     },
     [8] = {
@@ -5531,13 +5698,29 @@ item.Pickups = {
         SubType = Pickups.Glaze_big_poop.SubType,
         zh = {
             Name = "琉璃之便便",
-            Description = "{{PoopSpell1}}受伤后随机使用1个便便 "..
-            "#不可堆叠",
+            Description = "将队首便便复制到队列末尾"..
+            "#空队列时获得基础便便",
         },
         en = {
             Name = "Glaze poop",
-            Description = "{{PoopSpell1}}Getting hit Randomly using a poop spell"..
-            "#Can't stack",
+            Description = "Copy the front poop spell to the end of the queue"..
+            "#Empty queue grants a basic poop",
+        },
+    },
+    [10] = {
+        pickupKey = "Glaze_Coin",
+        pseudoPickup = true,
+        Variant = Pickups.Glaze_coin.Variant,
+        SubType = Pickups.Glaze_coin.SubType,
+        zh = {
+            Name = "琉璃硬币",
+            Description = "#缓缓吸引周围的掉落物"..
+                "#{{Coin}} 拾取：90%获得1枚硬币，10%获得5枚",
+        },
+        en = {
+            Name = "Glaze Coin",
+            Description = "#Slowly attracts nearby pickups"..
+                "#{{Coin}} On pickup: 90% for 1 coin, 10% for 5",
         },
     },
     -- SubType 运行时为对应收藏品 ID；实际 Name/Desc 由 pickup_blueprint_prototype.load_EID / get_texts 动态覆盖
@@ -5564,45 +5747,45 @@ item.Slots = {
         id = enums.Slots.Bard_beggar.Variant,
         zh = {
             Name = "吟游乞丐",
-            Description = "接受你的馈赠并为你歌唱"..
-            "#{{Collectible515}} 歌唱7次后送出一个礼物"..
-            "#随机出现在下层通道",
+            Description = "赠予一份资源，换取下层祝福"..
+            "#靠近后左右切换馈赠，走进确认"..
+            "#按{{ButtonRT}}取消",
         },
         en = {
-            Name = "Bard beggar",
-            Description = "Accept your gift and sing for you (ONLY CHINESE)"..
-            "#{{Collectible515}} Sends a gift after singing 7 times"..
-            "#Randomly appearing in the special entrance",
+            Name = "Bard Beggar",
+            Description = "Offer a resource for a blessing on the next floor"..
+            "#Switch gifts with left/right, walk in to confirm"..
+            "#Press {{ButtonRT}} to cancel",
         },
     },
     [2] = {
         id = enums.Slots.Rift_beggar.Variant,
         zh = {
             Name = "黑洞恶魔乞丐",
-            Description = "吞噬身边的任意基础掉落物"..
-            "#每25个任意基础掉落物送出一个4级道具"..
+            Description = "吞噬身边的基础掉落"..
+            "#每25个送出一个品质4道具，然后离开"..
             "#每个偶数层出现",
         },
         en = {
             Name = "Rift beggar",
-            Description = "Swallow all pickups around"..
-            "#Spawns a quality 4 item every 25 pickups"..
-            "#Appears every even layer",
+            Description = "Swallows nearby pickups"..
+            "#Every 25 pickups: a quality 4 item, then leaves"..
+            "#Appears on even floors",
         },
     },
     [3] = {
-        id = enums.Slots.Time_beggar.Variant,
+        id = enums.Slots.Tomorrows_creditor.Variant,
         zh = {
-            Name = "时光乞丐",
-            Description = "食用游戏时间并以金钱作为回报"..
-            "#{{Timer}} 投喂完成后给予与时间、记忆相关的道具"..
-            "#身上的道具最高重复数量越多，出现概率越高",
+            Name = "来日债主",
+            Description = "从来日预支资源，再用未来偿还"..
+            "#靠近后左右切换契约，走进确认"..
+            "#按{{ButtonRT}}取消",
         },
         en = {
-            Name = "Time beggar",
-            Description = "Consume game time and reward with money"..
-            "#{{Timer}} After the feeding is completed, give items related to time and memory"..
-            "#The higher the maximum number of repetitions of items, the higher the probability of its occurrence",
+            Name = "Tomorrow's Creditor",
+            Description = "Borrow resources from tomorrow and repay them later"..
+            "#Switch contracts with left/right, walk in to confirm"..
+            "#Press {{ButtonRT}} to cancel",
         },
     },
     [4] = {
@@ -5965,16 +6148,44 @@ end
 
 item.en.Pickups = {}
 item.zh.Pickups = {}
+item.en.PickupByKey = {}
+item.zh.PickupByKey = {}
 for index, info in ipairs(item.Pickups or {}) do
     local base = {Variant = info.Variant, SubType = info.SubType}
-    if info.en then
-        item.en.Pickups[index] = {Variant = base.Variant, SubType = base.SubType}
-        for key, value in pairs(info.en) do item.en.Pickups[index][key] = value end
+    if info.pseudoPickup and info.pickupKey then
+        if info.zh then
+            item.zh.PickupByKey[info.pickupKey] = {Variant = base.Variant, SubType = base.SubType}
+            for key, value in pairs(info.zh) do item.zh.PickupByKey[info.pickupKey][key] = value end
+        end
+        if info.en then
+            item.en.PickupByKey[info.pickupKey] = {Variant = base.Variant, SubType = base.SubType}
+            for key, value in pairs(info.en) do item.en.PickupByKey[info.pickupKey][key] = value end
+        end
+    else
+        if info.en then
+            item.en.Pickups[index] = {Variant = base.Variant, SubType = base.SubType}
+            for key, value in pairs(info.en) do item.en.Pickups[index][key] = value end
+        end
+        if info.zh then
+            item.zh.Pickups[index] = {Variant = base.Variant, SubType = base.SubType}
+            for key, value in pairs(info.zh) do item.zh.Pickups[index][key] = value end
+        end
     end
-    if info.zh then
-        item.zh.Pickups[index] = {Variant = base.Variant, SubType = base.SubType}
-        for key, value in pairs(info.zh) do item.zh.Pickups[index][key] = value end
-    end
+end
+
+function item.get_pickup_by_key(key, languageCode)
+    if not key then return nil end
+    local bucket = (languageCode == "zh_cn" or languageCode == "zh") and item.zh or item.en
+    return bucket.PickupByKey and bucket.PickupByKey[key]
+end
+
+function item.get_player_start_guide(player_id, languageCode)
+    if not player_id then return nil end
+    local bucket = (languageCode == "zh_cn" or languageCode == "zh" or languageCode == "zh_tw") and item.zh or item.en
+    local info = bucket.Players and bucket.Players[player_id]
+    local guide = info and info.StartGuide
+    if guide and guide.Name and guide.Description then return guide end
+    return nil
 end
 
 item.en.Room = {}

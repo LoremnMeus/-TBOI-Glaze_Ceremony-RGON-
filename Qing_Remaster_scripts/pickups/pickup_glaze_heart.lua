@@ -164,4 +164,9 @@ Function = function(_,ent)
 end,
 })
 
+glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
+	zh = "辉片满层时半心琉璃化产物升级为整心",
+	en = "At 5 shards: half-heart glaze conversions become full glaze hearts",
+})
+
 return item

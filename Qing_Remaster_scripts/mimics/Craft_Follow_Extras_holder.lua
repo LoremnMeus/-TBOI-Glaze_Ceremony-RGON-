@@ -107,8 +107,9 @@ end
 -- 472 King Baby：它自身作为无攻击 full-control follower 跟随所属 Flight，
 -- 跳过原版会重排整条玩家 familiar 队列的 AI。其“统领其他宝宝”在下方通过
 -- 选择器的低优先级临时所有权实现，不写 Craft bind。
-local ACTIVE_KINGS = setmetatable({}, {__mode = "k"})
-local KING_CANDIDATES = setmetatable({}, {__mode = "k"})
+-- GetPtrHash -> 最新 wrapper；同一原生 familiar 的多份 userdata 不得重复进入分配表。
+local ACTIVE_KINGS = {}
+local KING_CANDIDATES = {}
 local KING_CONTROLLER_PRIORITY = 50
 local KING_STATE_KEY = item.own_key.."king_follow_state"
 local KING_EXTERNAL_BIND_KEY = item.own_key.."king_external_bind"
@@ -127,21 +128,26 @@ local function familiar_player(fam)
 end
 
 local assignment_frame = -1
-local king_assignment = setmetatable({}, {__mode = "k"})
+local king_assignment = {}
+
+local function runtime_key(ent)
+	local ok, ptr = pcall(GetPtrHash, ent)
+	return ok and ptr or nil
+end
 
 local function rebuild_king_assignments()
 	local frame = Game():GetFrameCount()
 	if assignment_frame == frame then return end
 	assignment_frame = frame
-	king_assignment = setmetatable({}, {__mode = "k"})
+	king_assignment = {}
 
 	local kings = {}
-	for king in pairs(ACTIVE_KINGS) do
+	for key, king in pairs(ACTIVE_KINGS) do
 		local bind = entity_alive(king) and H.get_bind(king) or nil
 		if bind and bind.air and entity_alive(bind.air) then
 			kings[#kings + 1] = king
 		else
-			ACTIVE_KINGS[king] = nil
+			ACTIVE_KINGS[key] = nil
 		end
 	end
 	if #kings == 0 then return end
@@ -157,7 +163,7 @@ local function rebuild_king_assignments()
 	end
 
 	local candidates_by_player = {}
-	for fam in pairs(KING_CANDIDATES) do
+	for key, fam in pairs(KING_CANDIDATES) do
 		local adapter = entity_alive(fam) and H.get_adapter(fam.Variant) or nil
 		local retired = entity_alive(fam) and fam:GetData()[H.own_key.."craft_retired"] == true
 		local claimed = adapter and Selector.has_claim_above(fam, KING_CONTROLLER_PRIORITY, Selector.KING_BABY)
@@ -170,7 +176,7 @@ local function rebuild_king_assignments()
 				candidates_by_player[key][#candidates_by_player[key] + 1] = fam
 			end
 		elseif not entity_alive(fam) then
-			KING_CANDIDATES[fam] = nil
+			KING_CANDIDATES[key] = nil
 		end
 	end
 
@@ -180,7 +186,8 @@ local function rebuild_king_assignments()
 		if available and #available > 0 then
 			table.sort(candidates, function(a, b) return (a.InitSeed or 0) < (b.InitSeed or 0) end)
 			for index, fam in ipairs(candidates) do
-				king_assignment[fam] = available[(index - 1) % #available + 1]
+				local key = runtime_key(fam)
+				if key then king_assignment[key] = available[(index - 1) % #available + 1] end
 			end
 		end
 	end
@@ -188,7 +195,8 @@ end
 
 local function assigned_king(fam)
 	rebuild_king_assignments()
-	local king = king_assignment[fam]
+	local key = runtime_key(fam)
+	local king = key and king_assignment[key]
 	return entity_alive(king) and king or nil
 end
 
@@ -201,10 +209,12 @@ register(FamiliarVariant.KING_BABY or 109, {
 	supports_lullaby = false,
 	control_mode = "full",
 	update = function(_adapter, ctx)
-		if ctx.familiar then ACTIVE_KINGS[ctx.familiar] = true end
+		local key = ctx.familiar and runtime_key(ctx.familiar)
+		if key then ACTIVE_KINGS[key] = ctx.familiar end
 	end,
 	release = function(_adapter, fam)
-		ACTIVE_KINGS[fam] = nil
+		local key = runtime_key(fam)
+		if key then ACTIVE_KINGS[key] = nil end
 		assignment_frame = -1
 	end,
 })
@@ -251,7 +261,8 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		if not fam then return end
 		local adapter = H.get_adapter(fam.Variant)
 		if not adapter then return end
-		KING_CANDIDATES[fam] = true
+		local key = runtime_key(fam)
+		if key then KING_CANDIDATES[key] = fam end
 		if not Selector.is_owner(fam, Selector.KING_BABY) then return end
 		FollowerArbiter.claim(fam, Selector.KING_BABY, {
 			followers = true,
@@ -284,8 +295,10 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_UPDATE,
 	params = nil,
 	Function = function()
-		for fam in pairs(KING_CANDIDATES) do
-			if entity_alive(fam) and Selector.is_owner(fam, Selector.KING_BABY) then
+		for key, fam in pairs(KING_CANDIDATES) do
+			if not entity_alive(fam) then
+				KING_CANDIDATES[key] = nil
+			elseif Selector.is_owner(fam, Selector.KING_BABY) then
 				local adapter = H.get_adapter(fam.Variant)
 				if adapter and not H.adapter_allows_vanilla_ai(adapter) then
 					FollowerArbiter.claim(fam, Selector.KING_BABY, {followers = true})

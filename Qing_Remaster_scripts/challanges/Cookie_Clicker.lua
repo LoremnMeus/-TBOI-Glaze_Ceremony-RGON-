@@ -15,6 +15,7 @@ local item = {
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
 Function = function(_)
 	if Game().Challenge == item.challange then
+		if Game():IsPaused() then return end
 		if Input.IsMouseBtnPressed(0) then
 			if item.mouse_lock then
 			else
@@ -25,9 +26,7 @@ Function = function(_)
 				local n_entity = Isaac.GetRoomEntities()
 				for u,v in pairs(n_entity) do
 					if (v.Position - pos):Length() < 30 then
-						if v.Type == 1 then
-							v:TakeDamage(1,0,EntityRef(player),0)
-						else
+						if v:IsVulnerableEnemy() then
 							v:TakeDamage(dmg * 0.5,0,EntityRef(player),0)
 						end
 					end

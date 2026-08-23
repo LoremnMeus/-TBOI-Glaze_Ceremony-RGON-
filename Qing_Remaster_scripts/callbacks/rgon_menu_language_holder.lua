@@ -56,16 +56,17 @@ function item.get_game_language()
 	return aliases[lang] or lang
 end
 
-function item.get_force_mode()
+function item.get_force_mode(setting_key)
 	local root = save.ModConfigSettings
-	local value = root and root.QingRemasterOptions and root.QingRemasterOptions.Menu and root.QingRemasterOptions.Menu.CharacterSelectLanguage
+	local menu = root and root.QingRemasterOptions and root.QingRemasterOptions.Menu
+	local value = menu and menu[setting_key or "CharacterSelectLanguage"]
 	if value == "zh" or value == FORCE_ZH then return FORCE_ZH end
 	if value == "en" or value == FORCE_EN then return FORCE_EN end
 	return FORCE_AUTO
 end
 
-function item.get_language()
-	local force = item.get_force_mode()
+function item.get_language(setting_key)
+	local force = item.get_force_mode(setting_key)
 	if force == FORCE_ZH then return "zh" end
 	if force == FORCE_EN then return "en" end
 	local lang = item.get_game_language()
@@ -83,6 +84,35 @@ function item.anm2_for(family, lang)
 	local family_info = info and info[family]
 	if not family_info then return nil end
 	return family_info[lang] or family_info.en
+end
+
+function item.section_anm2(section, lang)
+	local info = manifest[section]
+	if type(info) ~= "table" or info.enabled == false then return nil end
+	return info[lang] or info.en
+end
+
+function item.get_play_anim()
+	local selected_anim = item.get_selected_menu_info()
+	if selected_anim then return selected_anim end
+	local ok, count = pcall(function()
+		return Game():GetNumPlayers()
+	end)
+	if not ok or type(count) ~= "number" then return nil end
+	for i = 0, count - 1 do
+		local pok, player = pcall(function()
+			return Game():GetPlayer(i)
+		end)
+		if pok and player and player.GetPlayerType then
+			local ptype = player:GetPlayerType()
+			for _, info in ipairs(PLAYER_MENUS) do
+				if enums.Players[info.key] == ptype then
+					return info.anim
+				end
+			end
+		end
+	end
+	return nil
 end
 
 function item.get_sprite_filename(sprite)
@@ -177,6 +207,36 @@ function item.apply_character_select(lang, force_load)
 	end
 end
 
+function item.apply_shared_player_sprite(lang, section, getter_name, force_load)
+	local anm2_path = item.section_anm2(section, lang)
+	if not anm2_path then return end
+	if not (EntityConfig and EntityConfig.GetPlayer) then return end
+	local play_anim = item.get_play_anim()
+	local seen = {}
+	for _, player_info in ipairs(PLAYER_MENUS) do
+		local player_type = enums.Players[player_info.key]
+		if type(player_type) == "number" and player_type >= 0 then
+			local ok, config = pcall(function()
+				return EntityConfig.GetPlayer(player_type)
+			end)
+			if ok and config and config[getter_name] then
+				local sprite_ok, sprite = pcall(function()
+					return config[getter_name](config)
+				end)
+				if sprite_ok and sprite then
+					local hash
+					local hash_ok, got = pcall(GetPtrHash, sprite)
+					if hash_ok then hash = got end
+					if not (hash and seen[hash]) then
+						if hash then seen[hash] = true end
+						item.load_menu_sprite(sprite, anm2_path, play_anim or player_info.anim, force_load)
+					end
+				end
+			end
+		end
+	end
+end
+
 function item.try_load_sprite(sprite, anm2_path, anim, key)
 	if not sprite or not anm2_path then return false end
 	if item.failed[key] then return false end
@@ -221,19 +281,21 @@ end
 
 function item.apply_language(force)
 	if not REPENTOGON then return end
-	local lang = item.get_language()
-	item.apply_character_select(lang, force == true)
-	if manifest.enabled == true and (force or item.applied_language ~= lang) then
-		local info = manifest.languages and manifest.languages[lang]
+	local select_lang = item.get_language("CharacterSelectLanguage")
+	item.apply_character_select(select_lang, force == true)
+	item.apply_shared_player_sprite(item.get_language("ControlsLanguage"), "controls", "GetModdedControlsSprite", force == true)
+	item.apply_shared_player_sprite(item.get_language("GameOverLanguage"), "game_over", "GetModdedGameOverSprite", force == true)
+	if manifest.enabled == true and (force or item.applied_language ~= select_lang) then
+		local info = manifest.languages and manifest.languages[select_lang]
 		if info then
 			item.failed = {}
-			item.apply_global(info, lang)
+			item.apply_global(info, select_lang)
 			for _, player_info in ipairs(info.players or {}) do
-				item.apply_player(info, player_info, lang)
+				item.apply_player(info, player_info, select_lang)
 			end
 		end
 	end
-	item.applied_language = lang
+	item.applied_language = select_lang
 end
 
 function item.register_console()
@@ -251,13 +313,23 @@ Function = function(_)
 end,
 })
 
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
+Function = function(_)
+	item.loaded_by_hash = {}
+	item.apply_language(true)
+end,
+})
+
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_EXECUTE_CMD, params = nil,
 Function = function(_, cmd, params)
 	if string.lower(cmd or "") == "qing_menu_lang_reload" then
 		item.applied_language = nil
 		item.loaded_by_hash = {}
 		item.apply_language(true)
-		print("QING:: Menu language reload requested. enabled="..tostring(manifest.enabled).." language="..tostring(item.get_language()).." force="..tostring(item.get_force_mode()))
+		print("QING:: Menu language reload requested. enabled="..tostring(manifest.enabled)
+			.." select="..tostring(item.get_language("CharacterSelectLanguage"))
+			.." controls="..tostring(item.get_language("ControlsLanguage"))
+			.." game_over="..tostring(item.get_language("GameOverLanguage")))
 	end
 end,
 })

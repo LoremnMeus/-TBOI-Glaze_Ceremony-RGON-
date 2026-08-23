@@ -19,7 +19,15 @@ local item = {
 function item.addcharm(ent)
 	ent = ent or auxi.getenemies()
 	if type(ent) == "table" then else ent = {ent} end
-	for u,v in pairs(ent) do if v:IsVulnerableEnemy() and auxi.check_if_any(item.ignore_type[v.Type],v) ~= true then v:AddEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_PERSISTENT | EntityFlag.FLAG_CHARM) end end
+	for u,v in pairs(ent) do
+		if v:IsVulnerableEnemy() and not v:IsBoss() and auxi.check_if_any(item.ignore_type[v.Type],v) ~= true then
+			v:AddEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_PERSISTENT | EntityFlag.FLAG_CHARM)
+			local d = v:GetData()
+			if d[item.own_key.."base_hp"] == nil then
+				d[item.own_key.."base_hp"] = v.MaxHitPoints
+			end
+		end
+	end
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_NPC_UPDATE, params = nil,
@@ -30,6 +38,7 @@ Function = function(_,ent)
 		if roomType == RoomType.ROOM_BOSS and (Game():GetLevel():GetStage() == LevelStage.STAGE6 or (room:IsFirstVisit() and item.should_charm ~= true)) then
 			ent:ClearEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_PERSISTENT | EntityFlag.FLAG_CHARM)
 		else
+			if ent:IsBoss() then return end
 			for playerNum = 1, Game():GetNumPlayers() do
 				local player = Game():GetPlayer(playerNum - 1)
 				if (player.Position - ent.Position):Length() < 100 then
@@ -96,8 +105,6 @@ Function = function(_)
 		local n_entity = Isaac.GetRoomEntities()
 		for u,ent in pairs(n_entity) do
 			if ent:HasEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_PERSISTENT | EntityFlag.FLAG_CHARM) then
-				ent.MaxHitPoints = ent.MaxHitPoints + 5
-				ent.HitPoints = math.min(ent.HitPoints + 5,ent.MaxHitPoints)
 				local pos = room:GetRandomPosition(10)
 				local cnt = 5
 				while cnt > 0 and (pos - player.Position):Length() < 50 do
@@ -105,6 +112,24 @@ Function = function(_)
 					cnt = cnt - 1
 				end
 				ent.Position = pos
+			end
+		end
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_SPAWN_CLEAN_AWARD, params = nil,
+Function = function(_)
+	if Game().Challenge ~= item.entity then return end
+	for _,ent in ipairs(Isaac.GetRoomEntities()) do
+		if ent:IsVulnerableEnemy() and ent:HasEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_PERSISTENT | EntityFlag.FLAG_CHARM) then
+			local d = ent:GetData()
+			local base = d[item.own_key.."base_hp"] or ent.MaxHitPoints
+			d[item.own_key.."base_hp"] = base
+			local cap = math.max(base * 2, base + 40)
+			if ent.MaxHitPoints < cap then
+				ent.MaxHitPoints = math.min(cap, ent.MaxHitPoints + 5)
+				ent.HitPoints = math.min(ent.HitPoints + 5, ent.MaxHitPoints)
 			end
 		end
 	end

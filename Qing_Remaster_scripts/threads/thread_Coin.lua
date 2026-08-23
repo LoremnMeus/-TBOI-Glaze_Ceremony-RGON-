@@ -10,6 +10,14 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Screen_Filter = require("Qing_Remaster_scripts.others.Screen_Filter")
 local record_holder = require("Qing_Remaster_scripts.others.Record_holder")
 
+local function change_room(room_index)
+	if REPENTOGON then
+		Game():ChangeRoom(room_index)
+	else
+		Game():GetLevel():ChangeRoom(room_index)
+	end
+end
+
 local item = {
 	ToCall = {},
 	myToCall = {},
@@ -184,9 +192,9 @@ local item = {
 					targ = function() 
 						local level = Game():GetLevel()
 						if level:GetStage() == LevelStage.STAGE7_GREED then
-							level:ChangeRoom(45)
+							change_room(45)
 						else
-							level:ChangeRoom(84)
+							change_room(84)
 						end
 					end,
 					doorname = "gfx/grid/door_bankdoor3.anm2",
@@ -215,9 +223,9 @@ local item = {
 					targ = function() 
 						local level = Game():GetLevel()
 						if level:GetStage() == LevelStage.STAGE7_GREED then
-							level:ChangeRoom(45)
+							change_room(45)
 						else
-							level:ChangeRoom(84)
+							change_room(84)
 						end
 					end,
 					doorname = "gfx/grid/door_bankdoor3.anm2",
@@ -262,14 +270,14 @@ local function get_rnd_square_4_tbl()
 	return rnd_square_4_tbl
 end
 
-local function get_this_square()
-	local tbl = auxi.randomTable(get_rnd_square_4_tbl())
+local function get_this_square(rng)
+	local tbl = auxi.randomTable(get_rnd_square_4_tbl(), rng)
 	local ret = {}
 	for i = 1,23 do
 		table.insert(ret,tbl[i])
 	end
 	table.insert(ret,"6543")
-	ret = auxi.randomTable(ret)
+	ret = auxi.randomTable(ret, rng)
 	return ret
 end
 
@@ -309,8 +317,7 @@ Function = function(_,player,cacheFlag)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_RENDER, params = nil,
-Function = function(_)
+local function ensure_bank_entrance()
 	local level = Game():GetLevel()
 	local room = Game():GetRoom()
 	if level:GetStage() == LevelStage.STAGE7_GREED and room:GetType() == RoomType.ROOM_BOSS and level:GetCurrentRoomDesc().SafeGridIndex == 45 and room:IsClear() then
@@ -318,6 +325,17 @@ Function = function(_)
 		local slot = 6
 		grid_door.try_spawn_grid_door(room,slot,nil,{check_and_leave = "s.arcade.23509",loadname = "gfx/grid/door_bankdoor.anm2",playname = "Opened",})
 	end
+end
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_SPAWN_CLEAN_AWARD, params = nil,
+Function = function(_)
+	ensure_bank_entrance()
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
+Function = function(_)
+	ensure_bank_entrance()
 end,
 })
 
@@ -325,6 +343,7 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_L
 Function = function(_)
 	save.elses.coin = false
 	save.elses.coins = false
+	save.elses[item.own_key.."this_square"] = nil
 end,
 })
 
@@ -414,8 +433,11 @@ Function = function(_)
 			end
 		end
 		if desc.Data.Type == 9 and desc.Data.Variant == 23505 then
+			item.this_square = save.elses[item.own_key.."this_square"]
 			if item.this_square == nil then
-				item.this_square = get_this_square()
+				local rng = Game():GetPlayer(0):GetCollectibleRNG(enums.Items.A_Shard_Of_Coin)
+				item.this_square = get_this_square(rng)
+				save.elses[item.own_key.."this_square"] = item.this_square
 			end
 			for i = 1,24 do
 				local posid = get_idx_pos(i)
@@ -485,6 +507,7 @@ Function = function(_,continue)
 	else
 		save.elses.coin = false
 		save.elses.coins = false
+		save.elses[item.own_key.."this_square"] = nil
 		item.this_square = nil
 	end
 end,
@@ -547,7 +570,7 @@ function item.hold_by_record(ent)
 	end,Function = function(tp,et)
 		if tp == "Turn" and auxi.check_all_exists(et) then
 			consistance_holder.try_hold_entity(et,item.own_key,{ignore_subtype = true})
-			local s = ent:GetSprite()
+			local s = et:GetSprite()
 			s:ReplaceSpritesheet(5,"gfx/items/to_item_altar.png")
 			s:LoadGraphics()
 			s:SetOverlayFrame("Alternates", 1)

@@ -4,6 +4,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Craft_Familiar_holder = require("Qing_Remaster_scripts.mimics.Craft_Familiar_holder")
 local Craft_Advanced = require("Qing_Remaster_scripts.mimics.Craft_Advanced_Familiars_holder")
+local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
 
 local Familiar_Control_Selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
 local Familiar_Follower_Arbiter = require("Qing_Remaster_scripts.mimics.Familiar_Follower_Arbiter")
@@ -11,11 +12,8 @@ local Familiar_Follower_Arbiter = require("Qing_Remaster_scripts.mimics.Familiar
 local item = {pre_ToCall = {}, ToCall = {}, myToCall = {}, own_key = "Character_Advanced_Familiars_holder_"}
 local BLUEPRINT_BIND_KEY = "Craft_Familiar_holder_bind"
 
-item.supported_players = {
-	[enums.Players.wq] = true,        -- 表 Qing；里 Qing 由蓝图/Air Flight 独立处理
-	[enums.Players.Tecro] = true,
-	[enums.Players.annA] = true,      -- 里 Anna；明确不含表 Anna (enums.Players.Anna)
-}
+-- 兼容旧的只读访问；实际内容由各角色模块向统一注册表写入。
+item.supported_players = CharacterAttackCompat.advanced_supported
 
 local function belongs_to(fam, player)
 	local owner = fam and (fam.Player or auxi.check_spawner_player(fam))
@@ -211,6 +209,37 @@ function item.for_each_attack_copy(player, callback)
 	end
 end
 
+-- 角色主攻击确认后的唯一高级宝宝复制入口。
+-- 角色只发布一次真实攻击；这里统一展开 Incubus / Cain's Other Eye / Twisted Pair，
+-- 应用 BFFS、遗忘摇篮曲和随机瞄准，再交给角色注册的 familiar_attack Provider。
+function item.dispatch_registered_copies(player, request)
+	request = request or {}
+	if not player or request.is_familiar_copy or request.advanced_familiar_copy then
+		return {fired = false, copies = 0}
+	end
+	local fired, copies, spawned = false, 0, {}
+	local base_mul = tonumber(request.damage_mul) or 1
+	item.for_each_attack_copy(player, function(fam, mul, origin, lullaby_copy, aim_dir)
+		local copied = {}
+		for key, value in pairs(request) do copied[key] = value end
+		copied.source = fam
+		copied.origin = origin
+		copied.aim_dir = (aim_dir and aim_dir:Length() >= 0.01) and aim_dir or request.aim_dir
+		copied.damage_mul = base_mul * mul
+		copied.familiar_kind = fam.Variant
+		copied.lullaby_copy = lullaby_copy == true
+		copied.is_familiar_copy = true
+		copied.advanced_familiar_copy = true
+		local result = CharacterAttackCompat.dispatch_familiar_attack(player, copied)
+		copies = copies + 1
+		if result and result.fired then fired = true end
+		for _, entity in ipairs((result and result.spawned) or {}) do
+			spawned[#spawned + 1] = entity
+		end
+	end)
+	return {fired = fired, copies = copies, spawned = spawned}
+end
+
 function item.apply_familiar_tear_flags(player, flags)
 	flags = flags or BitSet128(0, 0)
 	if player and player:HasTrinket(TrinketType.TRINKET_BABY_BENDER)
@@ -220,32 +249,21 @@ function item.apply_familiar_tear_flags(player, flags)
 	return flags
 end
 
--- 角色攻击 Provider：Gello 等宝宝统一分发入口（不复制 Qing/Tecro/Anna 武器分支）
-item._attack_providers = {}
-
+-- 角色攻击 Provider：兼容旧调用名，实际登记进入统一角色兼容表。
 function item.register_attack_provider(player_type, provider)
-	player_type = tonumber(player_type)
-	if not player_type or type(provider) ~= "function" then return end
-	item._attack_providers[player_type] = provider
+	return CharacterAttackCompat.register(player_type, {familiar_attack = provider})
 end
 
 function item.has_attack_provider(player)
 	if not player then return false end
-	return item._attack_providers[player:GetPlayerType()] ~= nil
+	return CharacterAttackCompat.has_familiar_attack(player)
 end
 
 --- request = {familiar_kind, source, origin, aim_dir, target, damage_mul, weapon_snapshot, suppress_player_cost}
 --- 返回 {fired=, delay=, spawned=} 或 false
 function item.dispatch_familiar_attack(player, request)
 	if not player or type(request) ~= "table" then return {fired = false} end
-	local provider = item._attack_providers[player:GetPlayerType()]
-	if not provider then return {fired = false} end
-	local ok, ret = pcall(provider, player, request)
-	if not ok then return {fired = false} end
-	if type(ret) ~= "table" then
-		return {fired = ret and true or false}
-	end
-	return ret
+	return CharacterAttackCompat.dispatch_familiar_attack(player, request)
 end
 
 local function get_player(fam)

@@ -1,6 +1,5 @@
 -- Gello（UMBILICAL_BABY）：保留原版移动/脐带/动画，禁用原版 Weapon，经角色 Provider 分发攻击。
--- 覆盖：表 Qing / 里 Anna / Tecro / Tecrorun。无 Provider 的角色完全放行原版。不接蓝图。
-local enums = require("Qing_Remaster_scripts.core.enums")
+-- 覆盖范围来自 character_attack_compat；无 Provider 的角色完全放行原版。不接蓝图。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
 
@@ -233,44 +232,5 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		d[item.own_key.."cooldown"] = nil
 	end,
 })
-
--- ---------- Providers ----------
-
-local function register_providers()
-	local player_wq = require("Qing_Remaster_scripts.player.player_wq")
-	local player_Anna2 = require("Qing_Remaster_scripts.player.player_Anna2")
-	local player_Tecro = require("Qing_Remaster_scripts.player.player_Tecro")
-	local player_Tecrorun = require("Qing_Remaster_scripts.player.player_Tecrorun")
-
-	CharacterFamiliars.register_attack_provider(enums.Players.wq, function(player, request)
-		if player_wq.fire_familiar_attack then
-			return player_wq.fire_familiar_attack(player, request)
-		end
-		return {fired = false}
-	end)
-
-	CharacterFamiliars.register_attack_provider(enums.Players.annA, function(player, request)
-		if player_Anna2.fire_familiar_attack then
-			return player_Anna2.fire_familiar_attack(player, request)
-		end
-		return {fired = false}
-	end)
-
-	CharacterFamiliars.register_attack_provider(enums.Players.Tecro, function(player, request)
-		if player_Tecro.fire_familiar_attack then
-			return player_Tecro.fire_familiar_attack(player, request)
-		end
-		return {fired = false}
-	end)
-
-	CharacterFamiliars.register_attack_provider(enums.Players.Tecrorun, function(player, request)
-		if player_Tecrorun.fire_familiar_attack then
-			return player_Tecrorun.fire_familiar_attack(player, request)
-		end
-		return {fired = false}
-	end)
-end
-
-register_providers()
 
 return item

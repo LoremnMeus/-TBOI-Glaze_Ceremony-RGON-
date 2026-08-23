@@ -284,9 +284,10 @@ local function resolve_session_required_cost(player, edit_uid, edit_rec, draft)
 	return math.max(0, n)
 end
 
---- 始终至少 1 个灰色底座槽；确认是否必填仍看 required_cost
+--- 始终至少 1 个灰色底座槽；里小青首架隐藏；确认是否必填仍看 required_cost
 local function cost_display_count(craft)
 	if not craft then return 1 end
+	if craft.hide_cost then return 0 end
 	local need = craft.required_cost or 0
 	local have = #(craft.cost_ids or {})
 	return math.max(1, need, have) + get_cost_extra_count()
@@ -400,6 +401,25 @@ function item.get_required_cost(player)
 	local n = 3
 	while used[n] do n = n + 2 end
 	return n
+end
+
+--- 里小青第一架真实飞行器：不显示底座，始终按品质 2（3 槽、倍率 1）填充。
+local SPWQ_FIRST_AIR_QUALITY = 2
+
+local function is_spwq_free_first_air(player, craft)
+	if not player or player:GetPlayerType() ~= enums.Players.Spwq then return false end
+	if not craft then return false end
+	if craft.tutorial_bag or craft.tutorial then return false end
+	if craft.target and craft.target ~= enums.Items.Air_Flight then return false end
+	return (tonumber(craft.required_cost) or 0) <= 0
+end
+
+local function apply_spwq_first_air_quality(rec, player)
+	if not rec or rec.tutorial == true then return rec end
+	if not is_spwq_free_first_air(player, rec) then return rec end
+	rec.base_quality = SPWQ_FIRST_AIR_QUALITY
+	rec.remembered_quality = SPWQ_FIRST_AIR_QUALITY
+	return rec
 end
 
 local function migrate_required_cost_once(bucket)
@@ -1141,6 +1161,13 @@ end
 function item.is_craft_broken(player, uid)
 	if not player or not uid then return false end
 	-- 只读上次事件刷新的 rec.broken。禁止在 FAMILIAR_UPDATE / 面板渲染里再扫全道具表。
+	-- 带宽快照已维护 UID 索引；Flight/环绕物逐帧查询优先走 O(1) 路径。
+	local ok, BW = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Bandwidth_Manager")
+	if ok and BW and BW.get_snapshot then
+		local snap = BW.get_snapshot(player)
+		local rec = snap and snap.rec_by_uid and snap.rec_by_uid[tostring(uid)]
+		if rec then return rec.broken == true end
+	end
 	local rec = item.find_craft(player, uid)
 	return rec and rec.broken == true
 end
@@ -1272,6 +1299,7 @@ end
 function item.get_profile_for_uid(player, uid, opts)
 	local rec = item.find_craft(player, uid)
 	if not rec then return nil end
+	apply_spwq_first_air_quality(rec, player)
 	opts = opts or {}
 	-- 始终按当前配方重建，保证库存「更改」后立刻生效；动态项随所属玩家实时重算
 	rec.profile = CraftProfile.build_profile(rec.ingredients, {
@@ -1312,7 +1340,8 @@ local function list_charge_sliders(craft)
 	local live = CraftProfile.build_profile(ings)
 	local out = {}
 	local ex = live.extras or {}
-	if ex.chocolate or ex.cursed_eye or (live.weapon or 1) == 9 then
+	local wpn = live.weapon or 1
+	if ex.chocolate or ex.cursed_eye or wpn == 9 or wpn == 4 then
 		out[1] = {
 			id = "main_charge_slider", key = "main_charge_ratio",
 			zh = "主攻击蓄力", en = "Main charge",
@@ -1321,11 +1350,12 @@ local function list_charge_sliders(craft)
 			colors = {
 				chocolate = KColor(0.95, 0.58, 0.25, 0.95),
 				techx = KColor(0.35, 0.82, 1, 0.95),
+				knife = KColor(0.85, 0.42, 0.48, 0.95),
 				cursed = KColor(0.72, 0.35, 0.9, 0.95),
 				mixed = KColor(0.95, 0.82, 0.38, 0.95),
 			},
-			color_key = ((ex.chocolate and ((live.weapon or 1) == 9 or ex.cursed_eye)) and "mixed")
-				or (ex.cursed_eye and "cursed") or ((live.weapon or 1) == 9 and "techx") or "chocolate",
+			color_key = ((ex.chocolate and (wpn == 9 or wpn == 4 or ex.cursed_eye)) and "mixed")
+				or (ex.cursed_eye and "cursed") or (wpn == 9 and "techx") or (wpn == 4 and "knife") or "chocolate",
 		}
 	end
 	return out
@@ -1850,6 +1880,21 @@ local function open_craft_view(panel, target_id, edit_uid)
 	end
 	local live_q = CraftProfile.quality_from_cost_items(cost_items)
 	if live_q ~= nil then remembered = live_q end
+	local hide_cost = false
+	if cost_n_hint <= 0
+		and panel.player
+		and panel.player:GetPlayerType() == enums.Players.Spwq
+		and target_id == enums.Items.Air_Flight
+		and not get_tutorial().uses_lesson_bag(edit_rec)
+		and not (edit_rec and edit_rec.tutorial)
+	then
+		hide_cost = true
+		remembered = SPWQ_FIRST_AIR_QUALITY
+		live_q = SPWQ_FIRST_AIR_QUALITY
+	end
+	if hide_cost then
+		cost_items = nil
+	end
 	local slot_n = CraftProfile.slots_for_base_quality(remembered)
 	local slots = rebuild_slots(slot_n, cost_n_hint)
 	local main_ratio = 1
@@ -1891,6 +1936,7 @@ local function open_craft_view(panel, target_id, edit_uid)
 		main_charge_ratio = main_ratio,
 		base_quality = live_q,
 		remembered_quality = remembered,
+		hide_cost = hide_cost,
 	}
 	if ingredients then
 		local edit_fb = edit_rec and edit_rec.audit == true
@@ -2310,7 +2356,29 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 			tid = (craft.all_items and "all_" or "bag_")..tostring(craft.bag_page).."_"..i.."_"..tostring(col)
 		end
 		if kept_map[tid] then
-			-- already busy
+			-- 拖拽/惯性/回位中的实体要保留，但它的背包 home 仍必须跟随
+			-- 本次重建的规范网格。旧逻辑直接跳过，会让从背包取出再放回的
+			-- token 保留 bag_area_anchor 的“列表下方”坐标，永远不回第一空位。
+			local kept_tok = kept_map[tid]
+			local dest = positions[i]
+			if kept_tok and kept_tok.from_bag and not kept_tok.slot and not kept_tok.cost and dest then
+				kept_tok.home = dest
+				if kept_tok.anim then
+					local anim_dest = kept_tok.anim.to
+					if not anim_dest or (anim_dest - dest):Length() > 1 then
+						begin_snap_anim(kept_tok, dest)
+					end
+				elseif not (panel.drag and panel.drag.token_id == kept_tok.id)
+					and not (panel.pad_carry and panel.pad_carry.token_id == kept_tok.id)
+					and (not kept_tok.vel or kept_tok.vel:Length() < 0.2)
+				then
+					if (kept_tok.pos - dest):Length() > 18 then
+						begin_snap_anim(kept_tok, dest)
+					elseif (kept_tok.pos - dest):Length() > 1 then
+						kept_tok.pos = dest
+					end
+				end
+			end
 		else
 			local old = craft.token_map and craft.token_map[tid]
 			if old and kept_map[old.id] then old = nil end
@@ -2496,6 +2564,10 @@ end
 
 local function assign_token_cost(craft, tok, geom)
 	if not craft or not tok then return end
+	if craft.hide_cost then
+		if tok.home then begin_snap_anim(tok, tok.home) end
+		return
+	end
 	if get_tutorial().is_locking() and not get_tutorial().allows_cost_assign(tok) then
 		if tok.home then begin_snap_anim(tok, tok.home) end
 		return
@@ -3039,6 +3111,7 @@ local function refresh_audit_simulates(player)
 	)
 	player:EvaluateItems()
 end
+item.refresh_audit_simulates = refresh_audit_simulates
 
 --- 库存删除：首次点「删」进入确认，再点一次才真正删除
 local function try_confirm_delete_stock(panel, craft_uid)
@@ -3093,14 +3166,15 @@ local function finish_form_drag(panel, ui)
 		else
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.75, 1, false, 0, 2)
 		end
-		return
-	end
-	if ui and ui.form_bench_rect and Mouse_UI.point_in_rect(mouse, ui.form_bench_rect) then
+	elseif ui and ui.form_bench_rect and Mouse_UI.point_in_rect(mouse, ui.form_bench_rect) then
 		BW.set_active(panel.player, drag.uid, false)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.5, 1, false, 0, 2)
-		return
+	else
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.35, 1, false, 0, 2)
 	end
-	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.35, 1, false, 0, 2)
+	-- 松手当帧必须按新 order 重建：否则 drag 已清空，旧 layouts 会在原槽再画一帧。
+	panel.ui = nil
+	panel.nav_graph = nil
 end
 
 local function handle_formation_id(panel, id)
@@ -3201,6 +3275,12 @@ local function confirm_craft(panel)
 	if not pure_audit and not ingredients_fit_allocation(player, ingredients, craft.edit_uid, cost_items) then
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1, false, 0, 2)
 		return
+	end
+	if craft.hide_cost then
+		cost_items = {}
+		craft.required_cost = 0
+		craft.base_quality = SPWQ_FIRST_AIR_QUALITY
+		craft.remembered_quality = SPWQ_FIRST_AIR_QUALITY
 	end
 	-- 成本道具不进入战斗档案；确认时写入含动态种子的档案快照（运行时仍会按玩家重算）
 	local profile = CraftProfile.build_profile(ingredients, {
@@ -3392,12 +3472,16 @@ local function finish_drag(panel, content_right, geom)
 		end
 		-- 卸到背包区：非审计失去道具改为幽灵，重进草稿仍可还原
 		if not craft.all_items then
+			local old_bag_home = tok.from_bag and tok.home or nil
 			tok.from_bag = true
 			if tok.lost or tok.lost_ghost then
 				tok.lost_ghost = true
 				tok.lost = true
 			end
-			local dest = bag_area_anchor(tok)
+			-- 本来就来自背包的 token 先回原网格；_bag_dirty 重建会再将
+			-- home 校正为当前排序下的第一空位。只有无背包身份的被挤出件
+			-- 才使用列表下方的临时锚点。
+			local dest = old_bag_home or bag_area_anchor(tok)
 			tok.home = dest
 		end
 		local vel = tok.vel
@@ -5096,7 +5180,7 @@ local function render_list(ui, panel)
 		local focused = focus_equals(panel, lay.entry.uid)
 		local color = (focused or (st and st.hovered)) and KColor(1, 0.95, 0.55, 1) or KColor(0.8, 0.85, 0.95, 1)
 		local e = lay.entry
-		local dragging_this = drag and drag.kind == "form_card" and e.rec and drag.uid == e.rec.uid and e.zone == drag.from
+		local dragging_this = drag and drag.kind == "form_card" and e.rec and drag.uid == e.rec.uid
 		if e.kind == "form_card" then
 			if not dragging_this then
 				local hot = focused or (st and st.hovered) or (panel.form_carry and panel.form_carry.uid == e.rec.uid)
@@ -5813,8 +5897,9 @@ Function = function(_, player)
 		if item.panel then item.panel.was_paused = true end
 		return
 	end
-	-- 持续刷新冻结，覆盖新生成实体
-	auxi.time_stop(item.own_key)
+	-- 面板打开时已完整冻结一次；这里只低频接管期间新生成的实体。
+	-- 禁止每帧重复 time_stop 扫描整个房间（Flight/制造宝宝多时会明显卡顿）。
+	auxi.refresh_time_stop(item.own_key, 15)
 	if not player:IsHoldingItem() then
 		player:AnimateCollectible(item.entity, "LiftItem", "PlayerPickup")
 	end

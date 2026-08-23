@@ -132,4 +132,27 @@ Function = function(_,ent,hook,button)
 end,
 })
 
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_TEAR_UPDATE, params = nil,
+Function = function(_, tear)
+	if Game().Challenge ~= item.challange then return end
+	local d = tear:GetData()
+	if d[item.own_key.."boosted"] then return end
+	local spawner = tear.SpawnerEntity and tear.SpawnerEntity:ToPlayer()
+	if not spawner then return end
+	local other
+	if auxi.check_for_the_same(spawner, Game():GetPlayer(0)) then
+		other = Game():GetPlayer(1)
+	elseif auxi.check_for_the_same(spawner, Game():GetPlayer(1)) then
+		other = Game():GetPlayer(0)
+	end
+	if not other or not auxi.check_all_exists(other) then return end
+	if (spawner.Position - other.Position):Length() < 28 then return end
+	if (tear.Position - other.Position):Length() > other.Size + tear.Size + 10 then return end
+	d[item.own_key.."boosted"] = true
+	tear.CollisionDamage = tear.CollisionDamage * 1.5
+	tear.Velocity = tear.Velocity * 1.15
+	tear.Color = Color(1, 0.75, 1.2, 1, 0.18, 0.04, 0.28)
+end,
+})
+
 return item

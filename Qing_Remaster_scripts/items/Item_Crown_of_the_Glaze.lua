@@ -512,4 +512,34 @@ Function = function(_, continue)
 end,
 })
 
+-- 冠冕满层（5 辉片）对各琉璃掉落的额外增幅：由各 pickup 脚本注册，勿写进 translate 静态文案。
+function item.install_glaze_crown_pickup_eid(pickup_def, texts, entity_check)
+	if not EID or not pickup_def then return end
+	local crown = item.entity
+	local vr = pickup_def.Variant
+	local st = pickup_def.SubType
+	local mod_id = "qing_glaze_crown_pickup_"..tostring(vr).."_"..tostring(st)
+	EID:addDescriptionModifier(mod_id, function(desc)
+		if not item.any_complete() then return false end
+		if entity_check then return entity_check(desc) end
+		return desc.ObjType == 5 and desc.ObjVariant == vr and desc.ObjSubType == st
+	end, function(desc)
+		if desc.ObjType ~= 5 then return desc end
+		if entity_check then
+			if not entity_check(desc) then return desc end
+		elseif desc.ObjVariant ~= vr or desc.ObjSubType ~= st then
+			return desc
+		end
+		local lang = auxi.get_EID_language()
+		local info = (lang == "zh" or lang == "zh_cn" or lang == "zh_tw") and texts.zh or texts.en
+		if info and info ~= "" then
+			info = "#"..info
+			local repl = "#{{Collectible"..tostring(crown).."}} "
+			info = string.gsub(info, "#", repl)
+			EID:appendToDescription(desc, info)
+		end
+		return desc
+	end)
+end
+
 return item

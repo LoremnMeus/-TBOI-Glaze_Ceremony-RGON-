@@ -746,6 +746,18 @@ local Language = {
     }
 }
 
+do
+    local translations = include("Qing_Remaster_scripts.translations.translate")
+    local zh = translations.get_pickup_by_key and translations.get_pickup_by_key("Glaze_Coin", "zh_cn")
+    local en = translations.get_pickup_by_key and translations.get_pickup_by_key("Glaze_Coin", "en_us")
+    if zh and zh.Name and Language.translations.zh.coins then
+        Language.translations.zh.coins.glaze_coin = zh.Name
+    end
+    if en and en.Name and Language.translations.en.coins then
+        Language.translations.en.coins.glaze_coin = en.Name
+    end
+end
+
 function Language:setLanguage(lang)
     self.current = lang or "zh"
 end
@@ -3890,7 +3902,15 @@ Function = function(_,continue)
 end,
 })
 
+local saga_time_stop_active = false
+local saga_time_stop_refresh_frame = -999999
+
 local function time_stop()
+	local frame = Game():GetFrameCount()
+	-- 该入口位于持续渲染链；首次完整冻结，之后仅每 15 帧接管新实体。
+	if saga_time_stop_active and frame - saga_time_stop_refresh_frame < 15 then return false end
+	saga_time_stop_active = true
+	saga_time_stop_refresh_frame = frame
 	local n_entity = Isaac.GetRoomEntities() 
 	for u,v in pairs(n_entity) do 
 		if item.unstopable[v.Type] == nil then
@@ -3927,9 +3947,13 @@ local function time_stop()
 			d.saga_data_should_not_attack_succ = Attribute_holder.try_hold_attribute(player,"Data_should_not_attack",true,Attribute_holder.descriptors.data_field("should_not_attack"))
 		end
 	end
+	return true
 end
 
 local function time_free()
+	if not saga_time_stop_active then return false end
+	saga_time_stop_active = false
+	saga_time_stop_refresh_frame = -999999
 	local n_entity = Isaac.GetRoomEntities() 
 	for u,v in pairs(n_entity) do 
 		if item.unstopable[v.Type] == nil then
@@ -3964,6 +3988,7 @@ local function time_free()
 			d.saga_data_should_not_attack_succ = nil
 		end
 	end
+	return true
 end
 
 force_release_saga_ui = function()

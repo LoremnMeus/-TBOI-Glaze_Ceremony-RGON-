@@ -89,7 +89,7 @@ end
 
 --- Incubus / Twisted Pair / Cain's Other Eye：请求复用飞行器完整武器分支。
 --- 覆盖发射原点/方向/伤害倍率；不推进主冷却、眼睛相位、诅咒眼重放。
-function item.queue_craft_aux_attack(ent, pos, dir, damage_mul, source)
+function item.queue_craft_aux_attack(ent, pos, dir, damage_mul, source, host, visual_scale)
 	if not ent or not pos or not dir then return false end
 	if dir:Length() < 0.01 then return false end
 	local d = ent:GetData()
@@ -103,6 +103,8 @@ function item.queue_craft_aux_attack(ent, pos, dir, damage_mul, source)
 		dir = dir:Normalized(),
 		damage_mul = tonumber(damage_mul) or 1,
 		source = source,
+		host = host,
+		visual_scale = tonumber(visual_scale),
 	}
 	return true
 end
@@ -2730,6 +2732,12 @@ local function air_apply_move(ent, d, desired, response)
 	end
 	desired = air_blend_charge_output_hold(ent, d, desired)
 	desired = air_blend_orbit_move_hint(ent, d, desired)
+	local kh = d and tonumber(d[item.own_key.."KnifeHold"]) or 0
+	if kh > 0.02 then
+		if kh > 1 then kh = 1 end
+		desired = desired * (1 - kh)
+		response = math.max(response or 0.2, 0.22 + 0.42 * kh)
+	end
 	air_soft_velocity(ent, desired, response)
 	if w > 0.05 then
 		pass_log_on_apply(ent, d, desired, response, vel0, ent.Velocity or Vector(0, 0))
@@ -2997,6 +3005,78 @@ local function air_pick_cruise_enemy(ent, d, move_anchor, engage_range)
 	return enemy
 end
 
+local function air_clear_owned_laser(d, key)
+	local las = d[item.own_key..key]
+	if auxi.check_all_exists(las) then
+		local ld = las.GetData and las:GetData()
+		if ld then
+			ld.craft_clear_if_dead = nil
+		end
+		if las.Parent ~= nil then
+			las.Parent = nil
+		end
+		if las.SetDisableFollowParent then
+			las:SetDisableFollowParent(true)
+		elseif las.DisableFollowParent ~= nil then
+			las.DisableFollowParent = true
+		end
+		if las.SetTimeout then
+			las:SetTimeout(1)
+		end
+		if las.Remove then
+			las:Remove()
+		end
+	end
+	d[item.own_key..key] = nil
+end
+
+local function air_remove_engine_knife(knife)
+	if not knife then return end
+	local parent = knife.Parent
+	if knife.Exists and knife:Exists() then
+		knife:Remove()
+	end
+	if parent and parent.Exists and parent:Exists() then
+		parent:Remove()
+	end
+end
+
+local function air_clear_engine_knives(ent)
+	if not ent then return end
+	local d = ent:GetData()
+	local registered = d[item.own_key.."engine_knives"]
+	if type(registered) == "table" then
+		for _, knife in pairs(registered) do
+			if knife and knife.Exists and knife:Exists() then
+				air_remove_engine_knife(knife)
+			end
+		end
+	end
+	d[item.own_key.."engine_knives"] = {}
+	d[item.own_key.."KnifePendingDelay"] = nil
+	-- 100000 只是“主刀尚未收回”的运行时哨兵。刀被换房/待机/坠毁清理后，
+	-- 必须同时解除哨兵，否则会从 100000 逐帧倒数，看起来就是主机永不出刀。
+	if (tonumber(d[item.own_key.."FireDelay"]) or 0) >= 99999 then
+		d[item.own_key.."FireDelay"] = -1
+	end
+	d[item.own_key.."KnifeHold"] = 0
+	local air_hash = GetPtrHash(ent)
+	-- 注册表是主路径；全局扫描只清理明确带 knife_flight 归属的漏网体。
+	-- 禁止按“附近的 MeusNil 父体”删除，那会误杀其他模块/模组的刀。
+	for _, kn in ipairs(Isaac.FindByType(EntityType.ENTITY_KNIFE, -1, -1, false, false)) do
+		local k = kn.ToKnife and kn:ToKnife() or kn
+		if k and k.Exists and k:Exists() then
+			local kd = k.GetData and k:GetData()
+			local flight = kd and kd.knife_flight
+			local craft_air = flight and (flight.craft_air or flight.air)
+			if craft_air and craft_air.Exists and craft_air:Exists()
+				and GetPtrHash(craft_air) == air_hash then
+				air_remove_engine_knife(k)
+			end
+		end
+	end
+end
+
 local STANDBY_COLOR_KEY = "StandbyColorSaved"
 
 local function air_combat_stop_for_standby(ent, d)
@@ -3019,10 +3099,8 @@ local function air_combat_stop_for_standby(ent, d)
 	if Craft_Ludovico_holder and Craft_Ludovico_holder.release then
 		Craft_Ludovico_holder.release(ent)
 	end
-	if auxi.check_all_exists(d[item.own_key.."Tech2"]) then
-		d[item.own_key.."Tech2"]:SetTimeout(1)
-	end
-	d[item.own_key.."Tech2"] = nil
+	air_clear_owned_laser(d, "Tech2")
+	air_clear_engine_knives(ent)
 	local list = d[item.own_key.."Brimstones"]
 	if type(list) == "table" then
 		for _, entry in pairs(list) do
@@ -3081,9 +3159,11 @@ local function air_sync_companions(ent, d, craft_prof, player)
 	local sig = craft_companion_signature(craft_prof)
 	local last_sig = d[item.own_key.."companion_sync_sig"]
 	local next_check = tonumber(d[item.own_key.."companion_sync_next"]) or 0
+	local urgent_until = tonumber(d[item.own_key.."companion_resync_until"]) or 0
+	local interval = (frame < urgent_until) and 2 or 15
 	if sig ~= last_sig or frame >= next_check then
 		d[item.own_key.."companion_sync_sig"] = sig
-		d[item.own_key.."companion_sync_next"] = frame + 15
+		d[item.own_key.."companion_sync_next"] = frame + interval
 		if craft_prof and Craft_Familiar_holder.profile_needs_sync(craft_prof) then
 			Craft_Familiar_holder.sync_air_flight(ent, player, craft_prof)
 		else
@@ -3182,6 +3262,182 @@ local function apply_body_scale(ent, craft_prof)
 	local mul = tonumber(craft_prof.body_scale_mul) or 1
 	local base = Vector(1, 1)
 	ent.SpriteScale = base * mul
+end
+
+local function register_engine_knife(air, knife, blocks_main_cooldown)
+	if not air or not knife then return end
+	local kd = knife.GetData and knife:GetData()
+	local flight = kd and kd.knife_flight
+	if flight then
+		flight.blocks_main_cooldown = blocks_main_cooldown == true
+	end
+	local ad = air:GetData()
+	local list = ad[item.own_key.."engine_knives"]
+	if type(list) ~= "table" then
+		list = {}
+		ad[item.own_key.."engine_knives"] = list
+	end
+	list[GetPtrHash(knife)] = knife
+end
+
+local function air_engine_knives_busy(air)
+	if not air then return false end
+	local ad = air:GetData()
+	local list = ad[item.own_key.."engine_knives"]
+	if type(list) == "table" then
+		for hash, k in pairs(list) do
+			if k and k.Exists and k:Exists() and not k:IsDead() then
+				local kd = k.GetData and k:GetData()
+				local flight = kd and kd.knife_flight
+				if flight and flight.blocks_main_cooldown == true then
+					return true
+				end
+			else
+				list[hash] = nil
+			end
+		end
+	end
+	return false
+end
+
+function item.craft_knives_busy(air)
+	return air_engine_knives_busy(air)
+end
+
+local function air_force_companion_sync(ent, player)
+	if not ent then return end
+	local d = ent:GetData()
+	d[item.own_key.."companion_sync_next"] = 0
+	d[item.own_key.."companion_sync_sig"] = nil
+	d[item.own_key.."companion_resync_until"] = Game():GetFrameCount() + 90
+	player = player or auxi.check_spawner_player(ent)
+	local craft_prof = bind_craft_profile(ent, player, false, nil)
+	air_sync_companions(ent, d, craft_prof, player)
+end
+
+local function air_knife_progress(knife)
+	local dist, vel
+	if knife and knife.GetKnifeDistance then
+		local ok, v = pcall(function() return knife:GetKnifeDistance() end)
+		if ok then dist = tonumber(v) end
+	end
+	if knife and knife.GetKnifeVelocity then
+		local ok, v = pcall(function() return knife:GetKnifeVelocity() end)
+		if ok then vel = tonumber(v) end
+	end
+	if dist == nil then
+		local parent = knife and knife.Parent
+		if parent and parent.Exists and parent:Exists() then
+			dist = math.max(0, (knife.Position - parent.Position):Length() - 30)
+		else
+			dist = 0
+		end
+	end
+	return dist, tonumber(vel) or 0
+end
+
+-- 0=正常巡航，1=完全刹停。出程减速、顶点停顿、回程再加速。
+-- 进度用 GetKnifeDistance / GetKnifeVelocity（PathOffset 是常量，不能当伸出量）。
+local function air_knife_move_hold(air)
+	if not air then return 0 end
+	local ad = air:GetData()
+	local list = ad[item.own_key.."engine_knives"]
+	if type(list) ~= "table" then return 0 end
+	local best = 0
+	for hash, k in pairs(list) do
+		if not (k and k.Exists and k:Exists() and not k:IsDead()) then
+			list[hash] = nil
+		else
+			local kd = k.GetData and k:GetData()
+			local flight = kd and kd.knife_flight
+			if not (flight and flight.blocks_main_cooldown == true) then
+				goto continue_engine_knife_hold
+			end
+			local knife = k.ToKnife and k:ToKnife() or k
+			if not knife then
+				best = math.max(best, 0.45)
+			else
+				local dist, kvel = air_knife_progress(knife)
+				local maxd = tonumber(knife.MaxDistance) or 0
+				local peak = math.max(maxd * 1.08, 24)
+				local falling = kvel < -2
+				local rising = kvel > 2
+				if flight then
+					if dist > (flight.peak_dist or 0) then
+						flight.peak_dist = dist
+					end
+					local prev = flight.last_dist
+					flight.last_dist = dist
+					if (not rising) and (not falling) and prev ~= nil then
+						if dist + 1.5 < prev then
+							falling = true
+						elseif dist > prev + 1.5 then
+							rising = true
+						end
+					end
+					if dist >= peak * 0.82 or falling or (kvel <= 0 and dist > 12) then
+						flight.reached_target = true
+					end
+					peak = math.max(peak, flight.peak_dist or 0, 24)
+				end
+				local u = dist / peak
+				if u < 0 then u = 0 elseif u > 1 then u = 1 end
+				local hold
+				if rising then
+					hold = 0.28 + 0.72 * (u * u * (3 - 2 * u))
+					if flight and flight.reached_target then
+						hold = 1
+					end
+				elseif falling then
+					hold = 0.12 + 0.55 * u
+				elseif dist > 10 then
+					hold = 1
+				else
+					hold = 0.4
+				end
+				best = math.max(best, hold)
+			end
+		end
+		::continue_engine_knife_hold::
+	end
+	return best
+end
+
+local function air_follow_tech2_laser(las, ent, dir)
+	if not las or not ent then return end
+	if auxi.check_for_the_same(las.Parent, ent) ~= true then
+		las.Parent = ent
+	end
+	if las.SetDisableFollowParent then
+		las:SetDisableFollowParent(false)
+	elseif las.DisableFollowParent ~= nil then
+		las.DisableFollowParent = false
+	end
+	if las.ParentOffset ~= nil then
+		las.ParentOffset = Vector(0, 0)
+	end
+	if las.SpawnerEntity ~= nil then
+		las.SpawnerEntity = ent
+	end
+	las.Angle = dir:GetAngleDegrees()
+	las.Position = ent.Position
+	las.PositionOffset = air_combat_offset(ent)
+	if (tonumber(las.HomingType) or 0) ~= 0 then
+		CraftProfile.shift_homing_laser_samples(las)
+	end
+end
+
+local function shoot_engine_knife(air, qk, shot_dir, charge, range, blocks_main_cooldown)
+	if not qk then return nil end
+	register_engine_knife(air, qk, blocks_main_cooldown)
+	local kd = qk.GetData and qk:GetData()
+	local flight = kd and kd.knife_flight
+	if flight then
+		flight.aim_ang = shot_dir:GetAngleDegrees()
+		flight.craft_air = air
+	end
+	qk:Shoot(charge, range)
+	return qk
 end
 
 local function stamp_craft_source(ent2, air, opts)
@@ -3572,10 +3828,8 @@ local function air_begin_crash(ent, d)
 	if Craft_Ludovico_holder and Craft_Ludovico_holder.release then
 		Craft_Ludovico_holder.release(ent)
 	end
-	if auxi.check_all_exists(d[item.own_key.."Tech2"]) then
-		d[item.own_key.."Tech2"]:SetTimeout(1)
-	end
-	d[item.own_key.."Tech2"] = nil
+	air_clear_owned_laser(d, "Tech2")
+	air_clear_engine_knives(ent)
 	local list = d[item.own_key.."Brimstones"]
 	if type(list) == "table" then
 		for _, entry in pairs(list) do
@@ -3897,6 +4151,23 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, item.familiar, -1, false, false)) do
 			local d = fam:GetData()
 			air_crash_cleanup_fx(d)
+			air_clear_engine_knives(fam)
+			d[item.own_key.."AuxAttackQueue"] = nil
+			d[item.own_key.."companion_sync_next"] = 0
+			d[item.own_key.."companion_sync_sig"] = nil
+			d[item.own_key.."companion_resync_until"] = Game():GetFrameCount() + 90
+		end
+	end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_GAME_STARTED,
+	params = nil,
+	Function = function(_, continued)
+		for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, item.familiar, -1, false, false)) do
+			air_clear_engine_knives(fam)
+			fam:GetData()[item.own_key.."AuxAttackQueue"] = nil
+			air_force_companion_sync(fam)
 		end
 	end,
 })
@@ -4083,6 +4354,8 @@ Function = function(_,ent)
 	local engage_range = item.Focus2range.cruise or 240
 
 	-- 阵型阶段：只求期望位置。CRUISE+AUTO 可用敌人作盘旋中心；FORCE 不得为找敌偏离。
+	-- 持刀：出程减速、顶点停顿、回程加速，不硬钉原地。
+	d[item.own_key.."KnifeHold"] = air_knife_move_hold(ent)
 	local engage_enemy = nil
 	if formation == item.FORMATION_GUARD then
 		local face = air_guard_aim_dir(player, mark_pos, last_aim)
@@ -4737,26 +5010,30 @@ Function = function(_,ent)
 	local fire_jobs = {}
 	if (((d[item.own_key.."FireDelay"] or 0) < 0 and state_succ) or cursed_replay)
 		and not (craft_is_ludo and not cursed_replay) then
-		local j = {
-			is_replay = cursed_replay ~= nil,
-			is_aux = false,
-			weap = weap,
-			dir = dir,
-			dir2 = dir2,
-			fire_pos = fire_pos,
-			shot_serial = craft_shot_serial,
-			atk_mods = atk_mods,
-			aux_mul = 1,
-		}
-		if cursed_replay then
-			j.weap = cursed_replay.weap or weap
-			j.dir = cursed_replay.dir or dir
-			j.dir2 = cursed_replay.dir2 or dir2
-			j.fire_pos = cursed_replay.fire_pos or fire_pos
-			if cursed_replay.shot_serial then j.shot_serial = cursed_replay.shot_serial end
-			if cursed_replay.atk_mods then j.atk_mods = cursed_replay.atk_mods end
+		if (not cursed_replay) and weap == 4 and air_engine_knives_busy(ent) then
+			-- 收刀前不射下一刀；FireDelay 在收刀前冻结，不在这里清零。
+		else
+			local j = {
+				is_replay = cursed_replay ~= nil,
+				is_aux = false,
+				weap = weap,
+				dir = dir,
+				dir2 = dir2,
+				fire_pos = fire_pos,
+				shot_serial = craft_shot_serial,
+				atk_mods = atk_mods,
+				aux_mul = 1,
+			}
+			if cursed_replay then
+				j.weap = cursed_replay.weap or weap
+				j.dir = cursed_replay.dir or dir
+				j.dir2 = cursed_replay.dir2 or dir2
+				j.fire_pos = cursed_replay.fire_pos or fire_pos
+				if cursed_replay.shot_serial then j.shot_serial = cursed_replay.shot_serial end
+				if cursed_replay.atk_mods then j.atk_mods = cursed_replay.atk_mods end
+			end
+			fire_jobs[#fire_jobs + 1] = j
 		end
-		fire_jobs[#fire_jobs + 1] = j
 	end
 	local aq = d[item.own_key.."AuxAttackQueue"]
 	local aux_should = state_succ or d[item.own_key.."kidney_active"] == true
@@ -4778,6 +5055,8 @@ Function = function(_,ent)
 					shot_serial = craft_shot_serial,
 					atk_mods = atk_mods,
 					aux_mul = tonumber(req.damage_mul) or 1,
+					host = req.host,
+					knife_visual_scale = req.visual_scale,
 				}
 			end
 		end
@@ -4852,7 +5131,12 @@ Function = function(_,ent)
 		if job.atk_mods then atk_mods = job.atk_mods end
 		aux_mul = tonumber(job.aux_mul) or 1
 		fire_damage = atk_damage * (atk_mods.damage_mul or 1) * aux_mul * dead_eye_mul
+		local knife_host = ent
+		if is_aux and job.host and job.host.Exists and job.host:Exists() then
+			knife_host = job.host
+		end
 		local delay = atk_delay
+		local job_fired = false
 		local tgs = {}
 		if (not is_replay) and (not is_aux) and has_coll(418) then
 			weap = CraftProfile.pick_fruit_cake_weapon()
@@ -5095,12 +5379,16 @@ Function = function(_,ent)
 				end
 			end
 		elseif weap == 4 then
-			-- hold_knife_path：Shoot 到顶后锁 PathOffset，避免回程与 Accerate 叠加跳变
+			-- 引擎 Shoot；MeusNil 跟机主（飞行器或淫魔等附属体）。
+			local knife_ratio = atk_mods.knife_ratio or 1
+			local knife_range = atk_range * (atk_mods.knife_maxdist_mul or (0.6 * knife_ratio))
+			local knife_dmg = fire_damage * (atk_mods.knife_damage_mul or 1)
 			local params = {
-				cooldown = 60,Accerate = 0.5,player = player,tearflags = atk_flags,Color = player.TearColor,
+				player = player,tearflags = atk_flags,Color = player.TearColor,
 				Explosive = coll_n(149) + coll_n(52),
-				PosOffset = air_combat_offset(ent),
-				hold_knife_path = true,
+				PosOffset = air_combat_offset(knife_host),
+				position = fire_pos,
+				craft_air = ent,
 			}
 			if craft_prof and CraftProfile.profile_has_haemolacria(craft_prof) then
 				params.craft_haemo = true
@@ -5110,21 +5398,33 @@ Function = function(_,ent)
 			local dirs = craft_volley_dirs(dir)
 			local q = nil
 			for ki, shot_dir in ipairs(dirs) do
-				local qk = auxi.fire_knife(fire_pos,shot_dir,fire_damage,nil,auxi.deepCopy(params))
-				qk:Shoot(1,atk_range/4)
-				apply_craft_flags_roll(qk)
-				stamp_melee_source(qk)
-				CraftProfile.apply_size_mul(qk, proj_scale)
-				if ki == 1 then q = qk end
+				local shot_params = auxi.deepCopy(params)
+				local qk = auxi.fire_engine_knife(knife_host, shot_dir, knife_dmg, shot_params)
+				if qk then
+					apply_craft_flags_roll(qk)
+					stamp_melee_source(qk)
+					local knife_scale = is_aux and (tonumber(job.knife_visual_scale) or 0.65) or 1
+					CraftProfile.apply_size_mul(qk, proj_scale * knife_scale)
+					shoot_engine_knife(ent, qk, shot_dir, knife_ratio, knife_range, not is_aux)
+					job_fired = true
+					if ki == 1 then q = qk end
+				end
 			end
 			-- Knife stack -> extra knives
 			if syn and (syn.extra_shots or 0) > 0 then
 				for i = 1, syn.extra_shots do
-					local qk = auxi.fire_knife(fire_pos,auxi.get_by_rotate(dir, (i - syn.extra_shots * 0.5) * 10),fire_damage,nil,auxi.copy(params))
-					qk:Shoot(1,atk_range/4)
-					apply_craft_flags_roll(qk)
-					stamp_melee_source(qk)
-					CraftProfile.apply_size_mul(qk, proj_scale)
+					local extra_params = auxi.copy(params)
+					extra_params.PathOffset = (i - syn.extra_shots * 0.5) * 12
+					local extra_dir = auxi.get_by_rotate(dir, (i - syn.extra_shots * 0.5) * 10)
+					local qk = auxi.fire_engine_knife(knife_host, extra_dir, knife_dmg, extra_params)
+					if qk then
+						apply_craft_flags_roll(qk)
+						stamp_melee_source(qk)
+						local knife_scale = is_aux and (tonumber(job.knife_visual_scale) or 0.65) or 1
+						CraftProfile.apply_size_mul(qk, proj_scale * knife_scale)
+						shoot_engine_knife(ent, qk, extra_dir, knife_ratio, knife_range, not is_aux)
+						job_fired = true
+					end
 				end
 			end
 			-- Knife + Tech X：独立生成跟随环（不走玩家 FireTechXLaser，避免硫磺火改写）。
@@ -5154,6 +5454,7 @@ Function = function(_,ent)
 			end
 			if has_coll(229) then
 				params.Accerate = 1.5
+				params.cooldown = 60
 				local rnd = math.random(coll_n(229) * 3) + 2
 				for i = 1,rnd do 
 					local qk = auxi.fire_knife(fire_pos,auxi.RoundVector() * 13 * atk_shotspeed,fire_damage/2,nil,auxi.copy(params))
@@ -5164,6 +5465,7 @@ Function = function(_,ent)
 			delay = delay * 1.8 + 1
 			if has_coll(118) then
 				params.Accerate = 1.5
+				params.cooldown = params.cooldown or 60
 				local cnt = math.random(3) + 1 + 2 * (coll_n(118) - 1)
 				for i = 1,cnt do
 					local cnt2 = math.random(2) + (coll_n(118) - 1)
@@ -5497,7 +5799,13 @@ Function = function(_,ent)
 		end
 		-- 重放/附属攻击不改写主冷却，也不推进眼睛相位等 volley 副作用。
 		if not is_replay and not is_aux then
-			d[item.own_key.."FireDelay"] = delay
+			if weap == 4 and job_fired then
+				-- 4/t 从收刀后才开始扣，飞出期间不把冷却跑掉。
+				d[item.own_key.."KnifePendingDelay"] = delay
+				d[item.own_key.."FireDelay"] = 100000
+			else
+				d[item.own_key.."FireDelay"] = delay
+			end
 			if craft_prof then
 				on_volley_fired(ent, player, craft_prof, aim_for_dyn)
 			end
@@ -5544,29 +5852,36 @@ Function = function(_,ent)
 		else table.remove(d[item.own_key.."Swords"],i) end
 	end
 	if state_succ and has_coll(152) then
-		if auxi.check_all_exists(d[item.own_key.."Tech2"]) then
-			d[item.own_key.."Tech2"].Angle = dir:GetAngleDegrees()
-			d[item.own_key.."Tech2"].PositionOffset = air_combat_offset(ent)
-			d[item.own_key.."Tech2"].Position = ent.Position
+		local tech2 = d[item.own_key.."Tech2"]
+		if auxi.check_all_exists(tech2) then
+			air_follow_tech2_laser(tech2, ent, dir)
 		else
-			d[item.own_key.."Tech2"] = player:FireTechLaser(fire_pos,0,dir,false,false,player)
-			d[item.own_key.."Tech2"].DepthOffset = -5
-			air_copy_attack_offset(d[item.own_key.."Tech2"], ent, false)
-			-- Tech2：最终攻击伤害 ×0.13；不推进铅笔/贪婪计数
-			d[item.own_key.."Tech2"].CollisionDamage = atk_damage * (atk_mods.damage_mul or 1) * dead_eye_mul * 0.13
-			local tech2_flags = craft_prof and roll_craft_flags(d[item.own_key.."Tech2"]) or fire_flags
-			apply_craft_flags(d[item.own_key.."Tech2"], craft_prof, tech2_flags, ent)
-			if craft_prof then
-				stamp_craft_attack(d[item.own_key.."Tech2"], ent, craft_prof, {
-					dead_eye_mul = dead_eye_mul,
-					dead_eye_charge = has_coll(373) and dead_eye_charge or nil,
-				})
+			tech2 = player:FireTechLaser(fire_pos, 0, dir, false, false, ent)
+			d[item.own_key.."Tech2"] = tech2
+			if tech2 then
+				tech2.DepthOffset = -5
+				air_follow_tech2_laser(tech2, ent, dir)
+				-- Tech2：最终攻击伤害 ×0.13；不推进铅笔/贪婪计数
+				tech2.CollisionDamage = atk_damage * (atk_mods.damage_mul or 1) * dead_eye_mul * 0.13
+				local tech2_flags = craft_prof and roll_craft_flags(tech2) or fire_flags
+				apply_craft_flags(tech2, craft_prof, tech2_flags, ent)
+				if craft_prof then
+					stamp_craft_attack(tech2, ent, craft_prof, {
+						dead_eye_mul = dead_eye_mul,
+						dead_eye_charge = has_coll(373) and dead_eye_charge or nil,
+					})
+				end
+				local td = tech2.GetData and tech2:GetData()
+				if td then
+					td.craft_clear_if_dead = ent
+				end
+				if tech2.SetTimeout then
+					tech2:SetTimeout(-1)
+				end
 			end
-			d[item.own_key.."Tech2"]:SetTimeout(-1)
 		end
-	elseif auxi.check_all_exists(d[item.own_key.."Tech2"]) then 
-		d[item.own_key.."Tech2"]:SetTimeout(1)
-		d[item.own_key.."Tech2"] = nil
+	else
+		air_clear_owned_laser(d, "Tech2")
 	end
 	if state_succ and has_coll(244) then
 		if (d[item.own_key.."Tech.5_counter"] or 0) <= 0 and auxi.check_rand(atk_luck,10,2,10) then
@@ -5577,7 +5892,22 @@ Function = function(_,ent)
 		end
 	end
 	if (d[item.own_key.."Tech.5_counter"] or 0) > 0 then d[item.own_key.."Tech.5_counter"] = d[item.own_key.."Tech.5_counter"] - 1 end
-	d[item.own_key.."FireDelay"] = (d[item.own_key.."FireDelay"] or 0) - 1
+	-- 妈刀：收刀后再开始扣 4/t；飞出期间冻结。
+	if weap == 4 then
+		if air_engine_knives_busy(ent) then
+			d[item.own_key.."FireDelay"] = 100000
+		elseif d[item.own_key.."KnifePendingDelay"] ~= nil then
+			d[item.own_key.."FireDelay"] = d[item.own_key.."KnifePendingDelay"]
+			d[item.own_key.."KnifePendingDelay"] = nil
+		elseif (tonumber(d[item.own_key.."FireDelay"]) or 0) >= 99999 then
+			-- 自愈异常/热重载遗留的孤立哨兵：无主刀、无待恢复冷却时立即允许重试。
+			d[item.own_key.."FireDelay"] = -1
+		else
+			d[item.own_key.."FireDelay"] = (d[item.own_key.."FireDelay"] or 0) - 1
+		end
+	else
+		d[item.own_key.."FireDelay"] = (d[item.own_key.."FireDelay"] or 0) - 1
+	end
 	-- 将飞行器本帧真正采用的攻击状态/方向发布给附属宝宝。
 	-- 必须读统一火控结果；FORCE 下没有敌人时也应 should_shoot=true。
 	d[item.own_key.."AuxShouldShoot"] = state_succ or d[item.own_key.."kidney_active"] == true

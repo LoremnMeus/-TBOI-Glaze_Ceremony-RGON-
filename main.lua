@@ -50,7 +50,11 @@ if not REPENTOGON then
 	end)
 	-- 不要在这里停止加载：Vanilla 仍需要注册普通 Lua 与 shader 的中性参数回调。
 	-- RGON 专用模块和回调由各 manager 内既有的 REPENTOGON 判断跳过。
-	print("[Glaze Ceremony: Promised Land] REPENTOGON was not detected; loading Vanilla compatibility mode.")
+	if Options.Language == "zh" then
+		print("[琉璃圣典：应许之地] 未检测到 REPENTOGON，已进入 Vanilla 兼容模式。")
+	else
+		print("[Glaze Ceremony: Promised Land] REPENTOGON was not detected; loading Vanilla compatibility mode.")
+	end
 end
 
 require("Qing_Remaster_scripts.core.preload_manager").Init()
@@ -87,7 +91,11 @@ end
 
 function item:Init(continued)
 	if continued then
-		print("[Glaze Ceremony: Promised Land] Module continued.")
-	end	
+		if Options.Language == "zh" then
+			print("[琉璃圣典：应许之地] 已继续 (v"..item.Version..")")
+		else
+			print("[Glaze Ceremony: Promised Land] Continued (v"..item.Version..")")
+		end
+	end
 end
 item:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, item.Init)

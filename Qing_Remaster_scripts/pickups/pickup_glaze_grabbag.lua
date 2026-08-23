@@ -16,11 +16,11 @@ local item = {
 			get = function(player) player:AddSoulHearts(-1) end,},
 		Glaze_heart_half = {weigh = 0.3,check = function(player) return (player:GetSoulHearts() > 0 and player:GetBoneHearts() + player:GetSoulHearts() + player:GetHearts() > 1) end,
 			get = function(player) player:AddSoulHearts(-1) end,},
-		Glaze_key = {weigh = 1,check = function(player) return (player:GetNumKeys() > 0) end,
+		Glaze_key = {weigh = 1,check = function(player) return (player:GetNumKeys() > 1) end,
 			get = function(player) player:AddKeys(-1) end,},
-		Glaze_bomb = {weigh = 1,check = function(player) return (player:GetNumBombs() > 0) end,
+		Glaze_bomb = {weigh = 1,check = function(player) return (player:GetNumBombs() > 1) end,
 			get = function(player) player:AddBombs(-1) end,},
-		Glaze_coin = {weigh = 0.5,check = function(player) return (player:GetNumCoins() > 0) end,
+		Glaze_coin = {weigh = 0.5,check = function(player) return (player:GetNumCoins() > 5) end,
 			get = function(player) player:AddCoins(-1) end,},
 		Glaze_grabbag = {weigh =0.4,check = function(player) return player:HasCollectible(CollectibleType.COLLECTIBLE_SACK_HEAD) and (player:GetNumCoins() > 0) and (player:GetNumBombs() > 0) and (player:GetNumKeys() > 0) end,
 			get = function(player) player:AddKeys(-1) player:AddBombs(-1) player:AddCoins(-1) end,},
@@ -63,14 +63,17 @@ function item.try_collect(player,ent)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
 	local rng = ent:GetDropRNG()
 	rng = auxi.rng_for_sake(rng)
-	local cnt = rng:RandomInt(3) + 3
-	if glaze_crown.should_empower(player) then cnt = cnt + 2 end
+	local cnt = rng:RandomInt(2) + 2
+	if glaze_crown.should_empower(player) then cnt = 3 end
+	local allow = {Glaze_key = true, Glaze_bomb = true, Glaze_coin = true}
 	for i = 1,cnt do
 		local tbl = {}
 		for u,v in pairs(enums.Pickups) do
-			local info = item.check_info[u] or {}
-			if auxi.check_if_any(info.check,player,item) then
-				table.insert(tbl,#tbl+1,{weigh = (v.weigh or 1),name = u,})
+			if allow[u] then
+				local info = item.check_info[u] or {}
+				if auxi.check_if_any(info.check,player,item) then
+					table.insert(tbl,#tbl+1,{weigh = (v.weigh or 1),name = u,})
+				end
 			end
 		end
 		if #tbl == 0 then
@@ -164,5 +167,10 @@ if EID then
 		end)
 	end
 end
+
+glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
+	zh = "辉片满层时固定生成3份（否则为2-3份）",
+	en = "At 5 shards: always 3 conversions (otherwise 2-3)",
+})
 
 return item

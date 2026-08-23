@@ -1,10 +1,10 @@
 local manifest = {
-	-- Whole-ANM2 Load() path for title/main/controls. Keep disabled until those
+	-- Whole-ANM2 Load() path for title/main. Keep disabled until those
 	-- language-specific ANM2 files exist; missing Loads would break the menu.
 	enabled = false,
 	default_language = "en",
-	-- Character select: Reverie-style Load() of language ANM2 onto the
-	-- shared GetModdedMenuBackgroundSprite. Do not ReplaceSpritesheet the
+	-- Character select / starting-room controls / game-over name: Reverie-style
+	-- Load() onto the shared GetModded* sprites. Do not ReplaceSpritesheet the
 	-- live vanilla/mod sprites every frame.
 	character_select = {
 		enabled = true,
@@ -18,6 +18,16 @@ local manifest = {
 				zh = "gfx/ui/lang/zh/character_menu/menu_b.anm2",
 			},
 		},
+	},
+	controls = {
+		enabled = true,
+		en = "gfx/controls.anm2",
+		zh = "gfx/ui/lang/zh/controls/controls.anm2",
+	},
+	game_over = {
+		enabled = true,
+		en = "gfx/death screen.anm2",
+		zh = "gfx/ui/lang/zh/game_over/death_screen.anm2",
 	},
 	languages = {
 		zh = {

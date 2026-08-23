@@ -10,7 +10,7 @@ local Slot_manager = {
 function Slot_manager.Init(mod)
 	modReference = mod
 	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Bard_Beggar"))
-	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Time_Beggar"))
+	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Tomorrows_Creditor"))
 	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Rift_Beggar"))
 	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Bloody_Messenger"))
 end

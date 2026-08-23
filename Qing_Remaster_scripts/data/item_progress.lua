@@ -1447,6 +1447,15 @@ add("Item",enums.Items.Regenesis,{
 		achievement = false,
 		achievement_path = "",
 })
+add("Item",enums.Items.Ember,{
+		content_type = "Item",
+		key = "Ember",
+		name = "Ember",
+		artwork = true,
+		effect = true,
+		achievement = false,
+		achievement_path = "",
+})
 add("Trinket",enums.Trinkets.Pacification_Mark,{
 		content_type = "Trinket",
 		key = "Pacification_Mark",

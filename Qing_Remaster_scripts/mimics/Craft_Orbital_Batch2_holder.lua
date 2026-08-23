@@ -17,7 +17,13 @@ local item = {
 }
 
 -- 只追踪确有待复生状态的 Flight，避免每帧全局扫描实体。
-local TINYTOMA_PENDING = setmetatable({}, {__mode = "k"})
+-- Ptr -> 最新 wrapper；弱键可能在原生 Flight 尚存时被 GC 清掉，导致永久不复生。
+local TINYTOMA_PENDING = {}
+
+local function runtime_key(ent)
+	local ok, ptr = pcall(GetPtrHash, ent)
+	return ok and ptr or nil
+end
 
 local function get_air_mod()
 	return require("Qing_Remaster_scripts.items.Item_Air_Flight")
@@ -929,7 +935,8 @@ local function tinytoma_on_block(fam, bind, _proj, air)
 		if (tonumber(ad[item.own_key.."tinytoma_dead"]) or 0) >= 2 then
 			ad[item.own_key.."tinytoma_respawn_at"] = Game():GetFrameCount() + 150
 			ad[item.own_key.."tinytoma_dead"] = 0
-			TINYTOMA_PENDING[air] = true
+			local key = runtime_key(air)
+			if key then TINYTOMA_PENDING[key] = air end
 		end
 	end
 	fam:Remove()
@@ -968,17 +975,17 @@ table.insert(item.ToCall, {
 	params = nil,
 	Function = function(_)
 		local Air = get_air_mod()
-		for air in pairs(TINYTOMA_PENDING) do
+		for key, air in pairs(TINYTOMA_PENDING) do
 			local ok, alive = pcall(function() return air:Exists() and not air:IsDead() end)
 			if not ok or not alive then
-				TINYTOMA_PENDING[air] = nil
+				TINYTOMA_PENDING[key] = nil
 			else
 				local ad = air:GetData()
 				local at = tonumber(ad[item.own_key.."tinytoma_respawn_at"])
 				if not at then
-					TINYTOMA_PENDING[air] = nil
+					TINYTOMA_PENDING[key] = nil
 				elseif Game():GetFrameCount() >= at then
-					TINYTOMA_PENDING[air] = nil
+					TINYTOMA_PENDING[key] = nil
 					ad[item.own_key.."tinytoma_respawn_at"] = nil
 					Orb.set_collectible_suppress(air, CollectibleType.COLLECTIBLE_TINYTOMA or 645, false)
 					local prof = ad[Air.own_key.."craft_profile"]

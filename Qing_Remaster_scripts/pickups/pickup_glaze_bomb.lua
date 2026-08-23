@@ -298,4 +298,9 @@ Function = function(_,collect,rng,player,useFlags,activeSlot,varData)
 end,
 })
 
+glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
+	zh = "辉片满层时脉冲阶段也会清除房间弹幕",
+	en = "At 5 shards: Pulse phase also clears room projectiles",
+})
+
 return item

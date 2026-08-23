@@ -14,29 +14,49 @@ local item = {
 
 function item.reveal_map(player)
 	local level = Game():GetLevel()
-	local targs = {}
+	local specials = {}
+	local normals = {}
 	local rooms = level:GetRooms()
-    for i = 0, rooms.Size do
-        local targ = rooms:Get(i)
+	local skip = {
+		[RoomType.ROOM_DEFAULT] = true,
+		[RoomType.ROOM_SECRET] = true,
+		[RoomType.ROOM_SUPERSECRET] = true,
+		[RoomType.ROOM_ULTRASECRET] = true,
+	}
+	local rank = {
+		[RoomType.ROOM_TREASURE] = 1,
+		[RoomType.ROOM_SHOP] = 2,
+		[RoomType.ROOM_BOSS] = 3,
+	}
+	for i = 0, rooms.Size do
+		local targ = rooms:Get(i)
 		if targ ~= nil and targ.SafeGridIndex >= 0 and targ.DisplayFlags ~= 5 and targ.DisplayFlags ~= 7 then
-			local desc = level:GetRoomByIdx(targ.SafeGridIndex,-1)			--试试反向确认
-			if desc ~= nil and desc.SafeGridIndex >= 0 and desc.DisplayFlags ~= 5 and desc.DisplayFlags ~= 7 and desc.SafeGridIndex ~= level:GetCurrentRoomDesc().SafeGridIndex then	--有没有一种可能，就是选中了自己的房间？
-				if glaze_crown.should_empower(player) then
-					if desc.Data.Type ~= 1 then
-						targs[#targs + 1] = desc
-					end
+			local desc = level:GetRoomByIdx(targ.SafeGridIndex,-1)
+			if desc ~= nil and desc.SafeGridIndex >= 0 and desc.DisplayFlags ~= 5 and desc.DisplayFlags ~= 7 and desc.SafeGridIndex ~= level:GetCurrentRoomDesc().SafeGridIndex then
+				local rtype = desc.Data and desc.Data.Type or RoomType.ROOM_DEFAULT
+				if skip[rtype] then
+					if rtype == RoomType.ROOM_DEFAULT then normals[#normals + 1] = desc end
 				else
-					targs[#targs + 1] = desc
+					specials[#specials + 1] = {desc = desc, rank = rank[rtype] or 9}
 				end
 			end
 		end
 	end
-	
-	if #targs > 0 then
-		local r = math.random(#targs)
-		level:GetRoomByIdx(targs[r].SafeGridIndex).DisplayFlags = level:GetRoomByIdx(targs[r].SafeGridIndex).DisplayFlags | 7
-		level:UpdateVisibility()
+	table.sort(specials,function(a,b) return a.rank < b.rank end)
+	local function reveal(desc)
+		level:GetRoomByIdx(desc.SafeGridIndex).DisplayFlags = level:GetRoomByIdx(desc.SafeGridIndex).DisplayFlags | 7
 	end
+	if #specials > 0 then
+		reveal(specials[1].desc)
+	else
+		local n = math.min(3,#normals)
+		for i = 1,n do
+			local r = math.random(#normals)
+			reveal(normals[r])
+			table.remove(normals,r)
+		end
+	end
+	level:UpdateVisibility()
 end
 
 function item.try_collect(player,ent)

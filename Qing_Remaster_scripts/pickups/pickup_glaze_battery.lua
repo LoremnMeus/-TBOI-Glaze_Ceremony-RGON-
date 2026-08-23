@@ -7,6 +7,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
+local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
 
 local item = {
@@ -16,7 +17,9 @@ local item = {
 	own_key = "Pickup_Glaze_battery_",
 	available_slot = {
 		[0] = true,
+		[1] = true,
 		[2] = true,
+		[3] = true,
 	},
 	ignore_cid = {
 		[489] = true,
@@ -29,24 +32,31 @@ charge_ui2:Load("gfx/Glaze/glazed_charge_bar.anm2", true)
 charge_ui2:Play("Idle",true)
 charge_ui2.Scale = Vector(1,1)
 
+local function pending_bag()
+	save.elses.glaze_battery_pending = save.elses.glaze_battery_pending or {}
+	return save.elses.glaze_battery_pending
+end
+
+local function player_idx(player)
+	return player:GetData().__Index
+end
+
+local function player_pending(player)
+	local idx = player_idx(player)
+	if idx == nil then return false end
+	return pending_bag()[idx] == true
+end
+
 function item.try_collect(ent,player)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
-	local charge = 0
 	local has_active = nil
 	for i = 0,3 do
-		if player:GetActiveItem(i) > 0 then has_active = true end
-		if player:GetActiveCharge(i) > 0 and player:GetActiveCharge(i) <= 12 then
-			charge = charge + player:GetActiveCharge(i) + player:GetBatteryCharge(i)
-			player:SetActiveCharge(0,i)
-		elseif player:GetActiveCharge(i) > 0 then
-			charge = charge + 1
-			if player:GetBatteryCharge(i) > 0 then charge = charge + 1 end
-			player:SetActiveCharge(0,i)
-		end
+		if player:GetActiveItem(i) > 0 then has_active = true break end
 	end
 	if has_active then
-		if charge == 0 then charge = 1 end
-		save.elses.glaze_battery = math.min(64,(save.elses.glaze_battery or 0) + charge)
+		local idx = player_idx(player)
+		if idx ~= nil then pending_bag()[idx] = true end
+		save.elses.glaze_battery = 0
 		glaze_crown.notify_pickup(player)
 		return true
 	end
@@ -80,6 +90,7 @@ Function = function(_,continue)
     if continue then
 	else
 		save.elses.glaze_battery = 0
+		save.elses.glaze_battery_pending = {}
 	end
 end,
 })
@@ -93,34 +104,40 @@ Function = function(_,ent)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_SPAWN_CLEAN_AWARD, params = nil,
-Function = function(_,ent)
-	if save.elses.glaze_battery and save.elses.glaze_battery > 0 then
-		local succ = false
-		for playerNum = 1, Game():GetNumPlayers() do
-			local player = Game():GetPlayer(playerNum - 1)
-			local should_spawn = false
-			for i = 0,3 do
-				if player:NeedsCharge(i) then
-					if glaze_crown.should_empower(player) then player:SetActiveCharge(player:GetActiveCharge(i) + player:GetBatteryCharge(i) + 3,i)
-					else player:SetActiveCharge(player:GetActiveCharge(i) + player:GetBatteryCharge(i) + 2,i) end
-					should_spawn = true
-					succ = true
-				end
-			end
-			if should_spawn then
-				local q = Isaac.Spawn(1000,EffectVariant.BATTERY,0,player.Position + Vector(0,-30) * player.SpriteScale.Y + player.Velocity,Vector(0,0),nil)
-				local s = q:GetSprite()
-				q.DepthOffset = 1000
-				s:ReplaceSpritesheet(0,"gfx/effects/effect_glazed_batteryeffect.png")
-				s:LoadGraphics()
-			end
-		end
-		if succ then sound_tracker.PlayStackedSound(SoundEffect.SOUND_ITEMRECHARGE,1.5,1,false,0,2) end
-		if glaze_crown.any_complete() or succ then
-			save.elses.glaze_battery = save.elses.glaze_battery - 1
-		end
-	end
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_USE_ITEM, params = nil,
+Function = function(_,col,rng,player,flags,slot,vardata)
+	if not player_pending(player) then return end
+	if flags & UseFlag.USE_CARBATTERY ~= 0 then return end
+	local cfg = Isaac.GetItemConfig():GetCollectible(col)
+	if not cfg or (cfg.MaxCharges or 0) <= 0 or (cfg.ChargeType or 0) ~= 0 then return end
+	player:GetData()[item.own_key.."snap"] = {
+		slot = slot,
+		cid = col,
+		charge = (player:GetActiveCharge(slot) or 0) + (player:GetBatteryCharge(slot) or 0),
+	}
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = nil,
+Function = function(_,col,rng,player,flags,slot,vardata)
+	if not player_pending(player) then return end
+	if flags & UseFlag.USE_CARBATTERY ~= 0 then return end
+	local d = player:GetData()
+	local snap = d[item.own_key.."snap"]
+	if not snap or snap.cid ~= col then return end
+	d[item.own_key.."snap"] = nil
+	delay_buffer.addeffe(function()
+		if not auxi.check_all_exists(player) then return end
+		if not player_pending(player) then return end
+		local after = (player:GetActiveCharge(slot) or 0) + (player:GetBatteryCharge(slot) or 0)
+		local delta = (snap.charge or 0) - after
+		if delta <= 0 then return end
+		local refund = math.ceil(delta / 2)
+		player:SetActiveCharge(after + refund,slot)
+		local idx = player_idx(player)
+		if idx ~= nil then pending_bag()[idx] = nil end
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BATTERYCHARGE,1,1,false,0,2)
+	end,nil,0)
 end,
 })
 
@@ -140,7 +157,7 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_SLOT_RENDER, params = "Active",
 Function = function(_,player,tp,cid,slot)
-	if save.elses.glaze_battery and save.elses.glaze_battery > 0 and item.available_slot[slot] and not item.ignore_cid[cid] then
+	if player_pending(player) and item.available_slot[slot] and not item.ignore_cid[cid] then
 		local pos = ui.PlayerActiveUIPos(player,slot,auxi.GetPlayerOrder(player),cid)
 		local s = auxi.load_item(cid,{Anm = "gfx/Glaze/glazed_item2.anm2",})
 		s:SetFrame(frame or 0)
@@ -161,28 +178,22 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_SLOT_RENDER, params = "Active",
 Function = function(_,player,tp,cid,slot)
-	if save.elses.glaze_battery and save.elses.glaze_battery > 0 and item.available_slot[slot] and not item.ignore_cid[cid] then
+	if player_pending(player) and item.available_slot[slot] and not item.ignore_cid[cid] then
 		local pos = ui.PlayerActiveUIPos(player,slot,auxi.GetPlayerOrder(player),cid)
 		local s = auxi.load_item(cid,{Anm = "gfx/mimics/Glaze_Item/glazed_item.anm2",})
 		
 		local alpha = slot_render_holder.get_alpha()
-		for i = 1,save.elses.glaze_battery do
-			local tg_fr = frame + math.ceil(i * 48 / save.elses.glaze_battery)
-			while tg_fr > 47 do tg_fr = tg_fr - 48 end
-			s:SetFrame(tg_fr or 0)
-			local id = 35 - i 
-			if id < 0 then id = id + 48 end
-			s.Color = Color(1,1,1,alpha * (0.5 + 0.5/save.elses.glaze_battery * id))
-			s.Scale = Vector(0.65,0.65)
-			s:Render(pos - 15 * auxi.MakeVector(360/save.elses.glaze_battery * i + 90),Vector(0,0),Vector(0,0))
-		end
+		s:SetFrame(frame or 0)
+		s.Color = Color(1,1,1,alpha)
+		s.Scale = Vector(0.65,0.65)
+		s:Render(pos - 15 * auxi.MakeVector(90),Vector(0,0),Vector(0,0))
 	end
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_RENDER, params = nil,
 Function = function(_)
-	if save.elses.glaze_battery and save.elses.glaze_battery > 0 and Game():GetHUD():IsVisible() then
+	if player_pending(Game():GetPlayer(0)) and Game():GetHUD():IsVisible() then
 		if Game():IsPaused() == false then frame = frame + 1
 		else frame = frame - 1 end
 		if frame > 47 then frame = 0 end
@@ -237,6 +248,7 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = CollectibleType.COLLECTIBLE_GENESIS,
 Function = function(_,collect,rng,player,useFlags,activeSlot,varData)
 	save.elses.glaze_battery = 0
+	save.elses.glaze_battery_pending = {}
 end,
 })
 

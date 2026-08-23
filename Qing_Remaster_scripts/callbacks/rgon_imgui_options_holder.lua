@@ -81,6 +81,8 @@ local item = {
 			},
 			Menu = {
 				CharacterSelectLanguage = 0,
+				ControlsLanguage = 0,
+				GameOverLanguage = 0,
 			},
 			Debug = {
 				TheseusNoticeAlwaysShow = false,
@@ -178,10 +180,36 @@ local item = {
 				GlazeCrownForceSeija = false,
 				BookOfThothForceSeija = false,
 				BookOfThothDivineSplit = 0.4,
-				BookOfThothConfirmY = 0,
 				BookOfThothDotOffsetX = 0,
 				BookOfThothDotOffsetY = -11,
+				BookOfThothBgOffsetX = 0,
+				BookOfThothBgOffsetY = 0,
+				BookOfThothTabCatalogTextX = -31.2,
+				BookOfThothTabCatalogTextY = -6.4,
+				BookOfThothTabDivineTextX = -32.2,
+				BookOfThothTabDivineTextY = -7.0,
+				BookOfThothSlotCardScale = 1.0,
+				BookOfThothSlotCardOffsetX = 1,
+				BookOfThothSlotCardOffsetY = -8,
+				BookOfThothHudCardScale = 0.5,
+				BookOfThothHudCardOffsetX = 0,
+				BookOfThothHudCardOffsetY = 0,
+				BookOfThothPoolOffsetY = -15,
+				BookOfThothPageLabelOffsetX = 0,
+				BookOfThothPageLabelOffsetY = 0,
+				BookOfThothCupHitOffsetX = 0,
+				BookOfThothCupHitOffsetY = 1,
+				BookOfThothCupHitW = 44,
+				BookOfThothCupHitH = 66,
 				GospelForceSeija = false,
+				MultiknifeHud7 = 5.5,
+				MultiknifeHud8 = 9.5,
+				MultiknifeHud9 = 16.5,
+				MultiknifeHud10 = 28.0,
+				MultiknifeHud11 = 40.0,
+				MultiknifeHud12 = 56.0,
+				MultiknifeLiftX = 0,
+				MultiknifeLiftY = -20,
 				DramaForceMask = false,
 				MentalForceError = false,
 				SutureNeedleForceSeija = false,
@@ -198,21 +226,22 @@ local item = {
 				BloodyMessengerBoostedWeightItem = 30,
 				BloodyMapUltraGrantAmount = 1,
 				BloodyMapUltraGrantMax = 2,
-				GoldenSlotCost = 1,
-				GoldenSlotWeightMidasFly = 20,
-				GoldenSlotWeightGoldTroll = 10,
-				GoldenSlotWeightGoldCoin = 32,
-				GoldenSlotWeightGoldBomb = 36,
-				GoldenSlotWeightGoldHeart = 26,
-				GoldenSlotWeightGoldKey = 28,
-				GoldenSlotWeightGoldBattery = 18,
-				GoldenSlotWeightGoldPill = 18,
-				GoldenSlotWeightGoldMegaPill = 10,
-				GoldenSlotWeightGoldTrinket = 14,
-				GoldenSlotWeightEnding = 1,
-				GoldenSlotCoinOffsetX = 4.5,
-				GoldenSlotCoinOffsetY = -6.25,
-				GoldenSlotCoinScale = 0.5,
+				GoldenSlotBaseWinChance = 10,
+				GoldenSlotWinChancePerLoss = 4,
+				GoldenSlotMaxWinChance = 40,
+				GoldenSlotRewardWeightMidasFly = 24,
+				GoldenSlotRewardWeightGoldTroll = 15,
+				GoldenSlotRewardWeightGoldCoin = 18,
+				GoldenSlotRewardWeightGoldHeart = 11,
+				GoldenSlotRewardWeightGoldPill = 8,
+				GoldenSlotRewardWeightGoldBattery = 6,
+				GoldenSlotRewardWeightGoldBomb = 5,
+				GoldenSlotRewardWeightGoldKey = 5,
+				GoldenSlotRewardWeightGoldMegaPill = 3,
+				GoldenSlotRewardWeightGoldTrinket = 4,
+				GoldenSlotRewardWeightEnding = 1,
+				GoldenSlotEndingMegaWeight = 95,
+				GoldenSlotEndingTrophyWeight = 5,
 				ReservedJudgmentMarkRange = 90,
 				ReservedJudgmentIconOffsetX = 18,
 				ReservedJudgmentIconOffsetY = 22,
@@ -245,7 +274,6 @@ local item = {
 				PareidoliaFxAscendFrames = 48,
 				PareidoliaPhaseLift = 90,
 				PareidoliaFloatRate = 0.11,
-				PareidoliaTechLaserProbe = false,
 			},
 		},
 	},
@@ -315,11 +343,17 @@ local LANG = {
 		tab_hud = "HUD",
 		group_hud_imitate = "Imitate items",
 		group_character_menu_lang = "Character select language",
-		character_menu_lang_help = "Swaps Qing character-select text sheets at runtime. Default follows the game language.",
+		character_menu_lang_help = "Swaps Qing character-select text sheets. Default follows the game language.",
 		character_menu_lang_auto = "Follow game language",
 		character_menu_lang_zh = "Force Chinese",
 		character_menu_lang_en = "Force English",
 		character_menu_lang_status = "Current sheets: %s (game language: %s)",
+		group_controls_lang = "Starting-room controls language",
+		controls_lang_help = "Swaps the starting-room controls prompt. Default follows the game language.",
+		controls_lang_status = "Current controls sheets: %s (game language: %s)",
+		group_game_over_lang = "Game-over name language",
+		game_over_lang_help = "Swaps the game-over character name. Default follows the game language.",
+		game_over_lang_status = "Current game-over sheets: %s (game language: %s)",
 		group_rgon = "REPENTOGON",
 		group_runtime = "Runtime",
 		group_hud = "HUD",
@@ -477,12 +511,18 @@ local LANG = {
 		laser_flag_probe_export = "Flush laser-flag probe now",
 		laser_flag_probe_clear = "Clear laser-flag samples",
 		laser_flag_probe_status = "Laser-flag probe off",
-		group_knife_path_probe = "Mom's Knife path probe",
-		knife_path_probe_help = "Vanilla/craft Mom's Knife (+homing / Tiny Planet). Knife Update ~60fps. Logs Charge/PathOffset/PathFollowSpeed/Rotation/TearFlags → codex_work/logs/craft_knife_path_probe.jsonl",
+		group_knife_path_probe = "Mom's Knife path probe v3",
+		knife_path_probe_help = "One scenario per enable (truncates log). Vanilla c114; +c3 Spoon vs a REAL enemy (not Potato Dummy); +c233 Tiny Planet; optionally craft knife. Logs nearest target Type/dist and engine_ok. Do not treat entity Charge as sim input. → codex_work/logs/craft_knife_path_probe.jsonl",
 		knife_path_probe_enable = "Enable knife-path probe",
 		knife_path_probe_export = "Flush knife-path probe now",
 		knife_path_probe_clear = "Clear knife-path samples",
 		knife_path_probe_status = "Knife-path probe off",
+		group_floor_stat_probe = "Blood Oath / Redemption counter probe",
+		floor_stat_probe_help = "giveitem c569 and/or c673. New floor drain + devil room skip. Logs TemporaryEffect/Null54/familiar 3.203/effect 1000.185 vs GetBloodCharge (Bethany) and GetBloodLustCounter. → codex_work/logs/craft_floor_stat_counter_probe.jsonl",
+		floor_stat_probe_enable = "Enable Blood Oath/Redemption probe",
+		floor_stat_probe_export = "Flush Blood Oath/Redemption probe now",
+		floor_stat_probe_clear = "Clear Blood Oath/Redemption samples",
+		floor_stat_probe_status = "Blood Oath/Redemption probe off",
 		group_maw_pose_probe = "Maw ring flight pose probe",
 		maw_pose_probe_help = "Craft Maw (399). While the ring is active, samples Flight vel/desired/dist/hint to codex_work/logs/craft_maw_flight_pose_probe.jsonl.",
 		maw_pose_probe_enable = "Enable Maw pose probe",
@@ -718,20 +758,60 @@ local LANG = {
 		glaze_crown_seija = "Force Seija enhancement",
 		glaze_crown_seija_help = "When enabled, treats holders as Seija for testing. When disabled, only real Seija conditions apply.",
 		group_book_of_thoth = "Book of Thoth",
-		book_of_thoth_help = "Seija override and Divine page split. Restore defaults only resets this item.",
-		book_of_thoth_seija = "Force Seija enhancement",
-		book_of_thoth_seija_help = "When enabled, treats holders as Seija for testing (mystery Thoth card backs). When disabled, only real Seija conditions apply.",
+		book_of_thoth_help = "Seija nerf override, HUD card placement, and the Divine-page cup hitbox. Restore defaults only resets this item.",
+		book_of_thoth_seija = "Force Seija nerf",
+		book_of_thoth_seija_help = "When enabled, treats holders as Seija for testing: world Thoth cards stay face-down, and the codex shows only upright/reversed backs until the first reading. When disabled, only real Seija conditions apply.",
 		book_of_thoth_divine_split = "Divine split",
 		book_of_thoth_divine_split_help = "How much of the Divine page is the upper band (formation slots). 0.40 is the default; the rest is the card pool.",
-		book_of_thoth_confirm_y = "Confirm button Y",
-		book_of_thoth_confirm_y_help = "Extra vertical offset for the Confirm spread button. Positive moves down. The button is centered in the gap under the slots first.",
 		book_of_thoth_dot_x = "Outline dot X",
 		book_of_thoth_dot_y = "Outline dot Y",
 		book_of_thoth_dot_help = "Offset for the '.' used to draw Thoth outlines. Positive X/Y move right/down.",
+		book_of_thoth_bg_x = "Book background X",
+		book_of_thoth_bg_y = "Book background Y",
+		book_of_thoth_bg_help = "Offset for ThothBook.anm2 from screen center. Positive X/Y move right/down.",
+		book_of_thoth_tab_catalog_x = "Codex tab text X",
+		book_of_thoth_tab_catalog_y = "Codex tab text Y",
+		book_of_thoth_tab_divine_x = "Reading tab text X",
+		book_of_thoth_tab_divine_y = "Reading tab text Y",
+		book_of_thoth_tab_text_help = "Offset for that tab's label from the p1/p2 layer box. Each tab is independent. Positive X/Y move right/down.",
+		book_of_thoth_slot_card_scale = "Slot card scale",
+		book_of_thoth_slot_card_help = "Scale of cards on the three flame slots. 1.0 is native 16x20.",
+		book_of_thoth_slot_card_x = "Slot card X",
+		book_of_thoth_slot_card_y = "Slot card Y",
+		book_of_thoth_slot_card_pos_help = "Moves the three reading-slot cards together. Positive X/Y move right/down. Flames stay put.",
+		book_of_thoth_hud_card_scale = "HUD card size",
+		book_of_thoth_hud_card_help = "Size of formation cards on the active item. 0.5 = half the 32px slot (card Scale 1).",
+		book_of_thoth_hud_card_x = "HUD card X",
+		book_of_thoth_hud_card_y = "HUD card Y",
+		book_of_thoth_hud_card_pos_help = "Moves the active-slot card row. Positive X/Y move right/down.",
+		book_of_thoth_cup_hit_x = "Cup hit X",
+		book_of_thoth_cup_hit_y = "Cup hit Y",
+		book_of_thoth_cup_hit_w = "Cup hit width",
+		book_of_thoth_cup_hit_h = "Cup hit height",
+		book_of_thoth_cup_hit_pos_help = "Moves the Divine-page cup click box from the Cup layer center. Positive X/Y move right/down. Dots on the page show the current box.",
+		book_of_thoth_cup_hit_size_help = "Size of the cup click box in pixels. The Cup layer itself is a 448x96 banner; shrink this to the bowl.",
+		book_of_thoth_pool_y = "Pool list Y",
+		book_of_thoth_pool_y_help = "Moves only the lower card list. Positive down, negative up. Does not move the reading slots.",
+		book_of_thoth_page_label_x = "Page number X",
+		book_of_thoth_page_label_y = "Page number Y",
+		book_of_thoth_page_label_help = "Moves the page number (1 / N) at the bottom. Positive X/Y move right/down.",
+		book_of_thoth_unlock_all = "Unlock all faces",
+		book_of_thoth_unlock_all_help = "Registers every Thoth face for all players this run. Does not spend Revelation or start a reading.",
 		group_gospel = "Gospel",
 		gospel_help = "Seija override for Gospel. Restore defaults only resets this item's debug toggles.",
 		gospel_seija = "Force Seija enhancement",
 		gospel_seija_help = "When enabled, treats holders as Seija for testing (Gospel cannot spread; Preaching and Revelation become weaker dark lights). When disabled, only real Seija conditions apply.",
+		group_multiknife = "Multiknife",
+		multiknife_help = "HUD body scale for charges 7–12 (charge 6 stays 3.2). Later ranks no longer double; default 10-charge cap is 28, Belial 12-charge cap is 56. Lift offsets only move the self-drawn held sword.",
+		multiknife_hud7 = "HUD scale 7",
+		multiknife_hud8 = "HUD scale 8",
+		multiknife_hud9 = "HUD scale 9",
+		multiknife_hud10 = "HUD scale 10",
+		multiknife_hud11 = "HUD scale 11",
+		multiknife_hud12 = "HUD scale 12",
+		multiknife_lift_x = "Lift offset X",
+		multiknife_lift_y = "Lift offset Y",
+		multiknife_lift_help = "Screen offset from the empty held-item point. Positive X/Y move right/down.",
 		group_suture_needle = "Suture Needle",
 		suture_needle_help = "Seija override for Suture Needle. Restore defaults only resets this item's debug toggles.",
 		suture_needle_seija = "Force Seija enhancement",
@@ -804,20 +884,26 @@ local LANG = {
 		diamond_hud_cent_x = "Coin offset X",
 		diamond_hud_cent_y = "Coin offset Y",
 		diamond_hud_cent_scale = "Coin scale",
-		golden_slot_help = "Per-run coin cost and reward weights for Golden Slot.",
-		golden_slot_cost = "Current coin cost",
-		golden_slot_cost_help = "Resets each run. Each successful use increases this by 1.",
-		golden_slot_w_fly = "Weight: midas fly",
-		golden_slot_w_troll = "Weight: golden troll bomb",
-		golden_slot_w_coin = "Weight: golden coin",
-		golden_slot_w_bomb = "Weight: golden bomb",
-		golden_slot_w_heart = "Weight: golden heart",
-		golden_slot_w_key = "Weight: golden key",
-		golden_slot_w_battery = "Weight: golden battery",
-		golden_slot_w_pill = "Weight: golden pill",
-		golden_slot_w_mega_pill = "Weight: giant golden pill",
-		golden_slot_w_trinket = "Weight: golden trinket",
-		golden_slot_w_ending = "Weight: trophy / mega chest",
+		golden_slot_help = "Two-stage Golden Slot odds: win chance, failure table, and reward table.",
+		golden_slot_loss_streak = "Current loss streak",
+		golden_slot_loss_streak_help = "Consecutive non-wins this run. Resets on a golden reward.",
+		golden_slot_next_chance = "Next win chance (%)",
+		golden_slot_base_chance = "Base win chance (%)",
+		golden_slot_chance_per_loss = "Win chance bonus per loss (%)",
+		golden_slot_max_chance = "Max win chance (%)",
+		golden_slot_w_fly = "Reward weight: midas fly",
+		golden_slot_w_troll = "Reward weight: golden troll bomb",
+		golden_slot_w_coin = "Reward weight: golden coin",
+		golden_slot_w_bomb = "Reward weight: golden bomb",
+		golden_slot_w_heart = "Reward weight: golden heart",
+		golden_slot_w_key = "Reward weight: golden key",
+		golden_slot_w_battery = "Reward weight: golden battery",
+		golden_slot_w_pill = "Reward weight: golden pill",
+		golden_slot_w_mega_pill = "Reward weight: giant golden pill",
+		golden_slot_w_trinket = "Reward weight: golden trinket",
+		golden_slot_w_ending = "Reward weight: super prize",
+		golden_slot_w_mega_chest = "Super prize weight: mega chest",
+		golden_slot_w_trophy = "Super prize weight: trophy",
 		golden_slot_coin_x = "Coin icon offset X",
 		golden_slot_coin_x_help = "Offset from the right edge of the cost text.",
 		golden_slot_coin_y = "Coin icon offset Y",
@@ -910,6 +996,12 @@ local LANG = {
 		character_menu_lang_zh = "强制中文",
 		character_menu_lang_en = "强制英文",
 		character_menu_lang_status = "当前贴图：%s（游戏语言：%s）",
+		group_controls_lang = "开局操作说明语言",
+		controls_lang_help = "运行时替换开局房间的操作说明。默认跟随游戏语言，可强制中文或英文。",
+		controls_lang_status = "当前操作说明：%s（游戏语言：%s）",
+		group_game_over_lang = "死亡界面名字语言",
+		game_over_lang_help = "运行时替换死亡界面的角色名。默认跟随游戏语言，可强制中文或英文。",
+		game_over_lang_status = "当前死亡名字：%s（游戏语言：%s）",
 		group_rgon = "忏悔龙",
 		group_runtime = "运行时",
 		group_hud = "HUD",
@@ -1067,12 +1159,18 @@ local LANG = {
 		laser_flag_probe_export = "立即导出激光 flag 探针",
 		laser_flag_probe_clear = "清空激光 flag 样本",
 		laser_flag_probe_status = "激光 flag 探针关闭",
-		group_knife_path_probe = "妈刀路径探针",
-		knife_path_probe_help = "原版/制造妈刀（+弯勺/小小星球）。刀 Update≈60fps。采样 Charge/PathOffset/PathFollowSpeed/Rotation/TearFlags → codex_work/logs/craft_knife_path_probe.jsonl",
+		group_knife_path_probe = "妈刀路径探针 v3",
+		knife_path_probe_help = "每种组合单独开一次（启用会截断日志）。原版 c114；弯勺 c3 必须对着真怪（不要 Potato Dummy）；再加小小星球 c233；可选制造刀。会记录最近目标 Type/距离/engine_ok。不要把实体 Charge 当模拟输入。→ codex_work/logs/craft_knife_path_probe.jsonl",
 		knife_path_probe_enable = "启用妈刀路径探针",
 		knife_path_probe_export = "立即导出妈刀路径探针",
 		knife_path_probe_clear = "清空妈刀路径样本",
 		knife_path_probe_status = "妈刀路径探针关闭",
+		group_floor_stat_probe = "血誓/赎罪计数探针",
+		floor_stat_probe_help = "giveitem c569 / c673。换层抽血、恶魔房不交易。记录 TemporaryEffect / Null54 / 宝宝 3.203 / 特效 1000.185，并对照 GetBloodCharge（里伯大尼）和 GetBloodLustCounter（嗜血）。→ codex_work/logs/craft_floor_stat_counter_probe.jsonl",
+		floor_stat_probe_enable = "启用血誓/赎罪探针",
+		floor_stat_probe_export = "立即导出血誓/赎罪探针",
+		floor_stat_probe_clear = "清空血誓/赎罪样本",
+		floor_stat_probe_status = "血誓/赎罪探针关闭",
 		group_maw_pose_probe = "虚空环姿态探针",
 		maw_pose_probe_help = "制造虚空之口(399)。环存活期间采样 Flight 速度/期望/距敌/hint，写出 codex_work/logs/craft_maw_flight_pose_probe.jsonl。",
 		maw_pose_probe_enable = "启用虚空环姿态探针",
@@ -1308,20 +1406,60 @@ local LANG = {
 		glaze_crown_seija = "强制 Seija 增幅",
 		glaze_crown_seija_help = "开启时无论玩家状态都视为满足 Seija；关闭时仅实际 Seija 条件生效。",
 		group_book_of_thoth = "透特之书",
-		book_of_thoth_help = "透特之书调试：Seija 强制开关，以及占卜页上下分区。恢复默认只重置该道具。",
-		book_of_thoth_seija = "强制 Seija 增幅",
-		book_of_thoth_seija_help = "开启时无论玩家状态都视为满足 Seija（透特牌背面）；关闭时仅实际 Seija 条件生效。",
+		book_of_thoth_help = "透特之书调试：Seija 减幅强制开关、主动槽卡面，以及占卜页圣杯热区。恢复默认只重置该道具。",
+		book_of_thoth_seija = "强制 Seija 减幅",
+		book_of_thoth_seija_help = "开启时无论玩家状态都视为满足 Seija：世界透特牌背面、卡册先只显示正逆位背面，首次占卜后才翻开。关闭时仅实际 Seija 条件生效。",
 		book_of_thoth_divine_split = "占卜分区",
-		book_of_thoth_divine_split_help = "上半区（阵位槽）占内容区高度的比例。默认 0.40，剩下给牌池。确认钮在槽位下方空隙居中。",
-		book_of_thoth_confirm_y = "确认钮 Y",
-		book_of_thoth_confirm_y_help = "「确认占卜」按钮的额外垂直偏移。正值向下。先在槽位与分割线之间居中，再叠加此值。",
+		book_of_thoth_divine_split_help = "上半区（阵位槽）占内容区高度的比例。默认 0.40，剩下给牌池。",
 		book_of_thoth_dot_x = "框线点 X",
 		book_of_thoth_dot_y = "框线点 Y",
 		book_of_thoth_dot_help = "绘制框线所用 '.' 的偏移；正 X/Y 向右/向下。",
+		book_of_thoth_bg_x = "书页背景 X",
+		book_of_thoth_bg_y = "书页背景 Y",
+		book_of_thoth_bg_help = "ThothBook.anm2 相对屏幕中心的偏移。正 X/Y 向右/向下。",
+		book_of_thoth_tab_catalog_x = "卡册标签文字 X",
+		book_of_thoth_tab_catalog_y = "卡册标签文字 Y",
+		book_of_thoth_tab_divine_x = "占卜标签文字 X",
+		book_of_thoth_tab_divine_y = "占卜标签文字 Y",
+		book_of_thoth_tab_text_help = "该标签文字相对 p1/p2 图层框的偏移，两个标签各自独立。正 X/Y 向右/向下。",
+		book_of_thoth_slot_card_scale = "槽位卡面缩放",
+		book_of_thoth_slot_card_help = "放在三处火焰槽上的卡面缩放。1.0 为 16×20 原尺寸。",
+		book_of_thoth_slot_card_x = "槽位卡面 X",
+		book_of_thoth_slot_card_y = "槽位卡面 Y",
+		book_of_thoth_slot_card_pos_help = "三张占卜槽卡面整体偏移。正 X/Y 向右/向下。火焰位置不动。",
+		book_of_thoth_hud_card_scale = "主动槽卡面大小",
+		book_of_thoth_hud_card_help = "占卜开始后主动道具上的队列卡面。0.5 = 32px 槽宽的一半（卡面 Scale 1）。",
+		book_of_thoth_hud_card_x = "主动槽卡面 X",
+		book_of_thoth_hud_card_y = "主动槽卡面 Y",
+		book_of_thoth_hud_card_pos_help = "主动槽上卡牌队列的整体偏移。正 X/Y 向右/向下。",
+		book_of_thoth_cup_hit_x = "圣杯热区 X",
+		book_of_thoth_cup_hit_y = "圣杯热区 Y",
+		book_of_thoth_cup_hit_w = "圣杯热区宽",
+		book_of_thoth_cup_hit_h = "圣杯热区高",
+		book_of_thoth_cup_hit_pos_help = "相对 Cup 图层中心移动可点区域。正 X/Y 向右/向下。占卜页上的点框就是当前热区。",
+		book_of_thoth_cup_hit_size_help = "圣杯可点区域像素大小。Cup 图层本身是 448×96 整条横幅，把热区收到杯身上。",
+		book_of_thoth_pool_y = "卡池列表 Y",
+		book_of_thoth_pool_y_help = "只移动下方卡牌列表。正值向下，负值上移。上方占卜槽不动。",
+		book_of_thoth_page_label_x = "页码 X",
+		book_of_thoth_page_label_y = "页码 Y",
+		book_of_thoth_page_label_help = "底部页码（1 / N）的偏移。正 X/Y 向右/向下。",
+		book_of_thoth_unlock_all = "开放所有卡面",
+		book_of_thoth_unlock_all_help = "为本局所有玩家登记全部透特牌面。不消耗启示，也不开始占卜。",
 		group_gospel = "福音",
 		gospel_help = "福音的 Seija 强制开关。恢复默认只重置该道具的调试项。",
 		gospel_seija = "强制 Seija 增幅",
 		gospel_seija_help = "开启时无论玩家状态都视为满足 Seija（福音无法传播，宣讲与启示改为较弱的黑暗之光）；关闭时仅实际 Seija 条件生效。",
+		group_multiknife = "倍增重刃",
+		multiknife_help = "HUD 第 7–12 格刀身倍率（第 6 格仍是 3.2）。后面不再翻倍，默认 10 格满为 28，彼列 12 格满为 56。举剑偏移只影响自绘的持刀。",
+		multiknife_hud7 = "HUD 倍率 7",
+		multiknife_hud8 = "HUD 倍率 8",
+		multiknife_hud9 = "HUD 倍率 9",
+		multiknife_hud10 = "HUD 倍率 10",
+		multiknife_hud11 = "HUD 倍率 11",
+		multiknife_hud12 = "HUD 倍率 12",
+		multiknife_lift_x = "举剑偏移 X",
+		multiknife_lift_y = "举剑偏移 Y",
+		multiknife_lift_help = "相对空举物锚点的屏幕偏移。正 X/Y 向右/向下。",
 		group_suture_needle = "缝合针",
 		suture_needle_help = "缝合针的 Seija 强制开关。恢复默认只重置该道具的调试项。",
 		suture_needle_seija = "强制 Seija 增幅",
@@ -1394,20 +1532,26 @@ local LANG = {
 		diamond_hud_cent_x = "硬币偏移 X",
 		diamond_hud_cent_y = "硬币偏移 Y",
 		diamond_hud_cent_scale = "硬币缩放",
-		golden_slot_help = "每局金币消耗与奖励权重。",
-		golden_slot_cost = "当前金币消耗",
-		golden_slot_cost_help = "每局重置；每次成功使用后+1。",
-		golden_slot_w_fly = "权重：点金苍蝇",
-		golden_slot_w_troll = "权重：金Troll炸弹",
-		golden_slot_w_coin = "权重：金金币",
-		golden_slot_w_bomb = "权重：金炸弹",
-		golden_slot_w_heart = "权重：金心",
-		golden_slot_w_key = "权重：金钥匙",
-		golden_slot_w_battery = "权重：金电池",
-		golden_slot_w_pill = "权重：金药丸",
-		golden_slot_w_mega_pill = "权重：大金药丸",
-		golden_slot_w_trinket = "权重：金饰品",
-		golden_slot_w_ending = "权重：奖杯/超大金箱",
+		golden_slot_help = "两段式抽奖：中奖率、失败表与成功奖励表。",
+		golden_slot_loss_streak = "当前连败次数",
+		golden_slot_loss_streak_help = "本局连续未中奖次数；中奖后清零。",
+		golden_slot_next_chance = "下次中奖率 (%)",
+		golden_slot_base_chance = "基础中奖率 (%)",
+		golden_slot_chance_per_loss = "每次失败加成 (%)",
+		golden_slot_max_chance = "中奖率上限 (%)",
+		golden_slot_w_fly = "奖励权重：点金苍蝇",
+		golden_slot_w_troll = "奖励权重：金Troll炸弹",
+		golden_slot_w_coin = "奖励权重：金金币",
+		golden_slot_w_bomb = "奖励权重：金炸弹",
+		golden_slot_w_heart = "奖励权重：金心",
+		golden_slot_w_key = "奖励权重：金钥匙",
+		golden_slot_w_battery = "奖励权重：金电池",
+		golden_slot_w_pill = "奖励权重：金药丸",
+		golden_slot_w_mega_pill = "奖励权重：大金药丸",
+		golden_slot_w_trinket = "奖励权重：金饰品",
+		golden_slot_w_ending = "奖励权重：超大奖",
+		golden_slot_w_mega_chest = "超大奖权重：超大金箱",
+		golden_slot_w_trophy = "超大奖权重：金奖杯",
 		golden_slot_coin_x = "硬币 icon 偏移 X",
 		golden_slot_coin_x_help = "相对消耗数字右缘的水平偏移。",
 		golden_slot_coin_y = "硬币 icon 偏移 Y",
@@ -1589,6 +1733,8 @@ local function apply_debug_migrations(root)
 		end
 		debug_settings.BlueprintSettingsVersion = 7
 	end
+	-- 探针开关不得进存档；清掉误写入的 Debug.PareidoliaTechLaserProbe
+	debug_settings.PareidoliaTechLaserProbe = nil
 end
 
 local function export_sparse_modconfig(merged)
@@ -1872,6 +2018,18 @@ local ACHIEVEMENT_LABELS = {
 	Vision = {en = "Book of Vision", zh = "觅之书"},
 	Coin = {en = "Coin storyline", zh = "钱币剧情"},
 	Future = {en = "Book of Future", zh = "未来之书"},
+	Cookie_Clicker = {en = "Cookie Clicker", zh = "挑战：曲奇点击者"},
+	Dragon_Flight = {en = "Dragon Flight", zh = "挑战：飞龙在天"},
+	Fans_Service = {en = "Fans Service", zh = "挑战：粉丝服务"},
+	Feels_Like_Dead_Ashes = {en = "Feels Like Dead Ashes", zh = "挑战：心如死灰"},
+	Fusion_Destiny = {en = "Fusion Destiny", zh = "挑战：命运融合"},
+	Heterothermal_Concentric = {en = "Heterothermal Concentric", zh = "挑战：异热同心"},
+	Invisible = {en = "Invisible", zh = "挑战：不为人知"},
+	Louvre_puzzle = {en = "Louvre Puzzle", zh = "挑战：卢浮宫难题"},
+	Pointing = {en = "Pointing and Disappointing", zh = "挑战：指指点点"},
+	Safe_Driving = {en = "Safe Driving", zh = "挑战：安全驾驶"},
+	Swallow_The_Sun = {en = "Swallow the Sun", zh = "挑战：食日"},
+	Unstable_State = {en = "Unstable State", zh = "挑战：不稳定体"},
 }
 
 local CATEGORY_PLAYER_IDS = {
@@ -1942,7 +2100,11 @@ local function achievement_label(key)
 	local player_name = CATEGORY_PLAYER_IDS[key] and translated_mod_player_name(CATEGORY_PLAYER_IDS[key])
 	if player_name and player_name ~= "" then return player_name end
 	local entry = ACHIEVEMENT_LABELS[key]
-	return entry and (entry[language_key()] or entry.en) or tostring(key)
+	if entry then return entry[language_key()] or entry.en end
+	for _,event in ipairs(unlock_board.special_events or {}) do
+		if event.key == key and event.label and event.label ~= "" then return event.label end
+	end
+	return tostring(key)
 end
 
 local function boss_player_label(key)
@@ -2435,7 +2597,7 @@ function item.create_settings_window()
 		for key,value in pairs(defaults) do item.set_value({"QingRemasterOptions","Gameplay",key},value) end
 	end)
 
-	local function apply_character_menu_language()
+	local function apply_menu_language()
 		local holder = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
 		if holder then
 			holder.loaded_by_hash = {}
@@ -2443,29 +2605,34 @@ function item.create_settings_window()
 			if holder.apply_language then holder.apply_language(true) end
 		end
 	end
-	local function set_character_menu_language(mode)
-		item.set_value({"QingRemasterOptions", "Menu", "CharacterSelectLanguage"}, mode)
-		apply_character_menu_language()
+	local function add_menu_language_group(setting_key, group_text_key, help_key, status_key, id_stem)
+		local function set_mode(mode)
+			item.set_value({"QingRemasterOptions", "Menu", setting_key}, mode)
+			apply_menu_language()
+		end
+		local group = add_group(tabs.HUD, "QingRemasterOptions_Group"..id_stem.."Lang", text(group_text_key))
+		add_text(group, text(help_key))
+		local status_id = "QingRemasterOptions_"..id_stem.."LangStatus"
+		ImGui.AddElement(group, status_id, ImGuiElement.TextWrapped, "")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local holder = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
+			local current = holder and holder.get_language and holder.get_language(setting_key) or "en"
+			local game_lang = holder and holder.get_game_language and holder.get_game_language() or "en"
+			ImGui.UpdateText(status_id, string.format(text(status_key), current, game_lang))
+		end)
+		ImGui.AddButton(group, "QingRemasterOptions_"..id_stem.."LangAuto", text("character_menu_lang_auto"), function()
+			set_mode(0)
+		end)
+		ImGui.AddButton(group, "QingRemasterOptions_"..id_stem.."LangZh", text("character_menu_lang_zh"), function()
+			set_mode(1)
+		end)
+		ImGui.AddButton(group, "QingRemasterOptions_"..id_stem.."LangEn", text("character_menu_lang_en"), function()
+			set_mode(2)
+		end)
 	end
-	local character_menu_lang = add_group(tabs.HUD, "QingRemasterOptions_GroupCharacterMenuLang", text("group_character_menu_lang"))
-	add_text(character_menu_lang, text("character_menu_lang_help"))
-	local character_menu_status_id = "QingRemasterOptions_CharacterSelectLangStatus"
-	ImGui.AddElement(character_menu_lang, character_menu_status_id, ImGuiElement.TextWrapped, "")
-	ImGui.AddCallback(character_menu_status_id, ImGuiCallback.Render, function()
-		local holder = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
-		local current = holder and holder.get_language and holder.get_language() or "en"
-		local game_lang = holder and holder.get_game_language and holder.get_game_language() or "en"
-		ImGui.UpdateText(character_menu_status_id, string.format(text("character_menu_lang_status"), current, game_lang))
-	end)
-	ImGui.AddButton(character_menu_lang, "QingRemasterOptions_CharacterSelectLangAuto", text("character_menu_lang_auto"), function()
-		set_character_menu_language(0)
-	end)
-	ImGui.AddButton(character_menu_lang, "QingRemasterOptions_CharacterSelectLangZh", text("character_menu_lang_zh"), function()
-		set_character_menu_language(1)
-	end)
-	ImGui.AddButton(character_menu_lang, "QingRemasterOptions_CharacterSelectLangEn", text("character_menu_lang_en"), function()
-		set_character_menu_language(2)
-	end)
+	add_menu_language_group("CharacterSelectLanguage", "group_character_menu_lang", "character_menu_lang_help", "character_menu_lang_status", "CharacterSelect")
+	add_menu_language_group("ControlsLanguage", "group_controls_lang", "controls_lang_help", "controls_lang_status", "Controls")
+	add_menu_language_group("GameOverLanguage", "group_game_over_lang", "game_over_lang_help", "game_over_lang_status", "GameOver")
 
 	add_card_rates_group(tabs.Cards)
 
@@ -2846,16 +3013,26 @@ local function add_book_of_thoth_group(parent_id)
 	local group = add_group(parent_id,"QingRemasterOptions_GroupBookOfThoth",text("group_book_of_thoth"))
 	add_text(group,text("book_of_thoth_help"))
 	add_checkbox(group,"QingRemasterOptions_BookOfThothForceSeija",text("book_of_thoth_seija"),{"QingRemasterOptions","Debug","BookOfThothForceSeija"},text("book_of_thoth_seija_help"))
-	add_drag_float(group,"QingRemasterOptions_BookOfThothDivineSplit",text("book_of_thoth_divine_split"),{"QingRemasterOptions","Debug","BookOfThothDivineSplit"},text("book_of_thoth_divine_split_help"),0.01,0.2,0.8,"%.2f")
-	add_drag_float(group,"QingRemasterOptions_BookOfThothConfirmY",text("book_of_thoth_confirm_y"),{"QingRemasterOptions","Debug","BookOfThothConfirmY"},text("book_of_thoth_confirm_y_help"),0.25,-80,80,"%.1f")
-	add_drag_float(group,"QingRemasterOptions_BookOfThothDotOffsetX",text("book_of_thoth_dot_x"),{"QingRemasterOptions","Debug","BookOfThothDotOffsetX"},text("book_of_thoth_dot_help"),0.25,-40,40,"%.2f")
-	add_drag_float(group,"QingRemasterOptions_BookOfThothDotOffsetY",text("book_of_thoth_dot_y"),{"QingRemasterOptions","Debug","BookOfThothDotOffsetY"},text("book_of_thoth_dot_help"),0.25,-40,40,"%.2f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothHudCardScale",text("book_of_thoth_hud_card_scale"),{"QingRemasterOptions","Debug","BookOfThothHudCardScale"},text("book_of_thoth_hud_card_help"),0.05,0.2,1.2,"%.2f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothHudCardOffsetX",text("book_of_thoth_hud_card_x"),{"QingRemasterOptions","Debug","BookOfThothHudCardOffsetX"},text("book_of_thoth_hud_card_pos_help"),0.5,-48,48,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothHudCardOffsetY",text("book_of_thoth_hud_card_y"),{"QingRemasterOptions","Debug","BookOfThothHudCardOffsetY"},text("book_of_thoth_hud_card_pos_help"),0.5,-48,48,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothCupHitOffsetX",text("book_of_thoth_cup_hit_x"),{"QingRemasterOptions","Debug","BookOfThothCupHitOffsetX"},text("book_of_thoth_cup_hit_pos_help"),0.5,-200,200,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothCupHitOffsetY",text("book_of_thoth_cup_hit_y"),{"QingRemasterOptions","Debug","BookOfThothCupHitOffsetY"},text("book_of_thoth_cup_hit_pos_help"),0.5,-200,200,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothCupHitW",text("book_of_thoth_cup_hit_w"),{"QingRemasterOptions","Debug","BookOfThothCupHitW"},text("book_of_thoth_cup_hit_size_help"),1,16,448,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_BookOfThothCupHitH",text("book_of_thoth_cup_hit_h"),{"QingRemasterOptions","Debug","BookOfThothCupHitH"},text("book_of_thoth_cup_hit_size_help"),1,16,96,"%.0f")
+	ImGui.AddButton(group,"QingRemasterOptions_BookOfThothUnlockAll",text("book_of_thoth_unlock_all"),function()
+		local thoth = require("Qing_Remaster_scripts.items.Item_Book_of_Thoth")
+		if thoth and thoth.debug_unlock_all_faces then thoth.debug_unlock_all_faces() end
+	end)
 	ImGui.AddButton(group,"QingRemasterOptions_BookOfThothRestoreDefaults",text("restore_item_defaults"),function()
 		item.set_value({"QingRemasterOptions","Debug","BookOfThothForceSeija"},false)
-		item.set_value({"QingRemasterOptions","Debug","BookOfThothDivineSplit"},0.4)
-		item.set_value({"QingRemasterOptions","Debug","BookOfThothConfirmY"},0)
-		item.set_value({"QingRemasterOptions","Debug","BookOfThothDotOffsetX"},0)
-		item.set_value({"QingRemasterOptions","Debug","BookOfThothDotOffsetY"},-11)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothHudCardScale"},0.5)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothHudCardOffsetX"},0)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothHudCardOffsetY"},0)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothCupHitOffsetX"},0)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothCupHitOffsetY"},1)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothCupHitW"},44)
+		item.set_value({"QingRemasterOptions","Debug","BookOfThothCupHitH"},66)
 	end)
 end
 
@@ -2872,48 +3049,54 @@ local function add_golden_slot_group(parent_id)
 	local group = add_group(parent_id,"QingRemasterOptions_GroupGoldenSlot",text("group_golden_slot"))
 	add_text(group,text("golden_slot_help"))
 	local golden_slot = require("Qing_Remaster_scripts.items.Item_Golden_Slot")
-	local cost_id = "QingRemasterOptions_GoldenSlotCost"
-	ImGui.AddDragFloat(group,cost_id,text("golden_slot_cost"),function(value)
-		golden_slot.set_cost(value)
-	end,golden_slot.get_cost(),1,1,999,"%.0f")
-	ImGui.AddCallback(cost_id,ImGuiCallback.Render,function()
-		ImGui.UpdateData(cost_id,ImGuiData.Value,golden_slot.get_cost())
+	local streak_id = "QingRemasterOptions_GoldenSlotLossStreak"
+	ImGui.AddText(group,text("golden_slot_loss_streak")..": 0",true,streak_id)
+	ImGui.AddCallback(streak_id,ImGuiCallback.Render,function()
+		ImGui.UpdateData(streak_id,ImGuiData.Value,text("golden_slot_loss_streak")..": "..tostring(golden_slot.get_loss_streak()))
 	end)
-	ImGui.SetHelpmarker(cost_id,text("golden_slot_cost_help"))
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightMidasFly",text("golden_slot_w_fly"),{"QingRemasterOptions","Debug","GoldenSlotWeightMidasFly"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldTroll",text("golden_slot_w_troll"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldTroll"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldCoin",text("golden_slot_w_coin"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldCoin"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldBomb",text("golden_slot_w_bomb"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldBomb"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldHeart",text("golden_slot_w_heart"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldHeart"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldKey",text("golden_slot_w_key"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldKey"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldBattery",text("golden_slot_w_battery"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldBattery"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldPill",text("golden_slot_w_pill"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldPill"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldMegaPill",text("golden_slot_w_mega_pill"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldMegaPill"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightGoldTrinket",text("golden_slot_w_trinket"),{"QingRemasterOptions","Debug","GoldenSlotWeightGoldTrinket"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotWeightEnding",text("golden_slot_w_ending"),{"QingRemasterOptions","Debug","GoldenSlotWeightEnding"},nil,1,0,1000,"%.0f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotCoinOffsetX",text("golden_slot_coin_x"),{"QingRemasterOptions","Debug","GoldenSlotCoinOffsetX"},text("golden_slot_coin_x_help"),0.25,-64,64,"%.2f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotCoinOffsetY",text("golden_slot_coin_y"),{"QingRemasterOptions","Debug","GoldenSlotCoinOffsetY"},text("golden_slot_coin_y_help"),0.25,-64,64,"%.2f")
-	add_drag_float(group,"QingRemasterOptions_GoldenSlotCoinScale",text("golden_slot_coin_scale"),{"QingRemasterOptions","Debug","GoldenSlotCoinScale"},nil,0.01,0.05,2,"%.2f")
+	ImGui.SetHelpmarker(streak_id,text("golden_slot_loss_streak_help"))
+	local chance_id = "QingRemasterOptions_GoldenSlotNextChance"
+	ImGui.AddText(group,text("golden_slot_next_chance")..": 15",true,chance_id)
+	ImGui.AddCallback(chance_id,ImGuiCallback.Render,function()
+		ImGui.UpdateData(chance_id,ImGuiData.Value,text("golden_slot_next_chance")..": "..string.format("%.1f",golden_slot.get_win_chance() * 100))
+	end)
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotBaseWinChance",text("golden_slot_base_chance"),{"QingRemasterOptions","Debug","GoldenSlotBaseWinChance"},nil,0.5,0,100,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotWinChancePerLoss",text("golden_slot_chance_per_loss"),{"QingRemasterOptions","Debug","GoldenSlotWinChancePerLoss"},nil,0.5,0,100,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotMaxWinChance",text("golden_slot_max_chance"),{"QingRemasterOptions","Debug","GoldenSlotMaxWinChance"},nil,0.5,0,100,"%.1f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightMidasFly",text("golden_slot_w_fly"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightMidasFly"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldTroll",text("golden_slot_w_troll"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldTroll"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldCoin",text("golden_slot_w_coin"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldCoin"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldHeart",text("golden_slot_w_heart"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldHeart"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldPill",text("golden_slot_w_pill"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldPill"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldBattery",text("golden_slot_w_battery"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldBattery"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldBomb",text("golden_slot_w_bomb"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldBomb"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldKey",text("golden_slot_w_key"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldKey"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldMegaPill",text("golden_slot_w_mega_pill"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldMegaPill"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightGoldTrinket",text("golden_slot_w_trinket"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightGoldTrinket"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotRewardWeightEnding",text("golden_slot_w_ending"),{"QingRemasterOptions","Debug","GoldenSlotRewardWeightEnding"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotEndingMegaWeight",text("golden_slot_w_mega_chest"),{"QingRemasterOptions","Debug","GoldenSlotEndingMegaWeight"},nil,1,0,1000,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_GoldenSlotEndingTrophyWeight",text("golden_slot_w_trophy"),{"QingRemasterOptions","Debug","GoldenSlotEndingTrophyWeight"},nil,1,0,1000,"%.0f")
 	ImGui.AddButton(group,"QingRemasterOptions_GoldenSlotRestoreDefaults",text("restore_item_defaults"),function()
 		local defaults = {
-			GoldenSlotCost = 1,
-			GoldenSlotWeightMidasFly = 20,
-			GoldenSlotWeightGoldTroll = 10,
-			GoldenSlotWeightGoldCoin = 32,
-			GoldenSlotWeightGoldBomb = 36,
-			GoldenSlotWeightGoldHeart = 26,
-			GoldenSlotWeightGoldKey = 28,
-			GoldenSlotWeightGoldBattery = 18,
-			GoldenSlotWeightGoldPill = 18,
-			GoldenSlotWeightGoldMegaPill = 10,
-			GoldenSlotWeightGoldTrinket = 14,
-			GoldenSlotWeightEnding = 1,
-			GoldenSlotCoinOffsetX = 4.5,
-			GoldenSlotCoinOffsetY = -6.25,
-			GoldenSlotCoinScale = 0.5,
+			GoldenSlotBaseWinChance = 10,
+			GoldenSlotWinChancePerLoss = 4,
+			GoldenSlotMaxWinChance = 40,
+			GoldenSlotRewardWeightMidasFly = 24,
+			GoldenSlotRewardWeightGoldTroll = 15,
+			GoldenSlotRewardWeightGoldCoin = 18,
+			GoldenSlotRewardWeightGoldHeart = 11,
+			GoldenSlotRewardWeightGoldPill = 8,
+			GoldenSlotRewardWeightGoldBattery = 6,
+			GoldenSlotRewardWeightGoldBomb = 5,
+			GoldenSlotRewardWeightGoldKey = 5,
+			GoldenSlotRewardWeightGoldMegaPill = 3,
+			GoldenSlotRewardWeightGoldTrinket = 4,
+			GoldenSlotRewardWeightEnding = 1,
+			GoldenSlotEndingMegaWeight = 95,
+			GoldenSlotEndingTrophyWeight = 5,
 		}
 		for key,value in pairs(defaults) do item.set_value({"QingRemasterOptions","Debug",key},value) end
-		golden_slot.set_cost(1)
+		golden_slot.set_loss_streak(0)
 	end)
 end
 
@@ -4041,6 +4224,43 @@ function item.create_debug_window()
 			refresh_status()
 		end)
 	end
+	local floor_stat_probe_group = start_mod("flight_floor_stat_probe", DEBUG_PAGE.flight, text("group_floor_stat_probe"), "QingRemasterOptions_GroupFloorStatProbe")
+	do
+		local status_id = "QingRemasterOptions_FloorStatProbeStatus"
+		local function probe_mod()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.craft_floor_stat_counter_probe")
+		end
+		local function refresh_status()
+			local mod = probe_mod()
+			local body = (mod and mod.get_summary and mod.get_summary()) or text("floor_stat_probe_status")
+			ImGui.UpdateText(status_id, body)
+		end
+		add_text(floor_stat_probe_group, text("floor_stat_probe_help"))
+		ImGui.AddElement(floor_stat_probe_group, status_id, ImGuiElement.TextWrapped, text("floor_stat_probe_status"))
+		local enable_id = "QingRemasterOptions_FloorStatProbeEnable"
+		ImGui.AddCheckbox(floor_stat_probe_group, enable_id, text("floor_stat_probe_enable"), nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local mod = probe_mod()
+			local on = mod and mod.get_config and mod.get_config().enabled == true
+			ImGui.UpdateData(enable_id, ImGuiData.Value, on == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local mod = probe_mod()
+			if mod and mod.set_enabled then mod.set_enabled(value == true) end
+			refresh_status()
+		end)
+		ImGui.AddButton(floor_stat_probe_group, "QingRemasterOptions_FloorStatProbeRefresh", "刷新状态", refresh_status)
+		ImGui.AddButton(floor_stat_probe_group, "QingRemasterOptions_FloorStatProbeExport", text("floor_stat_probe_export"), function()
+			local mod = probe_mod()
+			if mod and mod.export_jsonl then mod.export_jsonl(true) end
+			refresh_status()
+		end)
+		ImGui.AddButton(floor_stat_probe_group, "QingRemasterOptions_FloorStatProbeClear", text("floor_stat_probe_clear"), function()
+			local mod = probe_mod()
+			if mod and mod.clear then mod.clear() end
+			refresh_status()
+		end)
+	end
 	local evil_eye_probe_group = start_mod("flight_evil_eye_probe", DEBUG_PAGE.flight, text("group_evil_eye_probe"), "QingRemasterOptions_GroupEvilEyeProbe")
 	do
 		local status_id = "QingRemasterOptions_EvilEyeProbeStatus"
@@ -4318,6 +4538,38 @@ function item.create_debug_window()
 			holder.debug.probe_enabled = false; holder.debug.last_report = nil
 		end)
 	end
+	local time_stop_group = start_mod("audit_time_stop", DEBUG_PAGE.audit, "全局时停增长探针", "QingRemasterOptions_GroupTimeStopProbe")
+	do
+		add_text(time_stop_group, "默认关闭且不写文件。开启后只在 time_stop/15 帧增量刷新发生时统计扫描数、新建 claim 数和 Attribute_holder 总量；用于确认是否周期性重复注册。")
+		local enable_id = "QingRemasterOptions_TimeStopProbeEnabled"
+		ImGui.AddCheckbox(time_stop_group, enable_id, "启用时停增长探针", nil, false)
+		local function get_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.time_stop_probe")
+		end
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = get_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = get_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_TimeStopProbeStatus"
+		ImGui.AddElement(time_stop_group, status_id, ImGuiElement.TextWrapped, "探针关闭；不会统计或扫描。")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = get_probe()
+			ImGui.UpdateText(status_id, (probe and probe.get_summary and probe.get_summary()) or "开发探针不可用。")
+		end)
+		ImGui.AddButton(time_stop_group, "QingRemasterOptions_TimeStopProbeClear", "关闭并清空时停探针", function()
+			local probe = get_probe()
+			if probe and probe.set_enabled then probe.set_enabled(false) end
+		end)
+		ImGui.AddButton(time_stop_group, "QingRemasterOptions_TimeStopProbeExport", "导出时停实体明细", function()
+			local probe = get_probe()
+			if probe and probe.export_jsonl then probe.export_jsonl() end
+		end)
+	end
 	local consistance_group = start_mod("audit_consistance_holder", DEBUG_PAGE.audit, "实体一致性 V2 探针", "QingRemasterOptions_GroupConsistanceHolder")
 	do
 		add_text(consistance_group, "默认关闭。开启后只读取 Consistance V2 的存档索引和运行态认领汇总；不扫描房间实体、不写文件。完整性审计仅在点击按钮时遍历记录表。双实体测试会用 Game:Spawn 指定同一 seed 生成两枚硬币，分别登记 LEFT/RIGHT，移除后以相反顺序重建并核对位置佐证。")
@@ -4501,30 +4753,6 @@ function item.create_debug_window()
 		add_drag_float(group, "QingRemasterOptions_PareidoliaFxAscendFrames", "蓄力升飞帧数", {"QingRemasterOptions", "Debug", "PareidoliaFxAscendFrames"}, "charge：升飞+远小+光柱渐粗+目标渐白的总帧数。", 1, 8, 120, "%.0f f")
 		add_drag_float(group, "QingRemasterOptions_PareidoliaPhaseLift", "进度月基准高度", {"QingRemasterOptions", "Debug", "PareidoliaPhaseLift"}, "0% 月相高度；满相约到 210，需明显升高。", 2, 10, 260, "%.0f")
 		add_drag_float(group, "QingRemasterOptions_PareidoliaFloatRate", "追随速率", {"QingRemasterOptions", "Debug", "PareidoliaFloatRate"}, "预测追随的最大速度/加速度；切目标时会短暂加强。", 0.01, 0.02, 0.5, "%.2f")
-		do
-			local probe_path = {"QingRemasterOptions", "Debug", "PareidoliaTechLaserProbe"}
-			local probe_id = "QingRemasterOptions_PareidoliaTechLaserProbe"
-			ImGui.AddCheckbox(group, probe_id, "科技激光起点探针", nil, item.get_value(probe_path) == true)
-			ImGui.AddCallback(probe_id, ImGuiCallback.Render, function()
-				ImGui.UpdateData(probe_id, ImGuiData.Value, item.get_value(probe_path) == true)
-			end)
-			ImGui.AddCallback(probe_id, ImGuiCallback.Edited, function(value)
-				item.set_value(probe_path, value == true)
-				local mod = dev_env.require_probe("Qing_Remaster_scripts.others.pareidolia_tech_laser_probe")
-				if mod and mod.set_enabled then mod.set_enabled(value == true) end
-			end)
-			ImGui.SetHelpmarker(probe_id, "满月+科技2时采样瞳孔/激光屏坐标差，并画点标记。绿=渲染瞳孔，青=逻辑瞳孔，红=激光 W2S。→ codex_work/logs/pareidolia_tech_laser_probe.jsonl")
-		end
-		ImGui.AddButton(group, "QingRemasterOptions_PareidoliaTechLaserProbeExport", "导出激光探针样本", function()
-			local mod = dev_env.require_probe("Qing_Remaster_scripts.others.pareidolia_tech_laser_probe")
-			if mod and mod.flush then
-				mod.flush(true)
-				local st = mod.get_status and mod.get_status() or {}
-				push_notice("已导出 " .. tostring(st.sample_count or 0) .. " 条 → " .. tostring(st.export_path or "?"))
-			else
-				push_notice("探针模块不可用", error_notice_type())
-			end
-		end)
 		ImGui.AddButton(group, "QingRemasterOptions_PareidoliaForceResonance", "强制满月共鸣", function()
 			if not Isaac.IsInGame or not Isaac.IsInGame() then
 				push_notice(text("start_run_first"), error_notice_type())
@@ -4558,9 +4786,6 @@ function item.create_debug_window()
 			item.set_value({"QingRemasterOptions", "Debug", "PareidoliaFxAscendFrames"}, 48)
 			item.set_value({"QingRemasterOptions", "Debug", "PareidoliaPhaseLift"}, 90)
 			item.set_value({"QingRemasterOptions", "Debug", "PareidoliaFloatRate"}, 0.11)
-			item.set_value({"QingRemasterOptions", "Debug", "PareidoliaTechLaserProbe"}, false)
-			local mod = dev_env.require_probe("Qing_Remaster_scripts.others.pareidolia_tech_laser_probe")
-			if mod and mod.set_enabled then mod.set_enabled(false) end
 		end)
 	end
 
@@ -4569,6 +4794,28 @@ function item.create_debug_window()
 	add_book_of_thoth_group(items_tab)
 
 	add_gospel_group(items_tab)
+
+	local multiknife_group = start_mod("item_multiknife", DEBUG_PAGE.items, text("group_multiknife"), "QingRemasterOptions_GroupMultiknife")
+	add_text(multiknife_group, text("multiknife_help"))
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeHud7", text("multiknife_hud7"), {"QingRemasterOptions", "Debug", "MultiknifeHud7"}, nil, 0.1, 0, 80, "%.2f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeHud8", text("multiknife_hud8"), {"QingRemasterOptions", "Debug", "MultiknifeHud8"}, nil, 0.1, 0, 80, "%.2f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeHud9", text("multiknife_hud9"), {"QingRemasterOptions", "Debug", "MultiknifeHud9"}, nil, 0.1, 0, 80, "%.2f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeHud10", text("multiknife_hud10"), {"QingRemasterOptions", "Debug", "MultiknifeHud10"}, nil, 0.1, 0, 80, "%.2f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeHud11", text("multiknife_hud11"), {"QingRemasterOptions", "Debug", "MultiknifeHud11"}, nil, 0.1, 0, 80, "%.2f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeHud12", text("multiknife_hud12"), {"QingRemasterOptions", "Debug", "MultiknifeHud12"}, nil, 0.1, 0, 80, "%.2f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeLiftX", text("multiknife_lift_x"), {"QingRemasterOptions", "Debug", "MultiknifeLiftX"}, text("multiknife_lift_help"), 0.25, -80, 80, "%.1f")
+	add_drag_float(multiknife_group, "QingRemasterOptions_MultiknifeLiftY", text("multiknife_lift_y"), {"QingRemasterOptions", "Debug", "MultiknifeLiftY"}, text("multiknife_lift_help"), 0.25, -80, 80, "%.1f")
+	ImGui.AddButton(multiknife_group, "QingRemasterOptions_MultiknifeRestoreDefaults", text("restore_item_defaults"), function()
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeHud7"}, 5.5)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeHud8"}, 9.5)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeHud9"}, 16.5)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeHud10"}, 28.0)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeHud11"}, 40.0)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeHud12"}, 56.0)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeLiftX"}, 0)
+		item.set_value({"QingRemasterOptions", "Debug", "MultiknifeLiftY"}, -20)
+	end)
+
 	add_drama_group(items_tab)
 	add_mental_group(items_tab)
 
@@ -4670,6 +4917,16 @@ Function = function(_,cmd,params)
 	end
 end,
 })
+
+if REPENTOGON and ModCallbacks.MC_POST_SAVESLOT_LOAD then
+	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_SAVESLOT_LOAD, params = nil,
+	Function = function(_)
+		if save.RuntimeLoaded == true then
+			item.get_settings()
+		end
+	end,
+	})
+end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_)

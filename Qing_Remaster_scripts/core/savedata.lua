@@ -111,6 +111,11 @@ local SAVE_STATE = {}
 -- SAVE_VER 2：PROFILE（成就位图/配置/永久）与 RUN（本局）拆分；仍单次 SaveData 勤落盘
 local SAVE_FORMAT = 2
 item.RuntimeLoaded = false
+-- 玩家看到的三个存档文件对应 API 槽 1/2/3。第一个存档是 1，不是 0。
+-- RGON rawslot==0 只表示「尚未点选」，此时 LoadData 读的就是第一档。
+item.FIRST_SAVE_SLOT = 1
+item.LoadedSaveslot = nil
+item.DefaultSlotPreload = false
 item.PERSISTENT_PLAYER_DATA = {}
 item.elses = {}
 item.UnlockData = {}
@@ -189,6 +194,37 @@ function item.UnLockAll()
 	local marks = package.loaded["Qing_Remaster_scripts.core.completion_marks_manager"]
 	if marks and marks.unlock_all then marks.unlock_all() end
 	Achievement_Display_holder.PlayAchievement("gfx/ui/Some achievements/achievement_All_Unlocked.png")
+end
+
+function item.ensure_board_special_records()
+	item.UnlockData.Others = item.UnlockData.Others or {}
+	-- 旧余烬布尔不能进 schema，迁到心如死灰格子
+	if item.UnlockData.Others.Ember == true then
+		local rec = item.UnlockData.Others.Feels_Like_Dead_Ashes
+		if type(rec) ~= "table" then
+			item.UnlockData.Others.Feels_Like_Dead_Ashes = {Unlock = true}
+		else
+			rec.Unlock = true
+		end
+		item.UnlockData.Others.Ember = nil
+	end
+	local function add(key)
+		if type(key) ~= "string" or key == "" then return end
+		local rec = item.UnlockData.Others[key]
+		if rec == true then
+			item.UnlockData.Others[key] = {Unlock = true}
+		elseif type(rec) ~= "table" then
+			item.UnlockData.Others[key] = {Unlock = false}
+		elseif rec.Unlock == nil then
+			rec.Unlock = false
+		end
+	end
+	for _,event in ipairs(unlock_board.special_events or {}) do
+		add(event.key)
+	end
+	for mark,_ in pairs((unlock_board.special_unlocks or {}).Others or {}) do
+		add(mark)
+	end
 end
 
 function item.CheckAchievementAll()
@@ -359,10 +395,56 @@ function item.LoadModData(continue)
 	item.ConsistData = item.PermanentData
 	item.CompletionMarksV2 = item.PermanentData.CompletionMarksV2
 	item.CheckAchievementAll()
+	item.ensure_board_special_records()
 	for _,record in pairs(item.UnlockData.Others or {}) do
-		record.Tainted = nil
+		if type(record) == "table" then
+			record.Tainted = nil
+		end
 	end
 	item.RuntimeLoaded = true
+end
+
+local function load_profile_for_slot(saveslot, is_default_preload)
+	item.LoadModData(true)
+	item.LoadedSaveslot = saveslot
+	item.DefaultSlotPreload = is_default_preload == true
+end
+
+-- 进游戏/模组加载后立刻预加载第一档，方便主菜单 ImGui；用户改选 2/3 再切换。
+-- 已选定真实槽之后，忽略后续 rawslot==0 的刷回调，避免把第二/三档冲回第一档。
+local function preload_first_saveslot()
+	if item.LoadedSaveslot ~= nil then return end
+	load_profile_for_slot(item.FIRST_SAVE_SLOT, true)
+end
+
+if REPENTOGON and ModCallbacks.MC_POST_MODS_LOADED then
+	table.insert(item.ToCall,#item.ToCall + 1,{
+		CallBack = ModCallbacks.MC_POST_MODS_LOADED,
+		priority = -10000000,
+		Function = function()
+			preload_first_saveslot()
+		end,
+	})
+end
+
+-- 新开局仍由 PRE_PRE_GAME_STARTED 以 continue=false 清 RUN。
+if REPENTOGON and ModCallbacks.MC_POST_SAVESLOT_LOAD then
+	table.insert(item.ToCall,#item.ToCall + 1,{
+		CallBack = ModCallbacks.MC_POST_SAVESLOT_LOAD,
+		priority = -10000000,
+		Function = function(_,saveslot,isslotselected,rawslot)
+			saveslot = tonumber(saveslot)
+			if rawslot == 0 then
+				preload_first_saveslot()
+				return
+			end
+			if not saveslot or saveslot < 1 then return end
+			if item.LoadedSaveslot == saveslot and item.RuntimeLoaded == true and item.DefaultSlotPreload ~= true then
+				return
+			end
+			load_profile_for_slot(saveslot, false)
+		end,
+	})
 end
 
 table.insert(item.pre_myToCall,#item.pre_myToCall + 1,{CallBack = enums.Callbacks.PRE_PRE_GAME_STARTED, params = nil,
@@ -573,6 +655,9 @@ end,
 
 function item.Init(mod)
 	modReference = mod
+	if REPENTOGON then
+		preload_first_saveslot()
+	end
 end
 
 return item

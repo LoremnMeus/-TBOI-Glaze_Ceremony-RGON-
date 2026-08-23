@@ -71,10 +71,17 @@ end,
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_ANNAS_PORTAL_UPDATE, params = nil,
 Function = function(_,ent,col,low)
 	if Game().Challenge == item.entity then
-		local d2 = col:GetData()
-		if d2[player_anna.own_key.."Catch"]["rScale"]:Length() < 0.1 then 
-			sound_tracker.PlayStackedSound(SoundEffect.SOUND_VAMP_GULP,1,1,false,0,2) 
-			col:Remove() 
+		if col:IsBoss() then
+			local catch = col:GetData()[player_anna.own_key.."Catch"]
+			if catch then
+				col:TakeDamage(math.max(6, col.MaxHitPoints * 0.012), 0, EntityRef(ent), 0)
+			end
+			return
+		end
+		local catch = col:GetData()[player_anna.own_key.."Catch"]
+		if catch and catch["rScale"] and catch["rScale"]:Length() < 0.1 then
+			sound_tracker.PlayStackedSound(SoundEffect.SOUND_VAMP_GULP,1,1,false,0,2)
+			col:Remove()
 		end
 	end
 end,
@@ -86,7 +93,7 @@ Function = function(_,ent,col,val)
 		if col.IsGrid then
 			local gent = col:get_grid()
 			if item.remove_type[gent:GetType()] then return true end
-		elseif col:IsBoss() then return true end
+		end
 	end
 end,
 })

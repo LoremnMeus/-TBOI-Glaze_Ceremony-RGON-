@@ -8,16 +8,30 @@ local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
 
+local translations = include("Qing_Remaster_scripts.translations.translate")
+
 local item = {
 	pickup = enums.Pickups.Glaze_coin,
 	ToCall = {},
 	own_key = "Pickup_glaze_coin_",
 }
 
+function item.load_EID(ent)
+	if not ent or not EID then return end
+	local texts = translations.get_pickup_by_key("Glaze_Coin", auxi.get_EID_language())
+	if not texts then return end
+	ent:GetData().EID_Description = {
+		Name = texts.Name,
+		Description = texts.Description,
+	}
+end
+
+item.pickup.load_EID = item.load_EID
+
 function item.try_collect(player,ent)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
 	if glaze_crown.should_empower(player) then
-		if math.random(1000) > 50 then
+		if math.random(1000) > 100 then
 			player:AddCoins(1)
 			ent:GetData()[item.own_key.."sound"] = 1
 		else
@@ -70,8 +84,8 @@ Function = function(_,ent)
 		local s = ent:GetSprite()
 		consistance_holder.try_check_entity(ent,"Glaze_Coin")
 		if item.pickup.special_to_check(ent) then
-			if d.Loaded_EID == nil then 
-				item.pickup.load_EID(ent)
+			if d.Loaded_EID == nil then
+				item.load_EID(ent)
 				d.Loaded_EID = true
 			end
 			if s:GetFilename() ~= "gfx/Glaze/glaze_coin.anm2" then
@@ -127,5 +141,12 @@ Function = function(_,ent)
 	end
 end,
 })
+
+glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
+	zh = "辉片满层时：90%获得1枚，10%获得15枚",
+	en = "At 5 shards: 90% for 1 coin, 10% for 15",
+}, function(desc)
+	return desc.Entity and item.pickup.special_to_check(desc.Entity)
+end)
 
 return item

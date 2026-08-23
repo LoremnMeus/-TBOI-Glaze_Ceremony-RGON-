@@ -72,7 +72,12 @@ local DEFAULTS = {
 }
 
 local volt_hit_window = {} -- [ptr] = frame；同帧多 Flight 去重
-local linger_clouds = setmetatable({}, {__mode = "k"})
+local linger_clouds = {} -- [GetPtrHash] = 最新 wrapper；行为状态不能使用可能被 GC 丢弃的弱键
+
+local function runtime_key(ent)
+	local ok, ptr = pcall(GetPtrHash, ent)
+	return ok and ptr or nil
+end
 
 local function cfg(key)
 	local v = item.cfg[key]
@@ -384,7 +389,8 @@ local function tick_linger(air, player, craft_prof, attacking)
 			cd[item.own_key.."linger_born"] = Game():GetFrameCount()
 			cd[item.own_key.."linger_dmg"] = flight_damage(craft_prof, player)
 			cd[item.own_key.."linger_life"] = life
-			linger_clouds[cloud] = true
+			local key = runtime_key(cloud)
+			if key then linger_clouds[key] = cloud end
 		end
 	end
 	d[item.own_key.."linger_charge"] = charge
@@ -396,14 +402,14 @@ local function tick_linger_clouds()
 	local r0 = tonumber(cfg("linger_radius0")) or 40
 	local r1 = tonumber(cfg("linger_radius1")) or 90
 	local push = tonumber(cfg("linger_push")) or 0.35
-	for cloud in pairs(linger_clouds) do
+	for key, cloud in pairs(linger_clouds) do
 		if not (cloud and auxi.check_all_exists(cloud)) then
-			linger_clouds[cloud] = nil
+			linger_clouds[key] = nil
 			goto cont
 		end
 		local cd = cloud:GetData()
 		if not cd[item.own_key.."linger"] then
-			linger_clouds[cloud] = nil
+			linger_clouds[key] = nil
 			goto cont
 		end
 		local life = math.max(1, tonumber(cd[item.own_key.."linger_life"]) or 300)
@@ -444,7 +450,7 @@ local function tick_linger_clouds()
 			end
 		end
 		if age >= life or (cloud.Timeout or 1) <= 0 then
-			linger_clouds[cloud] = nil
+			linger_clouds[key] = nil
 			cloud:Remove()
 		end
 		::cont::
@@ -824,7 +830,7 @@ table.insert(item.ToCall, {
 	params = nil,
 	Function = function()
 		volt_hit_window = {}
-		linger_clouds = setmetatable({}, {__mode = "k"})
+		linger_clouds = {}
 	end,
 })
 
