@@ -68,7 +68,7 @@ local function spawn_sound(role, kind)
 	if frame - item._last_sound_frame < 2 then return end
 	item._last_sound_frame = frame
 	local sid = ARRIVE_SOUND[GAIN_KIND[kind] or kind] or SoundEffect.SOUND_PENNYPICKUP
-	sound_tracker.PlayStackedSound(sid, 0.35, 1, false, 0, 1.05)
+	sound_tracker.PlayStackedSound(sid, 0.35, 1.05, false, 0, 2)
 end
 
 local function make_particle(player, ent, role, kind, anm2, spawn_index, on_arrive)

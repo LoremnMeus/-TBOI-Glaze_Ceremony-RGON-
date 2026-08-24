@@ -58,11 +58,13 @@ function item.get_texts(collectible_id)
 	local icon = "{{Collectible" .. tostring(collectible_id) .. "}}"
 	local description
 	if zh then
-		description = "#将" .. icon .. "加入蓝图库存，提供 1 份可分配材料"
-			.. "#只能放入制造材料槽，不能支付成本"
+		description = "#{{Collectible}} 拾取后，将" .. icon .. "记录为1份原型模块"
+			.. "#原型模块存入蓝图仓库，可额外装配1次对应道具效果"
+			.. "#只能作为模块使用，不能作为飞行器成本"
 	else
-		description = "#Adds " .. icon .. " to Blueprint inventory as 1 allocatable material"
-			.. "#Ingredient slots only; cannot pay craft cost"
+		description = "#{{Collectible}} On pickup, records " .. icon .. " as 1 prototype module"
+			.. "#Stored in Blueprint inventory, granting 1 extra installation of that item's effect"
+			.. "#Modules only; cannot be used as a Flight cost"
 	end
 	return {
 		Name = name,

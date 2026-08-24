@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "name": "Glaze Ceremony: Promised Land",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "channel": "dry-run",
-  "generatedAt": "2026-08-23T16:05:16Z",
-  "sourceCommit": "db61e89",
-  "fileCount": 3057,
+  "generatedAt": "2026-08-24T06:01:53Z",
+  "sourceCommit": "baa0953",
+  "fileCount": 2999,
   "note": "Local dry-run from the current worktree. Not a tagged public release."
 }

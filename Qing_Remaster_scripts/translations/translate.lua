@@ -2490,17 +2490,17 @@ item.Collectibles = {
         xmlId = 127,
         zh = {
             Name = "命运锚点",
-            Desc = "这一切都是命运石之门的选择",
-            Description = "在当前房间设置命运锚点，每层最多设置3个"..
-            "#{{ArrowDown}} 下层时，被锚定的房间会在新楼层复现"..
-            "#优先替换相同类型的房间",
+            Desc = "过去仍在前方等待",
+            Description = "使用时锚定当前房间，每层最多3个"..
+            "#{{ArrowDown}} 下层时，被锚定的房间会再次出现"..
+            "#优先保留原本的房间布局",
         },
         en = {
             Name = "Destiny Anchor",
-            Desc = "This is the choice of Steins;Gate",
-            Description = "Anchors the current room, up to 3 rooms per floor"..
+            Desc = "The past still waits ahead",
+            Description = "Anchors the current room on use, up to 3 per floor"..
             "#{{ArrowDown}} Anchored rooms reappear on the next floor"..
-            "#Rooms of the same type are replaced first",
+            "#Keeps the original room layout when possible",
         },
     },
     [117] = {
@@ -3118,7 +3118,7 @@ item.Collectibles = {
         zh = {
             Name = "保留意见",
             Desc = "这还不算数",
-            Description = "按"..eidButton(ButtonAction and ButtonAction.ACTION_DROP).."保留多选道具中的一个"..
+            Description = "靠近多选道具时，按"..eidButton(ButtonAction and ButtonAction.ACTION_DROP).."保留其中一个"..
             "#拾取保留项以在当前层试用道具，并在下层生成售价{{Coin}}15¢的对应道具"..
             "#主动也可保留；换下试用主动时，掉落的该主动消失",
             AbyssSynic = "白色蝗虫",
@@ -3126,7 +3126,7 @@ item.Collectibles = {
         en = {
             Name = "Reserved Judgment",
             Desc = "This isn't final",
-            Description = "Press "..eidButton(ButtonAction and ButtonAction.ACTION_DROP).." to reserve one item in an option group"..
+            Description = "Near an option group, press "..eidButton(ButtonAction and ButtonAction.ACTION_DROP).." to reserve one item"..
             "#Each option group can hold 1 reserved item"..
             "#Pick up the reserved item to trial it this floor; next floor it returns for {{Coin}}15¢"..
             "#Actives can be reserved; swapping away a trial active removes its dropped pedestal",
@@ -5730,14 +5730,16 @@ item.Pickups = {
         zh = {
             Name = "道具原型",
             Desc = "",
-            Description = "#将{{CollectibleXX}}加入蓝图库存，提供 1 份可分配材料"..
-            "#只能放入制造材料槽，不能支付成本",
+            Description = "#{{Collectible}} 拾取后，将其中展示的道具记录为1份原型模块"..
+            "#原型模块存入蓝图仓库，可额外装配1次对应道具效果"..
+            "#只能作为模块使用，不能作为飞行器成本",
         },
         en = {
             Name = "Item Prototype",
             Desc = "",
-            Description = "#Adds {{CollectibleXX}} to Blueprint inventory as 1 allocatable material"..
-            "#Ingredient slots only; cannot pay craft cost",
+            Description = "#{{Collectible}} On pickup, records the displayed item as 1 prototype module"..
+            "#Stored in Blueprint inventory, granting 1 extra installation of that item's effect"..
+            "#Modules only; cannot be used as a Flight cost",
         },
     },
 }

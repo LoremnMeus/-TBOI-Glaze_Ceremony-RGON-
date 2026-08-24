@@ -173,6 +173,16 @@ function item.make_pickup_fly_sprite(anm2, scale)
 	return sprite
 end
 
+local function ghost_sprite(anm2)
+	if not anm2 or anm2 == "" then return nil end
+	local cached = item._ghosts[anm2]
+	if cached then return cached end
+	local sprite = make_hud_sprite(anm2)
+	sprite.Scale = Vector(HUD_GHOST_SCALE, HUD_GHOST_SCALE)
+	item._ghosts[anm2] = sprite
+	return sprite
+end
+
 function item.get_pickup_hud_screen_pos(player, kind)
 	local base = ui.GetScreenTopLeft(ui.GetHudOffsetLevel() or 0)
 	local twin = player and player:GetPlayerType() == PlayerType.PLAYER_ESAU
@@ -194,16 +204,6 @@ function item.draw_pickup_hud_icon(anm2, pos, alpha, color)
 	sprite.Color = color or Color(1, 1, 1, alpha or 1, 0, 0, 0)
 	sprite:Render(pos + anchor + tweak, Vector(0, 0), Vector(0, 0))
 	sprite.Color = Color(1, 1, 1, 1, 0, 0, 0)
-end
-
-local function ghost_sprite(anm2)
-	if not anm2 or anm2 == "" then return nil end
-	local cached = item._ghosts[anm2]
-	if cached then return cached end
-	local sprite = make_hud_sprite(anm2)
-	sprite.Scale = Vector(HUD_GHOST_SCALE, HUD_GHOST_SCALE)
-	item._ghosts[anm2] = sprite
-	return sprite
 end
 
 local function find_ent(hash, etype, variant)

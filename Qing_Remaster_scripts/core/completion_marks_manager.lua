@@ -241,7 +241,7 @@ local function character_postit_sprite()
 end
 
 local function extra_sprite(def)
-	local anm2 = def.anm2 or "gfx/post/ui/pause screen completion marks/sample_marks.anm2"
+	local anm2 = def.anm2 or "gfx/ui/pause screen completion marks/sample_marks.anm2"
 	return cached_sprite("extra:"..tostring(def.id), function(sprite)
 		pcall(function()
 			sprite:Load(anm2, true)
@@ -1002,7 +1002,7 @@ manager.register_extra_mark({
 	id = "boss.glaze",
 	order = 100,
 	reward_category = "Glaze",
-	anm2 = "gfx/post/ui/pause screen completion marks/sample_marks.anm2",
+	anm2 = "gfx/ui/pause screen completion marks/sample_marks.anm2",
 	normal_anim = "Smiley",
 	hard_anim = "Eye",
 	rewards = {normal = "GlazeNormal", hard = "GlazeHard"},
@@ -1012,7 +1012,7 @@ manager.register_extra_mark({
 	id = "boss.zeis",
 	order = 110,
 	reward_category = "BossZeis",
-	anm2 = "gfx/post/ui/pause screen completion marks/sample_marks.anm2",
+	anm2 = "gfx/ui/pause screen completion marks/sample_marks.anm2",
 	normal_anim = "Skull",
 	hard_anim = "Skull",
 	rewards = {normal = "ZeisNormal", hard = "ZeisHard"},
