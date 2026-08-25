@@ -4570,6 +4570,42 @@ function item.create_debug_window()
 			if probe and probe.export_jsonl then probe.export_jsonl() end
 		end)
 	end
+	local destiny_anchor_group = start_mod("audit_destiny_anchor", DEBUG_PAGE.audit, "命运锚点复现探针", "QingRemasterOptions_GroupDestinyAnchorProbe")
+	do
+		add_text(destiny_anchor_group, "默认关闭且不写存档。开启后记录锚定/收起/下层复现成败与当前房是否可锚定原因；用于排查普通房复现失败与 Boss 房白名单。样本可导出到 codex_work/logs/destiny_anchor_probe.jsonl。")
+		local enable_id = "QingRemasterOptions_DestinyAnchorProbeEnabled"
+		ImGui.AddCheckbox(destiny_anchor_group, enable_id, "启用命运锚点探针", nil, false)
+		local function get_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.destiny_anchor_probe")
+		end
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = get_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = get_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_DestinyAnchorProbeStatus"
+		ImGui.AddElement(destiny_anchor_group, status_id, ImGuiElement.TextWrapped, "探针关闭；不会采样。")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = get_probe()
+			ImGui.UpdateText(status_id, (probe and probe.get_summary and probe.get_summary()) or "开发探针不可用。")
+		end)
+		ImGui.AddButton(destiny_anchor_group, "QingRemasterOptions_DestinyAnchorProbeSnap", "立即快照当前房", function()
+			local probe = get_probe()
+			if probe and probe.snapshot_now then probe.snapshot_now() end
+		end)
+		ImGui.AddButton(destiny_anchor_group, "QingRemasterOptions_DestinyAnchorProbeClear", "关闭并清空探针", function()
+			local probe = get_probe()
+			if probe and probe.set_enabled then probe.set_enabled(false) end
+		end)
+		ImGui.AddButton(destiny_anchor_group, "QingRemasterOptions_DestinyAnchorProbeExport", "导出命运锚点诊断", function()
+			local probe = get_probe()
+			if probe and probe.export_jsonl then probe.export_jsonl() end
+		end)
+	end
 	local consistance_group = start_mod("audit_consistance_holder", DEBUG_PAGE.audit, "实体一致性 V2 探针", "QingRemasterOptions_GroupConsistanceHolder")
 	do
 		add_text(consistance_group, "默认关闭。开启后只读取 Consistance V2 的存档索引和运行态认领汇总；不扫描房间实体、不写文件。完整性审计仅在点击按钮时遍历记录表。双实体测试会用 Game:Spawn 指定同一 seed 生成两枚硬币，分别登记 LEFT/RIGHT，移除后以相反顺序重建并核对位置佐证。")

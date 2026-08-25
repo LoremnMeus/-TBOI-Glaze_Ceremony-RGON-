@@ -17,6 +17,22 @@ local HOLD_MISS_LIMIT = 20
 local DEFAULT_ANM2 = "gfx/005.021_penny.anm2"
 local HUD_GHOST_SCALE = 0.62
 local HUD_TOKEN_CENTER = 9
+-- 签约飞行：单 anm2 + ReplaceSpritesheet 换 item_to_pay 贴图
+local HUD_FLY_ANM2 = "gfx/items/slots/creditor_hud_fly.anm2"
+local HUD_FLY_TEXTURE = {
+	coin = "gfx/items/slots/item_to_pay_coin.png",
+	bomb = "gfx/items/slots/item_to_pay_bomb.png",
+	key = "gfx/items/slots/item_to_pay_key.png",
+	heart = "gfx/items/slots/item_to_pay_soulheart.png",
+	soul = "gfx/items/slots/item_to_pay_soulheart.png",
+}
+local HUD_FLY_SCALE = {
+	coin = 0.5,
+	bomb = 0.5,
+	key = 0.5,
+	heart = 0.375,
+	soul = 0.375,
+}
 -- Idle 首帧 pivot/尺寸（来自原版 pickup anm2），用于把虚影中心对齐到 token 格。
 local PICKUP_HUD_FRAME = {
 	["gfx/005.021_penny.anm2"] = {x = 0, y = -4, xp = 16, yp = 8, w = 32, h = 16},
@@ -107,12 +123,28 @@ local function opt_anm2(opt)
 	return opt.anm2 or opt.anm2 or DEFAULT_ANM2
 end
 
-local function pickup_hud_anchor(anm2, scale)
-	local def = PICKUP_HUD_FRAME[anm2]
-	if not def then return Vector(HUD_TOKEN_CENTER, HUD_TOKEN_CENTER) end
-	local ox = def.x + def.w * 0.5 - def.xp
-	local oy = def.y + def.h * 0.5 - def.yp
-	return Vector(HUD_TOKEN_CENTER - ox * scale, HUD_TOKEN_CENTER - oy * scale)
+local function pickup_hud_anchor(anm2, scale, sprite)
+	scale = scale or HUD_GHOST_SCALE
+	sprite = sprite or make_hud_sprite(anm2)
+	local off = ui.SpriteVisualCenterOffset(sprite, 0)
+	return Vector(HUD_TOKEN_CENTER - off.X * scale, HUD_TOKEN_CENTER - off.Y * scale)
+end
+
+function item.get_fly_render_bias(anm2, scale, sprite)
+	scale = scale or HUD_GHOST_SCALE
+	sprite = sprite or make_hud_sprite(anm2)
+	local off = ui.SpriteVisualCenterOffset(sprite, 0)
+	return Vector(-off.X * scale, -off.Y * scale)
+end
+
+function item.get_pickup_visual_center_offset(anm2, sprite)
+	sprite = sprite or make_hud_sprite(anm2)
+	return ui.SpriteVisualCenterOffset(sprite, 0)
+end
+
+function item.get_pickup_sprite_metrics(anm2, sprite)
+	sprite = sprite or make_hud_sprite(anm2)
+	return ui.GetSpriteLayerMetrics(sprite, 0)
 end
 
 local function stop_overlay(sprite)
@@ -173,6 +205,35 @@ function item.make_pickup_fly_sprite(anm2, scale)
 	return sprite
 end
 
+local function normalize_hud_fly_kind(kind)
+	if kind == "heart" then return "soul" end
+	return kind
+end
+
+function item.get_creditor_hud_fly_texture(kind)
+	kind = normalize_hud_fly_kind(kind)
+	return HUD_FLY_TEXTURE[kind] or HUD_FLY_TEXTURE.coin
+end
+
+function item.get_creditor_hud_fly_scale(kind)
+	kind = normalize_hud_fly_kind(kind)
+	return HUD_FLY_SCALE[kind] or HUD_FLY_SCALE.coin
+end
+
+function item.make_creditor_hud_fly_sprite(kind, scale)
+	scale = scale or item.get_creditor_hud_fly_scale(kind)
+	local tex = item.get_creditor_hud_fly_texture(kind)
+	local sprite = Sprite()
+	sprite:Load(HUD_FLY_ANM2, true)
+	sprite:ReplaceSpritesheet(0, tex)
+	sprite:LoadGraphics()
+	sprite:Play("Idle", true)
+	sprite:SetFrame(0)
+	stop_overlay(sprite)
+	sprite.Scale = Vector(scale, scale)
+	return sprite
+end
+
 local function ghost_sprite(anm2)
 	if not anm2 or anm2 == "" then return nil end
 	local cached = item._ghosts[anm2]
@@ -183,26 +244,42 @@ local function ghost_sprite(anm2)
 	return sprite
 end
 
-function item.get_pickup_hud_screen_pos(player, kind)
-	local base = ui.GetScreenTopLeft(ui.GetHudOffsetLevel() or 0)
-	local twin = player and player:GetPlayerType() == PlayerType.PLAYER_ESAU
-	local del = {
-		coin = Vector(22, twin and 72 or 68),
-		key = Vector(8, twin and 42 or 38),
-		bomb = Vector(8, twin and 68 or 54),
-		heart = Vector(40, twin and 35 or 4),
-		soul = Vector(58, twin and 35 or 4),
-	}
-	return base + (del[kind] or del.coin) + ui.GetHUDRenderOffset()
+function item.get_pickup_hud_screen_pos(player, kind, heart_slot)
+	local twin = auxi.is_double_player()
+	local state = twin and 2 or 1
+	local anchor = ui.HUD_ANCHOR.CENTER
+	local pos
+	if kind == "heart" or kind == "soul" then
+		local heart_player = 1
+		if player and player:GetPlayerType() == PlayerType.PLAYER_ESAU then
+			heart_player = 2
+		end
+		local red = math.ceil(((player and player:GetMaxHearts()) or 0) / 2)
+		local bone = (player and player.GetBoneHearts and player:GetBoneHearts()) or 0
+		local soul = math.ceil(((player and player:GetSoulHearts()) or 0) / 2)
+		local broken = (player and player.GetBrokenHearts and player:GetBrokenHearts()) or 0
+		local base = red + bone + soul + broken
+		local idx = base + (tonumber(heart_slot) or 0)
+		pos = ui.UIHeartPos(idx, heart_player, nil, {anchor = anchor})
+	else
+		if kind == "bomb" then
+			pos = ui.UIBombPos(twin, nil, {anchor = anchor})
+		else
+			pos = ui.UI_Pos(kind == "key" and "key" or "coin", state, nil, {anchor = anchor})
+		end
+	end
+	return pos + ui.GetHudIconTuneOffset(kind)
 end
 
 function item.draw_pickup_hud_icon(anm2, pos, alpha, color)
 	local sprite = ghost_sprite(anm2)
 	if not sprite then return end
-	local anchor = pickup_hud_anchor(anm2, sprite.Scale.X)
+	local scale = sprite.Scale.X
+	local center = pos + Vector(HUD_TOKEN_CENTER, HUD_TOKEN_CENTER)
+	local render_pos = ui.VisualCenterToRenderPos(center, sprite, scale, 0)
 	local tweak = item.get_hud_pickup_offset(anm2)
 	sprite.Color = color or Color(1, 1, 1, alpha or 1, 0, 0, 0)
-	sprite:Render(pos + anchor + tweak, Vector(0, 0), Vector(0, 0))
+	sprite:Render(render_pos + tweak, Vector(0, 0), Vector(0, 0))
 	sprite.Color = Color(1, 1, 1, 1, 0, 0, 0)
 end
 
@@ -463,10 +540,11 @@ local function render_tokens(tokens, origin)
 			local sprite = ghost_sprite(tok.anm2)
 			if sprite then
 				local scale = sprite.Scale.X
-				local anchor = tok.anchor or pickup_hud_anchor(tok.anm2, scale)
+				local center = pos + Vector(HUD_TOKEN_CENTER, HUD_TOKEN_CENTER)
+				local render_pos = ui.VisualCenterToRenderPos(center, sprite, scale, 0)
 				local tweak = item.get_hud_pickup_offset(tok.anm2)
 				sprite.Color = Color(1, 1, 1, tok.a or 0.7, 0, 0, 0)
-				sprite:Render(pos + anchor + tweak, Vector(0, 0), Vector(0, 0))
+				sprite:Render(render_pos + tweak, Vector(0, 0), Vector(0, 0))
 			end
 		end
 		pos = pos + Vector(widths[i], 0)
@@ -544,6 +622,9 @@ item.block_input = item.block_input
 item.render = item.render
 item.current_option = item.current_option
 item.make_pickup_fly_sprite = item.make_pickup_fly_sprite
+item.make_creditor_hud_fly_sprite = item.make_creditor_hud_fly_sprite
+item.get_creditor_hud_fly_texture = item.get_creditor_hud_fly_texture
+item.get_creditor_hud_fly_scale = item.get_creditor_hud_fly_scale
 item.get_pickup_hud_screen_pos = item.get_pickup_hud_screen_pos
 item.draw_pickup_hud_icon = item.draw_pickup_hud_icon
 item.get_hud_pickup_offset = item.get_hud_pickup_offset

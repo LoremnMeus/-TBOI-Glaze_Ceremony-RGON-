@@ -104,10 +104,16 @@ local function gain_unit_fn(opt)
 	if opt.id == "coin" then return function(p) p:AddCoins(1) end end
 	if opt.id == "key" then return function(p) p:AddKeys(1) end end
 	if opt.id == "bomb" then return function(p) p:AddBombs(1) end end
-	if opt.id == "heart" then return function(p) p:AddSoulHearts(2) end end
+	if opt.id == "heart" then
+		return function(p)
+			if p.CanPickSoulHearts and not p:CanPickSoulHearts() then
+				contract_vfx.spawn_soul_pickup(p.Position)
+			else
+				p:AddSoulHearts(2)
+			end
+		end
+	end
 end
-
-contract_vfx.setup(debt_bag)
 
 local function slot_busy(ent)
 	if not ent or not ent:Exists() then return true end
@@ -148,15 +154,13 @@ local spec = {
 		if not opt then return end
 		ent:GetData()[item.own_key.."done"] = true
 		ent:GetSprite():Play("PayPrize", true)
+		local bag = debt_bag()
+		bag[opt.debt_key] = (bag[opt.debt_key] or 0) + (opt.debt or 0)
+		claim_room_debt_pickups()
 		local gain_unit = gain_unit_fn(opt)
-		contract_vfx.queue_contract(player, ent, opt,
-			function()
-				if gain_unit then gain_unit(player) end
-			end,
-			function()
-				local bag = debt_bag()
-				bag[opt.debt_key] = (bag[opt.debt_key] or 0) + 1
-			end)
+		contract_vfx.queue_contract(player, ent, opt, function()
+			if gain_unit then gain_unit(player) end
+		end)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_SLOTSPAWN, 0.9, 1, false, 0, 1)
 		local hud = Game():GetHUD()
 		if hud and hud.ShowItemText then
@@ -230,9 +234,14 @@ table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_PLA
 Function = function(_, player, offset)
 	spec.variant = item.entity.Variant
 	slot_offer_lift.render(player, spec)
-	if player and player.Index == 0 then
-		contract_vfx.render()
-	end
+end,
+})
+
+local hud_render_cb = (REPENTOGON and ModCallbacks.MC_POST_HUD_RENDER) or ModCallbacks.MC_POST_RENDER
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = hud_render_cb, params = nil,
+Function = function()
+	if not Game():GetHUD():IsVisible() then return end
+	contract_vfx.render_hud_overlay()
 end,
 })
 
@@ -279,36 +288,48 @@ local function should_skip_pickup(ent)
 	return false
 end
 
-table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = nil,
-Function = function(_, ent)
-	if should_skip_pickup(ent) then return end
+local function try_claim_pickup(ent, bag_key, val)
+	if not val then return end
 	local bag = debt_bag()
+	if (bag[bag_key] or 0) <= 0 then return end
+	bag[bag_key] = math.max(0, (bag[bag_key] or 0) - val)
+	contract_vfx.begin_debt_claim(ent, bag[bag_key] or 0, bag_key)
+end
+
+local function claim_pickup_ent(ent)
+	if should_skip_pickup(ent) then return end
+	if contract_vfx.is_claiming_pickup(ent) then return end
 	local vr = ent.Variant
 	if vr == PickupVariant.PICKUP_COIN then
-		local val = coin_value(ent.SubType)
-		if val and (bag.coin or 0) > 0 then
-			bag.coin = math.max(0, (bag.coin or 0) - val)
-			ent:Remove()
-		end
+		try_claim_pickup(ent, "coin", coin_value(ent.SubType))
 	elseif vr == PickupVariant.PICKUP_KEY then
-		local val = key_value(ent.SubType)
-		if val and (bag.key or 0) > 0 then
-			bag.key = math.max(0, (bag.key or 0) - val)
-			ent:Remove()
-		end
+		try_claim_pickup(ent, "key", key_value(ent.SubType))
 	elseif vr == PickupVariant.PICKUP_BOMB then
-		local val = bomb_value(ent.SubType)
-		if val and (bag.bomb or 0) > 0 then
-			bag.bomb = math.max(0, (bag.bomb or 0) - val)
-			ent:Remove()
-		end
+		try_claim_pickup(ent, "bomb", bomb_value(ent.SubType))
 	elseif vr == PickupVariant.PICKUP_HEART then
-		local val = heart_value(ent.SubType)
-		if val and (bag.heart or 0) > 0 then
-			bag.heart = math.max(0, (bag.heart or 0) - val)
-			ent:Remove()
+		try_claim_pickup(ent, "heart", heart_value(ent.SubType))
+	end
+end
+
+local function claim_room_debt_pickups()
+	for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_PICKUP, -1, -1, false, false)) do
+		if ent and ent:Exists() then
+			claim_pickup_ent(ent)
 		end
 	end
+end
+
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_PRE_PICKUP_COLLISION, params = nil,
+Function = function(_, ent)
+	if contract_vfx.is_claiming_pickup(ent) then
+		return false
+	end
+end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = nil,
+Function = function(_, ent)
+	claim_pickup_ent(ent)
 end,
 })
 

@@ -58,12 +58,20 @@ function item.rainbow_shader_phase()
 end
 
 --- Colorize.r=seed，Colorize.a=phase（与 dogma 传时通道一致；Offset 保持 0）
+--- 必须经 SetColorize 写入；仅靠构造函数多余参数在部分路径上不会每帧推进 phase。
 function item.make_rainbow_cellular_color(alpha,seed)
 	alpha = alpha or 0.58
 	seed = tonumber(seed) or 0.37
 	seed = seed % 1
 	if seed < 0 then seed = seed + 1 end
-	return Color(1,1,1,alpha,0,0,0,seed,0,0,item.rainbow_shader_phase())
+	local phase = item.rainbow_shader_phase()
+	local col = Color(1,1,1,alpha,0,0,0)
+	if col.SetColorize then
+		col:SetColorize(seed,0,0,phase)
+	else
+		col = Color(1,1,1,alpha,0,0,0,seed,0,0,phase)
+	end
+	return col
 end
 
 function item.rainbow_seed_for_collectible(base_seed,collectible_id)
@@ -146,6 +154,10 @@ function item.register_provider(provider,opts)
 		source_card = opts.source_card,
 		glaze = opts.glaze == true,
 		shader = opts.shader,
+		-- ghost=true / ghost_fn() -> Vector：主图标后画一层半透明错位残影（精神失序等）
+		ghost = opts.ghost == true or type(opts.ghost_fn) == "function",
+		ghost_fn = type(opts.ghost_fn) == "function" and opts.ghost_fn or nil,
+		ghost_alpha = tonumber(opts.ghost_alpha) or 0.2,
 	}
 end
 
@@ -285,6 +297,9 @@ local function append_counts(entries,counts,color,exclusive_counts,meta)
 				source_card = meta.source_card,
 				glaze = meta.glaze,
 				shader = meta.shader,
+				ghost = meta.ghost,
+				ghost_fn = meta.ghost_fn,
+				ghost_alpha = meta.ghost_alpha,
 			}
 		end
 	end
@@ -366,6 +381,9 @@ function item.collect_temp_entries(player,opts)
 					source_card = provider.source_card,
 					glaze = provider.glaze,
 					shader = provider.shader,
+					ghost = provider.ghost,
+					ghost_fn = provider.ghost_fn,
+					ghost_alpha = provider.ghost_alpha,
 				}
 			)
 		end
@@ -522,6 +540,15 @@ local function grid_from_history(historyHUD,player_index,layout)
 	return origin,filled,columns,layout.scale,step,layout.pad
 end
 
+local function resolve_entry_ghost_offset(entry)
+	if entry.ghost_fn then
+		local ok,off = pcall(entry.ghost_fn,entry and entry.id)
+		if ok and off then return off end
+	end
+	if entry.ghost then return Vector(2,-1) end
+	return nil
+end
+
 local function render_temp_list(historyHUD,renderPos,player_index)
 	local player = historyHUD:GetPlayer(player_index)
 	if not player then return end
@@ -539,6 +566,14 @@ local function render_temp_list(historyHUD,renderPos,player_index)
 			local sprite = get_item_sprite(entry.id)
 			local mul = resolve_entry_scale_mul(entry)
 			sprite.Scale = Vector(scale * (mul.X or 1),scale * (mul.Y or 1))
+			local ghost_off = resolve_entry_ghost_offset(entry)
+			if ghost_off then
+				local ghost_a = tonumber(entry.ghost_alpha) or 0.2
+				local main = resolve_entry_color(entry)
+				sprite.Color = Color(main.R,main.G,main.B,ghost_a,0,0,0)
+				item.clear_sprite_shader(sprite)
+				sprite:Render(pos + ghost_off,Vector.Zero,Vector.Zero)
+			end
 			sprite.Color = resolve_entry_color(entry)
 			if entry.shader then
 				item.apply_sprite_shader(sprite,entry.shader)

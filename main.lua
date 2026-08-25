@@ -1,5 +1,5 @@
 local item = RegisterMod("QING_REBIRTH",1)
-item.Version = "1.0.1"
+item.Version = "1.0.2"
 ___QING_REBIRTH___ = {MOD = item,}		--如果需要唯一标识符，请使用该变量
 
 -- math.random 是整个 Lua 环境共享的非确定随机流；必须在任何业务模块加载前播种。

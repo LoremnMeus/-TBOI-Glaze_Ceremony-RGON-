@@ -45,16 +45,16 @@ local HINTS = {
 		en = "First time cracking this open?\nWant me to walk you through it?",
 	},
 	craft_tab = {
-		zh = "先点上面的「制造」。我们组装一架给你看。",
-		en = "Tap Build up top. I'll show you how to assemble one.",
+		zh = "先点上面的「制造」。我们从一架机体开始。",
+		en = "Tap Build up top. We'll start with one craft.",
 	},
 	craft_base = {
-		zh = "先把圣心拖到机体底下，当作底座。\n底座越好，能装的模块越多。\n记住：你自己造的第一架可以不放底座。",
-		en = "Drag Sacred Heart under the craft — that's the base.\nBetter base, more module slots.\nYour first real craft can skip the base.",
+		zh = "把圣心拖到机体底下，当作底座。\n底座决定机体框架：品质越高，模块槽越多。\n你自己造的第一架可以不放底座。",
+		en = "Drag Sacred Heart under the craft as its base.\nThe base sets the frame: higher quality means more module slots.\nYour first real craft can skip the base.",
 	},
 	craft_module = {
-		zh = "硫磺火是模块，拖进上面的材料槽。\n别跟底下那个底座搞混了。",
-		en = "Brimstone is a module. Drop it into a module slot.\nDon't mix it up with the base.",
+		zh = "硫磺火是模块，拖进上面的模块槽。\n底座决定机体有多好；模块决定它会什么。",
+		en = "Brimstone is a module. Drop it into a module slot.\nThe base sets how strong the craft is; modules set what it can do.",
 	},
 	craft_confirm = {
 		zh = "点「确认制造」。这次走练习通道，\n不会真的扣你背包里的东西。",
@@ -65,12 +65,12 @@ local HINTS = {
 		en = "It's live. Fire to command it.\nMMB or Ctrl toggles Cruise / Guard. RMB toggles Auto / Force. Then reopen Blueprint.",
 	},
 	form_in = {
-		zh = "硫磺那架留在上面的出战队列。\n把下面三架练习机（妈刀+扭曲双子 / 科技+科技2 / 豆浆+小小星球）都拖上去。",
-		en = "The Brimstone craft stays in the queue.\nDrag the three practice crafts up (Knife+Twisted Pair / Tech+Tech 2 / Soy+Tiny Planet).",
+		zh = "硫磺那架留在上面的出战队列。\n把下面三架练习机（妈刀+扭曲双子 / 科技+科技2 / 豆浆+小小星球）都拖上去。\n队列顺序就是带宽不足时的出战优先级。",
+		en = "Keep the Brimstone craft in the deployment queue.\nDrag up the three practice crafts (Knife+Twisted Pair / Tech+Tech 2 / Soy+Tiny Planet).\nQueue order is deployment priority when bandwidth runs short.",
 	},
 	form_out = {
-		zh = "再从队列里任选一架拖回待命。\n留下的两架，出去就能对比不同弹种。",
-		en = "Now drag any one back down to standby.\nThe two left in queue will show different weapons.",
+		zh = "再从队列里任选一架拖回待命。\n待命机不会丢失，只是暂时不出战。\n留下的两架，出去就能对比不同弹种。",
+		en = "Now drag any one back down to standby.\nStandby crafts are kept, but do not fight for now.\nThe two left in queue will show different weapons.",
 	},
 	form_close = {
 		zh = "关掉蓝图（右键或放下）。\n关掉后：中键或 Ctrl 切巡航/护卫，右键切自动/压制。",
@@ -81,8 +81,8 @@ local HINTS = {
 		en = "Command the remaining crafts and feel the weapons.\nMMB or Ctrl: Cruise / Guard. RMB: Auto / Force. Then reopen Blueprint.",
 	},
 	stock_tab = {
-		zh = "点「仓库」。改装配、拆掉不要的，都在这儿。",
-		en = "Open Stock. That's where you refit or scrap crafts.",
+		zh = "点「仓库」。已经造好的机体还能在这里改装或拆除。",
+		en = "Open Stock. Built crafts can still be refitted or scrapped here.",
 	},
 	stock_open = {
 		zh = "点开硫磺那架，看看底座和模块怎么放的。",
@@ -101,8 +101,8 @@ local HINTS = {
 		en = "Hit Del on a practice craft.\nScrapping one clears the rest.",
 	},
 	done = {
-		zh = "教完了。练习机已经收走。\n你自己造的第一架不用放底座，空着就能确认。",
-		en = "That's the lesson. Practice crafts are gone.\nYour first real craft needs no base — confirm it empty.",
+		zh = "教完了，练习机和模拟材料都已经收走。\n你自己造的第一架不用放底座；以后也能随时回仓库改装。",
+		en = "Lesson complete. The practice crafts and simulated materials are gone.\nYour first real craft needs no base, and you can refit it later in Stock.",
 	},
 }
 

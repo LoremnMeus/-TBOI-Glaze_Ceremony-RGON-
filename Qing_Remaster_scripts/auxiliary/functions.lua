@@ -75,8 +75,10 @@ function funct.bitset_flag(x,i)	--获取x第i位是否含有1。
 end
 
 function funct.Bezier4(v1,v2,v3,v4,t)
+	-- 标准三次贝塞尔：B=(1-t)³P0 + 3(1-t)²t P1 + 3(1-t)t² P2 + t³ P3
+	-- （旧实现 P2 误写成 (1-t)²t，权重不归一，轨迹会被拉向原点）
 	local rt = (1 - t)
-	return v1 * rt * rt * rt + 3 * v2 * rt * rt * t + 3 * v3 * rt * rt * t + v4 * t * t * t
+	return v1 * rt * rt * rt + 3 * v2 * rt * rt * t + 3 * v3 * rt * t * t + v4 * t * t * t
 end
 local Factorecord = {}
 function funct.Factorial(val)

@@ -9,11 +9,20 @@ local item = {
 			[1] = {name = "GetScreenTopLeft",del = Vector(40,4),},		--正常的血条
 			[2] = {name = "GetScreenTopLeft",del = Vector(40,35),},		--双子的血条
 		},
+		-- 金币/炸弹/钥匙：Y 对齐 Epiphany HudHelper（32/44/56）再按本模组炸弹 icon 中心偏置 +10；双子 +14。
+		["coin"] = {
+			[1] = {name = "GetScreenTopLeft",del = Vector(8,42),},		--正常的金币
+			[2] = {name = "GetScreenTopLeft",del = Vector(8,56),},		--双子的金币
+		},
 		["bomb"] = {
 			--[1] = {name = "GetScreenTopLeft",del = Vector(8,52),},		--正常的炸弹
 			[1] = {name = "GetScreenTopLeft",del = Vector(8,54),},		--正常的炸弹
 			--[2] = {name = "GetScreenTopLeft",del = Vector(8,66),},		--双子的炸弹
 			[2] = {name = "GetScreenTopLeft",del = Vector(8,68),},		--双子的炸弹
+		},
+		["key"] = {
+			[1] = {name = "GetScreenTopLeft",del = Vector(8,66),},		--正常的钥匙
+			[2] = {name = "GetScreenTopLeft",del = Vector(8,80),},		--双子的钥匙
 		},
 		["poop"] = {
 			[1] = {name = "GetScreenTopLeft",del = Vector(0,40),},		--正常的便便
@@ -99,6 +108,117 @@ end
 -- Screen-space overlays attached to the vanilla HUD must follow its shake.
 function item.GetHUDRenderOffset()
 	return Game().ScreenShakeOffset
+end
+
+-- HUD 槽位锚点：optional_maker / UIHeartPos 的 del 均为槽位左上角；CENTER 再按槽位尺寸换算。
+item.HUD_ANCHOR = {
+	TOP_LEFT = "topleft",
+	CENTER = "center",
+	PIVOT = "pivot",
+	VISUAL_CENTER = "visual_center",
+}
+
+-- 原版 HUD 槽位外框（非 pickup anm2 尺寸）；心 12×12，资源 icon 约 16×16。
+item.HUD_SLOT_BOX = {
+	heart = Vector(12, 12),
+	coin = Vector(16, 16),
+	bomb = Vector(16, 16),
+	key = Vector(16, 16),
+	poop = Vector(16, 16),
+}
+
+-- 对齐原版 HUD icon pivot 落点（2026-03-24，DrawLine 十字实测）
+item.HUD_ICON_TUNE = {
+	heart = Vector(0, 2),
+	coin = Vector(-8, -8),
+	bomb = Vector(-8, -8),
+	key = Vector(-8, -8),
+}
+
+function item.GetHudIconTuneOffset(kind)
+	if kind == "soul" then kind = "heart" end
+	local tune = item.HUD_ICON_TUNE[kind]
+	return tune and Vector(tune.X, tune.Y) or Vector(0, 0)
+end
+
+local function resolve_anchor_params(offset, params)
+	if type(offset) == "table" and offset.anchor and offset.X == nil and offset.Y == nil then
+		return Vector(0, 0), offset
+	end
+	return offset or Vector(0, 0), params or {}
+end
+
+function item.BoxAnchorPos(box_top_left, box_size, anchor, extra_offset)
+	box_top_left = box_top_left or Vector(0, 0)
+	box_size = box_size or Vector(12, 12)
+	anchor = anchor or item.HUD_ANCHOR.TOP_LEFT
+	extra_offset = extra_offset or Vector(0, 0)
+	if anchor == item.HUD_ANCHOR.CENTER or anchor == item.HUD_ANCHOR.VISUAL_CENTER then
+		return box_top_left + Vector(box_size.X * 0.5, box_size.Y * 0.5) + extra_offset
+	end
+	if anchor == item.HUD_ANCHOR.PIVOT then
+		return box_top_left + extra_offset
+	end
+	return box_top_left + extra_offset
+end
+
+function item.GetSpriteLayerMetrics(sprite, layer_id)
+	local metrics = {
+		pivot = Vector(16, 16),
+		pos = Vector(0, 0),
+		width = 32,
+		height = 32,
+		crop = Vector(0, 0),
+	}
+	if not sprite or not sprite.GetLayerFrameData then return metrics end
+	local frame = sprite:GetLayerFrameData(layer_id or 0)
+	if not frame then return metrics end
+	if frame.GetPivot then metrics.pivot = frame:GetPivot() or metrics.pivot end
+	if frame.GetPos then metrics.pos = frame:GetPos() or metrics.pos end
+	if frame.GetWidth then metrics.width = frame:GetWidth() or metrics.width end
+	if frame.GetHeight then metrics.height = frame:GetHeight() or metrics.height end
+	if frame.GetCrop then metrics.crop = frame:GetCrop() or metrics.crop end
+	return metrics
+end
+
+-- pivot → 贴图可见几何中心（未乘 Sprite.Scale）
+function item.SpriteVisualCenterOffset(sprite, layer_id)
+	local m = item.GetSpriteLayerMetrics(sprite, layer_id)
+	return m.pos + Vector(m.width * 0.5, m.height * 0.5) - m.pivot
+end
+
+-- pivot → 贴图可见几何左上角（未乘 Sprite.Scale）
+function item.SpriteVisualTopLeftOffset(sprite, layer_id)
+	local m = item.GetSpriteLayerMetrics(sprite, layer_id)
+	return m.pos - m.pivot
+end
+
+-- 令 Sprite:Render(render_pos) 时，可见几何中心落在 visual_center
+function item.VisualCenterToRenderPos(visual_center, sprite, scale, layer_id)
+	scale = scale or 1
+	local off = item.SpriteVisualCenterOffset(sprite, layer_id)
+	return visual_center - Vector(off.X * scale, off.Y * scale)
+end
+
+function item.RenderPosToVisualCenter(render_pos, sprite, scale, layer_id)
+	scale = scale or 1
+	local off = item.SpriteVisualCenterOffset(sprite, layer_id)
+	return render_pos + Vector(off.X * scale, off.Y * scale)
+end
+
+-- HUD 槽位左上角 + 已知 sprite：按 anchor 返回屏幕点
+function item.HUDSlotAnchorPos(box_top_left, slot_name, sprite, scale, anchor, layer_id, extra_offset)
+	local box = (item.HUD_SLOT_BOX or {})[slot_name] or Vector(12, 12)
+	local pt = item.BoxAnchorPos(box_top_left, box, anchor, extra_offset)
+	if anchor == item.HUD_ANCHOR.PIVOT and sprite then
+		scale = scale or 1
+		local m = item.GetSpriteLayerMetrics(sprite, layer_id)
+		return pt + Vector((m.pivot.X - m.pos.X) * scale, (m.pivot.Y - m.pos.Y) * scale)
+	end
+	if anchor == item.HUD_ANCHOR.VISUAL_CENTER and sprite then
+		return pt
+	end
+	return pt
 end
 
 local function get_player_hash(player)
@@ -248,14 +368,17 @@ function item.UI_Pos(name,state,offset,params)
 		params = offset
 		offset = nil
 	end
-	offset = offset or Vector(0,0)
+	offset, params = resolve_anchor_params(offset, params)
 	state = state or 1
 	name = name or params.name
 	local hud = item.GetHudOffsetLevel()
 	local info = (item.optional_maker[name] or {})[state]
 	if info == nil then return Vector(1000,1000) end
 	local pos_offset = item[info.name](hud) + (auxi.check_if_any(info.special,hud) or Vector(0,0))
-	return pos_offset + info.del + offset + item.GetHUDRenderOffset()
+	local top_left = pos_offset + info.del + offset + item.GetHUDRenderOffset()
+	local anchor = params.anchor or item.HUD_ANCHOR.TOP_LEFT
+	local box = (item.HUD_SLOT_BOX or {})[name] or Vector(12, 12)
+	return item.BoxAnchorPos(top_left, box, anchor)
 end
 
 function item.PlayerActive_UI_Pos(player,slot,order)
@@ -330,29 +453,32 @@ function item.ActiveSlotSpriteRenderPos(player,slot,sprite,layer_id)
 	return top_left + Vector((pivot.X - layer_pos.X) * scale,(pivot.Y - layer_pos.Y) * scale) + item.GetHUDRenderOffset()
 end
 
-function item.UIHeartPos(x, player,offset)
+function item.UIHeartPos(x, player, offset, params)
 	if not player then player = 1 end
 	if not x then x = 0 end
+	offset, params = resolve_anchor_params(offset, params)
 	local hud = item.GetHudOffsetLevel()
-	offset = offset or Vector(0,0)
+	local rep_plus = (REPENTANCE_PLUS and Vector(0, 6)) or Vector(0, 0)
+	local anchor = params.anchor or item.HUD_ANCHOR.TOP_LEFT
+	local box = item.HUD_SLOT_BOX.heart or Vector(12, 12)
 	if player == 1 then
-		local topleft = Vector(40,4) + Vector(2,1.2) * hud
-		local rows = math.floor(x/6)
-		return topleft + Vector(12*(x%6),10*rows) + offset + item.GetHUDRenderOffset()
+		local topleft = Vector(40, 4) + Vector(2, 1.2) * hud + rep_plus
+		local rows = math.floor(x / 6)
+		local top_left = topleft + Vector(12 * (x % 6), 10 * rows) + offset + item.GetHUDRenderOffset()
+		return item.BoxAnchorPos(top_left, box, anchor)
 	end
 	if player == 2 then
-		--local topright = Vector(363,218) - Vector(1.6,0.6)*hud
-		local topright = item.GetScreenSize() - Vector(40,35) - Vector(1.6,0.6) * hud
-		local rows = math.floor(x/6)
-		return topright + Vector(-12*(x%6),10*rows) + offset + item.GetHUDRenderOffset()
+		local topright = item.GetScreenSize() - Vector(40, 35) - Vector(1.6, 0.6) * hud + rep_plus
+		local rows = math.floor(x / 6)
+		local top_left = topright + Vector(-12 * (x % 6), 10 * rows) + offset + item.GetHUDRenderOffset()
+		return item.BoxAnchorPos(top_left, box, anchor)
 	end
 end
 
-function item.UIBombPos(doubleplayer,offset)
+function item.UIBombPos(doubleplayer, offset, params)
 	local state = 1
 	if doubleplayer then state = 2 end
-	
-	return item.UI_Pos("bomb",state,offset)
+	return item.UI_Pos("bomb", state, offset, params)
 end
 
 function item.UIPoopPos(doubleplayer,offset)

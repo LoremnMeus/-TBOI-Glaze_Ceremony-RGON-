@@ -351,7 +351,7 @@
 	gfx="collectibles_Shangrila.png" quality = "4" craftquality = "4" tags="offensive summonable stars" 
 	/>
 	<active name="Destiny Anchor" description="This is the choice of Steins;Gate" id="127"
-	gfx="collectibles_Destiny_Anchor.png" quality = "3" craftquality = "3" tags="offensive" maxcharges="0"
+	gfx="collectibles_Destiny_Anchor.png" quality = "3" craftquality = "3" tags="offensive nogreed" maxcharges="0"
 	/>
 	<passive name="Acrotomophilia" description="Rotten and Broken" id="128"
 	gfx="collectibles_Acrotomophilia.png" quality = "2" craftquality = "2" tags="offensive summonable"

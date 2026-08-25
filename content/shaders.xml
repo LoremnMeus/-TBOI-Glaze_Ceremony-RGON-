@@ -476,4 +476,72 @@
             }
         ]]></fragment>
     </shader>
+	<!-- Mental Desync：短暂全屏「错帧」——水平 band 错位 + 轻 RGB 分离，无噪声雪花 -->
+	<!-- P1: Strength, Chromatic, BandOffset1, BandOffset2 -->
+	<!-- P2: Band1Y0, Band1Y1, Band2Y0, Band2Y1 -->
+	<!-- P3: GlobalOffsetX, GlobalOffsetY, Band3Y0, Band3Offset（薄裂口高固定 ~0.012） -->
+	<shader name="Qing_Mental_Desync">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+			<param name="P3" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            attribute vec4 P3;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying vec4 Color0;
+            varying vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1;
+                Pi2 = P2;
+                Pi3 = P3;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Pi3;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+				float Strength = clamp(Pi1.x, 0.0, 1.0);
+				if(Strength < 0.001){
+					gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+				}else{
+					vec2 uv = TexCoord0;
+					vec2 shifted = uv;
+					float b1 = step(Pi2.x, uv.y) * (1.0 - step(Pi2.y, uv.y));
+					float b2 = step(Pi2.z, uv.y) * (1.0 - step(Pi2.w, uv.y));
+					float b3Y0 = Pi3.z;
+					float b3Y1 = Pi3.z + 0.012;
+					float b3 = step(b3Y0, uv.y) * (1.0 - step(b3Y1, uv.y));
+					shifted.x += b1 * Pi1.z * Strength;
+					shifted.x += b2 * Pi1.w * Strength;
+					shifted.x += b3 * Pi3.w * Strength;
+					shifted.x += Pi3.x * Strength;
+					shifted.y += Pi3.y * Strength;
+					vec4 base = Color0 * texture2D(Texture0, shifted);
+					float split = Pi1.y * Strength;
+					float r = (Color0 * texture2D(Texture0, shifted + vec2(split, 0.0))).r;
+					float g = base.g;
+					float b = (Color0 * texture2D(Texture0, shifted - vec2(split, 0.0))).b;
+					vec3 glitch = vec3(r, g, b);
+					vec3 rgb = mix(base.rgb, glitch, Strength);
+					gl_FragColor = vec4(rgb, base.a);
+				}
+            }
+        ]]></fragment>
+    </shader>
 </shaders>

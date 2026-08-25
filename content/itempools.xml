@@ -289,7 +289,6 @@
 		<Item DecreaseBy="0.5" Name="Core Brooch" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="greedTreasure">
-		<Item DecreaseBy="1" Name="Destiny Anchor" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Multiknife" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Touchstone" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Tech 9" RemoveOn="0.1" Weight="1" />

@@ -454,6 +454,7 @@ enums.Enemies = {
 	Zeistos = Isaac.GetEntityVariantByName("Zeistos"),
 	ShadowToken = Isaac.GetEntityVariantByName("ShadowToken"),
 	RemoverToken = Isaac.GetEntityVariantByName("RemoverToken"),
+	DestinyToken = Isaac.GetEntityVariantByName("DestinyToken"),
 	ZToken = Isaac.GetEntityVariantByName("ZToken"),
 	Boss_Qing = Isaac.GetEntityVariantByName("Boss Qing"),
 	QingHelper = Isaac.GetEntityVariantByName("QingHelper"),

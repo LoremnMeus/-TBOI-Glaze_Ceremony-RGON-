@@ -76,6 +76,16 @@ function item.draw_ch(pos,targ,sx,sy,Kcol,has_count_world,font)
 	font:DrawStringScaledUTF8(targ,pos.X,pos.Y,sx,sy,Kcol,0,false)
 end
 
+-- 屏幕空间探针十字：中心严格落在 pos（与 codex_work/probes/gemini_motion_probe.lua 一致）。
+-- 禁止用 draw_ch("+") 或手调字形的 top-left 偏移冒充十字中心。
+function item.draw_probe_cross(pos, color, size)
+	if not pos or not Isaac.DrawLine then return end
+	size = size or 5
+	color = color or KColor(1, 1, 1, 1)
+	Isaac.DrawLine(pos + Vector(-size, 0), pos + Vector(size, 0), color, color, 1)
+	Isaac.DrawLine(pos + Vector(0, -size), pos + Vector(0, size), color, color, 1)
+end
+
 function item.draw_ch_with_time_to_move_out(startpos,dir,targ,params)		--sx,sy,R,G,B,A,take_screen_counter,render_on_shader,special,ignore_stop
 	targ = targ or ""
 	dir = dir or Vector(-5,0)

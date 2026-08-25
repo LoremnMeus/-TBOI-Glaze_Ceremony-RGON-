@@ -2492,15 +2492,21 @@ item.Collectibles = {
             Name = "命运锚点",
             Desc = "过去仍在前方等待",
             Description = "使用时锚定当前房间，每层最多3个"..
-            "#{{ArrowDown}} 下层时，被锚定的房间会再次出现"..
-            "#优先保留原本的房间布局",
+            "#{{ArrowDown}} 下层后在其他房间复现"..
+            "#房型不匹配时，仅复现锚点周围区域"..
+            "#再次使用可收回当前房间的锚点",
+            BookOfVirtues = "新建锚点时生成留守此处的命运魂火",
+            BookOfBelial = "{{DevilRoom}} 可锚定恶魔房，并在下层恶魔房开启时复现",
         },
         en = {
             Name = "Destiny Anchor",
             Desc = "The past still waits ahead",
             Description = "Anchors the current room on use, up to 3 per floor"..
-            "#{{ArrowDown}} Anchored rooms reappear on the next floor"..
-            "#Keeps the original room layout when possible",
+            "#{{ArrowDown}} Reappears elsewhere on the next floor"..
+            "#If room shape differs, only the area around the anchor returns"..
+            "#Use again in an anchored room to retrieve its anchor",
+            BookOfVirtues = "New anchors spawn a Destiny Wisp that remains there to guard them",
+            BookOfBelial = "{{DevilRoom}} Devil Rooms can be anchored and reproduced if one opens next floor",
         },
     },
     [117] = {
@@ -3237,16 +3243,16 @@ item.Collectibles = {
         zh = {
             Name = "拖延症",
             Desc = "马上就做……",
-            Description = "{{Timer}} 持有后每经过30秒，{{Damage}} 本层攻击+0.1"..
-            "#本层最多获得 {{Damage}} +1攻击"..
+            Description = "{{Timer}} 持有后每经过30秒，永久获得 {{Damage}} +0.1攻击"..
+            "#每层最多累计 {{Damage}} +1攻击"..
             "#击杀任意Boss后，立即停止本层的攻击增长"..
             "#包含Boss敌人的房间门始终保持开启",
         },
         en = {
             Name = "Procrastination",
             Desc = "I'll do it soon...",
-            Description = "{{Timer}} While held, every 30 seconds {{Damage}} +0.1 this floor"..
-            "#Up to {{Damage}} +1 this floor"..
+            Description = "{{Timer}} While held, permanently gain {{Damage}} +0.1 every 30 seconds"..
+            "#Accumulate up to {{Damage}} +1 per floor"..
             "#Killing any boss immediately stops this floor's damage growth"..
             "#Doors in rooms with living bosses stay open",
         },
@@ -4917,7 +4923,7 @@ item.Players = {
             Desc = "灾难之角",
             Description = "操控掌中黑洞吸收敌人与掉落物，并将捕获物重新发射"..
                 "#敌人被吸入后不会立即死亡"..
-                "#越稀有的掉落物，作为弹药时造成的伤害越高",
+                "#捕获物的种类、重量与蓄力会影响释放攻击",
             StartGuide = {
                 Name = "操作指南：安娜",
                 Description = "按住 {{ButtonRT}} 时松开攻击键不会发射"..
@@ -4929,7 +4935,7 @@ item.Players = {
             Desc = "The Horn of Nitimity",
             Description = "Control a handheld black hole to capture enemies and pickups, then launch them as projectiles"..
                 "#Captured enemies remain alive inside the black hole"..
-                "#Rarer pickups deal more damage when launched",
+                "#A capture's type, mass, and charge affect the released attack",
             Animation = "Anna",
             Sprite = "gfx/characterportraits.anm2",
             StartGuide = {
@@ -4999,9 +5005,9 @@ item.Players = {
         zh = {
             Name = "青",
             Desc = "灾难之终械",
-            Description = "{{Collectible"..enums.Items.Air_Flight.."}} 无法直接攻击，通过指挥准星控制飞行器作战"..
-                "#使用蓝图制造飞行器，并为其安装道具模块"..
-                "#飞行器拥有独立属性，只有列队中的飞行器会参与战斗",
+            Description = "{{Collectible"..enums.Items.Air_Flight.."}} 无法直接攻击；使用蓝图制造并改装独立飞行器"..
+                "#将飞行器编入队伍，并用准星指挥它们作战"..
+                "#控制带宽决定当前能够出战的机体",
             StartGuide = {
                 Name = "操作指南：青",
                 Description = "攻击键或按住鼠标左键移动指挥准星"..
@@ -5013,9 +5019,9 @@ item.Players = {
         en = {
             Name = "Qing",
             Desc = "The Final Machine of Nitimity",
-            Description = "{{Collectible"..enums.Items.Air_Flight.."}} Cannot attack directly; instead, command drones through a targeting reticle"..
-                "#Use Blueprint to manufacture drones and equip them with item modules"..
-                "#Drones have independent stats, and only deployed drones participate in combat",
+            Description = "{{Collectible"..enums.Items.Air_Flight.."}} Cannot attack directly; use Blueprint to build and refit independent drones"..
+                "#Deploy drones into formation and command them with the targeting reticle"..
+                "#Control bandwidth determines which drones can fight",
             Animation = "SP.W.Qing",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
@@ -5035,23 +5041,29 @@ item.Players = {
         zh = {
             Name = "泰克罗",
             Desc = "灾难之牙",
-            Description = "操纵环绕自身的长枪，以攻击方向调整枪尖朝向"..
+            Description = "操纵持续存在的长枪，将敌人穿在枪上并继续旋转"..
+                "#枪尖实际移动越快，接触伤害越高"..
                 "#蓄力后松开攻击，向枪尖方向发动突刺",
             StartGuide = {
                 Name = "操作指南：泰克罗",
-                Description = "按下鼠标中键开关鼠标控制",
+                Description = "攻击方向旋转枪尖并蓄力"..
+                    "#突刺命中敌人可将其固定在枪上"..
+                    "#继续高速旋转；鼠标中键切换鼠标控制",
             },
         },
         en = {
             Name = "Tecro",
             Desc = "The Tooth of Nitimity",
-            Description = "Control a spear that rotates around Tecro, using attack directions to aim its tip"..
-                "#Charge and release to thrust in the aimed direction",
+            Description = "Control a persistent spear, impale enemies, and keep them on the weapon as it rotates"..
+                "#Higher actual spear-tip speed deals more contact damage"..
+                "#Charge and release to thrust in the spear tip's direction",
             Animation = "Tecro",
             Sprite = "gfx/characterportraits.anm2",
             StartGuide = {
                 Name = "Operation Guide: Tecro",
-                Description = "Press the middle mouse button to toggle mouse control",
+                Description = "Use attack directions to rotate the spear tip and charge"..
+                    "#Thrust into enemies to pin them onto the spear"..
+                    "#Keep rotating at speed; press the middle mouse button to toggle mouse control",
             },
         },
     },
@@ -5094,29 +5106,31 @@ item.Players = {
         zh = {
             Name = "泽伊斯托斯",
             Desc = "灾难之眼",
-            Description = "每层可进入死亡证明，从已获得道具附近寻找新的道具"..
-                "#正式获得的道具会扩展之后的可选择范围"..
-                "#临时取得的道具只能使用一层，也不会继续扩展选择范围",
+            Description = "接触道具时不会直接获得，而是将其作为知识送入死亡证明"..
+                "#每层可永久取得知识对应的道具，或临时取得其附近的一项遐想"..
+                "#选择遐想不会消耗知识；下一层仍可重新选择"..
+                "#自动点亮死亡证明中存在可用知识的房间",
             StartGuide = {
                 Name = "操作指南：泽·伊斯托斯",
-                Description = "第一层可自由选择一个被动道具"..
-                    "#此后只能选择已获得道具附近的被动道具"..
-                    "#未正式获得的被动道具最多只能选择一次",
+                Description = "第一层可自由选择一个被动道具作为本层遐想"..
+                    "#此后以送入死亡证明的知识为底座，取得对应道具或选择附近遐想"..
+                    "#遐想仅持续一层，知识会在下一层恢复可选",
             },
         },
         en = {
             Name = "Zeis",
             Desc = "The Eye of Nitimity",
-            Description = "Enter Death Certificate each floor and discover new items near those you have already obtained"..
-                "#Permanently obtained items expand your future choices"..
-                "#Temporary items last only for the floor and cannot expand your choices further",
+            Description = "Touched items are not gained immediately; they are sent to Death Certificate as knowledge"..
+                "#Each floor, claim the item recorded as knowledge or temporarily realize a nearby reverie"..
+                "#Choosing a reverie does not consume its knowledge; it can be chosen again next floor"..
+                "#Automatically reveals Death Certificate rooms containing available knowledge",
             Animation = "Zeistos",
             Sprite = "gfx/characterportraits.anm2",
             StartGuide = {
                 Name = "Operation Guide: Zeis",
-                Description = "On the first floor, freely choose one passive item"..
-                    "#Afterward, only choose passives near permanently obtained items"..
-                    "#Temporary passives can only be chosen once",
+                Description = "On the first floor, freely realize one passive reverie"..
+                    "#Afterward, use knowledge sent to Death Certificate to claim its item or realize a nearby reverie"..
+                    "#Reveries last for one floor; their knowledge becomes available again next floor",
             },
         },
     },
@@ -5127,30 +5141,30 @@ item.Players = {
         zh = {
             Name = "安奈",
             Desc = "灾难之魔",
-            Description = "操纵准星选择坠落位置，同时使自身持续蓄力"..
-                "#满蓄力后瞬移至准星上方，并高速下落造成范围伤害"..
-                "#攻击后的短时间内处于无敌状态",
+            Description = "用准星选择落点，以自身为武器发动高威力坠击"..
+                "#满蓄力后移动至准星上方，攻击落点附近的敌人"..
+                "#准星也决定攻击后的站位；攻击过程及结束后0.25秒内无敌",
             StartGuide = {
                 Name = "操作指南：安奈",
-                Description = "使用攻击方向移动准星"..
-                    "#等待满蓄力后发动坠落攻击"..
-                    "#攻击后有0.25秒无敌时间",
+                Description = "使用攻击方向移动准星并蓄力"..
+                    "#蓄力完成后自动坠击准星位置"..
+                    "#利用攻击后0.25秒无敌离开落点",
             },
         },
         en = {
             Name = "Anna",
             Desc = "The Devil of Nitimity",
-            Description = "Move a targeting reticle while Anna continuously charges her attack"..
-                "#At full charge, she teleports above the target and crashes down for area damage"..
-                "#She becomes briefly invincible after attacking",
+            Description = "Choose a landing point with the reticle and use annA herself as the weapon"..
+                "#At full charge, move above the reticle and crash down to attack nearby enemies"..
+                "#The reticle is also your final position; invincible during the attack and for 0.25s afterward",
             Animation = "annA",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
             StartGuide = {
                 Name = "Operation Guide: annA",
-                Description = "Use attack directions to move the targeting reticle"..
-                    "#Wait for a full charge to perform the dive attack"..
-                    "#Gain 0.25s of invincibility after attacking",
+                Description = "Use attack directions to move the reticle and charge"..
+                    "#At full charge, automatically dive onto the reticle"..
+                    "#Use the 0.25s of post-attack invincibility to leave the landing point",
             },
         },
     },
@@ -5161,9 +5175,9 @@ item.Players = {
         zh = {
             Name = "小青",
             Desc = "灾难之先导",
-            Description = "投掷小刀攻击敌人，插入物体的小刀同时会成为可返回的瞬移坐标"..
-                "#利用小刀可在攻击与位移之间快速改变自身位置"..
-                "#必要时会自动留下小刀，避免玩家被困",
+            Description = "以小刀近身刺杀或投掷攻击；投出的刀还能留下可返回的位置"..
+                "#在刀与刀之间快速转移，从不同位置继续攻击"..
+                "#必要时会保留可用的小刀，避免失去返回路径",
             StartGuide = {
                 Name = "操作指南：青",
                 Description = "按下Alt键瞬移至已插入的小刀"..
@@ -5173,9 +5187,9 @@ item.Players = {
         en = {
             Name = "Qing",
             Desc = "The Precursor of Nitimity",
-            Description = "Throw knives to attack; knives lodged in objects also become teleport coordinates"..
-                "#Use them to rapidly reposition between attacks"..
-                "#When necessary, a knife is automatically placed to prevent becoming trapped",
+            Description = "Fight with close-range knife strikes or thrown blades; lodged knives leave return points"..
+                "#Move between knives to continue attacking from new positions"..
+                "#A usable knife is preserved when necessary to keep a return path",
             Animation = "W.Qing",
             Sprite = "gfx/characterportraits.anm2",
             StartGuide = {
@@ -5194,7 +5208,7 @@ item.Players = {
             Desc = "灾难之理",
             Description = "每层从控制中枢任命一名管理员，由其愚见改变世界的运行规则"..
                 "#不同管理员会依照自己的错误认知解释并管理游戏机制"..
-                "#引起管理员的兴趣后，可获得其提出的提案",
+                "#引起管理员的兴趣，使其准备进一步改变规则的提案",
             StartGuide = {
                 Name = "操作指南：泽伊兹",
                 Description = "每层进入控制中枢"..
@@ -5207,7 +5221,7 @@ item.Players = {
             Desc = "The Reason of Nitimity",
             Description = "Appoint an administrator in the Control Hub each floor, whose Folly alters how the world operates"..
                 "#Each administrator interprets and manages game rules through their own mistaken reasoning"..
-                "#Draw their interest to receive a Proposal",
+                "#Draw their interest until they prepare a Proposal to reshape the rules further",
             Animation = "Zeiz",
             Sprite = "gfx/characterportraitsalt.anm2",
             Tainted = true,
@@ -5364,7 +5378,7 @@ item.Challenges = {
         zh = {
             Name = "挑战：飞龙在天",
             Description = "{{Player3}} 犹大开局"..
-            "#{{Collectible"..enums.Items.Book_of_How_to_Fly.."}} 使用飞行书与{{Collectible619}}长子权进行空战"..
+            "#{{Collectible"..enums.Items.Book_of_How_to_Fly.."}} 使用飞行书与{{Collectible619}}长子名分进行空战"..
             "#{{Collectible641}} 书本发射的眼泪会沿飞行轨迹留在角色身后"..
             "#难度等级：普通",
         },

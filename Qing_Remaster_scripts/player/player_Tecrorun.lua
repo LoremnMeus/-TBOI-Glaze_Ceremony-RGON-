@@ -711,6 +711,18 @@ function item.get_laser_pair(ent)
 	end
 end
 
+function item.get_segment_multipliers(segment_level)
+	segment_level = math.max(0,math.floor(tonumber(segment_level) or 0))
+	return 1 + segment_level * 0.30,1 + segment_level * 0.15
+end
+
+function item.get_segment_preview_alpha(segment_level,reflection_count)
+	segment_level = math.max(0,math.floor(tonumber(segment_level) or 0))
+	reflection_count = math.max(0,math.floor(tonumber(reflection_count) or 0))
+	if reflection_count == 0 or segment_level >= reflection_count then return 1 end
+	return 0.35 + 0.65 * segment_level/reflection_count
+end
+
 function item.load_impale(ent)
 	local d = ent:GetData()
 	local laser = d[item.own_key.."Linked_Laser"]
@@ -720,7 +732,8 @@ function item.load_impale(ent)
 		d2[item.own_key.."laser"].wait = {pos = laser.Position,ang = laser.Angle,}
 		local tbl = {}
 		if laser then tbl = item.get_cutting_info(tbl,laser) end
-		d[item.own_key.."Impale"] = {tbl = tbl,id = 0,}
+		local laserdata = d2[item.own_key.."laser"] or {}
+		d[item.own_key.."Impale"] = {tbl = tbl,id = 0,reflection_count = laserdata.reflection_count or laserdata.mxlayer or laserdata.layer or 0,}
 	end
 end
 
@@ -740,7 +753,8 @@ function item.start_impale(player)
 					tbl = item.get_cutting_info(tbl,laser)
 					--laser = laser:GetData()[item.own_key.."Linked_Laser"]
 				end
-				d[item.own_key.."Impale"] = {tbl = tbl,id = 0,}
+				local laserdata = d2[item.own_key.."laser"] or {}
+				d[item.own_key.."Impale"] = {tbl = tbl,id = 0,reflection_count = laserdata.reflection_count or laserdata.mxlayer or laserdata.layer or 0,}
 			end
 		end
 	end
@@ -782,7 +796,7 @@ Function = function(_,ent)
 				d[item.own_key.."Linked_Laser"] = item.fire_tecro_laser(ent.Position,player,dir,{tearflags = d[item.own_key.."Attack"].tearflags,Addtearflags = d[item.own_key.."Attack"].Addtearflags,})
 				tq = d[item.own_key.."Linked_Laser"]
 				local d3 = tq:GetData()
-				d3[item.own_key.."laser"].layer = d[item.own_key.."Attack"].layer d3[item.own_key.."laser"].mxlayer = d[item.own_key.."Attack"].layer d3[item.own_key.."laser"].linker = ent
+				d3[item.own_key.."laser"].layer = d[item.own_key.."Attack"].layer d3[item.own_key.."laser"].mxlayer = d[item.own_key.."Attack"].layer d3[item.own_key.."laser"].reflection_count = d[item.own_key.."Attack"].layer d3[item.own_key.."laser"].segment_level = 0 d3[item.own_key.."laser"].linker = ent
 			end
 		elseif d[item.own_key.."Attack"].counter == difcnt then 
 			item.load_impale(ent)
@@ -858,6 +872,9 @@ function item.attack_impale(player,ent,pos,einfo,params)
 	local sid = d[item.own_key.."Impale"].step_id
 	local dmgmul = (einfo.dmgmul or 1)
 	local range_mul = (0.5 + 0.5 * math.sqrt(ent.SpriteScale:Length()/math.sqrt(2))) * (params.rangerate or 1)
+	local segment_dmg_mul,segment_width_mul = item.get_segment_multipliers(params.segment_level or 0)
+	dmgmul = dmgmul * segment_dmg_mul
+	range_mul = range_mul * segment_width_mul
 	if tearflags & BitSet128(1<<7,0) == BitSet128(1<<7,0) then local cinfo = auxi.check_lerp(sid,item.coal_info) dmgmul = dmgmul * cinfo.val range_mul = range_mul * math.sqrt(cinfo.val) end
 	if tearflags & BitSet128(1<<21,0) == BitSet128(1<<21,0) then local pinfo = auxi.check_lerp(sid,item.prop_info) dmgmul = dmgmul * pinfo.val range_mul = range_mul * math.sqrt(pinfo.val) end
 	local dmg = tearHitParams.TearDamage * 0.5 * dmgmul * (params.dmgrate or 1) * math.sqrt(charge)
@@ -936,7 +953,7 @@ function item.attack_impale(player,ent,pos,einfo,params)
 		s2:Play("Fade",true)
 		s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1,1)) * range_mul
 		s2.Rotation = params.Rotation or 0
-		local color = auxi.check_lerp(ent.FrameCount % cinfo.total,cinfo) color = auxi.UpColor(color,1) s2.Color = color
+		local color = auxi.check_lerp((ent.FrameCount + (params.segment_level or 0) * 6) % cinfo.total,cinfo) color = auxi.UpColor(color,1) s2.Color = color
 	else
 		d[item.own_key.."Attack_Impale"].lcnt = (d[item.own_key.."Attack_Impale"].lcnt or 1) * 0.75 + 0.25 * 0.2
 		local lcnt = d[item.own_key.."Attack_Impale"].lcnt
@@ -950,7 +967,7 @@ function item.attack_impale(player,ent,pos,einfo,params)
 			s2:Play("Fade",true)
 			s2.Scale = auxi.mul_t(auxi.ProtectVector((d[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(0.2 + lcnt * lcnt * 0.2,1)) * range_mul
 			s2.Rotation = params.Rotation or 0
-			local color = auxi.check_lerp((ent.FrameCount + di + (d[item.own_key.."Impale"].rnd or 0)) % cinfo.total,cinfo) color = auxi.UpColor(color,1) s2.Color = auxi.MulColor(color,Color(1,1,1,lcnt,1,1,1))
+			local color = auxi.check_lerp((ent.FrameCount + (params.segment_level or 0) * 6 + di + (d[item.own_key.."Impale"].rnd or 0)) % cinfo.total,cinfo) color = auxi.UpColor(color,1) s2.Color = auxi.MulColor(color,Color(1,1,1,lcnt,1,1,1))
 		end
 	end
 	if not params.End and (pass or (cnt > 0)) then		--博士+史诗
@@ -1127,6 +1144,30 @@ function item.attack_impale(player,ent,pos,einfo,params)
 	end
 end
 
+function item.spawn_terminal_light_burst(player,pos,reflection_count,tearHitParams)
+	reflection_count = math.max(0,math.floor(tonumber(reflection_count) or 0))
+	tearHitParams = tearHitParams or player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
+	local damage = tearHitParams.TearDamage * (0.75 + 0.35 * reflection_count)
+	local radius = 60 + 12 * reflection_count
+	for _,v in ipairs(Isaac.GetRoomEntities()) do
+		if auxi.isenemies(v) and (v.Position - pos):Length() <= radius + (v.Size or 0) then
+			v:TakeDamage(damage,0,EntityRef(player),0)
+		end
+	end
+	local q = Isaac.Spawn(EntityType.ENTITY_EFFECT,16,3,pos,Vector(0,0),player):ToEffect()
+	if q then
+		-- 1000.016_Poof02_B_Blood.anm2 的有效帧相对 Pivot 最大不透明半径约为 133.96 px。
+		local scale = radius/133.96
+		q.CollisionDamage = 0
+		local s = q:GetSprite()
+		s.Scale = Vector(scale,scale)
+		local color = auxi.check_lerp((reflection_count * 6) % item.Colorinfo.total,item.Colorinfo)
+		s.Color = auxi.UpColor(color,1)
+		q.DepthOffset = -5
+	end
+	SFXManager():Play(SoundEffect.SOUND_LIGHTBOLT_CHARGE,1,0,false,1)
+end
+
 function item.control_impale(player,ent,params)
 	local d = ent:GetData()
 	local cnt = d[item.own_key.."Impale"].id or 0
@@ -1138,7 +1179,9 @@ function item.control_impale(player,ent,params)
 	if not (laser and espear) then return {End = true,} end
 	local dir1 = laser.Angle local dir2 = nil
 	local d2 = laser:GetData()
-	local lid = ((d2[item.own_key.."laser"] or {}).layer or 1)/((d2[item.own_key.."laser"] or {}).mxlayer or 1)
+	local laserdata = d2[item.own_key.."laser"] or {}
+	local lid = (laserdata.layer or 0)/math.max(1,laserdata.mxlayer or 0)
+	local segment_level = laserdata.segment_level or math.max(0,(laserdata.reflection_count or laserdata.mxlayer or 0) - (laserdata.layer or 0))
 	local info = tbl[cnt + 1]
 	local wallpos = nil
 	while(info) do
@@ -1233,7 +1276,11 @@ function item.control_impale(player,ent,params)
 		for i = 1,rnd do local q = item.fire_tecro_phantom(player,Game():GetRoom():GetClampedPosition(ent.Position,5),Vector(0,0),{dir = auxi.random_r(),layer = 1,margin = -50,charge = charge * 0.5,}) end
 	end
 	
-	item.attack_impale(player,ent,ent.Position,nil,{Rotation = dir:GetAngleDegrees(),dir = dir,dang = dang,best_dir = best_dir,wallpos = wallpos,lid = lid,cnt = cnt,End = ret.End,charge = params.charge or d[item.own_key.."Impale"].charge or 1,main = params.main,})
+	item.attack_impale(player,ent,ent.Position,nil,{Rotation = dir:GetAngleDegrees(),dir = dir,dang = dang,best_dir = best_dir,wallpos = wallpos,lid = lid,cnt = cnt,End = ret.End,charge = params.charge or d[item.own_key.."Impale"].charge or 1,main = params.main,segment_level = segment_level,})
+	if params.main and ret.End and not d[item.own_key.."Impale"].terminal_burst_done then
+		d[item.own_key.."Impale"].terminal_burst_done = true
+		item.spawn_terminal_light_burst(player,ent.Position,d[item.own_key.."Impale"].reflection_count or laserdata.reflection_count or laserdata.mxlayer or 0,tearHitParams)
+	end
 	
 	ret.dir = dir ret.pos = ent.Position
 	if desc.Data.Type == 16 and ret.End then ent.Position = Game():GetRoom():FindFreeTilePosition(ent.Position,20) end
@@ -1500,7 +1547,7 @@ function item.fire_tecro_laser(pos,player,dir,params)
 	SFXManager():Stop(SoundEffect.SOUND_REDLIGHTNING_ZAP_WEAK)
 	SFXManager():Stop(SoundEffect.SOUND_REDLIGHTNING_ZAP)
 	local d = q:GetData()
-	d[item.own_key.."laser"] = {basecolor = basecolor,Addtearflags = params.Addtearflags,}
+	d[item.own_key.."laser"] = {basecolor = basecolor,base_scale = auxi.ProtectVector(s.Scale),Addtearflags = params.Addtearflags,segment_level = 0,reflection_count = 0,}
 	return q
 end
 
@@ -1536,9 +1583,10 @@ Function = function(_,ent)
 			s:Play("Idle",true)
 			d[item.own_key.."effect"] = {}
 		end
-		local lcnt = ent.Parent:GetData()[item.own_key.."laser"].layer or 0
-		--local lcnt = d[item.own_key.."laserend"].layer or 0
-		s.Color = auxi.AddColor(s.Color,Color(1,1,1,(lcnt + 3)/10),0.5,0.5)		--ent.Parent:GetSprite().Color or 
+		local laserdata = ent.Parent:GetData()[item.own_key.."laser"]
+		local alpha = item.get_segment_preview_alpha(laserdata.segment_level or 0,laserdata.reflection_count or laserdata.mxlayer or 0)
+		local color = auxi.check_lerp(((laserdata.segment_level or 0) * 6) % item.Colorinfo.total,item.Colorinfo)
+		s.Color = auxi.MulColor(auxi.UpColor(color,1),Color(1,1,1,alpha,1,1,1))
 		if auxi.check_exists(ent.Parent) ~= true then ent:Remove() return end
 		--if auxi.check_all_exists(ent.Parent) ~= true then ent:Remove() return end
 		--if auxi.check_all_exists(d[item.own_key.."laserend"].linker) ~= true then ent:Remove() return end
@@ -1556,10 +1604,16 @@ Function = function(_,ent)
 	local d = ent:GetData()
 	if d[item.own_key.."laser"] then
 		ent.CollisionDamage = 0
-		local lcnt = d[item.own_key.."laser"].layer or 0
+		local laserdata = d[item.own_key.."laser"]
+		local lcnt = laserdata.layer or 0
+		local segment_level = laserdata.segment_level or math.max(0,(laserdata.reflection_count or laserdata.mxlayer or 0) - lcnt)
+		local reflection_count = laserdata.reflection_count or laserdata.mxlayer or 0
 		local player = auxi.check_spawner_player(ent)
 		local s = ent:GetSprite()
 		s:Play("Laser0")
+		local _,width_multiplier = item.get_segment_multipliers(segment_level)
+		local base_scale = laserdata.base_scale or Vector(1,1)
+		s.Scale = Vector(base_scale.X,base_scale.Y * width_multiplier)
 		if d[item.own_key.."laser"].wait then
 			local waitinfo = d[item.own_key.."laser"].wait
 			ent.Position = waitinfo.pos
@@ -1580,13 +1634,16 @@ Function = function(_,ent)
 		local tdir = item.find_dir(tpos,auxi.MakeVector(ang))
 		local dir = auxi.MakeVector(ent.Angle)
 		if auxi.check_exists(d[item.own_key.."laser"].linker) ~= true then ent:Remove() return end
-		d[item.own_key.."laser"].basecolor = (d[item.own_key.."laser"].basecolor or auxi.color2table(s.Color))
+		laserdata.basecolor = (laserdata.basecolor or auxi.color2table(s.Color))
 		if (tpos - dir * 20 - ent.Position):Length() < 16 and not_invisible ~= true then s.Color = Color(1,1,1,0)
-		elseif d[item.own_key.."laser"].Remove then 
-			d[item.own_key.."laser"].Removecounter = (d[item.own_key.."laser"].Removecounter or 1) * 0.8
-			local rcnt = d[item.own_key.."laser"].Removecounter
-			s.Color = auxi.AddColor(d[item.own_key.."laser"].basecolor,Color(0,0,0,-1),1,1 - rcnt) 
-		else s.Color = auxi.AddColor(d[item.own_key.."laser"].basecolor,Color(0,0,0,(lcnt + 2)/10 - 1),1,0.5) end
+		elseif laserdata.Remove then
+			laserdata.Removecounter = (laserdata.Removecounter or 1) * 0.8
+			local rcnt = laserdata.Removecounter
+			s.Color = auxi.MulColor(auxi.table2color(laserdata.basecolor),Color(1,1,1,rcnt,1,1,1))
+		else
+			local alpha = item.get_segment_preview_alpha(segment_level,reflection_count)
+			s.Color = auxi.MulColor(auxi.table2color(laserdata.basecolor),Color(1,1,1,alpha,1,1,1))
+		end
 		if ent.TearFlags & BitSet128(0,1<<(121 - 64)) == BitSet128(0,1<<(121 - 64)) then
 			d[item.own_key.."laser"].color_counter = ((d[item.own_key.."laser"].color_counter or math.random(item.Colorinfo.total)) + 1) % item.Colorinfo.total
 			local rcolor = auxi.check_lerp(d[item.own_key.."laser"].color_counter,item.Colorinfo) rcolor = auxi.UpColor(rcolor) rcolor = auxi.MulColor(rcolor,Color(1,1,1,s.Color.A,1,1,1))
@@ -1598,7 +1655,7 @@ Function = function(_,ent)
 				d[item.own_key.."Linked_Laser"] = item.fire_tecro_laser(tpos,player,tdir,{banishedtearflag = BitSet128(1<<8,0),})		--!!第二层之后镜子弹射在墙角的一个特定区域会发生反向，且找不到修复的方法，因此强制要求第二层以后镜子不生效。
 				tq = d[item.own_key.."Linked_Laser"]
 				local d3 = tq:GetData() 
-				d3[item.own_key.."laser"].layer = (d[item.own_key.."laser"].layer or 0) - 1 d3[item.own_key.."laser"].mxlayer = d[item.own_key.."laser"].mxlayer d3[item.own_key.."laser"].linker = ent
+				d3[item.own_key.."laser"].layer = (laserdata.layer or 0) - 1 d3[item.own_key.."laser"].mxlayer = reflection_count d3[item.own_key.."laser"].reflection_count = reflection_count d3[item.own_key.."laser"].segment_level = segment_level + 1 d3[item.own_key.."laser"].linker = ent
 				if desc.Flags & (1<<15) == 1<< 15 then tq:SetMaxDistance(10) end
 			end
 			if auxi.check_exists(tq) then
@@ -1606,7 +1663,10 @@ Function = function(_,ent)
 				if d[item.own_key.."laser"].Remove then d3[item.own_key.."laser"].Remove = true end
 				if d3[item.own_key.."laser"] then
 					d3[item.own_key.."laser"].Angle = tdir:GetAngleDegrees() 
-					d3[item.own_key.."laser"].layer = (d[item.own_key.."laser"].layer or 0) - 1
+					d3[item.own_key.."laser"].layer = (laserdata.layer or 0) - 1
+					d3[item.own_key.."laser"].mxlayer = reflection_count
+					d3[item.own_key.."laser"].reflection_count = reflection_count
+					d3[item.own_key.."laser"].segment_level = segment_level + 1
 				end
 				tq.Angle = tdir:GetAngleDegrees() --+ angle_addon
 				tq.Position = tpos - tdir * 20 * dis_multiplier
@@ -1707,9 +1767,12 @@ Function = function(_,ent)
 					d[item.own_key.."Linked_Laser"] = item.fire_tecro_laser(ent.Position,player,dir)
 					tq = d[item.own_key.."Linked_Laser"]
 					local d3 = tq:GetData()
-					d3[item.own_key.."laser"].layer = now_layer d3[item.own_key.."laser"].mxlayer = layercnt d3[item.own_key.."laser"].linker = ent
+					d3[item.own_key.."laser"].layer = now_layer d3[item.own_key.."laser"].mxlayer = now_layer d3[item.own_key.."laser"].reflection_count = now_layer d3[item.own_key.."laser"].segment_level = 0 d3[item.own_key.."laser"].linker = ent
 				end
-				if tq then tq:GetData()[item.own_key.."laser"].layer = now_layer end
+				if tq then
+					local laserdata = tq:GetData()[item.own_key.."laser"]
+					laserdata.layer = now_layer laserdata.mxlayer = now_layer laserdata.reflection_count = now_layer laserdata.segment_level = 0
+				end
 			elseif d2.Tecro_spear_state == 1 then 		--瞬移
 				local ddis = dis
 				if d2[item.own_key.."Impale"] and d2[item.own_key.."Impale"].tgpos then ddis = (d2[item.own_key.."Impale"].tgpos - ent.Position) end

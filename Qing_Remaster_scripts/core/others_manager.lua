@@ -50,6 +50,7 @@ function Others_manager.Init(mod)
 			"Qing_Remaster_scripts.others.craft_path_tear_vanilla_probe",
 			"Qing_Remaster_scripts.others.craft_floor_stat_counter_probe",
 			"Qing_Remaster_scripts.others.time_stop_probe",
+			"Qing_Remaster_scripts.others.destiny_anchor_probe",
 		}
 		for _, path in ipairs(probes) do
 			local mod = dev_env.require_probe(path)

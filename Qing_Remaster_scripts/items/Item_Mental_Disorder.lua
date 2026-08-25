@@ -1,9 +1,13 @@
 -- 精神失序：进房错认一个掉落物 / 敌人 / 已有被动，同时只存在一个错误事实
+-- 视觉：全屏 Mental Desync（短）、假实体轻 glitch、揭穿 Reality Tear、离房 HUD 追缴
 local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
+local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
+local ui = require("Qing_Remaster_scripts.auxiliary.ui")
+local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 
 local ERR_PICKUP = "PICKUP"
 local ERR_ENEMY = "ENEMY"
@@ -13,6 +17,9 @@ local ROLL_DELAY = 3
 local W_PICKUP = 50
 local W_ENEMY = 35
 local W_ITEM = 15
+local DESYNC_SHADER = "Qing_Mental_Desync"
+local DESYNC_MAX_DEFAULT = 10
+local DESYNC_LEAVE_FRAMES = 3
 
 local item = {
 	ToCall = {},
@@ -20,6 +27,14 @@ local item = {
 	post_ToCall = {},
 	entity = enums.Items.Mental_Disorder,
 	own_key = "Item_Mental_Disorder_",
+	screen_glitch = nil,
+	-- GetPtrHash -> {left, next} 真实干扰实体，本房只 glitch 1～2 次
+	decoy_glitch = {},
+	reality_tears = {},
+	reclaim_fx = nil,
+	hud_ghost_flip = false,
+	hud_ghost_next = 0,
+	band_spr = nil,
 }
 
 local ITEM_BLACKLIST = {
@@ -123,6 +138,315 @@ local function mark_illusion(ent, st)
 	if not ent then return end
 	ent:GetData()[item.own_key.."illusion"] = true
 	if st then st.Seed = ent.InitSeed end
+end
+
+local function px_uv(px, axis)
+	local m = auxi.check_screen_multi(Vector(1, 1)) * 256
+	local den = axis == "y" and m.Y or m.X
+	if den < 1 then den = 256 end
+	return px / den
+end
+
+local function empty_desync_params()
+	return {
+		P1 = {0, 0, 0, 0},
+		P2 = {0, 0, 0, 0},
+		P3 = {0, 0, 0, 0},
+	}
+end
+
+--- 启动全屏 Mental Desync；mild 用于离房/拾取假物的极轻闪
+function item.trigger_desync(frames, mild)
+	frames = math.max(1, math.floor(tonumber(frames) or DESYNC_MAX_DEFAULT))
+	local seed = Game():GetFrameCount() + (Game():GetRoom():GetDecorationSeed() or 0)
+	local rng = RNG()
+	rng:SetSeed(math.max(1, seed % 2147483646), 35)
+	local function band_y(lo, hi)
+		local y0 = lo + rng:RandomFloat() * (hi - lo)
+		local h = 0.04 + rng:RandomFloat() * 0.04
+		return y0, math.min(0.98, y0 + h)
+	end
+	local b1a, b1b = band_y(0.16, 0.28)
+	local b2a, b2b = band_y(0.48, 0.58)
+	local b3 = 0.68 + rng:RandomFloat() * 0.12
+	local sign1 = rng:RandomInt(2) == 0 and 1 or -1
+	local sign2 = -sign1
+	item.screen_glitch = {
+		timer = frames,
+		max = frames,
+		mild = mild == true,
+		seed = seed,
+		band1 = {b1a, b1b},
+		band2 = {b2a, b2b},
+		band3_y = b3,
+		off1 = sign1 * (0.005 + rng:RandomFloat() * 0.004),
+		off2 = sign2 * (0.007 + rng:RandomFloat() * 0.005),
+		off3 = sign1 * (0.012 + rng:RandomFloat() * 0.006),
+		global = {
+			(rng:RandomFloat() - 0.5) * px_uv(2, "x"),
+			(rng:RandomFloat() - 0.5) * px_uv(1.5, "y"),
+		},
+	}
+end
+
+local function desync_strength(gch)
+	if not gch or (gch.timer or 0) <= 0 then return 0 end
+	if gch.mild then
+		return 0.08 + 0.04 * (gch.timer / math.max(1, gch.max))
+	end
+	local t = gch.timer
+	if t >= 8 then return 0.25
+	elseif t >= 5 then return 0.65
+	elseif t >= 3 then return 0.35
+	else return 0.12 end
+end
+
+local function pack_desync_params()
+	local gch = item.screen_glitch
+	if not gch or (gch.timer or 0) <= 0 then return empty_desync_params() end
+	local strength = desync_strength(gch)
+	local chromatic = px_uv(gch.mild and 1.2 or 2.4, "x")
+	-- 中段略加强色差，仍 ≤ ~4px
+	if not gch.mild and gch.timer >= 5 and gch.timer < 8 then
+		chromatic = px_uv(3.2, "x")
+	end
+	-- 5～8 帧区间加一次极小全局跳动（timer 倒计时：3～5）
+	local gx, gy = gch.global[1], gch.global[2]
+	if not gch.mild and gch.timer >= 3 and gch.timer < 6 then
+		gx = gx * 2.2
+		gy = gy * 2.2
+	elseif gch.timer >= 8 then
+		gx, gy = gx * 0.25, gy * 0.25
+	end
+	return {
+		P1 = {strength, chromatic, gch.off1, gch.off2},
+		P2 = {gch.band1[1], gch.band1[2], gch.band2[1], gch.band2[2]},
+		P3 = {gx, gy, gch.band3_y, gch.off3},
+	}
+end
+
+local function get_band_sprite()
+	if not item.band_spr then
+		item.band_spr = Sprite()
+		item.band_spr:Load("gfx/Black.anm2", true)
+		item.band_spr:Play("Idle", true)
+	end
+	return item.band_spr
+end
+
+local function spawn_afterimage(ent)
+	if not ent or not ent:Exists() then return end
+	local spr = ent:GetSprite()
+	if not spr then return end
+	local ghost = Isaac.Spawn(
+		EntityType.ENTITY_EFFECT,
+		enums.Entities.ID_EFFECT_MeusNIL,
+		0,
+		ent.Position,
+		Vector.Zero,
+		nil
+	)
+	if not ghost then return end
+	local d = ghost:GetData()
+	d.removecd = 2
+	d[item.own_key.."afterimage"] = true
+	local gs = ghost:GetSprite()
+	local fname = spr:GetFilename()
+	if fname and fname ~= "" then
+		gs:Load(fname, true)
+		local anim = spr:GetAnimation()
+		if anim and anim ~= "" then
+			gs:Play(anim, true)
+			if spr.GetFrame and gs.SetFrame then gs:SetFrame(spr:GetFrame()) end
+		end
+	end
+	local ox = (math.random(0, 1) == 0 and -1 or 1) * (2 + math.random() * 2)
+	local oy = (math.random() - 0.5) * 2
+	ghost.SpriteOffset = (ent.SpriteOffset or Vector.Zero) + Vector(ox, oy)
+	ghost.SpriteScale = ent.SpriteScale
+	gs.Color = Color(1, 1, 1, 0.25, 0.02, 0, -0.02)
+	ghost.DepthOffset = (ent.DepthOffset or 0) - 1
+end
+
+local COLOR_GLITCHES = {
+	function(a) return Color(1, 1, 1, a, 0.05, 0, -0.02) end,
+	function(a) return Color(1, 1, 1, a, -0.02, 0, 0.05) end,
+	function(a) return Color(1, 1, 1, a, 0, -0.04, 0.02) end,
+}
+
+local function apply_glitch_burst(ent, opts)
+	opts = opts or {}
+	if not ent or not ent:Exists() then return end
+	local d = ent:GetData()
+	local gch = d[item.own_key.."glitch"]
+	if not gch then
+		gch = {next = 45 + math.random(0, 30), left = 0, so = Vector(0, 0)}
+		d[item.own_key.."glitch"] = gch
+	end
+	gch.left = opts.left or math.random(1, 2)
+	gch.so = ent.SpriteOffset or Vector.Zero
+	local mode = opts.mode or math.random(1, 4)
+	gch.mode = mode
+	local spr = ent:GetSprite()
+	if mode == 1 or mode == 4 then
+		local dx = (math.random(0, 1) == 0 and -1 or 1) * (1 + math.random())
+		local dy = (math.random() - 0.5) * 2
+		ent.SpriteOffset = gch.so + Vector(dx, dy)
+	end
+	if mode == 2 or mode == 4 then
+		if spr then
+			local a = 0.9 + math.random() * 0.08
+			spr.Color = COLOR_GLITCHES[math.random(1, #COLOR_GLITCHES)](a)
+		end
+	end
+	if mode == 3 and spr and spr.GetFrame and spr.SetFrame then
+		gch.freeze_frame = spr:GetFrame()
+	end
+	if mode == 4 and math.random() < 0.55 then
+		spawn_afterimage(ent)
+	elseif mode ~= 4 and math.random() < 0.18 then
+		spawn_afterimage(ent)
+	end
+end
+
+local function tick_glitch(ent, interval_lo, interval_hi)
+	if not ent or not ent:Exists() then return end
+	local d = ent:GetData()
+	local gch = d[item.own_key.."glitch"]
+	interval_lo = interval_lo or 45
+	interval_hi = interval_hi or 75
+	if not gch then
+		gch = {
+			next = interval_lo + math.random(0, math.max(0, interval_hi - interval_lo)),
+			left = 0,
+			so = Vector(0, 0),
+		}
+		d[item.own_key.."glitch"] = gch
+	end
+	local spr = ent:GetSprite()
+	if gch.left > 0 then
+		if gch.freeze_frame and spr and spr.SetFrame then
+			spr:SetFrame(gch.freeze_frame)
+		end
+		gch.left = gch.left - 1
+		if gch.left <= 0 then
+			ent.SpriteOffset = gch.so
+			gch.freeze_frame = nil
+			if spr then spr.Color = Color(1, 1, 1, 1) end
+		end
+		return
+	end
+	gch.next = gch.next - 1
+	if gch.next > 0 then return end
+	gch.next = interval_lo + math.random(0, math.max(0, interval_hi - interval_lo))
+	apply_glitch_burst(ent)
+end
+
+local function tick_decoy_glitch(ent)
+	local key = GetPtrHash(ent)
+	local info = item.decoy_glitch[key]
+	if not info then return end
+	if not ent:Exists() or ent:IsDead() then
+		item.decoy_glitch[key] = nil
+		return
+	end
+	if (info.left_bursts or 0) <= 0 then return end
+	info.next = (info.next or 1) - 1
+	if info.next > 0 then return end
+	info.next = 90 + math.random(0, 120)
+	info.left_bursts = info.left_bursts - 1
+	apply_glitch_burst(ent, {left = 1})
+	-- 刷新 canonical wrapper
+	item.decoy_glitch[key] = info
+	info.ent = ent
+end
+
+local function register_decoy_glitches(rng)
+	item.decoy_glitch = {}
+	local candidates = {}
+	local ents = Isaac.GetRoomEntities()
+	for i = 1, #ents do
+		local ent = ents[i]
+		if ent and not tagged(ent) then
+			local npc = ent:ToNPC()
+			local pickup = ent:ToPickup()
+			local ok = false
+			if npc and not npc:IsBoss() and auxi.isenemies(ent) then ok = true end
+			if pickup and not pickup:IsShopItem() and not (pickup.Price and pickup.Price ~= 0) then ok = true end
+			if ok then candidates[#candidates + 1] = ent end
+		end
+	end
+	if #candidates == 0 then return end
+	local count = math.min(#candidates, 1 + rng:RandomInt(3))
+	for _ = 1, count do
+		if #candidates == 0 then break end
+		local idx = rng:RandomInt(#candidates) + 1
+		local ent = table.remove(candidates, idx)
+		item.decoy_glitch[GetPtrHash(ent)] = {
+			ent = ent,
+			left_bursts = 1 + rng:RandomInt(2),
+			next = 40 + rng:RandomInt(80),
+		}
+	end
+end
+
+--- 几何 Reality Tear：白线 / 半透明带 / 色差矩形，不依赖专用 anm2
+local function spawn_reality_tear(pos, size)
+	size = math.max(24, tonumber(size) or 40)
+	item.reality_tears[#item.reality_tears + 1] = {
+		pos = Vector(pos.X, pos.Y),
+		size = size,
+		timer = 0,
+		max = 7,
+		seed = Game():GetFrameCount() + math.floor(pos.X + pos.Y),
+	}
+	sound_tracker.PlayStackedSound(SoundEffect.SOUND_EDEN_GLITCH, 0.55, 1.15, false, 0, 2)
+end
+
+local function render_reality_tears()
+	if not item.reality_tears or #item.reality_tears == 0 then return end
+	local spr = get_band_sprite()
+	local remain = {}
+	for i = 1, #item.reality_tears do
+		local tear = item.reality_tears[i]
+		tear.timer = tear.timer + 1
+		local t = tear.timer
+		local screen = Isaac.WorldToScreen(tear.pos)
+		local w = tear.size * 1.4
+		local h = tear.size * 1.1
+		local alpha = 1 - (t / tear.max)
+		if t <= 2 then
+			spr.Color = Color(1, 1, 1, 0.55 * alpha)
+			spr.Scale = Vector(w / 16, h / 16)
+			spr:Render(screen, Vector.Zero, Vector.Zero)
+		end
+		local bands = {
+			{y = -0.35, ox = t >= 3 and 6 or 0},
+			{y = 0, ox = t >= 3 and -4 or 0},
+			{y = 0.32, ox = t >= 3 and 5 or 0},
+		}
+		for _,band in ipairs(bands) do
+			spr.Color = Color(1, 1, 1, 0.7 * alpha)
+			spr.Scale = Vector(w / 14, 0.12)
+			spr:Render(screen + Vector(band.ox, band.y * h), Vector.Zero, Vector.Zero)
+		end
+		if t >= 4 then
+			spr.Color = Color(1, 0.35, 0.35, 0.35 * alpha)
+			spr.Scale = Vector(w / 18, h / 20)
+			spr:Render(screen + Vector(3, -1), Vector.Zero, Vector.Zero)
+			spr.Color = Color(0.35, 0.9, 1, 0.35 * alpha)
+			spr:Render(screen + Vector(-3, 1), Vector.Zero, Vector.Zero)
+		end
+		if t >= 5 then
+			for k = -2, 2 do
+				spr.Color = Color(1, 1, 1, 0.4 * alpha)
+				spr.Scale = Vector(w / 12, 0.06)
+				spr:Render(screen + Vector(0, k * 4), Vector.Zero, Vector.Zero)
+			end
+		end
+		if t < tear.max then remain[#remain + 1] = tear end
+	end
+	item.reality_tears = remain
 end
 
 local function snapshot_player(player)
@@ -320,35 +644,8 @@ local function record_pickup_virtual(player, pickup)
 		end, nil, 0)
 	end
 	player:GetData()[item.own_key.."snap"] = snapshot_player(player)
-end
-
-local function tick_glitch(ent)
-	if not ent or not ent:Exists() then return end
-	local d = ent:GetData()
-	local gch = d[item.own_key.."glitch"]
-	if not gch then
-		gch = {next = 30 + math.random(0, 60), left = 0, so = Vector(0, 0)}
-		d[item.own_key.."glitch"] = gch
-	end
-	local spr = ent:GetSprite()
-	if gch.left > 0 then
-		gch.left = gch.left - 1
-		if gch.left <= 0 then
-			ent.SpriteOffset = gch.so
-			if spr then spr.Color = Color(1, 1, 1, 1) end
-		end
-		return
-	end
-	gch.next = gch.next - 1
-	if gch.next > 0 then return end
-	gch.next = 30 + math.random(0, 60)
-	gch.left = math.random(1, 2)
-	gch.so = ent.SpriteOffset or Vector.Zero
-	ent.SpriteOffset = gch.so + Vector(math.random(-1, 1), math.random(-1, 1))
-	if spr then
-		local a = 0.92 + math.random() * 0.08
-		spr.Color = Color(1, 1, 1, a, 0.04, 0, -0.03)
-	end
+	-- 拾取假物：极轻一帧色差，不揭穿
+	item.trigger_desync(2, true)
 end
 
 local function remove_copied_item(st)
@@ -367,10 +664,105 @@ local function remove_copied_item(st)
 	st.CopiedPlayer = nil
 end
 
+local function build_reclaim_fx(virt, player)
+	local parts = {}
+	local function add(kind, amount, pos)
+		if (amount or 0) <= 0 then return end
+		parts[#parts + 1] = {
+			kind = kind,
+			amount = amount,
+			pos = Vector(pos.X, pos.Y),
+			text = "-"..tostring(amount),
+		}
+	end
+	if not player then return parts end
+	add("coin", virt.Coins, ui.UI_Pos("coin", 1))
+	add("bomb", virt.Bombs, ui.UIBombPos(false))
+	add("key", virt.Keys, ui.UI_Pos("key", 1))
+	if virt.Card and virt.Card ~= 0 then
+		local slot = (virt.CardSlot or 0) + 1
+		parts[#parts + 1] = {
+			kind = "card",
+			amount = 1,
+			pos = ui.UICardPos(slot),
+			text = "×",
+			card = true,
+		}
+	end
+	if virt.Pill and virt.Pill ~= 0 then
+		local slot = (virt.PillSlot or 0) + 1
+		parts[#parts + 1] = {
+			kind = "pill",
+			amount = 1,
+			pos = ui.UICardPos(slot),
+			text = "×",
+			card = true,
+		}
+	end
+	local heart_amt = (virt.Hearts or 0) + (virt.Soul or 0) + (virt.Black or 0)
+		+ (virt.Bone or 0) + (virt.Rotten or 0) + (virt.Golden or 0) + (virt.Eternal or 0)
+	if heart_amt > 0 then
+		add("heart", heart_amt, ui.UIHeartPos(1, player))
+	end
+	return parts
+end
+
+local function start_reclaim_fx(virt, player)
+	local parts = build_reclaim_fx(virt, player)
+	if #parts == 0 and not (virt.CopiedItem) then
+		if (virt.Battery or 0) <= 0 then return end
+	end
+	if (virt.Battery or 0) > 0 then
+		parts[#parts + 1] = {
+			kind = "battery",
+			amount = virt.Battery,
+			pos = ui.UIChargeBarPos(0),
+			text = "-"..tostring(virt.Battery),
+		}
+	end
+	if #parts == 0 then return end
+	local center = auxi.GetScreenSize() * 0.5
+	item.reclaim_fx = {
+		timer = 0,
+		max = 16,
+		parts = parts,
+		center = center,
+	}
+	sound_tracker.PlayStackedSound(SoundEffect.SOUND_BEEP, 0.45, 0.85, false, 0, 1)
+end
+
+local function render_reclaim_fx()
+	local fx = item.reclaim_fx
+	if not fx then return end
+	fx.timer = fx.timer + 1
+	local u = fx.timer / math.max(1, fx.max)
+	local alpha = 1 - u
+	local center = fx.center
+	for _,part in ipairs(fx.parts) do
+		local pos = auxi.Lerp(part.pos, center, math.min(1, u * 1.15))
+		local split = (1 - u) * 4
+		local col_main = KColor(0.85, 0.88, 0.92, alpha)
+		local col_r = KColor(1, 0.35, 0.35, alpha * 0.45)
+		local col_c = KColor(0.35, 0.9, 1, alpha * 0.45)
+		if part.card then
+			-- 卡牌：横向错位白闪
+			gui.draw_ch(pos + Vector(-split, 0), part.text, 1.2, 1.2, col_r, true)
+			gui.draw_ch(pos + Vector(split, 0), part.text, 1.2, 1.2, col_c, true)
+			gui.draw_ch(pos, part.text, 1.1, 1.1, col_main, true)
+		else
+			gui.draw_ch(pos + Vector(-split, -1), part.text, 1, 1, col_r, true)
+			gui.draw_ch(pos + Vector(split, 1), part.text, 1, 1, col_c, true)
+			gui.draw_ch(pos, part.text, 1, 1, col_main, true)
+		end
+	end
+	if fx.timer >= fx.max then item.reclaim_fx = nil end
+end
+
 local function claw_virtual(st)
 	local virt = st.Virtual or empty_virtual()
 	local player = owner_player() or Game():GetPlayer(0)
 	if not auxi.check_all_exists(player) then return end
+	start_reclaim_fx(virt, player)
 	claw_amount(player, function(p, n) p:AddCoins(n) end, function(p) return p:GetNumCoins() end, virt.Coins or 0)
 	claw_amount(player, function(p, n) p:AddBombs(n) end, function(p) return p:GetNumBombs() end, virt.Bombs or 0)
 	claw_amount(player, function(p, n) p:AddKeys(n) end, function(p) return p:GetNumKeys() end, virt.Keys or 0)
@@ -424,10 +816,19 @@ end
 
 function item.clear_error(reclaim)
 	local st = error_state()
+	local had = st.Type ~= nil or (st.Virtual and (
+		(st.Virtual.Coins or 0) > 0 or (st.Virtual.Bombs or 0) > 0 or (st.Virtual.Keys or 0) > 0
+		or (st.Virtual.Hearts or 0) > 0 or (st.Virtual.Soul or 0) > 0 or (st.Virtual.Card or 0) ~= 0
+		or (st.Virtual.Pill or 0) ~= 0 or st.CopiedItem
+	))
 	if reclaim ~= false then claw_virtual(st) end
 	remove_copied_item(st)
 	remove_illusion_entities()
+	item.decoy_glitch = {}
 	save.elses[item.own_key.."error"] = empty_error()
+	if reclaim ~= false and had then
+		item.trigger_desync(DESYNC_LEAVE_FRAMES, true)
+	end
 end
 
 local function spawn_pickup_error(src, rng)
@@ -511,13 +912,19 @@ function item.create_error(force_kind)
 	end
 	local chosen = pick_weighted(rng, options)
 	if not chosen then return false end
+	local ok = false
 	if chosen.kind == ERR_PICKUP then
-		return spawn_pickup_error(pickups[rng:RandomInt(#pickups) + 1], rng)
+		ok = spawn_pickup_error(pickups[rng:RandomInt(#pickups) + 1], rng)
 	elseif chosen.kind == ERR_ENEMY then
-		return spawn_enemy_error(enemies[rng:RandomInt(#enemies) + 1])
+		ok = spawn_enemy_error(enemies[rng:RandomInt(#enemies) + 1])
 	else
-		return spawn_item_error(player, items[rng:RandomInt(#items) + 1])
+		ok = spawn_item_error(player, items[rng:RandomInt(#items) + 1])
 	end
+	if ok then
+		item.trigger_desync(DESYNC_MAX_DEFAULT, false)
+		register_decoy_glitches(rng)
+	end
+	return ok
 end
 
 function item.try_roll_error()
@@ -536,6 +943,10 @@ Function = function(_, continue)
 		save.elses[item.own_key.."error"] = empty_error()
 	end
 	save.elses[item.own_key.."error"] = save.elses[item.own_key.."error"] or empty_error()
+	item.screen_glitch = nil
+	item.decoy_glitch = {}
+	item.reality_tears = {}
+	item.reclaim_fx = nil
 end,
 })
 
@@ -547,6 +958,8 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
+	item.decoy_glitch = {}
+	item.reality_tears = {}
 	if not owner_player() then return end
 	delay_buffer.addeffe(function()
 		item.try_roll_error()
@@ -584,7 +997,6 @@ Function = function(_, player)
 	spend_virtual(virt, "Hearts", snap.Hearts - now.Hearts)
 	spend_virtual(virt, "Soul", snap.Soul - now.Soul)
 	if (virt.Black or 0) > 0 and snap.Soul > now.Soul then
-		-- 黑心扣血会反映在魂心计数上，优先消耗虚假黑心
 		local lost = snap.Soul - now.Soul
 		local use = math.min(virt.Black, lost)
 		virt.Black = virt.Black - use
@@ -611,6 +1023,7 @@ Function = function(_, ent, amt, flag, source, cooldown)
 	if amt <= 0 then return end
 	if flag & DamageFlag.DAMAGE_FAKE == DamageFlag.DAMAGE_FAKE then return end
 	if not tagged(ent) or not ent:ToNPC() then return end
+	spawn_reality_tear(ent.Position, (ent.Size or 20) * 2.2)
 	ent:Remove()
 	local st = error_state()
 	if st.Type == ERR_ENEMY then
@@ -623,15 +1036,22 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_NPC_UPDATE, params = nil,
 Function = function(_, ent)
-	if not tagged(ent) then return end
-	ent.CanShutDoors = false
-	tick_glitch(ent)
+	if tagged(ent) then
+		ent.CanShutDoors = false
+		tick_glitch(ent, 45, 75)
+		return
+	end
+	tick_decoy_glitch(ent)
 end,
 })
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_PICKUP_UPDATE, params = nil,
 Function = function(_, ent)
-	if tagged(ent) then tick_glitch(ent) end
+	if tagged(ent) then
+		tick_glitch(ent, 45, 75)
+	else
+		tick_decoy_glitch(ent)
+	end
 end,
 })
 
@@ -648,7 +1068,45 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_PROJECTILE_UPDATE, params = nil,
 Function = function(_, proj)
-	if tagged(proj) then tick_glitch(proj) end
+	if tagged(proj) then tick_glitch(proj, 50, 90) end
+end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
+Function = function(_)
+	local gch = item.screen_glitch
+	if gch and (gch.timer or 0) > 0 then
+		gch.timer = gch.timer - 1
+		if gch.timer <= 0 then item.screen_glitch = nil end
+	end
+	if item.hud_ghost_next and item.hud_ghost_next > 0 then
+		item.hud_ghost_next = item.hud_ghost_next - 1
+	else
+		item.hud_ghost_flip = not item.hud_ghost_flip
+		item.hud_ghost_next = 30 + math.random(0, 30)
+	end
+end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_GET_SHADER_PARAMS, params = nil,
+Function = function(_, name)
+	if name ~= DESYNC_SHADER then return end
+	if Game():IsPauseMenuOpen() then return empty_desync_params() end
+	return pack_desync_params()
+end,
+})
+
+local hud_cb = (REPENTOGON and ModCallbacks.MC_POST_HUD_RENDER) or ModCallbacks.MC_POST_RENDER
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = hud_cb, params = nil,
+Function = function(_)
+	if not Game():GetHUD():IsVisible() then return end
+	render_reclaim_fx()
+end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_RENDER, params = nil,
+Function = function(_)
+	render_reality_tears()
 end,
 })
 
@@ -686,8 +1144,14 @@ do
 		end
 		return {[id] = 1}
 	end, {
-		color = Color(1, 1, 1, 0.62, 0, 0, 0, 0.2, 0.15, 0.28, 0.35),
+		color = Color(1, 1, 1, 0.65, 0, 0, 0, 0.2, 0.15, 0.28, 0.35),
 		source_item = item.entity,
+		ghost = true,
+		ghost_alpha = 0.2,
+		ghost_fn = function()
+			if item.hud_ghost_flip then return Vector(-2, 1) end
+			return Vector(2, -1)
+		end,
 	})
 end
 
