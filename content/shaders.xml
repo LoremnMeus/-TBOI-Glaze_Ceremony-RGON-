@@ -544,4 +544,55 @@
             }
         ]]></fragment>
     </shader>
+	<!-- Remaster 换层：径向 zoom 进/出传送门 + 黑幕（绿色漩涡已禁用便于排查 portal 压缩） -->
+	<shader name="Qing_Remaster_Portal">
+        <parameters>
+			<param name="P1" type="vec4"/>
+			<param name="P2" type="vec4"/>
+        </parameters>
+        <vertex><![CDATA[
+            attribute vec3 Position;
+            attribute vec4 Color;
+            attribute vec2 TexCoord;
+            attribute vec4 P1;
+            attribute vec4 P2;
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform mat4 Transform;
+            void main(void) {
+                Color0 = Color;
+                TexCoord0 = TexCoord;
+                Pi1 = P1;
+                Pi2 = P2;
+                gl_Position = Transform * vec4(Position.xyz, 1.0);
+            }
+        ]]></vertex>
+        <fragment><![CDATA[
+            varying vec4 Pi1;
+            varying vec4 Pi2;
+            varying lowp vec4 Color0;
+            varying mediump vec2 TexCoord0;
+            uniform sampler2D Texture0;
+            void main(void) {
+				// P1: zoom(0=远 1=贴门), unused, black, enabled
+				// P2: centerU, centerV
+				float enabled = Pi1.w;
+				if(enabled < 0.5){
+					gl_FragColor = Color0 * texture2D(Texture0, TexCoord0);
+				}else{
+					vec2 uv = TexCoord0;
+					vec2 center = Pi2.xy;
+					float zoom = clamp(Pi1.x, 0.0, 1.0);
+					float blackAmt = clamp(Pi1.z, 0.0, 1.0);
+					float scale = 1.0 + zoom * 48.0;
+					vec2 sampleUV = center + (uv - center) / scale;
+					vec4 color = Color0 * texture2D(Texture0, sampleUV);
+					color = mix(color, vec4(0.0, 0.0, 0.0, 1.0), blackAmt);
+					gl_FragColor = color;
+				}
+            }
+        ]]></fragment>
+    </shader>
 </shaders>

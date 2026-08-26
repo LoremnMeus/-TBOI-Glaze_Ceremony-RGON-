@@ -32,6 +32,8 @@ manager.modules = {
 	"Qing_Remaster_scripts.others.craft_floor_stat_counter_probe",
 	"Qing_Remaster_scripts.others.time_stop_probe",
 	"Qing_Remaster_scripts.others.destiny_anchor_probe",
+	"Qing_Remaster_scripts.others.remaster_ghost_render_probe",
+	"Qing_Remaster_scripts.others.baby_lu_ceremony_probe",
 	"Qing_Remaster_scripts.others.craft_tear_color_data",
 	"Qing_Remaster_scripts.others.craft_tear_params_data",
 	"Qing_Remaster_scripts.others.sprite_trail_presets",

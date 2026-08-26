@@ -1,9 +1,9 @@
 <AnimatedActor>
-	<Info CreatedBy="trtv" CreatedOn="2026/8/26 2:04:45" Version="6" Fps="30"/>
+	<Info CreatedBy="trtv" CreatedOn="2026/8/26 15:36:52" Version="7" Fps="30"/>
 	<Content>
 		<Spritesheets>
 			<Spritesheet Path="TitleMenu.png" Id="0"/>
-			<Spritesheet Path="logo.png" Id="1"/>
+			<Spritesheet Path="logo_replace.png" Id="1"/>
 		</Spritesheets>
 		<Layers>
 			<Layer Name="Background" Id="0" SpritesheetId="0"/>

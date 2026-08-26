@@ -36,6 +36,7 @@ function callback_manager.Init(mod)
 		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.repentogon_holder"))
 		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.rgon_imgui_options_holder"))
 		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder"))
+		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.title_menu_logo_holder"))
 		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.title_menu_marquee_holder"))
 	end
 end

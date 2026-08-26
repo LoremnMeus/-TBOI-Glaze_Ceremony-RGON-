@@ -369,12 +369,23 @@ Function = function(_,name)
 end,
 })
 
+local STAT_CACHE_FLAGS = {
+	[1] = CacheFlag.CACHE_DAMAGE,
+	[2] = CacheFlag.CACHE_FIREDELAY,
+	[3] = CacheFlag.CACHE_SHOTSPEED,
+	[4] = CacheFlag.CACHE_RANGE,
+	[5] = CacheFlag.CACHE_SPEED,
+	[6] = CacheFlag.CACHE_LUCK,
+	[7] = CacheFlag.CACHE_SIZE,
+}
+
 local function reward(player)
 	local idx = player:GetData().__Index
 	local room = Game():GetRoom()
 	local rng = player:GetCollectibleRNG(item.entity)
 	rng = auxi.rng_for_sake(rng)
 	if idx ~= nil then
+		local stat_cache = 0
 		local tg = {}
 		table.insert(tg,#tg + 1,{name = "dmg",weigh = 5})
 		table.insert(tg,#tg + 1,{name = "tear",weigh = 4})
@@ -395,31 +406,38 @@ local function reward(player)
 		table.insert(tg,#tg + 1,{name = "fly",weigh = 3})
 		table.insert(tg,#tg + 1,{name = "prettyfly",weigh = 1})
 		table.insert(tg,#tg + 1,{name = "dip",weigh = 2})
-		local stag = auxi.random_in_table(tg,rng)
+		local stag = auxi.random_in_weighed_table(tg,rng)
 		local Buff_holder_counter = 0
 		save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
 		save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
 		if stag.name == "dmg" then
 			save.elses[item.own_key.."buff"][idx].damage = (save.elses[item.own_key.."buff"][idx].damage or 0) + 0.5
 			Buff_holder_counter = 1
+			stat_cache = STAT_CACHE_FLAGS[1]
 		elseif stag.name == "tear" then
 			save.elses[item.own_key.."buff"][idx].tear = (save.elses[item.own_key.."buff"][idx].tear or 0) + 0.35
 			Buff_holder_counter = 2
+			stat_cache = STAT_CACHE_FLAGS[2]
 		elseif stag.name == "shotspeed" then
 			save.elses[item.own_key.."buff"][idx].shotspeed = (save.elses[item.own_key.."buff"][idx].shotspeed or 0) + 0.15
 			Buff_holder_counter = 3
+			stat_cache = STAT_CACHE_FLAGS[3]
 		elseif stag.name == "range" then
 			save.elses[item.own_key.."buff"][idx].range = (save.elses[item.own_key.."buff"][idx].range or 0) + 40
 			Buff_holder_counter = 4
+			stat_cache = STAT_CACHE_FLAGS[4]
 		elseif stag.name == "luck" then
 			save.elses[item.own_key.."buff"][idx].luck = (save.elses[item.own_key.."buff"][idx].luck or 0) + 1
 			Buff_holder_counter = 6
+			stat_cache = STAT_CACHE_FLAGS[6]
 		elseif stag.name == "speed" then
 			save.elses[item.own_key.."buff"][idx].speed = (save.elses[item.own_key.."buff"][idx].speed or 0) + 0.15
 			Buff_holder_counter = 5
+			stat_cache = STAT_CACHE_FLAGS[5]
 		elseif stag.name == "size" then
 			save.elses[item.own_key.."buff"][idx].size = (save.elses[item.own_key.."buff"][idx].size or 1) * 0.9
 			Buff_holder_counter = 7
+			stat_cache = STAT_CACHE_FLAGS[7]
 		elseif stag.name == "money" then
 			local rnd = rng:RandomInt(5) + 1
 			for i = 1,rnd do
@@ -484,7 +502,9 @@ local function reward(player)
 		end
 		if player:Exists() then
 			player:AnimateHappy()
-			player:AddCacheFlags(CacheFlag.CACHE_ALL)
+			if stat_cache ~= 0 then
+				player:AddCacheFlags(stat_cache)
+			end
 			player:GetData().should_evaluate_on_update_once = true
 		end
 	end
@@ -495,6 +515,7 @@ local function punish(player)
 	local rng = player:GetCollectibleRNG(item.entity)
 	rng = auxi.rng_for_sake(rng)
 	if idx ~= nil then
+		local stat_cache = 0
 		local tg = {}
 		local room = Game():GetRoom()
 		table.insert(tg,#tg + 1,{name = "dmg",weigh = 10})
@@ -521,24 +542,31 @@ local function punish(player)
 		if stag.name == "dmg" then
 			save.elses[item.own_key.."buff"][idx].damage = (save.elses[item.own_key.."buff"][idx].damage or 0) - 0.2
 			Buff_holder_counter = 1
+			stat_cache = STAT_CACHE_FLAGS[1]
 		elseif stag.name == "tear" then
 			save.elses[item.own_key.."buff"][idx].tear = (save.elses[item.own_key.."buff"][idx].tear or 0) - 0.2
 			Buff_holder_counter = 2
+			stat_cache = STAT_CACHE_FLAGS[2]
 		elseif stag.name == "shotspeed" then
 			save.elses[item.own_key.."buff"][idx].shotspeed = (save.elses[item.own_key.."buff"][idx].shotspeed or 0) - 0.1
 			Buff_holder_counter = 3
+			stat_cache = STAT_CACHE_FLAGS[3]
 		elseif stag.name == "range" then
 			save.elses[item.own_key.."buff"][idx].range = (save.elses[item.own_key.."buff"][idx].range or 0) - 20
 			Buff_holder_counter = 4
+			stat_cache = STAT_CACHE_FLAGS[4]
 		elseif stag.name == "luck" then
 			save.elses[item.own_key.."buff"][idx].luck = (save.elses[item.own_key.."buff"][idx].luck or 0) - 0.5
 			Buff_holder_counter = 6
+			stat_cache = STAT_CACHE_FLAGS[6]
 		elseif stag.name == "speed" then
 			save.elses[item.own_key.."buff"][idx].speed = (save.elses[item.own_key.."buff"][idx].speed or 0) - 0.1
 			Buff_holder_counter = 5
+			stat_cache = STAT_CACHE_FLAGS[5]
 		elseif stag.name == "size" then
 			save.elses[item.own_key.."buff"][idx].size = (save.elses[item.own_key.."buff"][idx].size or 1) * 1.12
 			Buff_holder_counter = 7
+			stat_cache = STAT_CACHE_FLAGS[7]
 		elseif stag.name == "money10" then
 			player:AddCoins(-10)
 			dropping_holder.try_drop(player.Position,nil,{load_name = "gfx/005.023_dime.anm2",})
@@ -561,6 +589,7 @@ local function punish(player)
 		elseif stag.name == "luckycoin" then
 			player:AddCoins(-1)
 			save.elses[item.own_key.."buff"][idx].luck = (save.elses[item.own_key.."buff"][idx].luck or 0) - 1
+			stat_cache = STAT_CACHE_FLAGS[6]
 			dropping_holder.try_drop(player.Position,nil,{load_name = "gfx/005.026_lucky penny.anm2",})
 		elseif stag.name == "trollbomb" then
 			for i = 1,4 do
@@ -585,7 +614,9 @@ local function punish(player)
 		end
 		if player:Exists() then
 			player:AnimateSad()
-			player:AddCacheFlags(CacheFlag.CACHE_ALL)
+			if stat_cache ~= 0 then
+				player:AddCacheFlags(stat_cache)
+			end
 			player:GetData().should_evaluate_on_update_once = true
 		end
 	end

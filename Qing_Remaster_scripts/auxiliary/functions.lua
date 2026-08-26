@@ -3427,9 +3427,9 @@ function funct.GetfamiliarDir(ent, dir, allow_king)
 end
 
 function funct.get_by_familiar_dir(ent,params)
-	local player = params.player or ent.Player or Game():GetPlayer(0)
 	params = params or {}
-	local dgir = auxi.ggdir(player,false,true)		--?
+	local player = params.player or ent.Player or Game():GetPlayer(0)
+	local gdir = auxi.ggdir(player,false,true)
 	if gdir:Length() < 0.05 then return {dir = gdir,auto = false,} end
 	if not params.ignore_king then
 		if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KING_BABY) then

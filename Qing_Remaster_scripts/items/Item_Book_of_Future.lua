@@ -11,6 +11,7 @@ local item = {
 	myToCall = {},
 	entity = enums.Items.Book_of_Future,
 	goal = 50,
+	empty_pool_sentinel = CollectibleType.COLLECTIBLE_KEY_PIECE_1,
 	pools = {[0] = {},[1] = {},[2] = {},[3] = {},[4] = {},[5] = {},},
 	q2c = {
 		[0] = Color(1,1,1,1),
@@ -62,32 +63,148 @@ if true then
 	end
 end
 
+function item.get_progress()
+	local progress = tonumber(save.PermanentData.Book_of_Future_progress) or 0
+	return math.max(0,math.min(item.goal,math.floor(progress)))
+end
+
+function item.set_progress(progress)
+	save.PermanentData.Book_of_Future_progress = math.max(0,math.min(item.goal,math.floor(tonumber(progress) or 0)))
+	if save.SaveModData then pcall(save.SaveModData,"book_of_future_progress") end
+end
+
+function item.draw_from_current_pool(rng)
+	local pool = Game():GetItemPool()
+	local pool_type = pool:GetPoolForRoom(Game():GetRoom():GetType(),Game():GetLevel():GetCurrentRoomDesc().SpawnSeed)
+	if pool_type == ItemPoolType.POOL_NULL then pool_type = ItemPoolType.POOL_TREASURE end
+	local collectible = pool:GetCollectible(pool_type,true,rng:GetSeed(),item.empty_pool_sentinel)
+	if collectible == item.empty_pool_sentinel then return nil end
+	return collectible
+end
+
+local function setup_escape_sprite(ent,alpha)
+	local config = Isaac.GetItemConfig():GetCollectible(item.entity)
+	local s = ent:GetSprite()
+	s:Load("gfx/005.100_collectible.anm2",true)
+	s:Play("Idle",true)
+	if config and config.GfxFileName then s:ReplaceSpritesheet(1,config.GfxFileName) s:LoadGraphics() end
+	s.Color = Color(1,1,1,alpha or 1,0.15,0.2,0.35)
+	return s
+end
+
+local function show_escape_message()
+	local hud = Game():GetHUD()
+	if not hud or not hud.ShowItemText then return end
+	if auxi.get_EID_language() == "zh_cn" then
+		hud:ShowItemText("未来之书","未来逃逸了")
+	else
+		hud:ShowItemText("Book of Future","The future escaped")
+	end
+end
+
+function item.spawn_escape(player)
+	show_escape_message()
+	local q = Isaac.Spawn(EntityType.ENTITY_EFFECT,enums.Entities.AnnaHelper,0,player.Position,Vector(0,0),player):ToEffect()
+	if not q then return end
+	q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	q.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE
+	q.PositionOffset = Vector(0,-22)
+	q.DepthOffset = 100
+	setup_escape_sprite(q,1)
+	q:GetData()[item.own_key.."escape"] = {frame = 0,rotation = auxi.choose(-1,1) * 2.5,origin = auxi.ProtectVector(player.Position),}
+	sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLACK_POOF,1,1,false,0,2)
+end
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFECT_UPDATE, params = enums.Entities.AnnaHelper,
+Function = function(_,ent)
+	local d = ent:GetData()
+	local info = d[item.own_key.."escape"]
+	local afterimage = d[item.own_key.."escape_afterimage"]
+	if info then
+		info.frame = (info.frame or 0) + 1
+		if info.frame <= 18 then
+			ent.Velocity = ent.Velocity * 0.45
+		else
+			ent.Velocity = ent.Velocity + Vector(0,-0.52)
+		end
+		local s = ent:GetSprite()
+		s.Rotation = s.Rotation + (info.rotation or 0)
+		local alpha = math.max(0,1 - math.max(0,info.frame - 28)/18)
+		s.Color = Color(1,1,1,alpha,0.15,0.2,0.35)
+		if info.frame % 3 == 0 and info.frame <= 40 then
+			local trail = Isaac.Spawn(EntityType.ENTITY_EFFECT,enums.Entities.AnnaHelper,0,ent.Position,Vector(0,0),ent.SpawnerEntity):ToEffect()
+			if trail then
+				trail.PositionOffset = auxi.ProtectVector(ent.PositionOffset)
+				trail.DepthOffset = ent.DepthOffset - 1
+				local ts = setup_escape_sprite(trail,0.32)
+				ts.Rotation = s.Rotation
+				ts.Scale = auxi.ProtectVector(s.Scale)
+				trail:GetData()[item.own_key.."escape_afterimage"] = {frame = 0,}
+			end
+		end
+		if info.frame >= 46 then
+			local column = Isaac.Spawn(EntityType.ENTITY_EFFECT,EffectVariant.CRACK_THE_SKY,0,info.origin or ent.Position,Vector(0,0),ent.SpawnerEntity):ToEffect()
+			if column then
+				column.CollisionDamage = 0
+				column.PositionOffset = Vector(0,0)
+				column.SpriteScale = Vector(1.35,1.6)
+				local black = Color(1,1,1,0.9)
+				black:SetColorize(0.025,0.015,0.045,1)
+				column:GetSprite().Color = black
+			end
+			ent:Remove()
+		end
+	elseif afterimage then
+		afterimage.frame = (afterimage.frame or 0) + 1
+		local alpha = math.max(0,0.32 * (1 - afterimage.frame/10))
+		ent:GetSprite().Color = Color(1,1,1,alpha,0.15,0.2,0.35)
+		if afterimage.frame >= 10 then ent:Remove() end
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
+Function = function(_,player)
+	local d = player:GetData()
+	local pending = d[item.own_key.."pending_escape"]
+	if not pending then return end
+	pending.frame = (pending.frame or 0) + 1
+	if player:IsHoldingItem() then pending.holding_frames = (pending.holding_frames or 0) + 1 end
+	if (pending.holding_frames or 0) >= 6 or pending.frame >= 26 then
+		player:AnimateCollectible(item.entity,"HideItem","PlayerPickup")
+		item.spawn_escape(player)
+		player:RemoveCollectible(item.entity,true,pending.active_slot or ActiveSlot.SLOT_PRIMARY,false)
+		d[item.own_key.."pending_escape"] = nil
+	end
+end,
+})
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = item.entity,
 Function = function(_,coltyp,rng,player,useFlags,activeSlot,customVarData)
-	local ret = true
 	if coltyp == item.entity then
 		if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
+			local useinfo = player:GetData()[item.own_key.."last_use"]
+			if not (useinfo and useinfo.success and useinfo.frame == Game():GetFrameCount()) then return false end
 			local room = Game():GetRoom()
 			for i = 1,2 do
 				local q = Isaac.Spawn(5,100,0,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
 				q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE)
 				q.OptionsPickupIndex = save.elses.Book_of_Future_cnt
 			end
-			if save.elses.Book_of_Future_fail then
-				player:AddBrokenHearts(2)
-			end
+			return true
 		else
 			local itemConfig = Isaac.GetItemConfig()
 			local rng = player:GetCollectibleRNG(item.entity)
 			rng = auxi.rng_for_sake(rng)
 			local room = Game():GetRoom()
-			local level = Game():GetLevel()
 			local targets = {}
 			local cnt = 0
-			local qui = 0
-			while(qui < 50 and cnt < 50) do 
-				local tg = auxi.get_item_from_pool(nil,true,rng)
-				qui = qui + itemConfig:GetCollectible(tg).Quality
+			local progress = item.get_progress()
+			while(progress < item.goal and cnt < 50) do
+				local tg = item.draw_from_current_pool(rng)
+				if not tg then break end
+				local config = itemConfig:GetCollectible(tg)
+				progress = progress + (config and config.Quality or 0)
 				cnt = cnt + 1
 				table.insert(targets,#targets+1,{id = tg,})
 			end
@@ -107,43 +224,44 @@ Function = function(_,coltyp,rng,player,useFlags,activeSlot,customVarData)
 				end
 				
 			end
-			if qui < item.goal then
-				save.elses.Book_of_Future_fail = true
-			end
-			local ndx = option_index_holder.find_a_new_index()
-			local cnt = 4
-			if auxi.should_do_Seija(player) then cnt = 1 end
-			for i = 1,cnt do
-				local q = Isaac.Spawn(5,100,0,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-				q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE)
-				q.OptionsPickupIndex = ndx
-			end
-			if save.elses.Book_of_Future_fail then
-				if qui == 0 then
-					player:AddBrokenHearts(4)
-				end
-				player:AnimateSad()
-				ret = false
-			end
-			if ret then 
-				local q = Isaac.Spawn(1000,16,2,player.Position,Vector(0,0),player)
-				q.SpriteScale = Vector(2,2)
-			end
-			save.elses.Book_of_Future_cnt = ndx
-			if auxi.should_spawn_wisp(player,useFlags) then
-				local rnd = rng:RandomInt(#targets) + 1
-				player:AddItemWisp(targets[rnd].id,player.Position,true)
-			end
-			if auxi.should_do_belial(player) then
-				for i = 1,2 do
-					local colid = auxi.get_item_from_pool(3,true,rng)
-					local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+			local success = progress >= item.goal
+			player:GetData()[item.own_key.."last_use"] = {frame = Game():GetFrameCount(),success = success,}
+			if success then
+				item.set_progress(0)
+				local ndx = option_index_holder.find_a_new_index()
+				local choice_count = 4
+				if auxi.should_do_Seija(player) then choice_count = 1 end
+				for i = 1,choice_count do
+					local q = Isaac.Spawn(5,100,0,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
 					q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE)
 					q.OptionsPickupIndex = ndx
 				end
+				local q = Isaac.Spawn(1000,16,2,player.Position,Vector(0,0),player)
+				q.SpriteScale = Vector(2,2)
+				save.elses.Book_of_Future_cnt = ndx
+				if auxi.should_do_belial(player) then
+					for i = 1,2 do
+						local colid = auxi.get_item_from_pool(3,true,rng)
+						local q2 = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+						q2:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE)
+						q2.OptionsPickupIndex = ndx
+					end
+				end
+				if auxi.should_spawn_wisp(player,useFlags) and #targets > 0 then
+					local rnd = rng:RandomInt(#targets) + 1
+					player:AddItemWisp(targets[rnd].id,player.Position,true)
+				end
+				return true
 			end
+			item.set_progress(progress)
+			player:AnimateCollectible(item.entity,"LiftItem","PlayerPickup")
+			player:GetData()[item.own_key.."pending_escape"] = {frame = 0,active_slot = activeSlot,}
+			if auxi.should_spawn_wisp(player,useFlags) and #targets > 0 then
+				local rnd = rng:RandomInt(#targets) + 1
+				player:AddItemWisp(targets[rnd].id,player.Position,true)
+			end
+			return {Discharge = true, Remove = false, ShowAnim = false}
 		end
-		return ret
 	end
 end,
 })
@@ -171,11 +289,22 @@ Function = function(_,continue)
 	if continue then
 	else
 		save.elses.Book_of_Future_cnt = 200
-		save.elses.Book_of_Future_fail = false
 		save.elses[item.own_key.."counter"] = {}
 	end
+	save.elses.Book_of_Future_fail = nil
 	save.elses[item.own_key.."counter"] = save.elses[item.own_key.."counter"] or {}
 end,
 })
+
+if EID then
+	EID:addDescriptionModifier("qing_book_of_future_progress", function(desc)
+		return desc.ObjType == 5 and desc.ObjVariant == 100 and desc.ObjSubType == item.entity and item.get_progress() > 0
+	end, function(desc)
+		-- 跨局保存的累计品质决定本次仍需抽取的动态数值；静态说明继续由 translate.lua 提供。
+		local remaining = item.goal - item.get_progress()
+		desc.Name = "{{ColorSilver}}-"..tostring(remaining).."{{CR}} "..(desc.Name or "")
+		return desc
+	end)
+end
 
 return item

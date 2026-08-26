@@ -83,6 +83,10 @@ local item = {
 				CharacterSelectLanguage = 0,
 				ControlsLanguage = 0,
 				GameOverLanguage = 0,
+				TitleLogoCustom = true,
+				TitleLogoLanguage = 0,
+				TitleLogoOffsetX = -39,
+				TitleLogoOffsetY = -15,
 			},
 			Debug = {
 				TheseusNoticeAlwaysShow = false,
@@ -122,7 +126,7 @@ local item = {
 				SuperBombsTimerY = -8.25,
 				TitleMarqueeStartX = 320,
 				TitleMarqueeEndX = 80,
-				TitleMarqueeY = 80,
+				TitleMarqueeY = 95,
 				TitleMarqueeSpeed = 28,
 				TitleMarqueeFadeWidth = 48,
 				TitleMarqueeLetterSpacing = 4,
@@ -130,6 +134,7 @@ local item = {
 				TitleMarqueeWaveSpeed = 0.26,
 				TitleMarqueeEdgeIntensity = 0.45,
 				TitleMarqueeEdgeWaveWidth = 0.75,
+				TitleMarqueeEdgePeakSharpness = 6,
 				TitleMarqueeBounceSpeed = 2.5,
 				TitleMarqueeBounceTravelSpeed = 24,
 				TitleMarqueeBounceHeight = 9,
@@ -264,6 +269,8 @@ local item = {
 				DiamondHudCentOffsetY = 8,
 				DiamondHudCentScale = 0.5,
 				RemasterCodeFlipSpacing = 4,
+				RemasterPanelOffsetX = 0,
+				RemasterPanelOffsetY = 40,
 				PareidoliaPreview = false,
 				PareidoliaDetailedBack = true,
 				PareidoliaForceSpin = false,
@@ -354,6 +361,16 @@ local LANG = {
 		group_game_over_lang = "Game-over name language",
 		game_over_lang_help = "Swaps the game-over character name. Default follows the game language.",
 		game_over_lang_status = "Current game-over sheets: %s (game language: %s)",
+		group_title_logo = "Title screen logo",
+		title_logo_help = "Overlay the mod title logo on the title screen. Uncheck to restore the vanilla Binding of Isaac logo.",
+		title_logo_custom = "Use mod title logo",
+		title_logo_custom_help = "When off, the vanilla title logo is shown again and the overlay is not drawn.",
+		title_logo_lang_help = "Choose which logo sheet to use when the mod logo is enabled. Auto follows game language. Chinese sheet is not bundled yet and falls back to English.",
+		title_logo_lang_status = "Current logo: %s (game language: %s)",
+		title_logo_offset_x = "Logo overlay offset X",
+		title_logo_offset_y = "Logo overlay offset Y",
+		title_logo_offset_help = "Menu-space offset added at WorldToMenuPosition(0,0). Tune on the title screen, then report the values.",
+		title_logo_offset_restore = "Restore logo offset defaults",
 		group_rgon = "REPENTOGON",
 		group_runtime = "Runtime",
 		group_hud = "HUD",
@@ -418,6 +435,7 @@ local LANG = {
 		title_marquee_wave_speed = "Edge wave speed",
 		title_marquee_edge_intensity = "Edge wave intensity",
 		title_marquee_edge_wave_width = "Edge color range",
+		title_marquee_edge_peak_sharpness = "Edge peak sharpness",
 		title_marquee_bounce_speed = "Bounce speed",
 		title_marquee_bounce_travel_speed = "Bounce wave travel speed",
 		title_marquee_bounce_height = "Bounce height",
@@ -617,9 +635,12 @@ local LANG = {
 		death_sentence_death_word = "Death letters",
 		death_sentence_letters = "Current letters",
 		group_remaster = "Remaster!",
-		remaster_help = "Floor-code flip animation. Spacing scales overall step duration; mid-path letters are always faster.",
+		remaster_help = "Floor-code flip animation and Tptron panel layout. Spacing scales overall step duration; mid-path letters are always faster.",
 		remaster_flip_spacing = "Code flip letter spacing",
 		remaster_flip_spacing_help = "Larger spacing slows alphabet cascading (B→D plays C through). Mid letters stay relatively faster.",
+		remaster_panel_offset_x = "Panel offset X",
+		remaster_panel_offset_y = "Panel offset Y",
+		remaster_panel_offset_help = "Screen-pixel offset for the Tptron panel (positive Y moves down). Applied after the default center/rise position.",
 		remaster_channels_help = "Permanent teleport links (PROFILE.PermanentData). Survive new runs until a return consumes them.",
 		remaster_channel_list = "Channel list",
 		remaster_channel_empty = "(no permanent channels)",
@@ -648,6 +669,10 @@ local LANG = {
 		diamond_permanent_help = "Cross-run shop price / last sale for Qing's Faceted Market Diamond.",
 		diamond_last_sale = "Last sale price",
 		diamond_permanent_restore = "Restore Diamond permanent prices",
+		group_book_of_future_permanent = "Book of Future escape",
+		book_of_future_progress_help = "Archive-level accumulated quality retained after the book escapes. The next Book of Future resumes from this value toward 50.",
+		book_of_future_progress = "Accumulated quality",
+		book_of_future_progress_restore = "Clear Book of Future progress",
 		spectral_clear_all = "Clear all Spectral Sword rewrites",
 		spectral_cleared_notice = "All Spectral Sword rewrites cleared.",
 		group_item_colors = "Mod item color analysis",
@@ -1002,6 +1027,16 @@ local LANG = {
 		group_game_over_lang = "死亡界面名字语言",
 		game_over_lang_help = "运行时替换死亡界面的角色名。默认跟随游戏语言，可强制中文或英文。",
 		game_over_lang_status = "当前死亡名字：%s（游戏语言：%s）",
+		group_title_logo = "标题页 Logo",
+		title_logo_help = "在标题页叠绘模组 Logo。取消勾选则恢复原版以撒标题 Logo。",
+		title_logo_custom = "使用模组标题 Logo",
+		title_logo_custom_help = "关闭后不再叠绘模组 Logo，并重新显示原版标题 Logo。",
+		title_logo_lang_help = "启用模组 Logo 时选择贴图语言。默认跟随游戏语言；中文贴图尚未实装，会回退英文。",
+		title_logo_lang_status = "当前 Logo：%s（游戏语言：%s）",
+		title_logo_offset_x = "Logo 叠绘偏移 X",
+		title_logo_offset_y = "Logo 叠绘偏移 Y",
+		title_logo_offset_help = "相对 WorldToMenuPosition(0,0) 的菜单空间偏移。在标题页拖动调好后把数值报给我。",
+		title_logo_offset_restore = "恢复 Logo 偏移默认值",
 		group_rgon = "忏悔龙",
 		group_runtime = "运行时",
 		group_hud = "HUD",
@@ -1066,6 +1101,7 @@ local LANG = {
 		title_marquee_wave_speed = "背景波峰速度",
 		title_marquee_edge_intensity = "背景波峰强度",
 		title_marquee_edge_wave_width = "背景染色范围",
+		title_marquee_edge_peak_sharpness = "背景波峰锐度",
 		title_marquee_bounce_speed = "抖动速度",
 		title_marquee_bounce_travel_speed = "抖动波传播速度",
 		title_marquee_bounce_height = "弹起高度",
@@ -1265,9 +1301,12 @@ local LANG = {
 		death_sentence_death_word = "死亡字母",
 		death_sentence_letters = "现有字母",
 		group_remaster = "Remaster!",
-		remaster_help = "楼层代码翻页动画。间距放大整体变慢；路径正中的字母始终相对更快。",
+		remaster_help = "楼层代码翻页动画与 Tptron 面板布局。间距放大整体变慢；路径正中的字母始终相对更快。",
 		remaster_flip_spacing = "代码翻页字母间距",
 		remaster_flip_spacing_help = "间距越大，字母表级联（如 B→D 经 C）越慢；中间字母仍会相对加速。",
+		remaster_panel_offset_x = "面板偏移 X",
+		remaster_panel_offset_y = "面板偏移 Y",
+		remaster_panel_offset_help = "Tptron 面板屏幕像素偏移（Y 正方向向下）。加在默认居中/升起位置之上。",
 		remaster_channels_help = "永久传送渠道（PROFILE.PermanentData）。跨局保留，回传成功后才会消费移除。",
 		remaster_channel_list = "通道列表",
 		remaster_channel_empty = "（暂无永久通道）",
@@ -1296,6 +1335,10 @@ local LANG = {
 		diamond_permanent_help = "跨局保留的钻石商店售价与上次成交价。",
 		diamond_last_sale = "上次成交价",
 		diamond_permanent_restore = "恢复钻石永久售价默认",
+		group_book_of_future_permanent = "未来之书·逃逸进度",
+		book_of_future_progress_help = "未来之书逃逸后跨局保留的累计品质；下次获得并使用时，会从此数值继续补到 50。",
+		book_of_future_progress = "已累计品质",
+		book_of_future_progress_restore = "清空未来之书进度",
 		spectral_clear_all = "清空全部妖刀改写",
 		spectral_cleared_notice = "已清空全部妖刀·逢魔改写。",
 		group_item_colors = "模组道具颜色分析",
@@ -2605,10 +2648,14 @@ function item.create_settings_window()
 			if holder.apply_language then holder.apply_language(true) end
 		end
 	end
-	local function add_menu_language_group(setting_key, group_text_key, help_key, status_key, id_stem)
+	local function add_menu_language_group(setting_key, group_text_key, help_key, status_key, id_stem, on_apply)
 		local function set_mode(mode)
 			item.set_value({"QingRemasterOptions", "Menu", setting_key}, mode)
-			apply_menu_language()
+			if on_apply then
+				on_apply()
+			else
+				apply_menu_language()
+			end
 		end
 		local group = add_group(tabs.HUD, "QingRemasterOptions_Group"..id_stem.."Lang", text(group_text_key))
 		add_text(group, text(help_key))
@@ -2633,6 +2680,53 @@ function item.create_settings_window()
 	add_menu_language_group("CharacterSelectLanguage", "group_character_menu_lang", "character_menu_lang_help", "character_menu_lang_status", "CharacterSelect")
 	add_menu_language_group("ControlsLanguage", "group_controls_lang", "controls_lang_help", "controls_lang_status", "Controls")
 	add_menu_language_group("GameOverLanguage", "group_game_over_lang", "game_over_lang_help", "game_over_lang_status", "GameOver")
+
+	local function refresh_title_logo_settings()
+		local holder = require("Qing_Remaster_scripts.callbacks.title_menu_logo_holder")
+		if holder then
+			if holder.reset_overlay_cache then holder.reset_overlay_cache() end
+			if holder.refresh_vanilla_logo then holder.refresh_vanilla_logo() end
+		end
+	end
+	local title_logo_group = add_group(tabs.HUD, "QingRemasterOptions_GroupTitleLogo", text("group_title_logo"))
+	add_text(title_logo_group, text("title_logo_help"))
+	local title_logo_custom_path = {"QingRemasterOptions", "Menu", "TitleLogoCustom"}
+	ImGui.AddCheckbox(title_logo_group, "QingRemasterOptions_TitleLogoCustom", text("title_logo_custom"), nil, item.get_value(title_logo_custom_path) == true)
+	ImGui.AddCallback("QingRemasterOptions_TitleLogoCustom", ImGuiCallback.Render, function()
+		ImGui.UpdateData("QingRemasterOptions_TitleLogoCustom", ImGuiData.Value, item.get_value(title_logo_custom_path) == true)
+	end)
+	ImGui.AddCallback("QingRemasterOptions_TitleLogoCustom", ImGuiCallback.Edited, function(value)
+		item.set_value(title_logo_custom_path, value == true)
+		refresh_title_logo_settings()
+	end)
+	ImGui.SetHelpmarker("QingRemasterOptions_TitleLogoCustom", text("title_logo_custom_help"))
+	add_text(title_logo_group, text("title_logo_lang_help"))
+	local title_logo_lang_status_id = "QingRemasterOptions_TitleLogoLangStatus"
+	ImGui.AddElement(title_logo_group, title_logo_lang_status_id, ImGuiElement.TextWrapped, "")
+	ImGui.AddCallback(title_logo_lang_status_id, ImGuiCallback.Render, function()
+		local holder = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
+		local current = holder and holder.get_language and holder.get_language("TitleLogoLanguage") or "en"
+		local game_lang = holder and holder.get_game_language and holder.get_game_language() or "en"
+		ImGui.UpdateText(title_logo_lang_status_id, string.format(text("title_logo_lang_status"), current, game_lang))
+	end)
+	ImGui.AddButton(title_logo_group, "QingRemasterOptions_TitleLogoLangAuto", text("character_menu_lang_auto"), function()
+		item.set_value({"QingRemasterOptions", "Menu", "TitleLogoLanguage"}, 0)
+		refresh_title_logo_settings()
+	end)
+	ImGui.AddButton(title_logo_group, "QingRemasterOptions_TitleLogoLangZh", text("character_menu_lang_zh"), function()
+		item.set_value({"QingRemasterOptions", "Menu", "TitleLogoLanguage"}, 1)
+		refresh_title_logo_settings()
+	end)
+	ImGui.AddButton(title_logo_group, "QingRemasterOptions_TitleLogoLangEn", text("character_menu_lang_en"), function()
+		item.set_value({"QingRemasterOptions", "Menu", "TitleLogoLanguage"}, 2)
+		refresh_title_logo_settings()
+	end)
+	add_drag_float(title_logo_group, "QingRemasterOptions_TitleLogoOffsetX", text("title_logo_offset_x"), {"QingRemasterOptions", "Menu", "TitleLogoOffsetX"}, text("title_logo_offset_help"), 1, -200, 200, "%.0f")
+	add_drag_float(title_logo_group, "QingRemasterOptions_TitleLogoOffsetY", text("title_logo_offset_y"), {"QingRemasterOptions", "Menu", "TitleLogoOffsetY"}, text("title_logo_offset_help"), 1, -200, 200, "%.0f")
+	ImGui.AddButton(title_logo_group, "QingRemasterOptions_TitleLogoOffsetRestore", text("title_logo_offset_restore"), function()
+		item.set_value({"QingRemasterOptions", "Menu", "TitleLogoOffsetX"}, -39)
+		item.set_value({"QingRemasterOptions", "Menu", "TitleLogoOffsetY"}, -15)
+	end)
 
 	add_card_rates_group(tabs.Cards)
 
@@ -3104,8 +3198,12 @@ local function add_remaster_flip_group(parent_id)
 	local group = add_group(parent_id,"QingRemasterOptions_GroupRemasterFlip",text("group_remaster"))
 	add_text(group,text("remaster_help"))
 	add_drag_float(group,"QingRemasterOptions_RemasterCodeFlipSpacing",text("remaster_flip_spacing"),{"QingRemasterOptions","Debug","RemasterCodeFlipSpacing"},text("remaster_flip_spacing_help"),0.25,0.5,24,"%.2f")
+	add_drag_float(group,"QingRemasterOptions_RemasterPanelOffsetX",text("remaster_panel_offset_x"),{"QingRemasterOptions","Debug","RemasterPanelOffsetX"},text("remaster_panel_offset_help"),1,-240,240,"%.0f")
+	add_drag_float(group,"QingRemasterOptions_RemasterPanelOffsetY",text("remaster_panel_offset_y"),{"QingRemasterOptions","Debug","RemasterPanelOffsetY"},text("remaster_panel_offset_help"),1,-240,240,"%.0f")
 	ImGui.AddButton(group,"QingRemasterOptions_RemasterRestoreDefaults",text("restore_item_defaults"),function()
 		item.set_value({"QingRemasterOptions","Debug","RemasterCodeFlipSpacing"},4)
+		item.set_value({"QingRemasterOptions","Debug","RemasterPanelOffsetX"},0)
+		item.set_value({"QingRemasterOptions","Debug","RemasterPanelOffsetY"},40)
 	end)
 end
 
@@ -3270,12 +3368,30 @@ local function add_diamond_permanent_group(parent_id)
 	end)
 end
 
+local function add_book_of_future_permanent_group(parent_id)
+	local group = add_group(parent_id,"QingRemasterOptions_GroupBookOfFuturePermanent",text("group_book_of_future_permanent"))
+	add_text(group,text("book_of_future_progress_help"))
+	local future = require("Qing_Remaster_scripts.items.Item_Book_of_Future")
+	local progress_id = "QingRemasterOptions_BookOfFutureProgress"
+	ImGui.AddDragFloat(group,progress_id,text("book_of_future_progress"),function(value)
+		future.set_progress(value)
+	end,future.get_progress(),1,0,(future.goal or 50) - 1,"%.0f")
+	ImGui.AddCallback(progress_id,ImGuiCallback.Render,function()
+		ImGui.UpdateData(progress_id,ImGuiData.Value,future.get_progress())
+	end)
+	ImGui.AddButton(group,"QingRemasterOptions_BookOfFutureProgressRestore",text("book_of_future_progress_restore"),function()
+		future.set_progress(0)
+		push_notice(text("book_of_future_progress_restore"))
+	end)
+end
+
 function item.create_permanent_data_panel(parent_id)
 	add_text(parent_id,text("permanent_data_help"))
 	item.create_spectral_editor_panel(parent_id)
 	add_remaster_channels_group(parent_id)
 	add_colorblind_bans_group(parent_id)
 	add_diamond_permanent_group(parent_id)
+	add_book_of_future_permanent_group(parent_id)
 end
 
 local function add_reserved_judgment_group(parent_id)
@@ -3678,6 +3794,7 @@ function item.create_debug_window()
 	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeWaveSpeed", text("title_marquee_wave_speed"), {"QingRemasterOptions", "Debug", "TitleMarqueeWaveSpeed"}, nil, 0.01, -2, 2, "%.2f cycle/s")
 	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeEdgeIntensity", text("title_marquee_edge_intensity"), {"QingRemasterOptions", "Debug", "TitleMarqueeEdgeIntensity"}, nil, 0.05, 0, 2, "%.2f")
 	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeEdgeWaveWidth", text("title_marquee_edge_wave_width"), {"QingRemasterOptions", "Debug", "TitleMarqueeEdgeWaveWidth"}, nil, 0.05, 0.05, 1, "%.2f")
+	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeEdgePeakSharpness", text("title_marquee_edge_peak_sharpness"), {"QingRemasterOptions", "Debug", "TitleMarqueeEdgePeakSharpness"}, nil, 0.25, 1, 16, "%.2f")
 	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeBounceSpeed", text("title_marquee_bounce_speed"), {"QingRemasterOptions", "Debug", "TitleMarqueeBounceSpeed"}, nil, 0.1, 0, 20, "%.2f rad/s")
 	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeBounceTravelSpeed", text("title_marquee_bounce_travel_speed"), {"QingRemasterOptions", "Debug", "TitleMarqueeBounceTravelSpeed"}, nil, 0.25, 0.1, 60, "%.2f glyph/s")
 	add_drag_float(title_group, "QingRemasterOptions_TitleMarqueeBounceHeight", text("title_marquee_bounce_height"), {"QingRemasterOptions", "Debug", "TitleMarqueeBounceHeight"}, nil, 0.25, 0, 20, "%.2f px")
@@ -3688,7 +3805,7 @@ function item.create_debug_window()
 	ImGui.AddButton(title_group, "QingRemasterOptions_TitleMarqueeRestore", text("restore_item_defaults"), function()
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeStartX"}, 320)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeEndX"}, 80)
-		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeY"}, 80)
+		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeY"}, 95)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeSpeed"}, 28)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeFadeWidth"}, 48)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeLetterSpacing"}, 4)
@@ -3696,6 +3813,7 @@ function item.create_debug_window()
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeWaveSpeed"}, 0.26)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeEdgeIntensity"}, 0.45)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeEdgeWaveWidth"}, 0.75)
+		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeEdgePeakSharpness"}, 6)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeBounceSpeed"}, 2.5)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeBounceTravelSpeed"}, 24)
 		item.set_value({"QingRemasterOptions", "Debug", "TitleMarqueeBounceHeight"}, 9)
@@ -4603,6 +4721,78 @@ function item.create_debug_window()
 		end)
 		ImGui.AddButton(destiny_anchor_group, "QingRemasterOptions_DestinyAnchorProbeExport", "导出命运锚点诊断", function()
 			local probe = get_probe()
+			if probe and probe.export_jsonl then probe.export_jsonl() end
+		end)
+	end
+	local remaster_ghost_group = start_mod("audit_remaster_ghost", DEBUG_PAGE.audit, "Remaster 幽灵渲染探针", "QingRemasterOptions_GroupRemasterGhostProbe")
+	do
+		add_text(remaster_ghost_group, "默认关闭且不写存档。开启后记录回传幽灵 appearance 快照、衣装合成、PRE 取消默认绘制、POST 各层绘制与 overlay 状态；用于排查 Azazel 等角色行走段空白。样本导出到 codex_work/logs/remaster_ghost_render_probe.jsonl。")
+		local enable_id = "QingRemasterOptions_RemasterGhostProbeEnabled"
+		ImGui.AddCheckbox(remaster_ghost_group, enable_id, "启用 Remaster 幽灵渲染探针", nil, false)
+		local function get_ghost_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.remaster_ghost_render_probe")
+		end
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = get_ghost_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = get_ghost_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_RemasterGhostProbeStatus"
+		ImGui.AddElement(remaster_ghost_group, status_id, ImGuiElement.TextWrapped, "探针关闭；不会采样。")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = get_ghost_probe()
+			ImGui.UpdateText(status_id, (probe and probe.get_summary and probe.get_summary()) or "开发探针不可用。")
+		end)
+		ImGui.AddButton(remaster_ghost_group, "QingRemasterOptions_RemasterGhostProbeSnap", "立即快照", function()
+			local probe = get_ghost_probe()
+			if probe and probe.snapshot_now then probe.snapshot_now() end
+		end)
+		ImGui.AddButton(remaster_ghost_group, "QingRemasterOptions_RemasterGhostProbeClear", "关闭并清空探针", function()
+			local probe = get_ghost_probe()
+			if probe and probe.set_enabled then probe.set_enabled(false) end
+		end)
+		ImGui.AddButton(remaster_ghost_group, "QingRemasterOptions_RemasterGhostProbeExport", "导出幽灵渲染诊断", function()
+			local probe = get_ghost_probe()
+			if probe and probe.export_jsonl then probe.export_jsonl() end
+		end)
+	end
+	local baby_lu_group = start_mod("audit_baby_lu_ceremony", DEBUG_PAGE.audit, "Baby Lu 仪式探针", "QingRemasterOptions_GroupBabyLuCeremonyProbe")
+	do
+		add_text(baby_lu_group, "默认关闭且不写存档。开启后记录 Lu 揭示仪式各阶段的 Position / PositionOffset / SpriteOffset / Velocity、屏幕坐标与相对玩家高度；用于排查「飞太高」是逻辑位移还是渲染偏移。样本导出到 codex_work/logs/baby_lu_ceremony_probe.jsonl。")
+		local enable_id = "QingRemasterOptions_BabyLuCeremonyProbeEnabled"
+		ImGui.AddCheckbox(baby_lu_group, enable_id, "启用 Baby Lu 仪式探针", nil, false)
+		local function get_lu_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.baby_lu_ceremony_probe")
+		end
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = get_lu_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = get_lu_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_BabyLuCeremonyProbeStatus"
+		ImGui.AddElement(baby_lu_group, status_id, ImGuiElement.TextWrapped, "探针关闭；不会采样。")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = get_lu_probe()
+			ImGui.UpdateText(status_id, (probe and probe.get_summary and probe.get_summary()) or "开发探针不可用。")
+		end)
+		ImGui.AddButton(baby_lu_group, "QingRemasterOptions_BabyLuCeremonyProbeSnap", "立即快照", function()
+			local probe = get_lu_probe()
+			if probe and probe.snapshot_now then probe.snapshot_now() end
+		end)
+		ImGui.AddButton(baby_lu_group, "QingRemasterOptions_BabyLuCeremonyProbeClear", "关闭并清空探针", function()
+			local probe = get_lu_probe()
+			if probe and probe.set_enabled then probe.set_enabled(false) end
+		end)
+		ImGui.AddButton(baby_lu_group, "QingRemasterOptions_BabyLuCeremonyProbeExport", "导出 Lu 仪式诊断", function()
+			local probe = get_lu_probe()
 			if probe and probe.export_jsonl then probe.export_jsonl() end
 		end)
 	end

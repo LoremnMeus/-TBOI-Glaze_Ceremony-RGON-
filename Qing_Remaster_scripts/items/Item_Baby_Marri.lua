@@ -1,99 +1,205 @@
-local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
-local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
-local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
-local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
-local AI = require("Qing_Remaster_scripts.bosses.Boss_All")
-local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
 
 local item = {
 	ToCall = {},
-	pre_ToCall = {},
-	post_ToCall = {},
 	myToCall = {},
-	pre_myToCall = {},
-	post_myToCall = {},
 	entity = enums.Items.Baby_Marri,
 	familiar = enums.Familiars.Baby_Marri,
 	own_key = "Item_Baby_Marri_",
-	cnt2mxn = {
-		{frame = 0,val = 10,},
-		{frame = 2,val = 7,},
-		{frame = 10,val = 5,},
-		{frame = 40,val = 3,},
-		{frame = 80,val = 2,},
-	},
+	deal_boost = 0.15,
 }
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
-Function = function(_,player,cacheFlag)
-	local cnt = player:GetCollectibleNum(item.entity)
+local function persist_bag()
+	save.elses[item.own_key.."run"] = save.elses[item.own_key.."run"] or {}
+	return save.elses[item.own_key.."run"]
+end
+
+local function marri_count(player)
+	if not player then return 0 end
+	return player:GetCollectibleNum(item.entity) + player:GetEffects():GetCollectibleEffectNum(item.entity)
+end
+
+local function player_state(player)
+	if not player then return nil end
+	local bag = persist_bag()
+	local key = tostring(player.InitSeed)
+	local st = bag[key]
+	if type(st) ~= "table" then
+		st = {mode = "angel"}
+		bag[key] = st
+	end
+	return st
+end
+
+--- 天使形态：Level:AddAngelRoomChance（天魔房开启后的天使转化率，非独立出现率）
+local function angel_conversion_total()
+	local total = 0
+	for i = 0, Game():GetNumPlayers() - 1 do
+		local player = Game():GetPlayer(i)
+		if player then
+			local cnt = marri_count(player)
+			if cnt > 0 then
+				local st = player_state(player)
+				if st and st.mode == "angel" then
+					total = total + item.deal_boost * cnt
+				end
+			end
+		end
+	end
+	return total
+end
+
+local function sync_level_angel_conversion()
+	local level = Game():GetLevel()
+	if not level or not level.AddAngelRoomChance then return end
+	local bag = persist_bag()
+	local want = angel_conversion_total()
+	local applied = tonumber(bag.level_angel_applied) or 0
+	if want ~= applied then
+		level:AddAngelRoomChance(want - applied)
+		bag.level_angel_applied = want
+	end
+end
+
+local function reset_floor_angel_applied()
+	persist_bag().level_angel_applied = 0
+end
+
+local function loop_anim(mode)
+	return (mode == "devil") and "Float" or "Idle"
+end
+
+local function transition_anim(mode)
+	return (mode == "devil") and "ToDevil" or "ToAngel"
+end
+
+local function is_transition_anim(anim)
+	return anim == "ToDevil" or anim == "ToAngel"
+end
+
+local function trigger_visual_toggle(player, new_mode)
+	local anim = transition_anim(new_mode)
+	for _, fam in pairs(auxi.getothers(nil, 3, item.familiar) or {}) do
+		if auxi.check_for_the_same(auxi.check_spawner_player(fam), player) then
+			Baby_Anim.reset(fam, item.own_key.."float")
+			fam:GetSprite():Play(anim, true)
+		end
+	end
+end
+
+local function toggle_mode(player)
+	if marri_count(player) <= 0 then return end
+	local st = player_state(player)
+	st.mode = (st.mode == "devil") and "angel" or "devil"
+	sync_level_angel_conversion()
+	trigger_visual_toggle(player, st.mode)
+end
+
+--- 恶魔形态：MC_POST_DEVIL_CALCULATE 叠加天魔房总开启率（先于转化率结算）
+local function devil_spawn_bonus_total()
+	local bonus = 0
+	for i = 0, Game():GetNumPlayers() - 1 do
+		local player = Game():GetPlayer(i)
+		if player then
+			local cnt = marri_count(player)
+			if cnt > 0 then
+				local st = player_state(player)
+				if st and st.mode == "devil" then
+					bonus = bonus + item.deal_boost * cnt
+				end
+			end
+		end
+	end
+	return bonus
+end
+
+local function apply_devil_spawn_bonus(chance)
+	local bonus = devil_spawn_bonus_total()
+	if bonus <= 0 then return end
+	return (tonumber(chance) or 0) + bonus
+end
+
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
+Function = function(_, player, cacheFlag)
+	local cnt = marri_count(player)
 	if cacheFlag == CacheFlag.CACHE_FAMILIARS then
 		player:CheckFamiliar(item.familiar, cnt, player:GetCollectibleRNG(item.entity), Isaac.GetItemConfig():GetCollectible(item.entity))
+		sync_level_angel_conversion()
 	end
+end,
+})
+
+table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
+Function = function(_, continue)
+	if not continue then
+		save.elses[item.own_key.."run"] = {}
+	end
+end,
+})
+
+table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
+Function = function(_)
+	reset_floor_angel_applied()
+	sync_level_angel_conversion()
 end,
 })
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_FAMILIAR_UPDATE, params = item.familiar,
 Function = function(_, ent)
 	local player = auxi.check_spawner_player(ent)
+	if not player then return end
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	if not d[item.own_key.."IsFollow"] then
 		ent:AddToFollowers()
 		d[item.own_key.."IsFollow"] = true
 	end
-	d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}
-	local cnt = d[item.own_key.."effect"].cnt or 0
-	local mxn = auxi.check_lerp(cnt,item.cnt2mxn).val
-	if player:HasTrinket(TrinketType.TRINKET_FORGOTTEN_LULLABY) then mxn = mxn * 0.75 end
-	
-	local dirinfo = auxi.get_by_familiar_dir(ent)
-	d[item.own_key.."effect"].counter = d[item.own_key.."effect"].counter or 0
-	if d[item.own_key.."effect"].counter < mxn then 
-		d[item.own_key.."effect"].counter = d[item.own_key.."effect"].counter + 1
-	end
-	if d[item.own_key.."effect"].counter >= mxn then 
-		if dirinfo.dir:Length() > 0.05 then
-			item.fire_attack(ent,dirinfo.dir)
+	local st = player_state(player)
+	local mode = (st and st.mode) or "angel"
+	local anim = s:GetAnimation()
+
+	if is_transition_anim(anim) then
+		ent:FollowParent()
+		if s:IsFinished(anim) then
+			s:Play(loop_anim(mode), true)
+			d[item.own_key.."shown_mode"] = mode
 		end
-		d[item.own_key.."effect"].counter = 0
+		return
 	end
 
-	Baby_Anim.tick_float_idle(ent, item.own_key.."float")
+	local shown = d[item.own_key.."shown_mode"]
+	if shown ~= mode then
+		if shown == nil then
+			s:Play(loop_anim(mode), true)
+			d[item.own_key.."shown_mode"] = mode
+		end
+	elseif anim ~= loop_anim(mode) then
+		s:Play(loop_anim(mode), true)
+	end
+
 	ent:FollowParent()
-end
+end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = EntityType.ENTITY_PLAYER,
-Function = function(_,ent, amt, flag, source, cooldown)
+table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = EntityType.ENTITY_PLAYER,
+Function = function(_, ent, amount)
+	if (tonumber(amount) or 0) <= 0 then return end
 	local player = ent:ToPlayer()
-	if player then
-		local tgs = auxi.getothers(nil,3,item.familiar)
-		for u,v in pairs(tgs) do
-			local tgplayer = v.Player
-			if auxi.check_for_the_same(tgplayer,player) then
-				local d = v:GetData()
-				d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}
-				d[item.own_key.."effect"].cnt = (d[item.own_key.."effect"].cnt or 0) + 1
-			end
-		end
+	if player and marri_count(player) > 0 then
+		toggle_mode(player)
 	end
-end
+end,
 })
 
-function item.fire_attack(ent,dir)
-	local player = ent.Player or Isaac.GetPlayer(0)
-	local q = Isaac.Spawn(2,0,0,ent.Position,dir:Normalized() * 7,ent):ToTear()
-	if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BFFS) then 
-		q.CollisionDamage = q.CollisionDamage * 2 
-	end
-	if player:HasTrinket(TrinketType.TRINKET_BABY_BENDER) then 
-		q.TearFlags = q.TearFlags | BitSet128(1<<2,0)
-	end
+if ModCallbacks.MC_POST_DEVIL_CALCULATE then
+	table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_DEVIL_CALCULATE, params = nil,
+	Function = function(_, chance)
+		return apply_devil_spawn_bonus(chance)
+	end,
+	})
 end
 
 return item

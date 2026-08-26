@@ -254,7 +254,8 @@ end
 
 function item.apply_global(info, lang)
 	if type(info.global) ~= "table" then return end
-	if TitleMenu and TitleMenu.GetSprite then
+	local skip_title = manifest.title_logo and manifest.title_logo.enabled
+	if not skip_title and TitleMenu and TitleMenu.GetSprite then
 		local ok, sprite = pcall(TitleMenu.GetSprite)
 		item.try_load_sprite(ok and sprite or nil, item.full_path(info, info.global.title), nil, lang..":global:title")
 	end

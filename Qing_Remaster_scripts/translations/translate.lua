@@ -132,16 +132,16 @@ item.Collectibles = {
             Name = "精神控制",
             Desc = "劳驾你，照做吧",
             Description = "{{TreasureRoom}} 每层生成一串特殊房间指令"..
-            "#按顺序进入这些房间以获得奖励"..
-            "#{{Warning}} 进入错误房间会受到惩罚",
+            "#依次进入对应特殊房间，每次成功获得奖励"..
+            "#{{Warning}} 提前进入其他特殊房间会受到惩罚",
             AbyssSynic = "彩色蝗虫",
         },
         en = {
             Name = "Mental Hypnosis",
             Desc = "Would you kindly?",
             Description = "{{TreasureRoom}} Each floor creates an ordered list of special rooms"..
-            "#Enter them in order to receive a reward"..
-            "#{{Warning}} Entering the wrong room causes a punishment",
+            "#Enter matching special rooms in order; each success grants a reward"..
+            "#{{Warning}} Entering other special rooms early causes a punishment",
         },
     },
     [7] = {
@@ -233,10 +233,11 @@ item.Collectibles = {
         zh = {
             Name = "回忆",
             Desc = "我好像掉进了一个怪圈...",
-            Description = "!!! 一次性 "..
-            "#将道具池替换为只包含角色已有的道具",
+            Description = "!!! 一次性"..
+            "#本局后续道具只会从角色已拥有的道具中生成"..
+            "#重复持有会提高再次出现的概率",
             AbyssSynic = "彩色蝗虫",
-            BookOfBelial = "恶魔房道具50%概率替代已拥有道具出现",
+            BookOfBelial = "50%概率改为从恶魔房道具池生成",
             BookOfVirtues = "熄灭时结束回忆效果的魂火"..
             "#↑ 每个重复的道具少量将其加强"..
             "#进入新房间后魂火回复到满状态",
@@ -244,10 +245,11 @@ item.Collectibles = {
         en = {
             Name = "Memory",
             Desc = "I fall into a loop...",
-            Description = "!!! SINGLE USE "..
-            "#!!! Grants all itempools only contain items that you already have.",
+            Description = "!!! SINGLE USE"..
+            "#For this run, new collectibles only come from items you already hold"..
+            "#More copies of an item make it more likely to appear again",
             AbyssSynic = "Colorful locust",
-            BookOfBelial = "Grants a 50% chance to replace memoried item with devil items.",
+            BookOfBelial = "50% chance to spawn from the Devil Room pool instead",
             BookOfVirtues = "Wisp that ends the effect when extinguished#↑ Each repeated item will slightly strengthen it#Return to its full state when entering a new room",
         },
     },
@@ -489,20 +491,20 @@ item.Collectibles = {
         zh = {
             Name = "炼金术的掌中锅",
             Desc = "愿你必有所得",
-            Description = "投入3个道具以精准制作1个道具"..
-            "#制作的道具编号为投入的三个道具依次的百位、十位、个位的和",
+            Description = "从持有道具中选择并消耗3个道具，制作1个道具"..
+            "#结果编号依次取第1个道具的百位、第2个的十位、第3个的个位",
             BookOfBelial = "每次制作可以免费投入一个数字6",
-            BookOfVirtues = "将投入的道具作为魂火保留下来",
+            BookOfVirtues = "制作后生成对应投入道具的魂火",
             SeijaNerf = "50%概率制作出错误道具",
         },
         en = {
             Name = "Alchemy Pot",
             Desc = "Handle with transmutation",
-            Description = "Invest 3 items to craft a precise collectible"..
-            "#The result ID is made from the hundreds, tens, and ones digits of the invested items",
-            BookOfBelial = "Each casting can add a free digit 6",
-            BookOfVirtues = "Keeps the invested items as wisps",
-            SeijaNerf = "50% chance to make a wrong item",
+            Description = "Select and consume 3 held collectibles to craft 1 collectible"..
+            "#The result ID uses the 1st item's hundreds, 2nd item's tens, and 3rd item's ones",
+            BookOfBelial = "Each craft can add one free digit 6",
+            BookOfVirtues = "Spawns wisps for the invested collectibles after crafting",
+            SeijaNerf = "50% chance to craft a wrong item",
         },
     },
     [25] = {
@@ -827,19 +829,19 @@ item.Collectibles = {
         zh = {
             Name = "未来之书",
             Desc = "未来写入，现在删改",
-            Description = "{{Collectible}} 从道具池中抽取随机道具，直到总品质达到50"..
+            Description = "从当前房间道具池中抽走道具，直到总品质达到50"..
             "#生成一个四选一道具",
-            BookOfBelial = "额外生成两个恶魔房道具作为选项",
-            BookOfVirtues = "生成一个被移除的道具对应魂火",
+            BookOfBelial = "四选一中额外加入2个恶魔房道具池候选",
+            BookOfVirtues = "从本次抽走的道具中随机生成对应魂火",
             SeijaNerf = "改为生成一个一选一道具",
         },
         en = {
             Name = "Book of Future",
             Desc = "Rewrite what has yet to happen",
-            Description = "{{Collectible}} Pulls random items from item pools until their total quality reaches 50"..
+            Description = "Draws from the current room's item pool until total quality reaches 50"..
             "#Spawns a 4-choice item selection",
-            BookOfBelial = "Adds 2 Devil Room items to the selection",
-            BookOfVirtues = "Spawns a wisp from one removed item",
+            BookOfBelial = "Adds 2 Devil Room pool items to the selection",
+            BookOfVirtues = "Spawns a wisp for one randomly chosen drawn item",
             SeijaNerf = "Only spawns a 1-choice item",
         },
     },
@@ -878,25 +880,25 @@ item.Collectibles = {
             Name = "摇摆之眼",
             Desc = "别眨眼，别偏离",
             Description = "连续用眼泪命中敌人会累计凝视"..
-            "#↓ 每2层凝视：眼泪方向更加摇摆"..
-            "#{{Tears}} 每3层凝视：射速提升"..
-            "#{{Collectible572}} 5层：可控制眼泪"..
-            "#{{Collectible3}} 8层：跟踪眼泪"..
+            "#↓ 凝视越高，眼泪摇摆越明显"..
+            "#{{Tears}} 每3层凝视提升射速"..
+            "#5层：眼泪轻微吸附敌人"..
+            "#{{Collectible3}} 8层：追踪眼泪"..
             "#{{Trinket26}} 13层：钩虫眼泪"..
             "#{{Collectible221}} 21层：弹性眼泪"..
-            "#!!! 4次失误后重置计数器",
+            "#!!! 连续失误会清空凝视",
         },
         en = {
             Name = "Wavering Eyes",
             Desc = "Don't blink, don't miss",
             Description = "Consecutive tear hits build Focus"..
-            "#↓ Every 2 Focus: tears waver more"..
+            "#↓ Higher Focus: tears waver more in a steady sway"..
             "#{{Tears}} Every 3 Focus: tears up"..
-            "#{{Collectible572}} 5 Focus: controllable tears"..
+            "#5 Focus: tears gently pull toward nearby foes"..
             "#{{Collectible3}} 8 Focus: homing tears"..
             "#{{Trinket26}} 13 Focus: hook worm tears"..
             "#{{Collectible221}} 21 Focus: rubber tears"..
-            "#{{Warning}} 4 misses reset the counter",
+            "#!!! Too many misses clear Focus",
         },
     },
     [43] = {
@@ -953,15 +955,16 @@ item.Collectibles = {
         zh = {
             Name = "法之书",
             Desc = "它为你而扭曲",
-            Description = "使用后，下一次生成的道具来自当前房间的道具池",
+            Description = "记录当前房间的道具池"..
+            "#下一件来自其他道具池的道具改从记录池生成",
             BookOfBelial = "在恶魔房使用时三倍效果",
             BookOfVirtues = "熄灭时额外使用一次{{Collectible"..tostring(enums.Items.Book_of_The_Law).."}}的魂火",
         },
         en = {
             Name = "Book of The Law",
             Desc = "Left is Right.Right is Lefted.",
-            Description = "Record the itempool in this room."..
-            "#The next item will be selected from this itempool.",
+            Description = "Records this room's item pool"..
+            "#The next item from a different pool is drawn from the recorded pool instead",
             BookOfBelial = "Triple effect in devil room",
             BookOfVirtues = "Wisp that triggers {{Collectible"..tostring(enums.Items.Book_of_The_Law).."}} when extinguished",
         },
@@ -1303,28 +1306,22 @@ item.Collectibles = {
         zh = {
             Name = "福音",
             Desc = "神的国度带着主权临到",
-            Description = "{{Tears}} 每4发眼泪变为福音眼泪并增伤"..
-            "#其他攻击方式会额外发射福音眼泪"..
-            "#福音眼泪使命中的敌人接受福音"..
-            "#持续攻击受福音影响的敌人，会向附近敌人射出圣光并传播福音"..
-            "#受福音影响的敌人死亡时降下启示之光，并继续传播福音"..
-            "#{{BossRoom}} 对Boss造成足够伤害也会降下启示"..
+            Description = "每4次攻击产生{{ColorYellow}}福音攻击{{CR}}"..
+            "#命中使敌人接受福音，并可向附近敌人传播"..
+            "#击杀目标或持续伤害Boss时降下启示"..
             "#多次启示后发动最终审判",
             AbyssSynic = "蝗虫命中敌人时使其接受福音",
-            SeijaNerf = "福音无法传播；宣讲与启示改为在自身降下较弱的黑暗之光",
+            SeijaNerf = "福音不再传播，改为对原目标降下较弱的黑暗启示",
         },
         en = {
             Name = "Gospel",
             Desc = "Dogmatical Judgement",
-            Description = "{{Tears}} Every 4th tear becomes a Gospel tear with bonus damage"..
-            "#Other attacks fire extra Gospel tears"..
-            "#Gospel tears cause hit enemies to receive the Gospel"..
-            "#Keep attacking affected enemies to fire holy beams that spread Gospel to nearby foes"..
-            "#When an affected enemy dies, Revelation strikes and Gospel keeps spreading"..
-            "#{{BossRoom}} Dealing enough damage to a Boss also invokes Revelation"..
+            Description = "Every 4th attack produces a {{ColorYellow}}Gospel attack{{CR}}"..
+            "#Hits make enemies receive the Gospel, which can spread to nearby foes"..
+            "#Killing affected enemies or repeatedly damaging affected Bosses invokes Revelation"..
             "#Repeated Revelations invoke a final Judgement",
             AbyssSynic = "Locusts cause hit enemies to receive the Gospel",
-            SeijaNerf = "Gospel can no longer spread; Preaching and Revelation instead drop a weaker dark light on the source",
+            SeijaNerf = "Gospel no longer spreads, instead invoking a weaker dark Revelation on the original target",
         },
     },
     [62] = {
@@ -2181,18 +2178,20 @@ item.Collectibles = {
         zh = {
             Name = "悲悯",
             Desc = "它们被迫为我而死",
-            Description = "{{Tears}} 受伤时失去一个被动道具并抵消伤害，随后+0.5射速"..
+            Description = "受到敌人伤害时，失去一个被动道具并抵消伤害"..
+            "#{{Tears}} 每个因此失去的道具使射速+0.5"..
             "#优先失去低品质道具"..
-            "#{{ArrowUp}} 失去此道具时，恢复所有以此法失去的道具",
-            SeijaNerf = "不增加射速",
+            "#失去悲悯时，返还所有因此失去的道具",
+            SeijaNerf = "失去道具不再获得射速提升",
         },
         en = {
             Name = "Pathetique",
             Desc = "They die for me",
-            Description = "{{Tears}} Lose a passive item on getting hit, counteract the damage and +0.5 Tears up"..
-            "#Prioritize losing low-quality items"..
-            "#{{ArrowUp}} When losing this item, restore all items lost using this method",
-            SeijaNerf = "Doesn't grant tears up",
+            Description = "Taking enemy damage removes a passive item and negates the hit"..
+            "#{{Tears}} +0.5 tears for each item lost this way"..
+            "#Prioritizes low-quality items"..
+            "#Losing Pathetique returns all items lost this way",
+            SeijaNerf = "Lost items no longer grant tears up",
         },
     },
     [102] = {
@@ -2277,11 +2276,9 @@ item.Collectibles = {
         zh = {
             Name = "精神失序",
             Desc = "这里原本有两个",
-            Description = "进入房间时概率产生一次{{ColorPurple}}错认{{CR}}"..
-            "#将一个敌人、掉落物或自身效果误认为存在第二份"..
-            "#{{Pickup}} 未被消耗的幻象资源会在离开房间时消失"..
-            "#在此之前使用它，则产生的结果将被保留"..
-            "#幻象敌人能够攻击，但受伤后便会消失"..
+            Description = "进入房间时概率产生一个{{ColorRainbow}}错误事实{{CR}}"..
+            "#将一个敌人、掉落物或已有道具效果错认为存在第二份"..
+            "#离开房间时，未被利用的错误会被纠正"..
             "#同时只能存在一个错误事实",
             Rnd_Special = {
                 Name = "精神失序",
@@ -2292,11 +2289,9 @@ item.Collectibles = {
         en = {
             Name = "Mental Disorder",
             Desc = "There used to be two.",
-            Description = "Entering a room may cause a {{ColorPurple}}misperception{{CR}}"..
-            "#Mistakes an enemy, pickup, or one of your effects as having a second copy"..
-            "#{{Pickup}} Unspent illusory resources disappear when leaving the room"..
-            "#Spend them before then, and their consequences become real"..
-            "#Illusory enemies can attack, but disappear when hit"..
+            Description = "Entering a room may create a {{ColorRainbow}}false fact{{CR}}"..
+            "#Mistakes an enemy, pickup, or existing item effect as having a second copy"..
+            "#Unused errors are corrected when leaving the room"..
             "#Only one false fact may exist at a time",
             Rnd_Special = {
                 Name = "Mental Disorder",
@@ -2727,14 +2722,16 @@ item.Collectibles = {
         zh = {
             Name = "宝宝玛丽",
             Desc = "我来质疑！",
-            Description = "发射普通眼泪的跟班"..
-            "#玩家受伤后临时提升伤害和攻速",
+            Description = "祈祷的跟班"..
+            "#{{AngelRoom}} 天使形态：+15% 天使房转化率"..
+            "#{{DevilRoom}} 受伤后切换为恶魔形态：+15% 恶魔房开启率，再次受伤切回",
         },
         en = {
             Name = "Baby Marri",
             Desc = "I ask!",
-            Description = "Familiar that shoots tears"..
-            "#{{Damage}} {{Tears}} Temporary boost after taking damage",
+            Description = "Praying familiar"..
+            "#{{AngelRoom}} Angel form: +15% Angel Room conversion"..
+            "#{{DevilRoom}} Taking damage swaps to Devil form: +15% Devil Room chance; swaps back on the next hit",
         },
     },
     [128] = {

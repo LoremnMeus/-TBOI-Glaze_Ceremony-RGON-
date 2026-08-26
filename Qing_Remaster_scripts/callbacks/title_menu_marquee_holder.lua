@@ -10,8 +10,9 @@ local item = {
 local font = A2ZFont.new()
 
 local defaults = {
-	StartX = 320, EndX = 80, Y = 80, Speed = 28, FadeWidth = 48, LetterSpacing = 4,
+	StartX = 320, EndX = 80, Y = 95, Speed = 28, FadeWidth = 48, LetterSpacing = 4,
 	RainbowSpeed = 0.7, WaveSpeed = 0.26, EdgeIntensity = 0.45, EdgeWaveWidth = 0.75,
+	EdgePeakSharpness = 6,
 	BounceSpeed = 2.5, BounceTravelSpeed = 24, BounceHeight = 9,
 	SquashX = 0.10, SquashY = 0.95, ImpactSharpness = 6,
 	TangentRotation = 1,
@@ -136,15 +137,14 @@ local function render_glyphs(glyphs, scale)
 		return menu_position(Vector(glyph.x, glyph.y))
 	end
 	local function edge_style(glyph)
-			-- 边框像素为黑色，Tint 无法显色；用 Color Offset 让移动波扫过的一部分字母闪光。
+			-- 边框层像素本身为黑：Tint 置黑，仅 Colorize Offset 在波峰短暂闪光。
 			local wave = (math.sin(glyph.wave_phase * math.pi * 2) + 1) * 0.5
 			local width = math.max(0.05, math.min(1, setting("EdgeWaveWidth")))
-			-- width 表示一个周期内参与染色的比例；宽波峰让相邻字母连续过渡，而非单字闪烁。
-			local flash = clamp01((wave - (1 - width)) / width) ^ 2
-			-- Edge 与 Glyph 必须共用同一 hue；仅亮度门控不同，否则滚动时会看出相位错位。
+			local peak_sharpness = math.max(1, setting("EdgePeakSharpness"))
+			local flash = clamp01((wave - (1 - width)) / width) ^ peak_sharpness
 			local r, g, b = hsv_rgb(glyph.hue, 0.72, 1)
 			local intensity = math.max(0, setting("EdgeIntensity"))
-		return Color(1, 1, 1, glyph.alpha, r * intensity * flash, g * intensity * flash, b * intensity * flash),
+		return Color(0, 0, 0, glyph.alpha, r * intensity * flash, g * intensity * flash, b * intensity * flash),
 			Vector(glyph.sx * scale, glyph.sy * scale), glyph.rotation
 	end
 	local function glyph_style(glyph)

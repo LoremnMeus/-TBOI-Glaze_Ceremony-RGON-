@@ -29,6 +29,16 @@ local manifest = {
 		en = "gfx/death screen.anm2",
 		zh = "gfx/ui/lang/zh/game_over/death_screen.anm2",
 	},
+	-- 标题 Logo 叠加（见 title_menu_logo_holder.lua）；不整包 Load titlemenu.anm2
+	title_logo = {
+		enabled = true,
+		anm2 = "gfx/ui/main menu/titlemenu_replace.anm2",
+		en = "gfx/ui/main menu/logo_replace.png",
+		zh = "gfx/ui/lang/zh/title/logo_replace.png",
+		follow_menu_lang = true,
+		-- 可选手调；默认由 title_menu_logo_holder 按 vanilla/replace anm2 锚点差计算
+		-- render_offset = { x = -39, y = -15 },
+	},
 	languages = {
 		zh = {
 			base = "gfx/ui/lang/zh/",

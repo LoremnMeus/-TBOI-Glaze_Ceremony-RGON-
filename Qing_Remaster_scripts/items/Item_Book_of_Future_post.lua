@@ -1,4 +1,6 @@
 local g = require("Qing_Remaster_scripts.core.globals")
+-- LEGACY: Pre-redesign implementation. Not loaded by item_manager.
+-- Do not cite as current behavior; see Item_Book_of_Future.lua instead.
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")

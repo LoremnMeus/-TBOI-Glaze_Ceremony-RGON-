@@ -729,11 +729,15 @@ function item.load_impale(ent)
 	if auxi.check_exists(laser) then
 		local d2 = laser:GetData()
 		d2[item.own_key.."laser"] = d2[item.own_key.."laser"] or {}
-		d2[item.own_key.."laser"].wait = {pos = laser.Position,ang = laser.Angle,}
+		d2[item.own_key.."laser"].wait = {
+			pos = laser.Position,
+			ang = laser.Angle,
+			po = laser.PositionOffset,
+		}
 		local tbl = {}
 		if laser then tbl = item.get_cutting_info(tbl,laser) end
 		local laserdata = d2[item.own_key.."laser"] or {}
-		d[item.own_key.."Impale"] = {tbl = tbl,id = 0,reflection_count = laserdata.reflection_count or laserdata.mxlayer or laserdata.layer or 0,}
+		d[item.own_key.."Impale"] = {tbl = tbl,id = 0,reflection_count = laserdata.reflection_count or laserdata.mxlayer or laserdata.layer or 0,last_pivot = laser.Position,}
 	end
 end
 
@@ -747,14 +751,18 @@ function item.start_impale(player)
 			if auxi.check_exists(laser) then
 				local d2 = laser:GetData()
 				d2[item.own_key.."laser"] = d2[item.own_key.."laser"] or {}
-				d2[item.own_key.."laser"].wait = {pos = laser.Position,ang = laser.Angle,}
+				d2[item.own_key.."laser"].wait = {
+					pos = laser.Position,
+					ang = laser.Angle,
+					po = laser.PositionOffset,
+				}
 				local tbl = {}
 				if laser then --while(laser) do
 					tbl = item.get_cutting_info(tbl,laser)
 					--laser = laser:GetData()[item.own_key.."Linked_Laser"]
 				end
 				local laserdata = d2[item.own_key.."laser"] or {}
-				d[item.own_key.."Impale"] = {tbl = tbl,id = 0,reflection_count = laserdata.reflection_count or laserdata.mxlayer or laserdata.layer or 0,}
+				d[item.own_key.."Impale"] = {tbl = tbl,id = 0,reflection_count = laserdata.reflection_count or laserdata.mxlayer or laserdata.layer or 0,last_pivot = laser.Position,}
 			end
 		end
 	end
@@ -946,12 +954,18 @@ function item.attack_impale(player,ent,pos,einfo,params)
 	local cinfo = item.Colorinfo 
 	local cross = (d[item.own_key.."Attack"] and d[item.own_key.."Attack"].cross)
 	if cross then cinfo = item[cross] end
+	local effect_scale = math.max(0.05,tonumber(params.effect_scale) or 1)
 	if pass then
 		local q = Isaac.Spawn(1000,enums.Entities.AnnaHelper,0,pos,Vector(0,0),player)
 		local s2 = q:GetSprite()
 		s2:Load("gfx/player/anna/_anna_effect.anm2",true)
 		s2:Play("Fade",true)
-		s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1,1)) * range_mul
+		local base_sc = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1,1)) * range_mul
+		if effect_scale ~= 1 then
+			s2.Scale = Vector(base_sc.X * effect_scale, base_sc.Y * effect_scale)
+		else
+			s2.Scale = base_sc
+		end
 		s2.Rotation = params.Rotation or 0
 		local color = auxi.check_lerp((ent.FrameCount + (params.segment_level or 0) * 6) % cinfo.total,cinfo) color = auxi.UpColor(color,1) s2.Color = color
 	else
@@ -965,7 +979,13 @@ function item.attack_impale(player,ent,pos,einfo,params)
 			local s2 = q:GetSprite()
 			s2:Load("gfx/player/anna/_anna_effect.anm2",true)
 			s2:Play("Fade",true)
-			s2.Scale = auxi.mul_t(auxi.ProtectVector((d[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(0.2 + lcnt * lcnt * 0.2,1)) * range_mul
+			local base_sc = auxi.mul_t(auxi.ProtectVector((d[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(0.2 + lcnt * lcnt * 0.2,1)) * range_mul
+			-- Scale.X = 沿前进方向；Scale.Y = 垂直于前进的宽度（与 Tecrorun 一致）
+			if effect_scale ~= 1 then
+				s2.Scale = Vector(base_sc.X * effect_scale, base_sc.Y)
+			else
+				s2.Scale = base_sc
+			end
 			s2.Rotation = params.Rotation or 0
 			local color = auxi.check_lerp((ent.FrameCount + (params.segment_level or 0) * 6 + di + (d[item.own_key.."Impale"].rnd or 0)) % cinfo.total,cinfo) color = auxi.UpColor(color,1) s2.Color = auxi.MulColor(color,Color(1,1,1,lcnt,1,1,1))
 		end
@@ -1144,11 +1164,14 @@ function item.attack_impale(player,ent,pos,einfo,params)
 	end
 end
 
-function item.spawn_terminal_light_burst(player,pos,reflection_count,tearHitParams)
+function item.spawn_terminal_light_burst(player,pos,reflection_count,tearHitParams,params)
+	params = params or {}
 	reflection_count = math.max(0,math.floor(tonumber(reflection_count) or 0))
 	tearHitParams = tearHitParams or player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
-	local damage = tearHitParams.TearDamage * (0.75 + 0.35 * reflection_count)
-	local radius = 60 + 12 * reflection_count
+	local scale_mul = math.max(0.05,tonumber(params.scale) or 1)
+	local dmg_mul = math.max(0,tonumber(params.dmg_mul) or 1)
+	local damage = tearHitParams.TearDamage * (0.75 + 0.35 * reflection_count) * dmg_mul
+	local radius = (60 + 12 * reflection_count) * scale_mul
 	for _,v in ipairs(Isaac.GetRoomEntities()) do
 		if auxi.isenemies(v) and (v.Position - pos):Length() <= radius + (v.Size or 0) then
 			v:TakeDamage(damage,0,EntityRef(player),0)
@@ -1165,7 +1188,9 @@ function item.spawn_terminal_light_burst(player,pos,reflection_count,tearHitPara
 		s.Color = auxi.UpColor(color,1)
 		q.DepthOffset = -5
 	end
-	SFXManager():Play(SoundEffect.SOUND_LIGHTBOLT_CHARGE,1,0,false,1)
+	if params.nosound ~= true then
+		SFXManager():Play(SoundEffect.SOUND_LIGHTBOLT_CHARGE,math.min(1,0.55 + 0.45 * scale_mul),0,false,1)
+	end
 end
 
 function item.control_impale(player,ent,params)
@@ -1207,10 +1232,34 @@ function item.control_impale(player,ent,params)
 	if desc.Data.Type == 16 then ent.Position = Game():GetRoom():GetClampedPosition(ent.Position,10) end
 	
 	d[item.own_key.."Impale"].step_id = (d[item.own_key.."Impale"].step_id or 0) + 1
-	local dir = ent.Position - nowpos
-	if dir:Length() <= 0.001 then dir = d[item.own_key.."record_dir"] or dir end
-	d[item.own_key.."record_dir"] = auxi.ProtectVector(dir)
-	local best_dir = dir:Normalized()
+	local move_dir = ent.Position - nowpos
+	local seg = tbl[cnt]
+	local face_dir
+	if seg and seg.dir and seg.dir:Length() > 0.001 then
+		face_dir = seg.dir:Normalized()
+	elseif move_dir:Length() > 0.001 then
+		face_dir = move_dir:Normalized()
+	else
+		face_dir = d[item.own_key.."record_dir"] or Vector(0, 1)
+		if face_dir:Length() > 0.001 then face_dir = face_dir:Normalized() else face_dir = Vector(0, 1) end
+	end
+	d[item.own_key.."record_dir"] = auxi.ProtectVector(face_dir)
+	local imp = d[item.own_key.."Impale"]
+	local pivot_pos = ent.Position
+	local step_len
+	if imp and imp.last_pivot then
+		step_len = (pivot_pos - imp.last_pivot):Length()
+	end
+	if not step_len or step_len <= 0.001 then
+		step_len = math.abs(move_dir:Dot(face_dir))
+	end
+	if step_len <= 0.001 then
+		step_len = tonumber((imp and imp.tbl or {}).res_length) or item.res_length or 60
+	end
+	if imp then imp.last_pivot = pivot_pos end
+	-- 朝向用段 dir；间距用光路 pivot 点距（宝宝脚底回退时不污染 dis）
+	local dir = face_dir * step_len
+	local best_dir = face_dir
 	local dang = nil
 	if wallpos and dir1 and dir2 then 
 		local ddir1 = dir1 + 180
@@ -1267,7 +1316,14 @@ function item.control_impale(player,ent,params)
 	if cnt >= #(d[item.own_key.."Impale"].tbl) then ret.End = true end
 	
 	if wallpos then --ret.End then
-		local q = Isaac.Spawn(1000,16,3,ent.Position,Vector(0,0),player):ToEffect() q.DepthOffset = -5
+		local q = Isaac.Spawn(1000,16,3,ent.Position,Vector(0,0),player):ToEffect()
+		q.DepthOffset = -5
+		local effect_scale = math.max(0.05,tonumber(params.effect_scale) or 1)
+		if effect_scale ~= 1 then
+			-- 与 _anna_effect 一致：压 Scale.X（沿前进），保留 Scale.Y（横向宽度）
+			local s = q:GetSprite()
+			s.Scale = Vector(s.Scale.X * effect_scale, s.Scale.Y)
+		end
 		--local q = Isaac.Spawn(1000,16,0,ent.Position,Vector(0,0),player):ToEffect() q.DepthOffset = -5
 	end
 	
@@ -1276,13 +1332,39 @@ function item.control_impale(player,ent,params)
 		for i = 1,rnd do local q = item.fire_tecro_phantom(player,Game():GetRoom():GetClampedPosition(ent.Position,5),Vector(0,0),{dir = auxi.random_r(),layer = 1,margin = -50,charge = charge * 0.5,}) end
 	end
 	
-	item.attack_impale(player,ent,ent.Position,nil,{Rotation = dir:GetAngleDegrees(),dir = dir,dang = dang,best_dir = best_dir,wallpos = wallpos,lid = lid,cnt = cnt,End = ret.End,charge = params.charge or d[item.own_key.."Impale"].charge or 1,main = params.main,segment_level = segment_level,})
+	item.attack_impale(player,ent,ent.Position,nil,{
+		Rotation = dir:GetAngleDegrees(),
+		dir = dir,
+		dang = dang,
+		best_dir = best_dir,
+		wallpos = wallpos,
+		lid = lid,
+		cnt = cnt,
+		End = ret.End,
+		charge = params.charge or d[item.own_key.."Impale"].charge or 1,
+		main = params.main,
+		segment_level = segment_level,
+		dmgmul = params.dmgmul,
+		rangerate = params.rangerate,
+		nosound = params.nosound,
+		effect_scale = params.effect_scale,
+	})
 	if params.main and ret.End and not d[item.own_key.."Impale"].terminal_burst_done then
 		d[item.own_key.."Impale"].terminal_burst_done = true
 		item.spawn_terminal_light_burst(player,ent.Position,d[item.own_key.."Impale"].reflection_count or laserdata.reflection_count or laserdata.mxlayer or 0,tearHitParams)
 	end
+	if params.terminal_burst and ret.End and not d[item.own_key.."Impale"].terminal_burst_done then
+		d[item.own_key.."Impale"].terminal_burst_done = true
+		item.spawn_terminal_light_burst(
+			player,
+			ent.Position,
+			d[item.own_key.."Impale"].reflection_count or laserdata.reflection_count or laserdata.mxlayer or 0,
+			tearHitParams,
+			{scale = params.effect_scale or 0.45,dmg_mul = params.dmgmul or 0.35}
+		)
+	end
 	
-	ret.dir = dir ret.pos = ent.Position
+	ret.dir = face_dir ret.pos = ent.Position
 	if desc.Data.Type == 16 and ret.End then ent.Position = Game():GetRoom():FindFreeTilePosition(ent.Position,20) end
 	
 	return ret
@@ -1537,7 +1619,7 @@ function item.fire_tecro_laser(pos,player,dir,params)
 	q.TearFlags = tearflags | TearFlags.TEAR_SPECTRAL
 	q.TearFlags = q.TearFlags & ~(BitSet128(1<<6,0) | BitSet128(1<<19,0) | BitSet128(1<<38,0) | BitSet128(1<<55,0) | BitSet128(1<<58,0)| BitSet128(1<<59,0) | (params.banishedtearflag or BitSet128(0,0)))
 	q.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE
-	q.PositionOffset = Vector(0,0)
+	q.PositionOffset = params.PositionOffset or Vector(0,0)
 	local s = q:GetSprite()
 	s.Color = auxi.table2color(basecolor)
 	s:Load("gfx/player/tecro/tecro_laser.anm2",true)
@@ -1618,6 +1700,7 @@ Function = function(_,ent)
 			local waitinfo = d[item.own_key.."laser"].wait
 			ent.Position = waitinfo.pos
 			ent.Angle = waitinfo.ang
+			if waitinfo.po then ent.PositionOffset = waitinfo.po end
 		end
 		local desc = Game():GetLevel():GetCurrentRoomDesc()
 		if desc.Flags & (1<<15) == 1<< 15 then		--!!简单处理了一下，但效果不好，教条房间还需要继续处理。
