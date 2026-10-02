@@ -1,5 +1,6 @@
 -- 蓝图制造动态/条件属性：只改 Air Flight 档案，不改玩家
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local enums = require("Qing_Remaster_scripts.core.enums")
 
 local item = {
 	pre_ToCall = {},
@@ -447,6 +448,54 @@ function item.apply_to_stats(stats, ctx)
 		local coins = clamp(player:GetNumCoins() or 0, 0, 99)
 		add.damage = add.damage + 0.04 * coins * copies(109)
 		tags[#tags + 1] = "money"
+	end
+
+	-- Qing shared-player resources: recipe presence is a switch (not × craft copies).
+	do
+		local id_pro = enums.Items.Procrastination
+		if id_pro and id_pro > 0 and copies(id_pro) > 0 and player then
+			local ok, Pro = pcall(require, "Qing_Remaster_scripts.items.Item_Procrastination")
+			if ok and Pro and Pro.get_bonus then
+				add.damage = add.damage + (tonumber(Pro.get_bonus(player)) or 0)
+				tags[#tags + 1] = "procrastination"
+			end
+		end
+		local id_aph = enums.Items.Aphasia
+		if id_aph and id_aph > 0 and copies(id_aph) > 0 and player then
+			local ok, Aph = pcall(require, "Qing_Remaster_scripts.items.Item_Aphasia")
+			if ok and Aph and Aph.get_damage_bonus then
+				add.damage = add.damage + (tonumber(Aph.get_damage_bonus(player)) or 0)
+				tags[#tags + 1] = "aphasia"
+			end
+		end
+		local id_crown = enums.Items.Crown_of_the_glaze
+		if id_crown and id_crown > 0 and copies(id_crown) > 0 and player then
+			local ok, Crown = pcall(require, "Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+			if ok and Crown and Crown.get_stacks then
+				local stacks = tonumber(Crown.get_stacks(player)) or 0
+				add.damage = add.damage + stacks * 0.3
+				add.luck = add.luck + stacks * 1
+				tags[#tags + 1] = "crown_glaze"
+			end
+		end
+		local id_field = enums.Items.Field
+		if id_field and id_field > 0 and copies(id_field) > 0 and air then
+			local ok, Field = pcall(require, "Qing_Remaster_scripts.items.Item_Field")
+			if ok and Field and Field.entity_inside_any_field
+				and Field.entity_inside_any_field(air) then
+				fire_rate_add = fire_rate_add + (tonumber(Field.FIELD_TEARS_BONUS) or 1)
+				tags[#tags + 1] = "field"
+			end
+		end
+		local id_wav = enums.Items.Wavering_Eyes
+		if id_wav and id_wav > 0 and copies(id_wav) > 0 and rec then
+			local ok, Wav = pcall(require, "Qing_Remaster_scripts.items.Item_Wavering_Eyes")
+			if ok and Wav and Wav.ensure_craft_state and Wav.tears_bonus_from_gaze then
+				local st = Wav.ensure_craft_state(rec)
+				fire_rate_add = fire_rate_add + (tonumber(Wav.tears_bonus_from_gaze(st.gaze)) or 0)
+				tags[#tags + 1] = "wavering"
+			end
+		end
 	end
 
 	-- 122 Whore of Babylon

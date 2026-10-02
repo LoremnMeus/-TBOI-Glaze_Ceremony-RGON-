@@ -52,7 +52,7 @@ local function player_exists_safe(player)
 end
 
 local function pause_menu_open()
-	return REPENTOGON and Game().IsPauseMenuOpen and Game():IsPauseMenuOpen()
+	return auxi.is_pause_menu_open()
 end
 
 local function selection_key_of(spec)

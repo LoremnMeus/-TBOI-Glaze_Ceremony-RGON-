@@ -5,6 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local danger_data = require("Qing_Remaster_scripts.others.Danger_Data")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -209,7 +210,9 @@ Function = function(_,ent)
 			local tbl_i_door = {}
 			if roomtype == RoomType.ROOM_SECRET or roomtype == RoomType.ROOM_SUPERSECRET or roomtype == RoomType.ROOM_ULTRASECRET then
 				local_try_speak(ent,14)
-				local q = player:FireBomb(ent.Position,auxi.MakeVector(math.random(3600)/10) * 10)
+				local q = attack_holder.FireBomb(player, ent.Position, auxi.MakeVector(math.random(3600)/10) * 10, {
+					mode = "untracked",
+				})
 				q.PositionOffset = Vector(0,-35)
 				q.Velocity = auxi.MakeVector(math.random(3600)/10) * 10
 				q.ExplosionDamage = player.Damage
@@ -229,7 +232,9 @@ Function = function(_,ent)
 				if #tbl > 0 then
 					local rnd = rng:RandomInt(#tbl) + 1
 					local_try_speak(ent,1)
-					local q = player:FireBomb(ent.Position,(room:GetDoorSlotPosition(tbl[rnd]) - ent.Position) * 0.05)
+					local q = attack_holder.FireBomb(player, ent.Position, (room:GetDoorSlotPosition(tbl[rnd]) - ent.Position) * 0.05, {
+						mode = "untracked",
+					})
 					q.PositionOffset = Vector(0,-35)
 					q.Velocity = (room:GetDoorSlotPosition(tbl[rnd]) - ent.Position) * 0.05
 					q.ExplosionDamage = player.Damage
@@ -237,12 +242,16 @@ Function = function(_,ent)
 					local_try_speak(ent,2)
 					if #tbl_r_door > 0 then
 						local rnd = rng:RandomInt(#tbl_r_door) + 1
-						local q = player:FireBomb(ent.Position,(room:GetDoorSlotPosition(tbl_r_door[rnd]) - ent.Position) * 0.05)
+						local q = attack_holder.FireBomb(player, ent.Position, (room:GetDoorSlotPosition(tbl_r_door[rnd]) - ent.Position) * 0.05, {
+							mode = "untracked",
+						})
 						q.PositionOffset = Vector(0,-35)
 						q.Velocity = (room:GetDoorSlotPosition(tbl_r_door[rnd]) - ent.Position) * 0.05
 						q.ExplosionDamage = player.Damage
 					else
-						local q = player:FireBomb(ent.Position,auxi.MakeVector(math.random(3600)/10) * 10)
+						local q = attack_holder.FireBomb(player, ent.Position, auxi.MakeVector(math.random(3600)/10) * 10, {
+							mode = "untracked",
+						})
 						q.PositionOffset = Vector(0,-35)
 						q.Velocity = auxi.MakeVector(math.random(3600)/10) * 10
 						q.ExplosionDamage = player.Damage
@@ -252,7 +261,9 @@ Function = function(_,ent)
 		else
 			if auxi.check_all_exists(d[item.own_key.."target"]) then
 				local pos = d[item.own_key.."target"].Position
-				local q = player:FireBomb(ent.Position,(pos - ent.Position) * 0.05)
+				local q = attack_holder.FireBomb(player, ent.Position, (pos - ent.Position) * 0.05, {
+					mode = "untracked",
+				})
 				q.PositionOffset = Vector(0,-35)
 				q.ExplosionDamage = player.Damage
 				local_try_speak(ent,item.slot_info2word[d[item.own_key.."blow_type"]] or 8)

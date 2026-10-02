@@ -10,7 +10,7 @@ local item = {
 table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
 Function = function(_, continue)
 	if Game().Challenge ~= item.challange then return end
-	console_holder.try_close_console()
+	console_holder.try_set_temp_option("DebugConsoleEnabled", false)
 	Ember.on_challenge_start(continue == true)
 end,
 })

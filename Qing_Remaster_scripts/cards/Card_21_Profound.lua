@@ -18,8 +18,8 @@ local item = {
 	own_key = "Thoth_cd21_Pro_",
 }
 
-function item.random_secret_room()
-	return math.random(33) - 1
+function item.random_secret_room(rng)
+	return rng:RandomInt(33)
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
@@ -58,7 +58,7 @@ Function = function(_,cardtype,player,useFlags)
 		end
 		player:AnimateTeleport(true)
 		if #tbl > 0 then 
-			local tg = auxi.random_in_table(tbl)
+			local tg = auxi.random_in_table(tbl,rng)
 			Room_holder.Trans_to(tg.gidx,Direction.NO_DIRECTION,RoomTransitionAnim.TELEPORT,player,-1)
 		else player:UseActiveItem(CollectibleType.COLLECTIBLE_TELEPORT,false,true,false,false) end
 	end
@@ -99,7 +99,7 @@ function item.make_a_supersecret_room(player)
 	for u,v in pairs(tbl) do
 		if v.invalid ~= true and (v.counter or 0) == 1 then table.insert(sel,#sel + 1,u) end
 	end
-	local rng = player:GetCardRNG(item.entity)
+	local rng = auxi.rng_for_sake(player:GetCardRNG(item.entity))
 	local tg = auxi.random_in_table(sel,rng)
 	if tg then
 		local succ = auxi.make_red_room(tg)
@@ -110,7 +110,8 @@ function item.make_a_supersecret_room(player)
 				desc2.Data = TargetSecret.Data
 				desc2.DisplayFlags = TargetSecret.DisplayFlags
 			end
-			Room_holder.Try_replace_with(tg,auxi.GetDimension(),{data = function() Isaac.ExecuteCommand("goto s.supersecret."..tostring(item.random_secret_room())) return Game():GetLevel():GetRoomByIdx(-3).Data end,}) 
+			local room_variant = item.random_secret_room(rng)
+			Room_holder.Try_replace_with(tg,auxi.GetDimension(),{data = function() Isaac.ExecuteCommand("goto s.supersecret."..tostring(room_variant)) return Game():GetLevel():GetRoomByIdx(-3).Data end,})
 		end
 		level:UpdateVisibility()
 	end

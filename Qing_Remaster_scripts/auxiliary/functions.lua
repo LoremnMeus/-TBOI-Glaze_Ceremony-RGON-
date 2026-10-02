@@ -28,10 +28,58 @@ function funct.REPENTENCE_PLUS()
 	return not not FontRenderSettings
 end
 
+-- Game():IsPauseMenuOpen 为 RGON API；无 RGON 时不可调用（会炸 MC_GET_SHADER_PARAMS 等每帧回调）。
+-- 不要用 IsPaused() 替代菜单检测：换房/大书也会 IsPaused，shader 会被误关。
+-- Vanilla / 控制台：用 Pause_Screen_holder（Menu 或 IN/OUT_CONSOLE）。
+-- 注意：从非暂停态开控制台时 IN_CONSOLE 的 Menu 标志可能为假，必须按状态名识别。
+local pause_screen_holder
+funct._shader_effect_idle = false
+
+function funct.set_shader_effect_idle(idle)
+	funct._shader_effect_idle = idle == true
+end
+
+function funct.shader_effect_idle()
+	return funct._shader_effect_idle == true
+end
+
+function funct.is_pause_menu_open()
+	local ok, result = pcall(function()
+		if REPENTOGON then
+			local game = Game()
+			if game.IsPauseMenuOpen and game:IsPauseMenuOpen() then
+				return true
+			end
+		end
+		if not pause_screen_holder then
+			local rok, holder = pcall(require, "Qing_Remaster_scripts.others.Pause_Screen_holder")
+			if rok then pause_screen_holder = holder end
+		end
+		local holder = pause_screen_holder
+		if not holder then return false end
+		local name = (holder.currentState or {}).name
+		if name == "IN_CONSOLE" or name == "OUT_CONSOLE" then
+			return true
+		end
+		if holder.check_info and holder.check_info("Menu") then
+			return true
+		end
+		return false
+	end)
+	return ok and result == true
+end
+
 function funct.GetPlayers()
 	local ret = {}
 	for i = 0,Game():GetNumPlayers() - 1 do table.insert(ret,#ret + 1,Game():GetPlayer(i)) end
 	return ret
+end
+
+-- Custom overlays attached to the vanilla heart bar must not reveal HP under Unknown.
+function funct.can_render_health_hud()
+	local level = Game():GetLevel()
+	if not level then return true end
+	return level:GetCurses() & LevelCurse.CURSE_OF_THE_UNKNOWN == 0
 end
 
 function funct.get_player_positions()
@@ -64,7 +112,7 @@ function funct.MakeBitSet(i)
 	else
 		return BitSet128(1<<(i),0)
 	end
-end 
+end
 
 function funct.bitset_flag(x,i)	--获取x第i位是否含有1。
 	if i >= 64 then
@@ -91,11 +139,11 @@ function funct.Combination(i,tot) return auxi.Factorial(tot)/(auxi.Factorial(tot
 function funct.Bezier(vs,t)
 	local ct = #vs if ct == 0 then return 0 end
 	if t == 0 then return vs[1] elseif t == 1 then return vs[#vs] end
-	local tmul = 1 
+	local tmul = 1
 	local rt = (1 - t)
 	local ret = vs[1] - vs[1]
 	for i = 1,(ct - 1) do tmul = tmul * rt end
-	for i = 1,ct do 
+	for i = 1,ct do
 		ret = ret + vs[i] * auxi.Combination(i - 1,ct - 1) * tmul
 		tmul = tmul * t/rt
 	end
@@ -146,13 +194,13 @@ function funct.Get__trans(t)			--获取cos对应的sin
 	if t > 1 or t < -1 then
 		return 0
 	end
-	return math.sqrt(1-t*t) 
+	return math.sqrt(1-t*t)
 end
 
 function funct.Get_rotate(t) return Vector(-t.Y,t.X) end
 function funct.get_by_rotate(v,ang,length) v = v or Vector(0,1)	return funct.MakeVector(ang + v:GetAngleDegrees()) * (length or v:Length()) end
 
-function funct.EqualTable(v1,v2) 
+function funct.EqualTable(v1,v2)
 	for u,v in pairs(v1) do if v ~= v2[u] then return false end end
 	for u,v in pairs(v2) do if v ~= v1[u] then return false end end
 	return true
@@ -163,7 +211,7 @@ function funct.Manhattan_Distance_(v) return v.X + v.Y end
 function funct.plu_s(v1,v2) return v1.X*v2.X+v1.Y*v2.Y end
 function funct.mul_t(v1,v2) return Vector(v1.X*v2.X,v1.Y*v2.Y) end
 function funct.rev_s(v) return Vector(1/v.X,1/v.Y) end
-function funct.MakeVector(x) return Vector(math.cos(math.rad(x)),math.sin(math.rad(x))) end	
+function funct.MakeVector(x) return Vector(math.cos(math.rad(x)),math.sin(math.rad(x))) end
 function funct.ab_s(v) return Vector(math.abs(v.X),math.abs(v.Y)) end
 function funct.do_t(v1,v2) return v1.X * v2.X + v1.Y * v2.Y end
 function funct.cros_s(v1,v2) return v1.X * v2.Y - v1.Y * v2.X end
@@ -186,8 +234,8 @@ function funct.AntiVector(v)
 end
 function funct.bit2table(b)
 	local X,Y = 0,0
-	for i = 0,63 do if b & BitSet128(1<<i,0) == BitSet128(1<<i,0) then X = X | 1<<i end end 
-	for i = 0,63 do if b & BitSet128(0,1<<i) == BitSet128(0,1<<i) then Y = Y | 1<<i end end 
+	for i = 0,63 do if b & BitSet128(1<<i,0) == BitSet128(1<<i,0) then X = X | 1<<i end end
+	for i = 0,63 do if b & BitSet128(0,1<<i) == BitSet128(0,1<<i) then Y = Y | 1<<i end end
 	return {X,Y,}
 end
 function funct.table2bit(tbl) return BitSet128(tbl[1],tbl[2]) end
@@ -274,8 +322,34 @@ function funct.MulColor(col_1,col_2)
 		rc,gc,bc,ac
 	)
 end
-function funct.EqualColor(c1,c2) 
-	local c = auxi.AddColor(c1,c2,1,-1) 
+
+--- Stitch Edition MulColor2: Offset uses "upward" composition (1-(1-a)*(1-b)).
+--- Tint multiplies; Colorize preserved like MulColor (RGON soy/laser tint safety).
+function funct.MulColor2(col_1, col_2)
+	local r1, g1, b1, a1 = read_colorize(col_1)
+	local r2, g2, b2, a2 = read_colorize(col_2)
+	local rc, gc, bc, ac
+	if colorize_empty(r1, g1, b1, a1) then
+		rc, gc, bc, ac = r2, g2, b2, a2
+	elseif colorize_empty(r2, g2, b2, a2) then
+		rc, gc, bc, ac = r1, g1, b1, a1
+	else
+		rc, gc, bc, ac = r1 * r2, g1 * g2, b1 * b2, a1 * a2
+	end
+	return make_color_with_colorize(
+		col_1.R * col_2.R,
+		col_1.G * col_2.G,
+		col_1.B * col_2.B,
+		col_1.A * col_2.A,
+		-- Argument order matches Stitch Edition MulColor2 (RO, BO, GO).
+		1 - (1 - col_1.RO) * (1 - col_2.RO),
+		1 - (1 - col_1.BO) * (1 - col_2.BO),
+		1 - (1 - col_1.GO) * (1 - col_2.GO),
+		rc, gc, bc, ac
+	)
+end
+function funct.EqualColor(c1,c2)
+	local c = auxi.AddColor(c1,c2,1,-1)
 	local rc,gc,bc,ac = read_colorize(c)
 	return c.R == 0 and c.G == 0 and c.B == 0 and c.A == 0 and c.RO == 0 and c.GO == 0 and c.BO == 0
 		and colorize_empty(rc,gc,bc,ac)
@@ -293,8 +367,116 @@ function funct.SimilarColor(c1,c2)
 	return (c1.R * c2.R + c1.G * c2.G + c1.B * c2.B)/math.sqrt((c1.R * c1.R + c1.G * c1.G + c1.B * c1.B) * (c2.R * c2.R + c2.G * c2.G + c2.B * c2.B))
 end
 
+-- Tear / 默认：FA > 0.001 → 1×；否则 0.4×（已由泪弹阈值探针确认）
 function funct.height2offset(val,acce) if (acce or 0) > 0.001 then return val else return (val + 25) * 0.4 - 25 end end
 function funct.offset2height(val,acce) if (acce or 0) > 0.001 then return val.Y else return (val.Y + 25) / 0.4 - 25 end end
+
+-- Projectile / 敌弹：FA >= 0 → 1×；FA < 0 → 0.4×（与 Tear 断点不同；见 height2offset_fa_threshold_open.md）
+-- 禁止对敌弹误用 height2offset / offset2height。
+function funct.height2offset_projectile(val, acce)
+	if (acce or 0) >= 0 then
+		return val
+	end
+	return (val + 25) * 0.4 - 25
+end
+function funct.offset2height_projectile(val, acce)
+	if (acce or 0) >= 0 then
+		return val.Y
+	end
+	return (val.Y + 25) / 0.4 - 25
+end
+
+-- Tear only. Projectile uses a different FA breakpoint (height2offset_projectile).
+-- Crossing FA = 0.001 must keep the on-screen height and the on-screen vertical speed.
+-- Do not hardcode 0.4 / 2.5; the finite difference follows the current converters.
+function funct.tear_height_formula_branch(accel)
+	if (tonumber(accel) or 0) > 0.001 then
+		return 1
+	end
+	return 0
+end
+
+function funct.transition_tear_falling_accel(tear, new_fa, opts)
+	if not tear then return end
+	opts = opts or {}
+	local old_fa = tonumber(tear.FallingAcceleration) or 0
+	local old_h = tonumber(tear.Height) or -23.75
+	local old_fs = tonumber(tear.FallingSpeed) or 0
+	new_fa = tonumber(new_fa) or 0
+	local visual_y = funct.height2offset(old_h, old_fa)
+	local visual_fs = funct.height2offset(old_h + old_fs, old_fa) - visual_y
+	local new_h = funct.offset2height(Vector(0, visual_y), new_fa)
+	local new_fs = funct.offset2height(Vector(0, visual_y + visual_fs), new_fa) - new_h
+	tear.Height = new_h
+	tear.FallingSpeed = new_fs
+	if opts.sync_position_offset and tear.PositionOffset ~= nil then
+		tear.PositionOffset = Vector(tear.PositionOffset.X, visual_y)
+	end
+	tear.FallingAcceleration = new_fa
+	return {
+		visual_y = visual_y,
+		visual_speed = visual_fs,
+		old_height = old_h,
+		new_height = new_h,
+		old_falling_speed = old_fs,
+		new_falling_speed = new_fs,
+		old_falling_accel = old_fa,
+		new_falling_accel = new_fa,
+		old_branch = funct.tear_height_formula_branch(old_fa),
+		new_branch = funct.tear_height_formula_branch(new_fa),
+	}
+end
+
+-- Tear discrete Euler (logic frames):
+--   FS_n = FS_0 + n * FA
+--   H_n  = H_0 + n * FS_0 + FA * n * (n + 1) / 2
+-- Given H0, Hn, n, FSn, solve backwards for FS0 / FA.
+-- Do not use continuous 0.5 a t^2 here.
+function funct.solve_tear_vertical_target(start_height, target_height, frames, target_falling_speed)
+	local n = math.max(2, tonumber(frames) or 2)
+	local h0 = tonumber(start_height) or -23.75
+	local hn = tonumber(target_height) or h0
+	local vn = tonumber(target_falling_speed) or 0
+	local denom = n * (1 - n)
+	local fa = 2 * (hn - h0 - n * vn) / denom
+	local fs0 = vn - n * fa
+	return fs0, fa
+end
+
+-- Known desired on-screen visual center + Tear Height/FA → ground-plane Position.
+-- Does not write PositionOffset; caller must set Height/FA accordingly.
+function funct.tear_ground_position_for_visual(visual_pos, height, falling_acceleration)
+	local visual_y = funct.height2offset(height, falling_acceleration)
+	return visual_pos - Vector(0, visual_y)
+end
+
+-- One-shot: set Tear Height / FallingSpeed / FallingAcceleration so the engine
+-- reaches target_height (and optional final FallingSpeed) after `frames` updates.
+-- Do not call every frame to lerp Height.
+function funct.launch_tear_to_height(tear, target_height, frames, opts)
+	if not tear then return nil end
+	opts = opts or {}
+	local h0 = opts.start_height
+	if h0 == nil then
+		h0 = tear.Height
+	end
+	local fs0, fa = funct.solve_tear_vertical_target(
+		h0,
+		target_height,
+		frames,
+		opts.final_falling_speed or 0
+	)
+	tear.Height = h0
+	tear.FallingSpeed = fs0
+	tear.FallingAcceleration = fa
+	return {
+		start_height = h0,
+		target_height = target_height,
+		falling_speed = fs0,
+		falling_acceleration = fa,
+		frames = math.max(2, tonumber(frames) or 2),
+	}
+end
 
 function funct.TearsUp(firedelay, val)
     local currentTears = 30 / (firedelay + 1)
@@ -349,7 +531,7 @@ end
 
 function funct.has_mark(player)
 	local tgs = auxi.getothers(nil,1000)
-	for u,v in pairs(tgs) do 
+	for u,v in pairs(tgs) do
 		if v.Variant == 153 or v.Variant == 30 then
 			if auxi.check_for_the_same(v.SpawnerEntity,player) then return v end
 		end
@@ -362,7 +544,7 @@ function funct.ggdir(player,ignore_marked,allow_mouse,ignore_mouse_press,center,
 	if ignore_marked == false then
 		if player:HasCollectible(394) or player:HasCollectible(572) then		--别忘了准星！
 			local tgs = auxi.getothers(nil,1000)
-			for u,v in pairs(tgs) do 
+			for u,v in pairs(tgs) do
 				if v.Variant == 153 or v.Variant == 30 then
 					if auxi.check_for_the_same(v.SpawnerEntity,player) then
 						local dir = (v.Position - player.Position):Normalized()
@@ -547,7 +729,8 @@ function funct.getpickups(ents,ignore_items)
 end
 
 function funct.isenemies(ent)
-	if ent and ent:IsVulnerableEnemy() and ent:IsActiveEnemy() and not ent:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) then return true end
+	if not ent then return false end
+	if ent:IsVulnerableEnemy() and ent:IsActiveEnemy() and not ent:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) then return true end
 	return false
 end
 
@@ -575,13 +758,56 @@ function funct.getenemies(ents,checker)
 	return enemies
 end
 
+--- Stitch Edition predicate: NPC enemy with CanShutDoors (≠ getenemies / isenemies).
+--- Fixes old typo that passed outer `ent` into checker instead of the loop entity.
+function funct.getallenemies(ents, checker)
+	checker = checker or true
+	ents = ents or Isaac.GetRoomEntities()
+	local ret = {}
+	for _, ent in ipairs(ents) do
+		local npc = ent:ToNPC()
+		if npc
+			and ent:IsEnemy()
+			and npc.CanShutDoors
+			and funct.check_if_any(checker, ent)
+		then
+			ret[#ret + 1] = ent
+		end
+	end
+	return ret
+end
+
+function funct.get_last_parentnpc(ent)
+	local npc = ent and ent:ToNPC()
+	if not npc then
+		return nil
+	end
+	if npc.ParentNPC then
+		return funct.get_last_parentnpc(npc.ParentNPC)
+	end
+	return npc
+end
+
+function funct.get_parentnpc_list(ent)
+	local npc = ent and ent:ToNPC()
+	if not npc then
+		return {}
+	end
+	local ret = {}
+	if npc.ParentNPC then
+		ret = funct.get_parentnpc_list(npc.ParentNPC)
+	end
+	table.insert(ret, npc)
+	return ret
+end
+
 local movable_list = {
 	[33] = true,
 	[292] = true,
 }
 
 function funct.is_movable(ent)
-	if funct.check_if_any(movable_list[ent.Type],ent) then return true 
+	if funct.check_if_any(movable_list[ent.Type],ent) then return true
 	else return false end
 end
 
@@ -598,7 +824,7 @@ function funct.get_nearest_(tbl,pos_)		--pos_可以传入function作为距离计
 	pos_ = pos_ or function(tg) local tpos = tg.Position local pos = Game():GetPlayer(0).Position return (pos - tpos):Length() end
 	local targ = tbl[1]
 	local tu = 1
-	if targ then 
+	if targ then
 		local dis = auxi.check_if_any(pos_,targ)
 		for u,v in pairs(tbl) do
 			local leg = auxi.check_if_any(pos_,v)
@@ -617,7 +843,7 @@ function funct.get_nearest(tbl,pos)
 	pos = pos or Game():GetPlayer(0).Position
 	local targ = tbl[1]
 	local tu = 1
-	if targ then 
+	if targ then
 		local dis = (targ.Position - pos):Length()
 		for u,v in pairs(tbl) do
 			local leg = (v.Position - pos):Length()
@@ -635,7 +861,7 @@ function funct.get_nearest_enemy(enemies,pos,val)
 	enemies = enemies or funct.getenemies()
 	pos = pos or Game():GetPlayer(0).Position
 	local targ = enemies[1]
-	if targ then 
+	if targ then
 		local dis = (targ.Position - pos):Length()
 		for u,v in pairs(enemies) do
 			local leg = (v.Position - pos):Length()
@@ -694,21 +920,21 @@ function funct.getothers_in_table(ents,x,y,z,check_funct)
     for _, ent in pairs(ents) do
         if x == nil or ent.Type == x or x == 0 then
 			local x_tbl = tbl
-			if x == 0 then 
+			if x == 0 then
 				if tbl[ent.Type] == nil then tbl[ent.Type] = {} end
-				x_tbl = tbl[ent.Type] 
+				x_tbl = tbl[ent.Type]
 			end
 			if y == nil or ent.Variant == y or y == 0 then
 				local y_tbl = x_tbl
-				if y == 0 then 
+				if y == 0 then
 					if x_tbl[ent.Variant] == nil then x_tbl[ent.Variant] = {} end
-					y_tbl = x_tbl[ent.Variant] 
+					y_tbl = x_tbl[ent.Variant]
 				end
 				if z == nil or ent.SubType == z or z == 0 then
 					local z_tbl = y_tbl
-					if z == 0 then 
+					if z == 0 then
 						if y_tbl[ent.Variant] == nil then y_tbl[ent.Variant] = {} end
-						z_tbl = y_tbl[ent.Variant] 
+						z_tbl = y_tbl[ent.Variant]
 					end
 					if check_funct == nil or check_funct(ent) == true then
 						table.insert(z_tbl,ent)
@@ -765,9 +991,64 @@ function funct.trychangegrid(x)
 	x.CollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE
 end
 
+function funct.get_cardinal_grid_neighbor_indexes(room, grid_index)
+	room = room or Game():GetRoom()
+	if not room or grid_index == nil then
+		return {}
+	end
+	local width = room:GetGridWidth()
+	local indexes = {grid_index - width, grid_index + width}
+	if grid_index % width ~= 0 then
+		table.insert(indexes, 1, grid_index - 1)
+	end
+	if grid_index % width ~= width - 1 then
+		table.insert(indexes, #indexes + 1, grid_index + 1)
+	end
+	return indexes
+end
+
+-- GridEntityRock:UpdateNeighbors is DESTRUCTIVE.
+-- It breaks THIS rock's big-rock connections and updates neighbors' graphics.
+-- It is NOT a generic neighboring sprite refresh. The game calls it when a rock
+-- is destroyed or lifted. Do not call it on arbitrary neighbors.
+--
+-- Rock type/variant/replace/remove must use grid_rock_topology
+-- (detach / disconnect_big_rocks / replace_rock(s) / remove_rock).
+--
+-- Deprecated name kept for search hygiene; redirects to the explicit destructive API.
+function funct.try_refresh_rock_neighbor_graphics(room, grid_index, include_center)
+	return funct.try_break_rock_big_links_destructive(room, grid_index, include_center)
+end
+
+--- DESTRUCTIVE topology operation via GridEntityRock:UpdateNeighbors.
+--- Prefer grid_rock_topology.detach_from_big_rock / replace_rock(s) / remove_rock.
+function funct.try_break_rock_big_links_destructive(room, grid_index, include_center)
+	room = room or Game():GetRoom()
+	if not room or grid_index == nil then
+		return
+	end
+	local indexes = funct.get_cardinal_grid_neighbor_indexes(room, grid_index)
+	if include_center then
+		table.insert(indexes, 1, grid_index)
+	end
+	for i = 1, #indexes do
+		local grid = room:GetGridEntity(indexes[i])
+		local rock = grid and grid:ToRock()
+		if rock and rock.UpdateNeighbors then
+			rock:UpdateNeighbors()
+		end
+	end
+end
+
 function funct.tryremovegrid(id,force)
+	local rock_topology = require("Qing_Remaster_scripts.others.grid_rock_topology")
 	local room = Game():GetRoom()
-	room:RemoveGridEntity(id,0,false)
+	local grid = room:GetGridEntity(id)
+	if grid and grid:ToRock() then
+		rock_topology.remove_rock(room, id, {path_penalty = 0, keep_decoration = false})
+	else
+		room:RemoveGridEntity(id, 0, false)
+	end
 	if force then
 		delay_buffer.addeffe(function(params)
 			room:SpawnGridEntity(id, 1, 0, 0, 0)
@@ -921,7 +1202,7 @@ function funct.try_destroy_grid(grid,mode)
 	local can_destroy = destroy_list[mode] or destroy_list[1]
 	if funct.issolid(grid) and can_destroy[grid:GetType()] then
 		grid:Destroy(true)
-		if grid:GetType() == 5 then 
+		if grid:GetType() == 5 then
 			Game():BombExplosionEffects(grid.Position,100,BitSet128(0,0))
 		end
 		return true
@@ -999,7 +1280,7 @@ function funct.realdeepCopy(tb)			--此函数已被下方替代
     local copy = {}
     for k, v in pairs(tb) do
         if type(v) == 'table' then
-			if v._r == nil then 
+			if v._r == nil then
 				v._r = k
 			end
             copy[v._r] = funct.realdeepCopy(v)
@@ -1011,7 +1292,7 @@ function funct.realdeepCopy(tb)			--此函数已被下方替代
     return copy
 end
 
-function funct.realrealdeepCopy(tb)	
+function funct.realrealdeepCopy(tb)
 	if type(tb) ~= 'table' then return tb end
     local copy = {}
     for k, v in pairs(tb) do
@@ -1340,7 +1621,7 @@ function funct.fire_nil(position,velocity,params)		--可以传入的是cooldown�
 	local d = q1:GetData()
     local s = q1:GetSprite()
     s:Play("Idle", true)
-	
+
 	d.removecd = params.cooldown or 60
 	d.player = params.player
 	d.Params = funct.copy(params)
@@ -1421,25 +1702,25 @@ function funct.fire_needle(position,velocity,params)
     local s1 = q1:GetSprite()
     s1:Play("Idle", true)
 	d1.player = player
-	
+
 	local q2 = Isaac.Spawn(8,enums.Entities.Tecro_Needle,0,Vector(2000,0),velocity,player):ToKnife()
 	local s2 = q2:GetSprite()
 	local d2 = q2:GetData()
 	q2.Parent = q1
 	q1.Child = q2
 	d1.needle = q2
-	
+
 	d2.Sec_this_spear = Isaac.Spawn(1000,enums.Entities.TecroThisNil,0,position, velocity, player)
 	d2.Sec_this_spear.Parent = q2
 	d2.Sec_this_spear:GetData().position_offset = Vector(0,20)
-	
+
 	q2.RotationOffset = params.dir or velocity:GetAngleDegrees()
 	--print(q2.RotationOffset)
 	d2.player = player
 	d2.tearflags = player.TearFlags
-	
+
 	local tosetsize = {size1 = 5,size2 = Vector(1,4),size3 = 5,scale = Vector(1,1)}		--大小控制
-	
+
 	if params.size and params.size2 and params.size1 then
 		tosetsize.size1 = params.size
 		tosetsize.size2 = params.size1
@@ -1448,14 +1729,14 @@ function funct.fire_needle(position,velocity,params)
 	if params.size_scale then
 		tosetsize.scale = params.size_scale
 	end
-	
+
 	if tosetsize then
 		q2:SetSize(tosetsize.size1,tosetsize.size2,tosetsize.size3)
 		d2.to_set_size = tosetsize
 		s2.Scale = tosetsize.scale
 	end
 	d2.Tecro_needle_damage = params.dmg or player.Damage
-	
+
 	return q2
 end
 
@@ -1464,29 +1745,32 @@ function funct.fire_spear(position,velocity,params)
 	local player = params.player or Game():GetPlayer(0)
 	position = position or player.Position
 	velocity = velocity or Vector(0.00001,0)
+	-- params.source 表示替换 TecroNil 控制壳，不是“枪挂载在哪个实体上”。
+	-- 普通复制攻击只传出生点 position/origin，禁止拿 familiar / ghost / evil-eye effect 代替 TecroNil。
+	-- (params.source replaces the TecroNil control shell — NOT a visual anchor / spawn owner.)
 	local q1 = params.source or Isaac.Spawn(EntityType.ENTITY_EFFECT, enums.Entities.TecroNil, 0, position, velocity, player)
 	local d1 = q1:GetData()
     local s1 = q1:GetSprite()
     s1:Play("Idle", true)
 	d1.player = player
-	
+
 	local q2 = Isaac.Spawn(8,enums.Entities.Tecro_Spear,0,Vector(2000,0),velocity,player):ToKnife()
 	local s2 = q2:GetSprite()
 	local d2 = q2:GetData()
 	q2.Parent = q1
 	q1.Child = q2
 	d1.spear = q2
-	
+
 	d2.Sec_this_spear = Isaac.Spawn(1000,enums.Entities.TecroThisNil,0,position, velocity, player)
 	d2.Sec_this_spear.Parent = q2
 	d2.Sec_this_spear:GetData().position_offset = Vector(0,20)
-	
+
 	q2.RotationOffset = params.dir or velocity:GetAngleDegrees()
 	d2.player = player
 	d2.tearflags = player.TearFlags
-	
+
 	local tosetsize = {size1 = 5,size2 = Vector(1,4),size3 = 5,scale = Vector(1,1)}		--大小控制
-	
+
 	if params.size and params.size2 and params.size1 then
 		tosetsize.size1 = params.size
 		tosetsize.size2 = params.size1
@@ -1495,15 +1779,15 @@ function funct.fire_spear(position,velocity,params)
 	if params.size_scale then
 		tosetsize.scale = params.size_scale
 	end
-	
+
 	if tosetsize then
 		q2:SetSize(tosetsize.size1,tosetsize.size2,tosetsize.size3)
 		d2.to_set_size = tosetsize
 		s2.Scale = tosetsize.scale
 	end
-	
+
 	d2.Tecro_spear_damage = params.dmg or player.Damage
-	
+
 	return q2
 end
 
@@ -1517,20 +1801,20 @@ function funct.fire_laser_spear(position,velocity,params)
     local s1 = q1:GetSprite()
     s1:Play("Idle", true)
 	d1.player = player
-	
+
 	local q2 = Isaac.Spawn(8,enums.Entities.Tecro_Spear,0,Vector(2000,0),velocity,player):ToKnife()
 	local s2 = q2:GetSprite()
 	local d2 = q2:GetData()
 	q2.Parent = q1
 	q1.Child = q2
 	d1.spear = q2
-	
+
 	q2.RotationOffset = params.dir or velocity:GetAngleDegrees()
 	d2.player = player
 	d2.tearflags = player.TearFlags
-	
+
 	local tosetsize = {size1 = 5,size2 = Vector(1,4),size3 = 5,scale = Vector(1,1)}		--大小控制
-	
+
 	if params.size and params.size2 and params.size1 then
 		tosetsize.size1 = params.size
 		tosetsize.size2 = params.size1
@@ -1539,15 +1823,15 @@ function funct.fire_laser_spear(position,velocity,params)
 	if params.size_scale then
 		tosetsize.scale = params.size_scale
 	end
-	
+
 	if tosetsize then
 		q2:SetSize(tosetsize.size1,tosetsize.size2,tosetsize.size3)
 		d2.to_set_size = tosetsize
 		s2.Scale = tosetsize.scale
 	end
-	
+
 	d2.Tecro_spear_damage = params.dmg or player.Damage
-	
+
 	return q2
 end
 
@@ -1556,7 +1840,7 @@ function funct.fire_knife(position,velocity,dmg,targ,params)	--params可以传�
 	local d = q1:GetData()
     local s = q1:GetSprite()
     local player = params.player or Game():GetPlayer(0)
-	
+
 	s:Play("Idle", true)
 	q1.Parent = targ
 	d.removecd = params.cooldown or 120
@@ -1567,7 +1851,7 @@ function funct.fire_knife(position,velocity,dmg,targ,params)	--params可以传�
 	if params.PosOffset then
 		q1.PositionOffset = params.PosOffset
 	end
-	
+
 	local q2 = params.knife or Isaac.Spawn(EntityType.ENTITY_KNIFE, 0, 0, Vector(2000,0),velocity:Normalized(), nil):ToKnife()
 	local s2 = q2:GetSprite()
 	local d2 = q2:GetData()
@@ -1599,16 +1883,75 @@ function funct.fire_knife(position,velocity,dmg,targ,params)	--params可以传�
 		q2:SetColor(params.Color,3,99,false,false)
 	end
 	if params.Brim then
-		local q3 = player:FireBrimstone(-velocity,nil,0.4)
-		q3.PositionOffset = params.PosOffset or Vector(0,0)
-		q3.Parent = q2
-		q3.Position = q2.Position
-		q3.TearFlags = q3.TearFlags & (~TearFlags.TEAR_WAIT)
-		q3:SetTimeout(params.cooldown)
-		q3.MaxDistance = math.sqrt(player.TearRange) * 3
-		d2.Knife_link_brimstone = q3
+		local brim_opts = funct.resolve_attack_fire_opts(params, "auxi_fire_knife_linked_brim")
+		brim_opts.damage_multiplier = brim_opts.damage_multiplier or 0.4
+		local q3 = funct.get_attack_holder().FireBrimstone(player, -velocity, brim_opts)
+		if q3 then
+			q3.PositionOffset = params.PosOffset or Vector(0,0)
+			q3.Parent = q2
+			q3.Position = q2.Position
+			q3.TearFlags = q3.TearFlags & (~TearFlags.TEAR_WAIT)
+			q3:SetTimeout(params.cooldown)
+			q3.MaxDistance = math.sqrt(player.TearRange) * 3
+			d2.Knife_link_brimstone = q3
+		end
 	end
 	return q2
+end
+
+--- Resolve Attack Fire opts for auxi Fire helpers (never invent new_attack).
+--- Priority: params.attack_ctx → params.attack inherit → Peek copy → params.fire_mode → untracked (+dev warn).
+local _auxi_attack_holder = nil
+local _auxi_fire_opts_warned = {}
+function funct.get_attack_holder()
+	if not _auxi_attack_holder then
+		_auxi_attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	end
+	return _auxi_attack_holder
+end
+
+function funct.resolve_attack_fire_opts(params, reason)
+	params = params or {}
+	reason = reason or "auxi_fire"
+	if type(params.attack_ctx) == "table" and params.attack_ctx.mode then
+		local ctx = funct.copy(params.attack_ctx)
+		ctx.reason = ctx.reason or reason
+		return ctx
+	end
+	if params.attack then
+		return {
+			mode = "inherit",
+			attack = params.attack,
+			emitter = params.emitter,
+			role = params.role or "derived",
+			reason = params.reason or reason,
+		}
+	end
+	local holder = funct.get_attack_holder()
+	local peek_opts = holder.CopyFireContext and holder.CopyFireContext(params.reason or reason)
+	if peek_opts then
+		return peek_opts
+	end
+	local mode = params.fire_mode
+	if mode == "inherit" or mode == "untracked" or mode == "new_attack" then
+		return {
+			mode = mode,
+			attack = params.attack,
+			emitter = params.emitter,
+			role = params.role or "derived",
+			reason = params.reason or reason,
+		}
+	end
+	if not _auxi_fire_opts_warned[reason] then
+		_auxi_fire_opts_warned[reason] = true
+		Isaac.DebugString("[Qing AttackFire] " .. tostring(reason) .. " missing fire context; fallback untracked")
+	end
+	return {
+		mode = "untracked",
+		reason = (params.reason or reason) .. "_orphan",
+		emitter = params.emitter,
+		role = params.role or "derived",
+	}
 end
 
 --- 飞行器妈刀：MeusNil 当独立刀柄，由 FireKnife 完成引擎武器初始化。
@@ -1632,8 +1975,12 @@ function funct.fire_engine_knife(parent, direction, dmg, params)
 	d.removecd = params.cooldown or 300
 	d.Params = funct.copy(params)
 	d.Params.Accerate = nil
-	d.skip_nil_distance_cull = true
-	if parent and parent.Exists and parent:Exists() then
+	-- Aeon / custom spatial driver: do not Nil-follow parent and do not skip distance cull.
+	local disable_follower = params.disable_follower == true
+	if not disable_follower then
+		d.skip_nil_distance_cull = true
+	end
+	if (not disable_follower) and parent and parent.Exists and parent:Exists() then
 		d.follower = parent
 		d.ignore_follower_distance = true
 		d.nw_follow_pos = Vector(0, 0)
@@ -1644,8 +1991,16 @@ function funct.fire_engine_knife(parent, direction, dmg, params)
 		q1.PositionOffset = params.PosOffset
 	end
 	-- 裸 Spawn 的 ENTITY_KNIFE 缺少玩家武器内部状态，Shoot/IsFlying 会失效。
-	-- FireKnife 的 RotationOffset 就是初始射击角；不要在 Update 再强写 Rotation。
-	local q2 = player:FireKnife(q1, ang, false, 0, 0)
+	-- FireKnife 的 RotationOffset 就是初始射击角；不要在 Update 再强写 Rotation.
+	local knife_opts = funct.resolve_attack_fire_opts(params, "auxi_fire_engine_knife")
+	if knife_opts.emitter == nil then
+		knife_opts.emitter = parent
+	end
+	knife_opts.rotation_offset = ang
+	knife_opts.cant_overwrite = false
+	knife_opts.subtype = tonumber(params.subtype) or 0
+	knife_opts.variant = tonumber(params.variant) or 0
+	local q2 = funct.get_attack_holder().FireKnife(player, q1, knife_opts)
 	if not q2 then
 		q1:Remove()
 		return nil
@@ -1703,8 +2058,14 @@ function funct.fire_lung(pos,vel,player,params)
 	vel = vel or ((params.dir or Vector(1,0)) * shot_speed * 10)
 	local ret = {}
 	local cnt = params.cnt or (12 + math.random(8))
-	for i = 1,cnt do 
-		local q = player:FireTear(pos,auxi.get_by_rotate(vel,auxi.random_2() * 12,vel:Length() * (1 + auxi.random_2() * 0.3)),true,true,true)
+	local attack_holder = funct.get_attack_holder()
+	local fire_opts = funct.resolve_attack_fire_opts(params, "auxi_fire_lung")
+	if fire_opts.can_be_eye == nil then fire_opts.can_be_eye = true end
+	if fire_opts.no_tracer == nil then fire_opts.no_tracer = true end
+	if fire_opts.can_trigger_streak_end == nil then fire_opts.can_trigger_streak_end = true end
+	for i = 1,cnt do
+		local shot_vel = auxi.get_by_rotate(vel,auxi.random_2() * 12,vel:Length() * (1 + auxi.random_2() * 0.3))
+		local q = attack_holder.FireTear(player, pos, shot_vel, fire_opts)
 		if params.dmg then q.CollisionDamage = params.dmg * (params.dmgrate or 1)
 		else q.CollisionDamage = (params.dmg or q.CollisionDamage) * (params.dmgrate or 1) end
 		q.FallingSpeed = -7.5 + auxi.random_2() * 5
@@ -1723,7 +2084,7 @@ function funct.fire_anti_lung(pos,vel,ent,params)
 	vel = vel or ((params.dir or Vector(1,0)) * 10)
 	local ret = {}
 	local cnt = params.cnt or (12 + math.random(8))
-	for i = 1,cnt do 
+	for i = 1,cnt do
 		local q = Isaac.Spawn(9,0,0,pos,auxi.get_by_rotate(vel,auxi.random_2() * 12,vel:Length() * (1 + auxi.random_2() * 0.3)),ent):ToProjectile() auxi.protect_projectile(ent,q)
 		--q.CollisionDamage = (params.dmg or q.CollisionDamage) * (params.dmgrate or 1)
 		q.FallingSpeed = -7.5 + auxi.random_2() * 5
@@ -1742,10 +2103,13 @@ function funct.fire_lung_bomb(pos,vel,player,params)
 	local shot_speed = params.shot_speed or player.ShotSpeed
 	vel = vel or ((params.dir or Vector(1,0)) * shot_speed * 10)
 	local Bomb_holder = require("Qing_Remaster_scripts.mimics.Bomb_holder")
+	local attack_holder = funct.get_attack_holder()
+	local fire_opts = funct.resolve_attack_fire_opts(params, "auxi_fire_lung_bomb")
 	local ret = {}
 	local cnt = params.cnt or (4 + math.random(2))
-	for i = 1,cnt do 
-		local q = player:FireBomb(pos,auxi.get_by_rotate(vel,auxi.random_2() * 24,vel:Length() * (1 + auxi.random_2() * 0.5)),player)
+	for i = 1,cnt do
+		local shot_vel = auxi.get_by_rotate(vel,auxi.random_2() * 24,vel:Length() * (1 + auxi.random_2() * 0.5))
+		local q = attack_holder.FireBomb(player, pos, shot_vel, fire_opts)
 		q.RadiusMultiplier = 0.3 + auxi.random_1() * 0.5
 		q.PositionOffset = params.PosOffset or params.Posoffset or Vector(0,0)
 		if params.dmg and q.ExplosionDamage then
@@ -1768,9 +2132,21 @@ function funct.fire_Tech_5_laser(player,pos,dir,params)
 	player = player or params.player or Game():GetPlayer(0)
 	pos = pos or player.Position
 	dir = dir or Vector(1,0)
-	local q = player:FireTechLaser(pos,params.id or 0,dir,false,true)
-	for u,v in pairs(buff_list) do 
-		if math.random(1000) > 800 then q:AddTearFlags(v) end
+	-- Tech.5 额外自动激光：默认 untracked；caller 可传 attack_ctx/attack/fire_mode 覆盖。
+	if params.attack_ctx == nil and params.attack == nil and params.fire_mode == nil then
+		params = funct.copy(params)
+		params.fire_mode = "untracked"
+		params.reason = params.reason or "auxi_tech5"
+	end
+	local fire_opts = funct.resolve_attack_fire_opts(params, "auxi_tech5")
+	fire_opts.offset_id = params.id or 0
+	if fire_opts.left_eye == nil then fire_opts.left_eye = false end
+	if fire_opts.one_hit == nil then fire_opts.one_hit = true end
+	local q = funct.get_attack_holder().FireTechLaser(player, pos, dir, fire_opts)
+	if q then
+		for u,v in pairs(buff_list) do
+			if math.random(1000) > 800 then q:AddTearFlags(v) end
+		end
 	end
 	return q
 end
@@ -1829,7 +2205,7 @@ function funct.fire_Sword(position,velocity,dmg,targ,params)
 		end
 	end
 	local tosetsize = {size1 = initial_sz,size2 = Vector(1,1),size3 = 5,scale = Vector(1,1)}
-	
+
 	if params.size and params.size2 and params.size1 then
 		tosetsize.size1 = params.size
 		tosetsize.size2 = params.size1
@@ -1859,7 +2235,7 @@ function funct.fire_Sword(position,velocity,dmg,targ,params)
 		tosetsize.size1 = tosetsize.size1 * (1 + hae * 0.4)
 		tosetsize.scale = tosetsize.scale * (1 + hae * 0.4)
 	end
-	
+
 	if tosetsize then
 		q1:SetSize(tosetsize.size1,tosetsize.size2,tosetsize.size3)
 		s.Scale = tosetsize.scale
@@ -1868,14 +2244,19 @@ function funct.fire_Sword(position,velocity,dmg,targ,params)
 end
 
 function funct.fire_rocket(pos,vel,player,params)
+	params = params or {}
 	local q
 	local Imitate_item_holder = require("Qing_Remaster_scripts.callbacks.imitate_item_holder")
+	local fire_opts = funct.resolve_attack_fire_opts(params, "auxi_fire_rocket")
+	local function do_fire()
+		return funct.get_attack_holder().FireBomb(player, pos, vel, fire_opts)
+	end
 	if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ROCKET_IN_A_JAR) == false then
 		Imitate_item_holder.assign_fake_item(player,CollectibleType.COLLECTIBLE_ROCKET_IN_A_JAR,true)
-		q = player:FireBomb(pos,vel)
+		q = do_fire()
 		Imitate_item_holder.re_assign_fake_item()
 	else
-		q = player:FireBomb(pos,vel)
+		q = do_fire()
 	end
 	return q
 end
@@ -1906,7 +2287,24 @@ local Sec_buffs = {
 function funct.fire_fetus(q,player,pos,vel,CanBeEye,CanTriggerStreakEnd,params)
 	params = params or {}
 	player = player or Game():GetPlayer(0)
-	q = q or player:FireTear(pos or (player.Position + player.Velocity),vel or player.Velocity,CanBeEye or true,true,CanTriggerStreakEnd or true)
+	if CanBeEye == nil then
+		CanBeEye = true
+	end
+	if CanTriggerStreakEnd == nil then
+		CanTriggerStreakEnd = true
+	end
+	if not q then
+		local fire_opts = funct.resolve_attack_fire_opts(params, "auxi_fire_fetus")
+		fire_opts.can_be_eye = CanBeEye
+		fire_opts.no_tracer = true
+		fire_opts.can_trigger_streak_end = CanTriggerStreakEnd
+		q = funct.get_attack_holder().FireTear(
+			player,
+			pos or (player.Position + player.Velocity),
+			vel or player.Velocity,
+			fire_opts
+		)
+	end
 	q.TearFlags = q.TearFlags | BitSet128(0,1<<(114-64)) | (params.tearflags or BitSet128(0,0))
 	q.CollisionDamage = params.dmg or q.CollisionDamage
 	local s = q:GetSprite()
@@ -1971,7 +2369,7 @@ function funct.get_sharp_time(player)
 	return ret
 end
 
-local sharp_rate = {	
+local sharp_rate = {
 	[CollectibleType.COLLECTIBLE_CUPIDS_ARROW] = 1,
 	[CollectibleType.COLLECTIBLE_OUIJA_BOARD] = 1,
 	[CollectibleType.COLLECTIBLE_MOMS_KNIFE] = 2,
@@ -2068,7 +2466,7 @@ function funct.launch_Missile(pos,vel,tearHitParams,targ,params)
 		local tbl = auxi.get_epic_list(player)
 		for u,v in pairs(tbl) do params[u] = params[u] or v end
 	end
-    local q = Isaac.Spawn(EntityType.ENTITY_EFFECT,enums.Entities.ID_EFFECT_MeusFetus,0,pos,vel,nil)
+    local q = Isaac.Spawn(EntityType.ENTITY_EFFECT,enums.Entities.ID_EFFECT_MeusFetus,0,pos,vel,player)
     local d = q:GetData()
     local s = q:GetSprite()
 	s.Scale = params.scale or Vector(1,1)
@@ -2079,10 +2477,44 @@ function funct.launch_Missile(pos,vel,tearHitParams,targ,params)
 	d[Epic_holder.own_key.."Cooldown"] = params.Cooldown or 0
 	d[Epic_holder.own_key.."Damage"] = (params.dmgmul or 1/3) * (params.dmg or tearHitParams.TearDamage) * (params.charge or 1)
     d[Epic_holder.own_key.."Params"] = auxi.deepCopy(params)
+	d[Epic_holder.own_key.."Params"].player = player
 	local flag_in = params.tearflags or params.tearflag or BitSet128(0,0)
 	d[Epic_holder.own_key.."Tearflags"] = flag_in | (tearHitParams.TearFlags or BitSet128(0,0)) & ~(params.anti_tearflag or BitSet128(0,0))
 	local pre_col = auxi.get_color_by_tearvariant(tearHitParams.TearVariant)
 	d[Epic_holder.own_key.."Color"] = params.color or auxi.MulColor(tearHitParams.TearColor,pre_col)
+	if params.ManualCarrierPosition == true
+		or params.LockCarrierXY == true
+		or params.FixedTargetPosition == true
+	then
+		d[Epic_holder.own_key.."ManualCarrierPosition"] = true
+		d[Epic_holder.own_key.."LockCarrierXY"] = true
+		-- Fixed / locked XY: no Attack open on spawn; rocket path also skips.
+		return q
+	end
+	-- M4/M5: carrier opens Epic Attack, or inherits craft round Attack when provided.
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local attack = params.attack
+	if attack and attack.active and not attack.ending then
+		attack_holder.BindMember(attack, q, {
+			role = "proxy",
+			reason = "epic_launch_missile_inherit",
+			position = q.Position,
+			allow_sealed = true,
+		})
+		attack_holder.MarkProxy(q)
+		d[Epic_holder.own_key.."attack"] = attack
+		d[Epic_holder.own_key.."Params"].attack = attack
+		d[Epic_holder.own_key.."Params"].expected_attack = true
+	else
+		attack = Epic_holder.begin_carrier_attack(q, player, {
+			reason = "epic_launch_missile",
+			max_frame_delta = params.attack_max_frame_delta or 2,
+		})
+		if attack then
+			d[Epic_holder.own_key.."Params"].attack = attack
+			d[Epic_holder.own_key.."Params"].expected_attack = true
+		end
+	end
 	return q
 end
 
@@ -2193,26 +2625,26 @@ local check_list = {
 }
 
 local dagger_size_controler = {
-	["knife"] = function(val,ret,player) 
+	["knife"] = function(val,ret,player)
 		ret.size1 = ret.size1 * (2 + val)
 		ret.size2 = Vector(0.3,2)
 		ret.size3 = ret.size3 * (1 + val)
 		return ret
 	end,
-	["pol"] = function(val,ret,player) 
+	["pol"] = function(val,ret,player)
 		ret.size1 = ret.size1 * (1 + val)
 		ret.size2 = Vector(ret.size2.X * 2,ret.size2.Y * 2)
 		ret.size3 = ret.size3 * (1 + val)
 		ret.scale = Vector(2,(1 + val))
 		return ret
 	end,
-	["larger"] = function(val,ret,player) 
+	["larger"] = function(val,ret,player)
 		ret.size1 = ret.size1 * (1 + val * 0.15)
 		ret.scale = ret.scale * (1 + val * 0.15)
 		return ret
 	end,
 	["cho"] = function(val,ret,player) 		--!!
-		if player:GetData().cho_counter then 
+		if player:GetData().cho_counter then
 			local val = player:GetData().cho_counter
 			ret.size1 = ret.size1 * (0.25 + val)
 			ret.scale = ret.scale * (0.15 + val)
@@ -2221,16 +2653,16 @@ local dagger_size_controler = {
 	[1] = function(val,ret,player,params) 		--!!
 		if ((params.list.soy or 0) > 0) or ((params.list.soy2 or 0) > 0) then
 			local rang = 1
-			if (params.list.soy or 0) > 0 then rang = 0.25 
+			if (params.list.soy or 0) > 0 then rang = 0.25
 			else rang = 0.35 end
 			ret.size1 = ret.size1 * rang
 			ret.scale = ret.scale * rang
 			return ret
 		end
 	end,
-	["hae"] = function(val,ret,player) 
+	["hae"] = function(val,ret,player)
 		ret.size1 = ret.size1 * (1 + val * 0.4)
-		ret.size3 = ret.size3 
+		ret.size3 = ret.size3
 		ret.scale = ret.scale * (1 + val * 0.4)
 		return ret
 	end,
@@ -2265,7 +2697,7 @@ function funct.fire_dosome_knife(pos,vel,tearHitParams,anim,params,params2)
 	q.Parent = source
 	source.Child = q
 	d.player = player
-	
+
 	local replace_name = nil
 	local replace_name_cnt = 0
 	if (params.list.dual or 0) > 0 then		--阴阳
@@ -2300,14 +2732,14 @@ function funct.fire_dosome_knife(pos,vel,tearHitParams,anim,params,params2)
 		replace_name = "yinyang_Stabknife_"..tostring(player:GetData().mega_yinyang_stack_counter)
 	end
 	if replace_name then funct.replace_dagger_graph(q,replace_name) end
-	
+
 	if (params.list.divi or 0) > 0 and params.ignore_divi ~= true then		--分裂		--!!
 		tearflag = tearflag | BitSet128(1<<18,0)
 		d.divi_list = {}
-		if player:GetCollectibleNum(453) > 0 then 
+		if player:GetCollectibleNum(453) > 0 then
 			for i = 1,math.random(3) + 1 do	table.insert(d.divi_list,{dir = math.random(3600)/10}) end
 		end
-		if player:GetCollectibleNum(104) > 0 then 
+		if player:GetCollectibleNum(104) > 0 then
 			for i = 1,2 do table.insert(d.divi_list,{dir = 90 + 180 * i}) end
 		end
 		if player:GetCollectibleNum(224) > 0 then
@@ -2320,8 +2752,8 @@ function funct.fire_dosome_knife(pos,vel,tearHitParams,anim,params,params2)
 		d.zero_stack = params.list.should_on_laser * 2 + 3
 	end
 	if (params.list.deadeye or 0) > 0 then d.deadeye = 1 end
-	if (params.list.wavereye or 0) > 0 then d.wavereye = 1 end				
-	local tosetsize = {size1 = 5,size2 = Vector(1,1),size3 = 5,scale = Vector(1,1)}	
+	if (params.list.wavereye or 0) > 0 then d.wavereye = 1 end
+	local tosetsize = {size1 = 5,size2 = Vector(1,1),size3 = 5,scale = Vector(1,1)}
 	for u,v in pairs(tosetsize) do tosetsize[u] = params[u] or tosetsize[u] end
 	if anim == "IdleUp" then tosetsize.size2.Y = tosetsize.size2.Y * 0.85 end
 	params.Explosive = params.Explosive or params.list.ipec
@@ -2342,8 +2774,9 @@ function funct.fire_dosome_knife(pos,vel,tearHitParams,anim,params,params2)
 	if params.Flip then anim = anim.."2" end
 	if anim == "IdleUp" and (params2.charge or 1) > 0.5 then
 		d[player_wq.own_key.."holder"] = d[player_wq.own_key.."holder"] or {}
-		if params.brim then 
-			local q2 = player:FireBrimstone(-vel)
+		if params.brim then
+			local brim_opts = funct.resolve_attack_fire_opts(params, "auxi_dosome_brim")
+			local q2 = funct.get_attack_holder().FireBrimstone(player, -vel, brim_opts)
 			q2.PositionOffset = Vector(0,0)
 			q2.Parent = q
 			q2.Position = q.Position
@@ -2353,7 +2786,9 @@ function funct.fire_dosome_knife(pos,vel,tearHitParams,anim,params,params2)
 		elseif (params.list.brimstone or 0) > 0 and (params.knife or 0) == 0 then
 			for k = 1,-1,-2 do
 				local adder = 30 * k
-				local q2 = player:FireBrimstone(auxi.get_by_rotate(vel,180 - 2 * adder),nil,0.3)
+				local brim_opts = funct.resolve_attack_fire_opts(params, "auxi_dosome_linked_brim")
+				brim_opts.damage_multiplier = 0.3
+				local q2 = funct.get_attack_holder().FireBrimstone(player, auxi.get_by_rotate(vel,180 - 2 * adder), brim_opts)
 				q2.PositionOffset = Vector(0,0)
 				q2:SetTimeout(10)
 				q2.Parent = q
@@ -2380,7 +2815,7 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 	dowhatstring2 = dowhatstring1
 	params = params or {}
 	params.list = params.list or {}
-	
+
 	local var = StabberKnife
 	if variant ~= nil then
 		var = variant
@@ -2440,12 +2875,12 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 		if params.list.divi and params.list.divi ~= 0 and params.list.ignore_divi == nil then		--分裂
 			d2.tearflags = d2.tearflags | BitSet128(1<<6,0)
 			d2.divi_list = {}
-			if player:GetCollectibleNum(453) > 0 then 
+			if player:GetCollectibleNum(453) > 0 then
 				for i = 1,math.random(3) + 1 do
 					table.insert(d2.divi_list,{dir = math.random(3600)/10})
 				end
 			end
-			if player:GetCollectibleNum(224) > 0 then 
+			if player:GetCollectibleNum(224) > 0 then
 				for i = 1,2 do
 					table.insert(d2.divi_list,{dir = 90 + 180 * i})
 				end
@@ -2539,7 +2974,7 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 	if params and params.Explosive == nil and params.list then
 		params.Explosive = params.list.ipec
 	end
-	
+
 	if params and params.shouldrotate then
 		params.shouldrotate = true
 	end
@@ -2547,7 +2982,7 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 		params.follow_hae = true
 		d2.hae_counter = 1
 	end
-	
+
 	if params and params.Explosive and params.Explosive > 0 then
 		d2.Explosive_cnt = params.Explosive
 		params.bomb_knife_flag = BitSet128(0,0)
@@ -2562,7 +2997,7 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 	if params and params.repel and params.repel:Length() > 0.005 and params.list and params.list.repel_effect and params.list.repel_effect > 0 then		--附加的击退效果。
 		params.repel = params.repel * (1 + params.list.repel_effect/10)
 	end
-	
+
 	if params.color then
 		local fadeout = false
 		if params.color_fadeout then
@@ -2574,7 +3009,7 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 		end
 		q1:SetColor(params.color,duration,99,fadeout,false)
 	end
-	
+
 	local tosetsize = {size1 = 5,size2 = Vector(1,1),size3 = 5,scale = Vector(1,1)}		--大小控制
 	if params.size and params.size2 and params.size1 then
 		tosetsize.size1 = params.size
@@ -2624,16 +3059,16 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 		if params.list.hae and params.list.hae ~= 0 then
 			local hae = params.list.hae
 			tosetsize.size1 = tosetsize.size1 * (1 + hae * 0.4)
-			tosetsize.size3 = tosetsize.size3 
+			tosetsize.size3 = tosetsize.size3
 			tosetsize.scale = tosetsize.scale * (1 + hae * 0.4)
 		end
 	end
-	
+
 	if tosetsize then
 		q1:SetSize(tosetsize.size1,tosetsize.size2,tosetsize.size3)
 		s2.Scale = tosetsize.scale
 	end
-	
+
 	local replace_name = nil
 	local replace_name_cnt = 0
 	if params.tech and params.tech == true then		--换皮肤
@@ -2643,11 +3078,11 @@ function funct.fire_dowhatknife(variant,position,velocity,dmg,dowhatstring1,dowh
 	if params.Entitycollision then		--似乎没啥用
 		q1.EntityCollisionClass = params.Entitycollision
 	end
-	
+
 	q1.CollisionDamage = dmg
 	local ang = velocity:GetAngleDegrees() + 360
 	s2:Play(dowhatstring1,true)
-	
+
 	d2.damage = dmg
 	d2.params = funct.copy(params)
 	d2.TimeOut = coold		--调用了自动删除装置。
@@ -2709,7 +3144,7 @@ function funct.kill_them_all(player,pos,dmg)
 	local room = Game():GetRoom()
 	local q1 = Isaac.Spawn(1000,MeusLink,0,player.Position,Vector(0,0),player)
 	local s1 = q1:GetSprite()
-	
+
 	local dir = pos - player.Position
 	if player:GetData().last_attack_pos then
 		 dir = player:GetData().last_attack_pos - player.Position
@@ -2727,7 +3162,7 @@ function funct.kill_them_all(player,pos,dmg)
 	player:SetMinDamageCooldown(20)
 	local n_entity = Isaac.GetRoomEntities()
 	local n_enemy = funct.getenemies(n_entity)
-	for i = 1,#n_enemy do 
+	for i = 1,#n_enemy do
 		if (n_enemy[i].Position - pos):Length() < 30 then
 			n_enemy[i]:TakeDamage(dmg,0,EntityRef(player),0)
 		end
@@ -2739,14 +3174,14 @@ function funct.kill_them_all2(player,pos,dmg,max_hit,max_range)
 	local n_entity = Isaac.GetRoomEntities()
 	local n_enemy = funct.getenemies(n_entity)
 	max_range = max_range or 100
-	for i = 1,#n_enemy do 
+	for i = 1,#n_enemy do
 		if (n_enemy[i].Position - pos):Length() < max_range then
 			target_enemy[#target_enemy + 1] = n_enemy[i]
 		end
 	end
 	max_hit = max_hit or 5
 	if #target_enemy < max_hit and #target_enemy > 0 then
-		for i = #target_enemy,max_hit + 2 do 
+		for i = #target_enemy,max_hit + 2 do
 			target_enemy[#target_enemy + 1] = target_enemy[math.random(#target_enemy)]
 		end
 	end
@@ -2982,7 +3417,7 @@ local weapon_mxdelay_mul = {
 	[WeaponType.WEAPON_FETUS] = 1,
 	[WeaponType.WEAPON_UMBILICAL_WHIP] = 1,
 }
- 
+
 local item_mxdelay_mul = {
 	[CollectibleType.COLLECTIBLE_TECHNOLOGY_2] = 2/3,
 	[CollectibleType.COLLECTIBLE_EVES_MASCARA] = 2/3,
@@ -3140,7 +3575,7 @@ local item_dmg_mul = {
 function funct.get_damage_multiplier(player)
 	local total_multiplier = player_dmg_mul[player:GetPlayerType()] or 1
 	if type(total_multiplier) == "function" then total_multiplier = total_multiplier(player) end
-	
+
 	local effects = player:GetEffects()
 
 	for collectible, multiplier in pairs(item_dmg_mul) do
@@ -3317,8 +3752,8 @@ end
 
 function funct.get_player_display_name(player)
 	local ret = funct.get_display_name(player)
-	if ret == "" then 
-		local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder") 
+	if ret == "" then
+		local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
 		ret = item_displaying_holder.check_description("Player",player:GetPlayerType(),ret,"",player).Name
 	end
 	if ret == "" then ret = player:GetName() end
@@ -3498,8 +3933,8 @@ function funct.Get_Angle_by_Degree_Name(dir)
 end
 
 function funct.Direction_Plus(dir1,dir2)
-	if type(dir1) == "string" then dir1 = funct.Get_Angle_by_Degree_Name(dir1) end 
-	if type(dir2) == "string" then dir2 = funct.Get_Angle_by_Degree_Name(dir2) end 
+	if type(dir1) == "string" then dir1 = funct.Get_Angle_by_Degree_Name(dir1) end
+	if type(dir2) == "string" then dir2 = funct.Get_Angle_by_Degree_Name(dir2) end
 	return funct.Get_dir_name(funct.Get_direction_by_angle(dir1 + dir2))
 end
 
@@ -3555,7 +3990,7 @@ function funct.GetNameByRoomType(name)
 end
 
 function funct.IsAmbushBoss()
-	if Game():GetLevel():HasBossChallenge() then return true 
+	if Game():GetLevel():HasBossChallenge() then return true
 	else return false end
 end
 
@@ -3644,7 +4079,7 @@ end
 
 function funct.is_player_only_soul_hearts(player)
 	if FullSoulHeartPlayers[player:GetPlayerType()] ~= nil then
-		return true 
+		return true
 	else
 		if auxi.has_have_coll(player,enums.Items.Darkness) then
 			return true
@@ -3656,7 +4091,7 @@ end
 function funct.add_soul_heart(player,num)
 	if (player:HasCollectible(CollectibleType.COLLECTIBLE_ALABASTER_BOX, true)) then
         local alabasterCharges = {}
-        for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do   
+        for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do
             if (player:GetActiveItem(slot) == CollectibleType.COLLECTIBLE_ALABASTER_BOX) then
                 alabasterCharges[slot] = player:GetActiveCharge (slot) + player:GetBatteryCharge (slot)
                 if (num > 0) then
@@ -3667,7 +4102,7 @@ function funct.add_soul_heart(player,num)
             end
         end
         player:AddSoulHearts(num)
-        for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do   
+        for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do
             if (player:GetActiveItem(slot) == CollectibleType.COLLECTIBLE_ALABASTER_BOX) then
                 player:SetActiveCharge(alabasterCharges[slot], slot)
             end
@@ -3894,7 +4329,7 @@ function funct.has_difficult_player()
 	return false
 end
 
-function funct.randomTable(_table, rng) 
+function funct.randomTable(_table, rng)
 	if rng then rng = funct.rng_for_sake(rng) end
 	if type(_table)~= "table" then
         return {}
@@ -3902,10 +4337,10 @@ function funct.randomTable(_table, rng)
 	local tab = {}
     for i = 1,#_table do
 		local id
-		if rng then 
+		if rng then
 			id = (rng:RandomInt(#_table) + 1)
-		else 
-			id = math.random(#_table) 
+		else
+			id = math.random(#_table)
 		end
 		tab[i] = _table[id]
 		table.remove(_table,id)
@@ -3942,7 +4377,7 @@ end
 
 function funct.check_empty_table(tbl)
 	if type(tbl) ~= "table" then return false end
-	if (#tbl == 0) then return true end	
+	if (#tbl == 0) then return true end
 	return false
 end
 
@@ -3965,9 +4400,9 @@ end
 
 function funct.buy_a_pickup(ent,player,params)
 	params = params or {}
-	if ent.Price > 0 then 
+	if ent.Price > 0 then
 		player:AddCoins(-ent.Price)
-		if funct.has_have_coll(player,CollectibleType.COLLECTIBLE_KEEPERS_SACK) then 
+		if funct.has_have_coll(player,CollectibleType.COLLECTIBLE_KEEPERS_SACK) then
 			player:GetData().Keeper_Sack_adder = (player:GetData().Keeper_Sack_adder or 0) + ent.Price
 		end
 		-- Flight 店长袋材料：未真实持有时独立累计消费（不依赖玩家持有道具）
@@ -3989,12 +4424,12 @@ function funct.buy_a_pickup(ent,player,params)
 	if ent.Price == -1000 then local player = funct.have_player_has_trinket(TrinketType.TRINKET_STORE_CREDIT) if player then player:TryRemoveTrinket(TrinketType.TRINKET_STORE_CREDIT) end end
 	if params.NoAnim ~= true then player:AnimatePickup(ent:GetSprite()) end
 	local id = ent.ShopItemId
-	if params.no_remove ~= true then 
-		if auxi.can_restock() then 
+	if params.no_remove ~= true then
+		if auxi.can_restock() then
 			Restock_holder = Restock_holder or require("Qing_Remaster_scripts.mimics.Restock_holder")
 			Restock_holder.Try_restock(ent)
 		end
-		ent:Remove() 
+		ent:Remove()
 	end
 end
 
@@ -4006,20 +4441,131 @@ function funct.can_buy(price,player)
 	return true
 end
 
-function funct.remove_others_option_pickup(ent,effect)
-	if ent.OptionsPickupIndex == 0 then return end
-	effect = effect or true
-	ent:GetData().OptionsPickupIndex_should_remove = true
-	local n_entity = Isaac.GetRoomEntities()
-	for u,v in pairs(n_entity) do
-		if v:ToPickup() then
-			local pickup = v:ToPickup()
-			if pickup.OptionsPickupIndex == ent.OptionsPickupIndex and pickup:GetData().OptionsPickupIndex_should_remove ~= true then
-				if effect then Isaac.Spawn(1000,15,0,pickup.Position,Vector(0,0),nil) end
-				pickup:Remove()
+--- 商店币价 / 恶魔心价是否付得起（PRICE_FREE 与 0 视为免费）。
+--- 心价规则参考 Epiphany CanPlayerBuyShopItem；Lost 系可白嫖心价。
+--- **非 authoritative acquisition**：付得起 ≠ 这次碰撞一定会拿走；见 pickup_acquisition_semantics.md。
+function funct.can_afford_pickup(player, pickup)
+	if not player or not pickup then return false end
+	local price = pickup.Price or 0
+	if price == 0 or price == PickupPrice.PRICE_FREE then
+		return true
+	end
+	if price > 0 then
+		return player:GetNumCoins() >= price
+	end
+	local ptype = player:GetPlayerType()
+	if ptype == PlayerType.PLAYER_THELOST or ptype == PlayerType.PLAYER_THELOST_B then
+		return true
+	end
+	if price == PickupPrice.PRICE_ONE_HEART and player:GetMaxHearts() < 2 then
+		return false
+	end
+	if price == PickupPrice.PRICE_TWO_HEARTS and player:GetMaxHearts() < 2 then
+		return false
+	end
+	if price == PickupPrice.PRICE_THREE_SOULHEARTS and player:GetSoulHearts() < 1 then
+		return false
+	end
+	if price == PickupPrice.PRICE_ONE_HEART_AND_TWO_SOULHEARTS
+		and ((player:GetMaxHearts() < 2 or player:GetSoulHearts() < 1) and player:GetMaxHearts() < 4) then
+		return false
+	end
+	if price == PickupPrice.PRICE_ONE_HEART_AND_ONE_SOUL_HEART
+		and (player:GetMaxHearts() < 2 or player:GetSoulHearts() < 1) then
+		return false
+	end
+	return true
+end
+
+--- 普通血虱不可被一般饰品挤掉；镀金血虱与任意普通饰品一样，可被任何饰品正常替换。
+--- RGON/原版无「能否挤掉某饰品」查询接口，仅有 DropTrinket(..., ReplaceTick) 与
+--- MC_POST_PLAYER_DROP_TRINKET 的 ReplaceTick 参数。
+--- 可挤掉「普通血虱」的饰品写死：火柴棍 / 打火机（镀金血虱不走此限制）。
+local TRINKETS_THAT_REPLACE_TICK = {
+	[TrinketType.TRINKET_MATCH_STICK] = true,
+	[TrinketType.TRINKET_LIGHTER] = true,
+}
+
+function funct.trinket_base_id(trinket_id)
+	if not trinket_id or trinket_id <= 0 then
+		return 0
+	end
+	if TrinketType.TRINKET_ID_MASK then
+		return trinket_id & TrinketType.TRINKET_ID_MASK
+	end
+	return trinket_id
+end
+
+function funct.trinket_is_golden(trinket_id)
+	if not trinket_id or trinket_id <= 0 then
+		return false
+	end
+	if TrinketType.TRINKET_GOLDEN_FLAG then
+		return (trinket_id & TrinketType.TRINKET_GOLDEN_FLAG) ~= 0
+	end
+	return trinket_id > TrinketType.TRINKET_ID_MASK
+end
+
+--- @param trinket_id number 当前持有的饰品
+--- @param incoming_trinket_id number|nil 即将捡起的饰品（含镀金位）；仅普通血虱需要
+function funct.trinket_can_be_dropped(trinket_id, incoming_trinket_id)
+	if not trinket_id or trinket_id <= 0 then
+		return true
+	end
+	local id = funct.trinket_base_id(trinket_id)
+	if id ~= TrinketType.TRINKET_TICK then
+		return true
+	end
+	-- 镀金血虱：可被任何饰品正常替换（不要当成普通血虱锁死）
+	if funct.trinket_is_golden(trinket_id) then
+		return true
+	end
+	-- 普通血虱：仅火柴棍 / 打火机
+	if incoming_trinket_id and incoming_trinket_id > 0 then
+		local incoming = funct.trinket_base_id(incoming_trinket_id)
+		if TRINKETS_THAT_REPLACE_TICK[incoming] then
+			return true
+		end
+	end
+	return false
+end
+
+--- 饰品槽：有空位，或至少一个可被即将捡起的饰品挤掉的槽。
+--- @param incoming_trinket_id number|nil 即将捡起的饰品 SubType
+function funct.can_pickup_trinket(player, incoming_trinket_id)
+	if not player then return false end
+	local max_slots = player:GetMaxTrinkets()
+	local filled = 0
+	local has_droppable = false
+	for slot = 0, max_slots - 1 do
+		local tid = player:GetTrinket(slot)
+		if tid ~= 0 then
+			filled = filled + 1
+			if funct.trinket_can_be_dropped(tid, incoming_trinket_id) then
+				has_droppable = true
 			end
 		end
 	end
+	if filled < max_slots then
+		return true
+	end
+	return has_droppable
+end
+
+--- 是否需要举物/额外动画结束才能捡（免费掉落物除外）。
+--- 参考 Epiphany hasToHold，并补上卡牌/药丸：额外动画中仍可捡 Price==0 的心/币/钥匙等。
+function funct.pickup_needs_hold_anim(pickup)
+	if not pickup then return true end
+	local variant = pickup.Variant
+	if variant == PickupVariant.PICKUP_COLLECTIBLE
+		or variant == PickupVariant.PICKUP_TRINKET
+		or variant == PickupVariant.PICKUP_TAROTCARD
+		or variant == PickupVariant.PICKUP_PILL
+		or variant == PickupVariant.PICKUP_BROKEN_SHOVEL then
+		return true
+	end
+	local price = pickup.Price or 0
+	return price ~= 0 and price ~= PickupPrice.PRICE_FREE
 end
 
 local questionMarkSprite = Sprite()
@@ -4213,7 +4759,7 @@ function funct.reverse_the_dir(dir)
 	return -1
 end
 
-function funct.CanPassGrid(index,flying) 
+function funct.CanPassGrid(index,flying)
 	local room = Game():GetRoom()
 	local grid = room:GetGridEntity(index)
 	if (grid == nil) then
@@ -4242,7 +4788,7 @@ local reversed_card_map = {
 	[enums.Cards.Wheel_of_Destiny] = enums.Cards.Wheel_of_Destiny_r,
 	[enums.Cards.Lure] = enums.Cards.Lure_r,
 	[enums.Cards.Hanged_Man] = enums.Cards.Hanged_Man_r,
-	[enums.Cards.Faint] = function(rg) 
+	[enums.Cards.Faint] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Faint_r,enums.Cards.Death_r,enums.Cards.Corpse_r},rng)
 	end,
@@ -4254,9 +4800,9 @@ local reversed_card_map = {
 	[enums.Cards.Sun] = enums.Cards.Sun_r,
 	[enums.Cards.Aeon] = enums.Cards.Aeon_r,
 	[enums.Cards.Universe] = enums.Cards.Universe_r,
-	
+
 	[enums.Cards.Fool_r] = enums.Cards.Fool,
-	[enums.Cards.Sage_r] = function(rg) 
+	[enums.Cards.Sage_r] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Witch,enums.Cards.Invoker,enums.Cards.Wizard},rng)
 	end,
@@ -4282,13 +4828,15 @@ local reversed_card_map = {
 	[enums.Cards.Sun_r] = enums.Cards.Sun,
 	[enums.Cards.Aeon_r] = enums.Cards.Aeon,
 	[enums.Cards.Universe_r] = enums.Cards.Universe,
-	
+
 	[enums.Cards.Eclipse] = enums.Cards.Eclipse_r,
 	[enums.Cards.Eclipse_r] = enums.Cards.Eclipse,
 	[enums.Cards.Profound] = enums.Cards.Profound_r,
 	[enums.Cards.Profound_r] = enums.Cards.Profound,
 	[enums.Cards.Sting] = enums.Cards.Sting_r,
 	[enums.Cards.Sting_r] = enums.Cards.Sting,
+	[enums.Cards.Oblivion] = enums.Cards.Oblivion_r,
+	[enums.Cards.Oblivion_r] = enums.Cards.Oblivion,
 }
 
 function funct.get_reversed_card(card,rng)
@@ -4319,7 +4867,7 @@ local origin_card_map = {
 	[enums.Cards.Wheel_of_Destiny] = enums.Cards.Wheel_of_Destiny_r,
 	[enums.Cards.Lure] = enums.Cards.Lure_r,
 	[enums.Cards.Hanged_Man] = enums.Cards.Hanged_Man_r,
-	[enums.Cards.Faint] = function(rg) 
+	[enums.Cards.Faint] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Faint_r,enums.Cards.Death_r,enums.Cards.Corpse_r},rng)
 	end,
@@ -4331,10 +4879,11 @@ local origin_card_map = {
 	[enums.Cards.Sun] = enums.Cards.Sun_r,
 	[enums.Cards.Aeon] = enums.Cards.Aeon_r,
 	[enums.Cards.Universe] = enums.Cards.Universe_r,
-	
+
 	[enums.Cards.Eclipse] = enums.Cards.Eclipse_r,
 	[enums.Cards.Profound] = enums.Cards.Profound_r,
 	[enums.Cards.Sting] = enums.Cards.Sting_r,
+	[enums.Cards.Oblivion] = enums.Cards.Oblivion_r,
 }
 
 function funct.is_origin_card_map(cd)
@@ -4346,15 +4895,18 @@ function funct.get_origin_card_map(cd,rng)
 end
 
 local maped_card_map = {
-	[Card.CARD_FOOL] = enums.Cards.Fool,
-	[Card.CARD_MAGICIAN] = function(rg) 
+	[Card.CARD_FOOL] = function(rg)
+		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
+		return funct.random_in_table({enums.Cards.Fool,enums.Cards.Oblivion,},rng)
+	end,
+	[Card.CARD_MAGICIAN] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Witch,enums.Cards.Invoker,enums.Cards.Wizard},rng)
 	end,
 	[Card.CARD_HIGH_PRIESTESS] = enums.Cards.Priestess,
 	[Card.CARD_EMPRESS] = enums.Cards.Empress,
 	[Card.CARD_EMPEROR] = enums.Cards.Emperor,
-	[Card.CARD_HIEROPHANT] = function(rg) 
+	[Card.CARD_HIEROPHANT] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Hierophant,enums.Cards.Sting,},rng)
 	end,
@@ -4371,22 +4923,25 @@ local maped_card_map = {
 	[Card.CARD_TOWER] = enums.Cards.Tower,
 	[Card.CARD_STARS] = enums.Cards.Star,
 	[Card.CARD_MOON] = enums.Cards.Moon,
-	[Card.CARD_SUN] = function(rg) 
+	[Card.CARD_SUN] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Sun,enums.Cards.Eclipse,},rng)
 	end,
 	[Card.CARD_JUDGEMENT] = enums.Cards.Aeon,
-	[Card.CARD_WORLD] = function(rg) 
+	[Card.CARD_WORLD] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Universe,enums.Cards.Profound,},rng)
 	end,
-	
-	[Card.CARD_REVERSE_FOOL] = enums.Cards.Fool_r,
+
+	[Card.CARD_REVERSE_FOOL] = function(rg)
+		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
+		return funct.random_in_table({enums.Cards.Fool_r,enums.Cards.Oblivion_r,},rng)
+	end,
 	[Card.CARD_REVERSE_MAGICIAN] = enums.Cards.Sage_r,
 	[Card.CARD_REVERSE_HIGH_PRIESTESS] = enums.Cards.Priestess_r,
 	[Card.CARD_REVERSE_EMPRESS] = enums.Cards.Empress_r,
 	[Card.CARD_REVERSE_EMPEROR] = enums.Cards.Emperor_r,
-	[Card.CARD_REVERSE_HIEROPHANT] = function(rg) 
+	[Card.CARD_REVERSE_HIEROPHANT] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Hierophant_r,enums.Cards.Sting_r,},rng)
 	end,
@@ -4397,7 +4952,7 @@ local maped_card_map = {
 	[Card.CARD_REVERSE_WHEEL_OF_FORTUNE] = enums.Cards.Wheel_of_Destiny_r,
 	[Card.CARD_REVERSE_STRENGTH] = enums.Cards.Lure_r,
 	[Card.CARD_REVERSE_HANGED_MAN] = enums.Cards.Hanged_Man_r,
-	[Card.CARD_REVERSE_DEATH] = function(rg) 
+	[Card.CARD_REVERSE_DEATH] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Faint_r,enums.Cards.Death_r,enums.Cards.Corpse_r},rng)
 	end,
@@ -4408,16 +4963,16 @@ local maped_card_map = {
 	[Card.CARD_REVERSE_TOWER] = enums.Cards.Tower_r,
 	[Card.CARD_REVERSE_STARS] = enums.Cards.Star_r,
 	[Card.CARD_REVERSE_MOON] = enums.Cards.Moon_r,
-	[Card.CARD_REVERSE_SUN] = function(rg) 
+	[Card.CARD_REVERSE_SUN] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Sun_r,enums.Cards.Eclipse_r,},rng)
 	end,
 	[Card.CARD_REVERSE_JUDGEMENT] = enums.Cards.Aeon_r,
-	[Card.CARD_REVERSE_WORLD] = function(rg) 
+	[Card.CARD_REVERSE_WORLD] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Universe_r,enums.Cards.Profound_r,},rng)
 	end,
-	
+
 	[enums.Cards.Fool] = Card.CARD_FOOL,
 	[enums.Cards.Witch] = Card.CARD_MAGICIAN,
 	[enums.Cards.Invoker] = Card.CARD_MAGICIAN,
@@ -4442,7 +4997,7 @@ local maped_card_map = {
 	[enums.Cards.Sun] = Card.CARD_SUN,
 	[enums.Cards.Aeon] = Card.CARD_JUDGEMENT,
 	[enums.Cards.Universe] = Card.CARD_WORLD,
-	
+
 	[enums.Cards.Fool_r] = Card.CARD_REVERSE_FOOL,
 	[enums.Cards.Sage_r] = Card.CARD_REVERSE_MAGICIAN,
 	[enums.Cards.Priestess_r] = Card.CARD_REVERSE_HIGH_PRIESTESS,
@@ -4467,13 +5022,15 @@ local maped_card_map = {
 	[enums.Cards.Sun_r] = Card.CARD_REVERSE_SUN,
 	[enums.Cards.Aeon_r] = Card.CARD_REVERSE_JUDGEMENT,
 	[enums.Cards.Universe_r] = Card.CARD_REVERSE_WORLD,
-	
+
 	[enums.Cards.Eclipse] = Card.CARD_SUN,
 	[enums.Cards.Eclipse_r] = Card.CARD_REVERSE_SUN,
 	[enums.Cards.Profound] = Card.CARD_WORLD,
 	[enums.Cards.Profound_r] = Card.CARD_REVERSE_WORLD,
 	[enums.Cards.Sting] = Card.CARD_HIEROPHANT,
 	[enums.Cards.Sting_r] = Card.CARD_REVERSE_HIEROPHANT,
+	[enums.Cards.Oblivion] = Card.CARD_FOOL,
+	[enums.Cards.Oblivion_r] = Card.CARD_REVERSE_FOOL,
 }
 
 function funct.get_maped_card(card,rng)
@@ -4490,9 +5047,13 @@ function funct.is_maped_card(card)
 end
 
 function funct.is_thoth_card(card)
-	if type(card) == "userdata" and card.SubType then card = card.SubType end
-	if reversed_card_map[card] then return true end
-	return false
+	-- Deprecated: use card_registry.has_family(id, "thoth")
+	return require("Qing_Remaster_scripts.cards.card_registry").is_thoth(card)
+end
+
+function funct.get_tarot_cards()
+	-- Deprecated: use card_registry.get_family("tarot")
+	return require("Qing_Remaster_scripts.cards.card_registry").get_tarot_cards()
 end
 
 function funct.is_tarot_card(card)
@@ -4503,7 +5064,7 @@ end
 
 local reverse_card_map = {
 	[enums.Cards.Fool_r] = enums.Cards.Fool,
-	[enums.Cards.Sage_r] = function(rg) 
+	[enums.Cards.Sage_r] = function(rg)
 		local rng if rg then rng = RNG() rng:SetSeed(rg:GetSeed(),0) end
 		return funct.random_in_table({enums.Cards.Witch,enums.Cards.Invoker,enums.Cards.Wizard},rng)
 	end,
@@ -4529,10 +5090,11 @@ local reverse_card_map = {
 	[enums.Cards.Sun_r] = enums.Cards.Sun,
 	[enums.Cards.Aeon_r] = enums.Cards.Aeon,
 	[enums.Cards.Universe_r] = enums.Cards.Universe,
-	
+
 	[enums.Cards.Eclipse_r] = enums.Cards.Eclipse,
 	[enums.Cards.Profound_r] = enums.Cards.Profound,
 	[enums.Cards.Sting_r] = enums.Cards.Sting,
+	[enums.Cards.Oblivion_r] = enums.Cards.Oblivion,
 }
 
 function funct.is_reversed_card(card)
@@ -4540,14 +5102,6 @@ function funct.is_reversed_card(card)
 	if card > 55 and card < 78 then return true end
 	if reverse_card_map[card] then return true end
 	return false
-end
-
-function funct.get_tarot_cards()
-	local ret = {}
-	for i = 1,22 do table.insert(ret,#ret + 1,i) end
-	for i = 56,77 do table.insert(ret,#ret + 1,i) end
-	for i = enums.Cards.Fool,enums.Cards.Universe_r do table.insert(ret,#ret + 1,i) end
-	return ret
 end
 
 function funct.check_bottom_down(bt,ctrlid)
@@ -4662,7 +5216,7 @@ function funct.collect_table_to_string(tbl,p1,p2,step)
 	if p1 == nil then p1 = 1 end
 	if step == 0 then step = 1 end
 	if step < 0 then step = -step end
-	if p1 > p2 then 
+	if p1 > p2 then
 		local tmp = p1
 		p1 = p2
 		p2 = tmp
@@ -4751,7 +5305,7 @@ end
 
 function funct.get_level_stat_of_spwq()
 	local ls = Game():GetLevel():GetStage()
-	return 2 / math.sqrt(ls + 3) 
+	return 2 / math.sqrt(ls + 3)
 end
 
 function funct.PrintColor(col)
@@ -4786,7 +5340,7 @@ function funct.special_morph(ent,item,keepprice,keepseed,ignoremodifier)
 	if keepseed == nil then keepseed = true end
 	if ignoremodifier == nil then ignoremodifier = true end
 	ent:ToPickup():Morph(5,item.Variant,item.SubType,true,true,true)
-	if item.special_to_turn then 
+	if item.special_to_turn then
 		local should_hold,holdname = item.special_to_turn(ent,true)
 		if should_hold then
 			if consistance_holder == nil then consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder") end		--权宜之计
@@ -4800,7 +5354,7 @@ function funct.special_morph(ent,item,keepprice,keepseed,ignoremodifier)
 end
 
 function funct.special_turn(ent,item,inout)
-	if item.special_to_turn then 
+	if item.special_to_turn then
 		local should_hold,holdname = item.special_to_turn(ent,inout)
 		if should_hold then
 			if consistance_holder == nil then consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder") end		--权宜之计
@@ -4841,7 +5395,7 @@ end
 function funct.move_in_round(v1,v2,delta,r)		--在环(周长为r)上从v1逼近v2，至多前进delta，给出移动后结果
 	local diff = auxi.checkrounded2(v1,v2,1,-1,r)
 	if math.abs(diff) < delta then return v2
-	else 
+	else
 		local r1 = v1 + delta
 		local r2 = v1 - delta
 		if math.abs(auxi.checkrounded2(r1,v2,1,-1,r)) < math.abs(auxi.checkrounded2(r2,v2,1,-1,r)) then return r1
@@ -4931,7 +5485,7 @@ function funct.reveal_item2(player,pos,colid,params)
 		s:LoadGraphics()
 		s:Play("Appear",true)
 		if params.revealee_end then d.revealee_end = params.revealee_end end
-		
+
 		return q
 	end
 end
@@ -4964,11 +5518,13 @@ end
 function funct.load_trinket(tid,params)
 	params = params or {}
 	local s = params.sprite or Sprite()
-	s:Load("gfx/dropping_collectible.anm2",true)
-	s:Play("Idle",true)
+	s:Load(params.Anm or "gfx/dropping_collectible.anm2",true)
+	s:Play(params.Anim or "Idle",true)
 	local tinfo = Isaac.GetItemConfig():GetTrinket(tid)
-	s:ReplaceSpritesheet(0,tinfo.GfxFileName)
-	s:LoadGraphics()
+	if tinfo and tinfo.GfxFileName then
+		s:ReplaceSpritesheet(0,tinfo.GfxFileName)
+		s:LoadGraphics()
+	end
 	return s
 end
 
@@ -5271,7 +5827,7 @@ end
 
 function funct.check_spawner_player(ent)
 	local ret = nil
-	if ent then	
+	if ent then
 		local d = ent:GetData()
 		if auxi.check_all_exists(d.check_spawner_player_record) then return d.check_spawner_player_record end
 		if d.check_spawner_visited then return nil end
@@ -5280,7 +5836,7 @@ function funct.check_spawner_player(ent)
 			if ent.Type == 3 and ent:ToFamiliar() and ent:ToFamiliar().Player then ret = ent:ToFamiliar().Player break end
 			if ent.Type == 1 and ent:ToPlayer() then ret = ent:ToPlayer() break end
 			if ent.SpawnerEntity then ret = ret or funct.check_spawner_player(ent.SpawnerEntity) end if ret then break end
-			if ent.Parent then ret = ret or funct.check_spawner_player(ent.Parent) end 
+			if ent.Parent then ret = ret or funct.check_spawner_player(ent.Parent) end
 		end
 		d.check_spawner_visited = nil
 		d.check_spawner_player_record = ret
@@ -5459,7 +6015,7 @@ function funct.check_slot_with_item(player,colid,dont_check_charge)
 	local col = Isaac:GetItemConfig():GetCollectible(colid)
 	if col == nil then return -1 end
 	local charge = col.MaxCharges
-	for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do 
+	for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do
 		 if (player:GetActiveItem(slot) == colid) then
 			if dont_check_charge or player:GetActiveCharge(slot) >= charge then
 				return slot
@@ -5534,7 +6090,12 @@ function funct.get_alpha_length(pos1,pos2,dir)
 end
 
 function funct.get_weapon(player)
-	if REPENTOGON then for i = 0,4 do if player:GetWeapon(i) then return player:GetWeapon(i):GetWeaponType() end end end
+	if REPENTOGON and player and player.GetWeapon then
+		for i = 0,4 do
+			local weapon = player:GetWeapon(i)
+			if weapon then return weapon:GetWeaponType() end
+		end
+	end
 	player = player or Game():GetPlayer(0)
 	local ret = 1
 	for i = 1,16 do if player:HasWeaponType(i) == true then	ret = i end end
@@ -5740,7 +6301,7 @@ local grid_config_stage_map = {
 	[15] = {u = 6,v = 1,},
 	[16] = {u = 7,v = 0,},
 	[17] = {u = 7,v = 1,},
-	
+
 	[18] = {u = 1,v = 0,},
 	[19] = {u = 1,v = 0,},
 	[20] = {u = 2,v = 0,},
@@ -5749,9 +6310,9 @@ local grid_config_stage_map = {
 	[23] = {u = 5,v = 0,},
 	[24] = {u = 10,v = 0,},
 	[25] = {u = 10,v = 0,},
-	
+
 	[26] = {u = 1,v = 0,},
-	
+
 	[27] = {u = 1,v = 4,},
 	[28] = {u = 1,v = 5,},
 	[29] = {u = 2,v = 4,},
@@ -5864,7 +6425,7 @@ function funct.check_no_lerp(frame,info)
 	local st = #info
 	for i = 1,#info do
 		local v = info[i]
-		if frame <= v.frame then 
+		if frame <= v.frame then
 			st = math.max(1,i - 1)
 			break
 		end
@@ -5878,7 +6439,7 @@ function funct.check_lerp(frame,info,framename)
 	local ed = #info
 	for i = 1,#info do
 		local v = info[i]
-		if frame <= v[framename] then 
+		if frame <= v[framename] then
 			st = math.max(1,i - 1)
 			ed = i
 			break
@@ -5895,7 +6456,7 @@ end
 function funct.initialize_item(ent,params)
 	params = params or {}
 	ent = ent:ToPickup()
-	if ent and ent.Type == 5 and ent.Variant == 100 then 
+	if ent and ent.Type == 5 and ent.Variant == 100 then
 		ent.Touched = false
 		local collectibleinfo = Isaac.GetItemConfig():GetCollectible(ent.SubType)
 		if collectibleinfo then	ent.Charge = collectibleinfo.InitCharge	end
@@ -5913,13 +6474,13 @@ end
 function funct.judge_by_brimstone(player)
 	local tp = 1
 	local dmg = 1
-	if player:HasCollectible(247) then 
+	if player:HasCollectible(247) then
 		dmg = dmg * 1.5
 		if player:HasCollectible(68) or player:HasCollectible(152) or player:HasCollectible(enums.Items.Tech_9) then
 			tp = 14
 			dmg = dmg * 1.5
 		else
-			tp = 11 
+			tp = 11
 		end
 	elseif player:HasCollectible(68) or player:HasCollectible(152) or player:HasCollectible(enums.Items.Tech_9) then
 		dmg = dmg * 1.5
@@ -5997,26 +6558,32 @@ local function apply_time_stop_claims(name)
 		if funct.check_if_any(unstopable[v.Type],v) ~= true then
 			if audit then audit.eligible = audit.eligible + 1 end
 			local d = v:GetData()
-			local keys = {
-				name.."_freeze_succ", name.."_no_sprite_update_succ",
-				name.."_position_succ", name.."_velocity_succ",
-			}
+			local freeze_key = name.."_freeze_succ"
+			local sprite_key = name.."_no_sprite_update_succ"
+			local pos_key = name.."_position_succ"
+			local vel_key = name.."_velocity_succ"
+			local keys = {freeze_key, sprite_key, pos_key, vel_key}
 			local missing = 0
 			if audit then
-				for i = 1, #keys do if d[keys[i]] == nil then missing = missing + 1 end end
+				for i = 1, #keys do
+					local token = d[keys[i]]
+					if token == nil then missing = missing + 1 end
+				end
 				if missing == 0 then audit.already_complete = audit.already_complete + 1
 				else audit.entities_missing = audit.entities_missing + 1; audit.claim_attempts = audit.claim_attempts + missing end
 			end
+			local freeze_ok = d[freeze_key] and Attribute_holder.has_claim(v, "EntityFlag_FLAG_FREEZE", d[freeze_key])
+			local sprite_ok = d[sprite_key] and Attribute_holder.has_claim(v, "EntityFlag_FLAG_NO_SPRITE_UPDATE", d[sprite_key])
 			-- 已接管实体在增量刷新时不再重复检查事件或推进 Sprite。
-			if d[name.."_freeze_succ"] == nil or d[name.."_no_sprite_update_succ"] == nil then
+			if not freeze_ok or not sprite_ok then
 				local s = v:GetSprite()
 				for _,event_name in pairs(eventlist) do if s:IsEventTriggered(event_name) ~= false then s:Update() end end
 			end
-			if d[name.."_freeze_succ"] == nil then d[name.."_freeze_succ"] = Attribute_holder.try_hold_attribute(v,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) end
-			if d[name.."_no_sprite_update_succ"] == nil then d[name.."_no_sprite_update_succ"] = Attribute_holder.try_hold_attribute(v,"EntityFlag_FLAG_NO_SPRITE_UPDATE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE)) end
+			Attribute_holder.ensure_hold_token(v, d, freeze_key, "EntityFlag_FLAG_FREEZE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+			Attribute_holder.ensure_hold_token(v, d, sprite_key, "EntityFlag_FLAG_NO_SPRITE_UPDATE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
 			-- protect：FollowPosition / 自驱写 Position 时不要把冻结原点跟着滑走
-			if d[name.."_position_succ"] == nil then d[name.."_position_succ"] = Attribute_holder.try_hold_attribute(v,"Position",Vector(v.Position.X,v.Position.Y),{protect = true,tocompare = time_stop_pos_compare,}) end
-			if d[name.."_velocity_succ"] == nil then d[name.."_velocity_succ"] = Attribute_holder.try_hold_attribute(v,"Velocity",Vector(0,0),{protect = true,tocompare = time_stop_vel_compare,})	end
+			Attribute_holder.ensure_hold_token(v, d, pos_key, "Position", Vector(v.Position.X,v.Position.Y), {protect = true,tocompare = time_stop_pos_compare,})
+			Attribute_holder.ensure_hold_token(v, d, vel_key, "Velocity", Vector(0,0), {protect = true,tocompare = time_stop_vel_compare,})
 			if audit and missing > 0 then
 				local still_missing = 0
 				for i = 1, #keys do if d[keys[i]] == nil then still_missing = still_missing + 1 end end
@@ -6030,14 +6597,14 @@ local function apply_time_stop_claims(name)
 		local d = player:GetData()
 		local collision_key = name.."_entitycollisionclass_none_succ"
 		local attack_key = name.."_data_should_not_attack_succ"
-		if d[collision_key] == nil then
+		if d[collision_key] == nil or not Attribute_holder.has_claim(player, "EntityCollisionClass", d[collision_key]) then
 			if audit then audit.player_claim_attempts = audit.player_claim_attempts + 1 end
-			d[collision_key] = Attribute_holder.try_hold_attribute(player,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
+			Attribute_holder.ensure_hold_token(player, d, collision_key, "EntityCollisionClass", EntityCollisionClass.ENTCOLL_NONE)
 			if audit and d[collision_key] ~= nil then audit.player_claim_created = audit.player_claim_created + 1 end
 		end
-		if d[attack_key] == nil then
+		if d[attack_key] == nil or not Attribute_holder.has_claim(player, "Data_should_not_attack", d[attack_key]) then
 			if audit then audit.player_claim_attempts = audit.player_claim_attempts + 1 end
-			d[attack_key] = Attribute_holder.try_hold_attribute(player,"Data_should_not_attack",true,Attribute_holder.descriptors.data_field("should_not_attack"))
+			Attribute_holder.ensure_hold_token(player, d, attack_key, "Data_should_not_attack", true, Attribute_holder.descriptors.data_field("should_not_attack"))
 			if audit and d[attack_key] ~= nil then audit.player_claim_created = audit.player_claim_created + 1 end
 		end
 	end
@@ -6069,52 +6636,46 @@ function funct.time_free(name)
 	name = name or ""
 	funct._time_stop_active[name] = nil
 	funct._time_stop_refresh_frame[name] = nil
-	local n_entity = Isaac.GetRoomEntities() 
-	for u,v in pairs(n_entity) do 
+	local n_entity = Isaac.GetRoomEntities()
+	for u,v in pairs(n_entity) do
 		if funct.check_if_any(unstopable[v.Type],v) ~= true then
 			local d = v:GetData()
-			if d[name.."_freeze_succ"] then
-				Attribute_holder.try_rewind_attribute(v,"EntityFlag_FLAG_FREEZE",d[name.."_freeze_succ"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-				d[name.."_freeze_succ"] = nil
-			end
-			if d[name.."_no_sprite_update_succ"] then
-				Attribute_holder.try_rewind_attribute(v,"EntityFlag_FLAG_NO_SPRITE_UPDATE",d[name.."_no_sprite_update_succ"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-				d[name.."_no_sprite_update_succ"] = nil
-			end
-			if d[name.."_position_succ"] then
-				Attribute_holder.try_rewind_attribute(v,"Position",d[name.."_position_succ"],{tocompare = time_stop_pos_compare,})
-				d[name.."_position_succ"] = nil
-			end
-			if d[name.."_velocity_succ"] then
-				Attribute_holder.try_rewind_attribute(v,"Velocity",d[name.."_velocity_succ"],{tocompare = time_stop_vel_compare,})
-				d[name.."_velocity_succ"] = nil
-			end
+			local freeze_key = name.."_freeze_succ"
+			local sprite_key = name.."_no_sprite_update_succ"
+			local pos_key = name.."_position_succ"
+			local vel_key = name.."_velocity_succ"
+			local failed = false
+			if not Attribute_holder.rewind_hold_token(v, d, freeze_key, "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then failed = true end
+			if not Attribute_holder.rewind_hold_token(v, d, sprite_key, "EntityFlag_FLAG_NO_SPRITE_UPDATE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE)) then failed = true end
+			if not Attribute_holder.rewind_hold_token(v, d, pos_key, "Position", {tocompare = time_stop_pos_compare,}) then failed = true end
+			if not Attribute_holder.rewind_hold_token(v, d, vel_key, "Velocity", {tocompare = time_stop_vel_compare,}) then failed = true end
+			if failed then Attribute_holder.force_clear_freeze_entity(v, {zero_velocity = true}) end
 		end
 	end
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		local d = player:GetData()
-		if d[name.."_entitycollisionclass_none_succ"] then
-			Attribute_holder.try_rewind_attribute(player,"EntityCollisionClass",d[name.."_entitycollisionclass_none_succ"])
-			d[name.."_entitycollisionclass_none_succ"] = nil
+		local collision_key = name.."_entitycollisionclass_none_succ"
+		local attack_key = name.."_data_should_not_attack_succ"
+		if not Attribute_holder.rewind_hold_token(player, d, collision_key, "EntityCollisionClass") then
+			Attribute_holder.force_clear_freeze_entity(player, {grid_collision = false, entity_collision = EntityCollisionClass.ENTCOLL_PLAYER})
 		end
-		if d[name.."_data_should_not_attack_succ"] then
-			Attribute_holder.try_rewind_attribute(player,"Data_should_not_attack",d[name.."_data_should_not_attack_succ"],{toget = function(ent) return ent:GetData().should_not_attack end,tochange = function(ent,value) ent:GetData().should_not_attack = value end,})
-			d[name.."_data_should_not_attack_succ"] = nil
+		if not Attribute_holder.rewind_hold_token(player, d, attack_key, "Data_should_not_attack", {toget = function(ent) return ent:GetData().should_not_attack end,tochange = function(ent,value) ent:GetData().should_not_attack = value end,}) then
+			d.should_not_attack = nil
 		end
 	end
 end
 
 function funct.protect_text(str)
-	str = string.gsub(str,"，",", ") 
-	str = string.gsub(str,"？","? ") 
-	str = string.gsub(str,"！","! ") 
+	str = string.gsub(str,"，",", ")
+	str = string.gsub(str,"？","? ")
+	str = string.gsub(str,"！","! ")
 	return str
 end
 
 --l local ent = Game():Spawn(5, PickupVariant.PICKUP_GRAB_BAG, Game():GetPlayer(0).Position, Vector(0,0), nil, SackSubType.SACK_NORMAL,6) ent:GetSprite():SetLastFrame() ent:Update() ent:ClearEntityFlags(EntityFlag.FLAG_APPEAR) ent.Visible = false for i = 1,10 do ent:Update() end ent:Remove() Game():GetPlayer(0):Update()
 function funct.StartAmbush()
-	if REPENTOGON then Ambush.StartChallenge() return end
+	if REPENTOGON and Ambush and Ambush.StartChallenge then Ambush.StartChallenge() return end
 	local player = Isaac.GetPlayer()
 	local SACK_SEED_THAT_SPAWNS_TWO_COINS = 6
 	local ent = Game():Spawn(5, PickupVariant.PICKUP_GRAB_BAG, player.Position, Vector(0,0), nil, SackSubType.SACK_NORMAL, SACK_SEED_THAT_SPAWNS_TWO_COINS)
@@ -6133,7 +6694,7 @@ function funct.StartAmbush()
 		for _, coin in pairs(Isaac.FindByType(5, PickupVariant.PICKUP_COIN)) do
 			if coin.SpawnerEntity and GetPtrHash(coin.SpawnerEntity) == sackPtrHash then coin:Remove() end
 		end
-		
+
 	end,{Ref = ent},2)
 end
 
@@ -6179,7 +6740,7 @@ function funct.get_acceptible_index(sgid,dim)
 	sgid = sgid or Game():GetLevel():GetCurrentRoomDesc().SafeGridIndex
 	if dim == -1 then dim = nil end
 	dim = dim or funct.GetDimension()
-	if sgid < 0 then return sgid 
+	if sgid < 0 then return sgid
 	else return dim * 1000 + sgid end
 end
 
@@ -6255,7 +6816,7 @@ end
 
 function funct.get_acceptible_target(ent)
 	if ent.Target then return ent.Target end
-	if ent:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) then 
+	if ent:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) then
 		return funct.get_nearest_enemy(nil,ent.Position) or funct.get_acceptible_player_target(ent)
 	else
 		return funct.get_acceptible_player_target(ent)
@@ -6308,7 +6869,7 @@ function funct.can_open(col)
 end
 
 function funct.illustrate_ent(ent)
-	if ent.IsGrid then 
+	if ent.IsGrid then
 	elseif ent:ToPlayer() then ent = ent:ToPlayer()
 	elseif ent:ToEffect() then ent = ent:ToEffect()
 	elseif ent:ToNPC() then ent = ent:ToNPC()
@@ -6384,8 +6945,8 @@ local ignore_grid = {
 function funct.check_path_from_door()
 	local room = Game():GetRoom()
 	local door = {}
-	for slot = 0,7 do 
-		if room:GetDoor(slot) then 
+	for slot = 0,7 do
+		if room:GetDoor(slot) then
 			door[room:GetGridIndex(room:GetDoorSlotPosition(slot))] = true
 		end
 	end
@@ -6402,7 +6963,7 @@ function funct.check_path_from(tbl)
 		for u,v in pairs(check_path_dirs) do
 			local t_pos = v.dv + room:GetGridPosition(rec[1])
 			local idx = room:GetGridIndex(t_pos)
-			if (not tbl[idx]) and room:IsPositionInRoom(t_pos,0) then 
+			if (not tbl[idx]) and room:IsPositionInRoom(t_pos,0) then
 				tbl[idx] = true
 				local grid = room:GetGridEntity(idx)
 				if (not grid) or ignore_grid[grid:GetType()] or grid.CollisionClass == GridCollisionClass.COLLISION_NONE then
@@ -6417,7 +6978,7 @@ end
 
 function funct.has_door()
 	local room = Game():GetRoom()
-	for slot = 0,7 do 
+	for slot = 0,7 do
 		if room:GetDoor(slot) then return true end
 	end
 	return false
@@ -6428,8 +6989,8 @@ function funct.check_path_to_door(pos)
 	local mp = {}
 	local door = {}
 	local succ = false
-	for slot = 0,7 do 
-		if room:GetDoor(slot) then 
+	for slot = 0,7 do
+		if room:GetDoor(slot) then
 			door[room:GetGridIndex(room:GetDoorSlotPosition(slot))] = true
 			succ = true
 		end
@@ -6447,7 +7008,7 @@ function funct.check_path_to_door(pos)
 			local t_pos = v.dv + tbl[1]
 			local idx = room:GetGridIndex(t_pos)
 			if door[idx] then return false end
-			if (not mp[idx]) and room:IsPositionInRoom(t_pos,0) then 
+			if (not mp[idx]) and room:IsPositionInRoom(t_pos,0) then
 				mp[idx] = true
 				local grid = room:GetGridEntity(idx)
 				if (not grid) or ignore_grid[grid:GetType()] or grid.CollisionClass == GridCollisionClass.COLLISION_NONE then
@@ -6477,7 +7038,7 @@ function funct.check_path_to(pos,tgs)
 		for u,v in pairs(check_path_dirs) do
 			local t_pos = v.dv + tbl[1]
 			local idx = room:GetGridIndex(t_pos)
-			if (not mp[idx]) and room:IsPositionInRoom(t_pos,0) then 
+			if (not mp[idx]) and room:IsPositionInRoom(t_pos,0) then
 				mp[idx] = true
 				local grid = room:GetGridEntity(idx)
 				if ((not grid) or ignore_grid[grid:GetType()] or grid.CollisionClass == GridCollisionClass.COLLISION_NONE) and room:GetGridPath(idx) <= 900 then
@@ -6684,24 +7245,20 @@ function funct.illustrate_sprite(ent,s)
 end
 
 local alchemy_items = {
-	enums.Items.A_Shard_Of_Coin,
-	enums.Items.A_Shard_Of_Glaze,
-	enums.Items.A_Shard_Of_Lava,
-	enums.Items.A_Shard_Of_Meat,
-	enums.Items.A_Shard_Of_Rock,
-	--enums.Items.A_Shard_Of_Blood,
+	-- LEGACY dormant story shards: do not count toward alchemy.
+	-- New authority is StoryRun material tokens via story_state.count_material_tokens.
 }
 
 function funct.get_alchemy_count()
-	local cnt = 0
-	for u,v in pairs(alchemy_items) do
-		if auxi.have_player_has_collectible(v) then cnt = cnt + 1 end
+	local ok, story_state = pcall(require, "Qing_Remaster_scripts.story.story_state")
+	if ok and story_state and story_state.count_material_tokens then
+		return story_state.count_material_tokens()
 	end
-	return cnt
+	return 0
 end
 
 function funct.add_EID_item_synic(ent,description,check_language)
-	
+
 if EID then
 	local descinfo = description
 	if check_language then descinfo = description[EID.LanguageMap[Options.Language] or "en_us"] or description["zh_cn"] or description["en_us"] or description[Options.Language] or description["zh"] or description["en"] end
@@ -6792,22 +7349,79 @@ function funct.need_a_charge(player)
 	return false
 end
 
-function funct.will_pick_up(player,ent)
-	if player:IsExtraAnimationFinished() and player:IsItemQueueEmpty() then
-		if ent.Variant == 100 then
-			if player:CanPickupItem() and (ent.FrameCount - math.min(0,(ent:GetData()["Uni_h_PICKUP_TIME"] or 0)) >= 20) and Game():GetFrameCount() - (player:GetData()["Uni_h_PICKUP_TIME"] or -100) >= 52 and ent.SubType ~= 0 then return true end
-		elseif ent.Variant == 10 then
-			local info = heart_pickup_map[ent.SubType]
-			local succ = auxi.check_if_any(info,player) or true
-			if type(succ) == "string" then succ = player[succ](player) end
-			return succ
-		elseif ent.Variant == 90 then
-			if auxi.need_a_charge(player) then return true end
-		else
-			return true
-		end
+--- 碰撞时是否会真正捡起该掉落物。
+--- RGON 无完整等价 API；综合 Epiphany CanPlayerBuyShopItem（hold/标价）、
+--- Benighted Soul / CuerLib（粘币）、以及饰品槽血虱不可替换。
+--- 注意：额外动画中不能捡道具/卡牌/药丸/饰品，但仍可捡 Price==0 的普通掉落物。
+function funct.will_collect_pickup(player, pickup)
+	if not player or not pickup then return false end
+	if player.Variant ~= 0 then return false end
+	if player.IsCoopGhost and player:IsCoopGhost() then return false end
+	if pickup.Wait and pickup.Wait > 0 then return false end
+	if not player:CanPickupItem() then return false end
+
+	local variant = pickup.Variant
+	local sub = pickup.SubType
+
+	-- 粘币：不能走过去捡
+	if variant == PickupVariant.PICKUP_COIN and sub == CoinSubType.COIN_STICKYNICKEL then
+		return false
 	end
-	return false
+
+	if funct.pickup_needs_hold_anim(pickup) then
+		if not player:IsExtraAnimationFinished() then return false end
+		if not player:IsItemQueueEmpty() then return false end
+		if (player.ItemHoldCooldown or 0) > 0 then return false end
+		if player.IsHoldingItem and player:IsHoldingItem() then return false end
+	end
+
+	if not funct.can_afford_pickup(player, pickup) then
+		return false
+	end
+
+	if variant == PickupVariant.PICKUP_COLLECTIBLE then
+		if sub == 0 then return false end
+		-- 举物冷却用引擎 ItemHoldCooldown（上方 needs_hold）；底座新生延迟用 pickup.Wait
+		return true
+	end
+
+	if variant == PickupVariant.PICKUP_TRINKET then
+		return funct.can_pickup_trinket(player, sub)
+	end
+
+	if variant == PickupVariant.PICKUP_HEART then
+		local info = heart_pickup_map[sub]
+		local succ = auxi.check_if_any(info, player)
+		if succ == nil then return true end
+		if type(succ) == "string" then
+			return player[succ](player) == true
+		end
+		return succ == true
+	end
+
+	if variant == PickupVariant.PICKUP_LIL_BATTERY then
+		if auxi.need_a_charge(player) then return true end
+		-- 超级电池可灌额外充能条
+		if sub == BatterySubType.BATTERY_MEGA then
+			local config = Isaac.GetItemConfig()
+			for slot = 0, 2 do
+				local item_config = config:GetCollectible(player:GetActiveItem(slot))
+				if item_config and item_config.ChargeType ~= ItemConfig.CHARGE_SPECIAL then
+					if player:GetBatteryCharge(slot) < item_config.MaxCharges then
+						return true
+					end
+				end
+			end
+		end
+		return false
+	end
+
+	return true
+end
+
+--- 旧接口：现已统一走 will_collect_pickup（含 ItemHoldCooldown，不再用手写 Uni_h_PICKUP_TIME）。
+function funct.will_pick_up(player,ent)
+	return funct.will_collect_pickup(player, ent)
 end
 
 function funct.may_pick_up(player,ent)
@@ -6822,28 +7436,28 @@ end
 function funct.cut_by(v,tbl,params)		--将一个支持乘法的值按tbl内容切分为同数量段。
 	local ret = {}
 	params = params or {}
-	if type(tbl) == "number" then 
+	if type(tbl) == "number" then
 		if tbl >= 0 then
 			for i = 1,tbl do ret[i] = auxi.check_if_value(v,function(v,a) return v * a end,i/tbl) end
 		else return {v} end
-	else 
+	else
 		local cnt = 0
 		local ct = 0
 		for i = 1,#tbl do local v = tbl[i] cnt = cnt + v end
-		if cnt > 0 then 
-			for i = 1,#tbl do 
+		if cnt > 0 then
+			for i = 1,#tbl do
 				ct = ct + tbl[i]/cnt
-				ret[i] = auxi.check_if_value(v,function(v,a) return v * a end,ct) 
+				ret[i] = auxi.check_if_value(v,function(v,a) return v * a end,ct)
 			end
 		else return {v} end
 	end
-	table.insert(ret,1,auxi.check_if_value(v,function(v,a) return v * a end,0)) 
+	table.insert(ret,1,auxi.check_if_value(v,function(v,a) return v * a end,0))
 	return ret
 end
 --l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") auxi.PrintTable(auxi.cut_by(auxi.sigmod,{5,2,41,-1,20,}))
 function funct.set_to(tbl,tbl2,key)		--将tbl2内所有值作为tbl的key键值对应值
 	key = key or "Setted"
-	for u,v in pairs(tbl2 or {}) do 
+	for u,v in pairs(tbl2 or {}) do
 		tbl[u] = tbl[u] or {}
 		tbl[u][key] = v
 	end
@@ -6855,9 +7469,9 @@ function funct.make_lerp(tbl)
 	params = params or {}
 	local ret = {{frame = 0,},}
 	local total = 0
-	if #tbl > 0 then 
+	if #tbl > 0 then
 		local multi = 0
-		for i = 1,#tbl do 
+		for i = 1,#tbl do
 			table.insert(ret,#ret + 1,{frame = tbl[i] + multi,})
 			if not tbl.multi then multi = multi + tbl[i] end
 		end
@@ -7014,10 +7628,10 @@ local Gridroom_move_shape_info = {
 function funct.is_safe_move_in_gridroom(id,tgid)		--检查是否跨越了门
 	local level = Game():GetLevel()
 	local desc = level:GetRoomByIdx(id)
-	if desc and desc.Data then 
+	if desc and desc.Data then
 		local info = Gridroom_move_shape_info[desc.Data.Shape] or {}
 		if info[tgid - desc.SafeGridIndex] == true then return false
-		elseif type(info[tgid - desc.SafeGridIndex]) == "number" and desc.Data.Doors & (1<<info[tgid - desc.SafeGridIndex]) == (1<<info[tgid - desc.SafeGridIndex]) then 
+		elseif type(info[tgid - desc.SafeGridIndex]) == "number" and desc.Data.Doors & (1<<info[tgid - desc.SafeGridIndex]) == (1<<info[tgid - desc.SafeGridIndex]) then
 			return true
 		end
 		return false
@@ -7028,8 +7642,8 @@ end
 function funct.is_safe_move_in_grids(id,step)
 	local tid = id + step
 	if tid < 0 or tid > 168 then return false end
-	if step % 13 < 6 and id % 13 > (id + step) % 13 then return false end 
-	if step % 13 > 6 and id % 13 < (id + step) % 13 then return false end 
+	if step % 13 < 6 and id % 13 > (id + step) % 13 then return false end
+	if step % 13 > 6 and id % 13 < (id + step) % 13 then return false end
 	return true
 end
 
@@ -7159,16 +7773,16 @@ end
 function funct.make_red_room(id)
 	local level = Game():GetLevel()
 	if level:GetRoomByIdx(id).Data then return false end
-	for i = 0,3 do 
+	for i = 0,3 do
 		local iid = auxi.move_in_gridroom(id,i)
-		if iid ~= id then 
+		if iid ~= id then
 			local ti = auxi.flipdirection(i)
 			local desc_ = level:GetRoomByIdx(iid)
 			if desc_ and desc_.Data and desc_.SafeGridIndex ~= iid then
 				iid = desc_.SafeGridIndex
 				ti = Gridroom_move_shape_info[desc_.Data.Shape][id - iid]
 			end
-			if level:MakeRedRoomDoor(iid,ti) then return true 
+			if level:MakeRedRoomDoor(iid,ti) then return true
 			else end	--print("Fail "..tostring(iid).." "..tostring(id).." "..tostring(i))	end
 		end
 	end
@@ -7205,7 +7819,7 @@ function funct.sgid_ctrl_dir(sgid,dir)
 		if dgid % 13 == 1 then if dir == 1 or dir == 3 then dir = dir + 4 end end
 		if dgid >= 13 then if dir == 0 or dir == 2 then dir = dir + 4 end end
 	end
-	return dir 
+	return dir
 end
 
 --l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") auxi.pos2safegridindex()
@@ -7222,7 +7836,7 @@ local Shape_Adder = {
 }
 
 function funct.is_suitible_gridindex(id)
-	if id > 0 then 
+	if id > 0 then
 		local level = Game():GetLevel()
 		local desc = level:GetRoomByIdx(id)
 		if desc and desc.Data then
@@ -7245,8 +7859,8 @@ function funct.get_all_gridindexs(desc)
 	if type(desc) == "number" then desc = level:GetRoomByIdx(desc) end
 	desc = desc or level:GetCurrentRoomDesc()
 	table.insert(ret,#ret + 1,desc.SafeGridIndex)
-	if desc.Data and desc.SafeGridIndex > 0 then 
-		for u,v in pairs(Shape_Adder[desc.Data.Shape] or {}) do 
+	if desc.Data and desc.SafeGridIndex > 0 then
+		for u,v in pairs(Shape_Adder[desc.Data.Shape] or {}) do
 			local cd = level:GetRoomByIdx(desc.SafeGridIndex + v)
 			if cd and auxi.check_for_the_same(cd,desc) then table.insert(ret,#ret + 1,desc.SafeGridIndex + v) end
 		end
@@ -7302,9 +7916,9 @@ function funct.find_in(data,params)
 	for i = 1,sz do
 		local info = spawns:Get(i - 1)
 		local entinfo = info:PickEntry(math.random(1000)/1000)
-		if entinfo.Type == (params.Type or params[1] or 999) 
+		if entinfo.Type == (params.Type or params[1] or 999)
 			and entinfo.Variant == (params.Variant or params[2] or enums.Entities.Remover)
-			and entinfo.Subtype == (params.SubType or params[3] or 0) then 
+			and entinfo.Subtype == (params.SubType or params[3] or 0) then
 			return Game():GetRoom():GetGridPosition((data.Width + 2) * (info.Y + 1) + info.X + 1)
 		end
 	end
@@ -7338,7 +7952,7 @@ function funct.on_laser_path(laser,pos,params)		--margin是宽度
 		elseif auxi.do_t(stpos - pos,stpos - tpos) <= 0 then
 			if (stpos - pos):Length() <= margin then return {leg = leg,pos = stpos,} end--if (stpos - pos):Length() < (ret - pos):Length() then ret = stpos end end
 		else
-			if math.abs(auxi.cros_s(tpos - pos,(stpos - tpos):Normalized())) <= margin then 
+			if math.abs(auxi.cros_s(tpos - pos,(stpos - tpos):Normalized())) <= margin then
 				local lg = auxi.do_t(stpos - pos,tpos - stpos)/(tpos - stpos):Length()
 				local dpos = stpos + (tpos - stpos):Normalized() * lg
 				return {leg = leg + lg,pos = dpos,}
@@ -7353,7 +7967,7 @@ function funct.on_laser_path(laser,pos,params)		--margin是宽度
 	elseif auxi.do_t(stpos - pos,stpos - tpos) <= 0 then
 		if (stpos - pos):Length() <= margin then return {leg = leg,pos = stpos,} end--if (stpos - pos):Length() < (ret - pos):Length() then ret = stpos end end
 	else
-		if math.abs(auxi.cros_s(tpos - pos,(stpos - tpos):Normalized())) <= margin then 
+		if math.abs(auxi.cros_s(tpos - pos,(stpos - tpos):Normalized())) <= margin then
 			local lg = auxi.do_t(stpos - pos,tpos - stpos)/(tpos - stpos):Length()
 			local dpos = stpos + (tpos - stpos):Normalized() * lg
 			return {leg = leg + lg,pos = dpos,}
@@ -7377,12 +7991,12 @@ end
 
 function funct.check_screen_size(v)
 	local screensize = auxi.GetScreenSize()
-	while(screensize.X > 256) do 
-		screensize.X = screensize.X / 2 
+	while(screensize.X > 256) do
+		screensize.X = screensize.X / 2
 		v.X = v.X / 2
 	end
-	while(screensize.Y > 256) do 
-		screensize.Y = screensize.Y / 2 
+	while(screensize.Y > 256) do
+		screensize.Y = screensize.Y / 2
 		v.Y = v.Y / 2
 	end
 	return v
@@ -7390,24 +8004,24 @@ end
 
 function funct.check_screen_multi(v)
 	local screensize = auxi.GetScreenSize()
-	while(screensize.X > 256) do 
-		screensize.X = screensize.X / 2 
+	while(screensize.X > 256) do
+		screensize.X = screensize.X / 2
 		v.X = v.X * 2
 	end
-	while(screensize.Y > 256) do 
-		screensize.Y = screensize.Y / 2 
+	while(screensize.Y > 256) do
+		screensize.Y = screensize.Y / 2
 		v.Y = v.Y * 2
 	end
 	return v
 end
-	
+
 function funct.get_screensize_multi(val)
 	local ret = val or 4
 	local screensize = auxi.GetScreenSize()
-	while(screensize.X > 256) do 
-		screensize.X = screensize.X / 2 
+	while(screensize.X > 256) do
+		screensize.X = screensize.X / 2
 		ret = ret / 2
-	end 
+	end
 	return ret
 end
 
@@ -7423,7 +8037,7 @@ function funct.trapezoid_shape(x,params)
 	elseif x < params.v2 then return params.h2
 	elseif x < params.v3 then return (params.h2 - params.h1) * (params.v3 - x)/(params.v3 - params.v2) + params.h1
 	else return params.h2 end
-	return 
+	return
 end
 
 function funct.random_glaze_pickup(params)
@@ -7445,7 +8059,7 @@ end
 function funct.inner_tick_(data,key,limit,params)
 	data["QING_SPECIAL_Inner_tick"] = data["QING_SPECIAL_Inner_tick"] or {} local d = data["QING_SPECIAL_Inner_tick"]
 	params = params or {}
-	d[key] = d[key] or 0 
+	d[key] = d[key] or 0
 	if params.set then auxi.check_if_any(params.set_val or function(d,key) d[key] = 0 end,d,key) return 0 end
 	if params.Update then d[key] = d[key] + 1 end
 	if d[key] > limit then if params.Update then d[key] = 0 end return limit + 1
@@ -7455,7 +8069,7 @@ end
 function funct.inner_tick(data,key,limit,params)		--正数达到N后触发并清零
 	local ret = funct.inner_tick_(data,key,limit,params)
 	params = params or {}
-	if params.Val then if params.WithZero and ret == limit + 1 then ret = 0 end return ret 
+	if params.Val then if params.WithZero and ret == limit + 1 then ret = 0 end return ret
 	else if ret > limit then return true else return false end end
 end
 
@@ -7514,12 +8128,12 @@ function funct.find_suitable_pos_list(a_list,b_list)
 	for uu,vv in pairs(a_list) do
 		local val = 7
 		for u,v in pairs(banish_list) do
-			if (v - vv):Length() > 400 or (v - vv):Length() < 180 then 
+			if (v - vv):Length() > 400 or (v - vv):Length() < 180 then
 				val = val & 3
-				if (v - vv):Length() < 120 then 
+				if (v - vv):Length() < 120 then
 					val = val & 1
-					if (v - vv):Length() < 60 then 
-						val = 0 
+					if (v - vv):Length() < 60 then
+						val = 0
 					end
 				end
 			end
@@ -7552,10 +8166,48 @@ function auxi.GetMinWallDistance(pos)
     local y = math.floor(gridIndex / room:GetGridWidth())
     return math.min(
         x,                          -- 左墙距离
-        room:GetGridWidth() - x - 1, -- 右墙距离 
+        room:GetGridWidth() - x - 1, -- 右墙距离
         y,                          -- 上墙距离
         room:GetGridHeight() - y - 1 -- 下墙距离
     )
+end
+
+--- 实体屏幕坐标：WorldToScreen(Position + PositionOffset) [+ render_offset] - scroll。
+--- 与 MultiKnife / PRE_*_RENDER 自绘同路径；只读，不改 Sprite。
+function auxi.get_entity_screen_pos(ent, render_offset)
+	if not ent then return nil end
+	local po = ent.PositionOffset or Vector(0, 0)
+	local pos = Isaac.WorldToScreen(ent.Position + po)
+	if render_offset then
+		pos = pos + render_offset
+	end
+	local room = Game():GetRoom()
+	if room and room.GetRenderScrollOffset then
+		pos = pos - room:GetRenderScrollOffset()
+	end
+	return pos
+end
+
+--- 只读 HeldSprite.Offset；不改 Color / 不隐藏举起贴图。
+function auxi.get_held_sprite_offset(player)
+	if not player or not player.GetHeldSprite then
+		return Vector(0, 0)
+	end
+	local ok, held = pcall(function()
+		return player:GetHeldSprite()
+	end)
+	if not ok or not held or not held.Offset then
+		return Vector(0, 0)
+	end
+	return Vector(held.Offset.X, held.Offset.Y)
+end
+
+--- 举起道具屏幕锚点 = 玩家屏幕位 + HeldSprite.Offset + local_offset。
+--- MultiKnife 验证默认 local_offset ≈ Vector(0, -20)。
+function auxi.get_held_item_screen_anchor(player, render_offset, local_offset)
+	local pos = auxi.get_entity_screen_pos(player, render_offset)
+	if not pos then return nil end
+	return pos + auxi.get_held_sprite_offset(player) + (local_offset or Vector(0, 0))
 end
 
 -- 预加载：运行时懒 require 在 MCM 中文包装 require 后会报 module not found

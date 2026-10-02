@@ -330,7 +330,7 @@ local function ensure_render_anchors(rows_per_anchor)
 			anchor.DepthOffset=key=="background" and -1000 or 0
 			anchor.EntityCollisionClass=EntityCollisionClass.ENTCOLL_NONE
 			anchor.GridCollisionClass=EntityGridCollisionClass.GRIDCOLL_NONE
-			anchor:SetShadowSize(0)
+			if anchor.SetShadowSize then anchor:SetShadowSize(0) end
 			anchor:GetData()[anchor_key]=key
 			anchor.Color=invisible
 			item.render_anchors[key]=anchor

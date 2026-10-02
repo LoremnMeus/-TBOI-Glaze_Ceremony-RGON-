@@ -36,7 +36,7 @@ local item = {
 			toget = function(info,rng)
 				local ret = {}
 				local s = Sprite()
-				local rock_info = auxi.random_in_weighed_table(auxi.deepCopy(info.playname),rng)
+				local rock_info = auxi.random_in_weighed_table(info.playname,rng)
 				s:Load(info.loadname,true)
 				s:SetFrame(rock_info.name,auxi.random_in_table(rock_info.frame,rng))
 				ret.GetSprite = function(self) return s end
@@ -180,20 +180,20 @@ Function = function(_,cardtype,player,useFlags)
 		for i = 1,cnt do
 			delay_buffer.addeffe(function(params)
 				local rnd = rng:RandomInt(4 + i * 2) + 1
+				local enemies = auxi.getenemies()
 				for j = 1,rnd do
-					local infos = auxi.random_in_weighed_table(auxi.deepCopy(item.grid_info),rng)
+					local infos = auxi.random_in_weighed_table(item.grid_info,rng)
 					local fake_grid = infos.toget(infos,rng)
-					local targ = auxi.random_in_table(auxi.getenemies(),rng)
+					local targ = auxi.random_in_table(enemies,rng)
 					fake_grid.Position = room:GetRandomPosition(0)
-					--if rng:RandomInt(1000) > 800 then fake_grid.Position = ((targ or {}).Position or fake_grid.Position) end -- + auxi.MakeVector(math.random(360)) * math.random(8,35)
 					local q = grid_morpher.morph_grid(fake_grid,{rk_info = rk_info,spawner = player,})
 					q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE 
 					q.Height = -1000
-					q.FallingAcceleration = math.random(1000)/1000 * (3 + i * 0.3) + 2
+					q.FallingAcceleration = rng:RandomFloat() * (3 + i * 0.3) + 2
 					
 					local d2 = q:GetData()
 					d2[item.own_key.."effect"] = true
-					if rng:RandomInt(1000) > 500 then d2[item.own_key.."target"] = targ end
+					if rng:RandomInt(2) == 0 then d2[item.own_key.."target"] = targ end
 				end
 			end,{},(i - 1) * 5)
 		end
@@ -203,7 +203,7 @@ end,
 
 function item.fire_fake_rocks(player,pos,rng,params)
 	params = params or {}
-	local infos = auxi.random_in_weighed_table(auxi.deepCopy(item.grid_info),rng)
+	local infos = auxi.random_in_weighed_table(item.grid_info,rng)
 	local fake_grid = infos.toget(infos,rng)
 	fake_grid.Position = pos
 	local q = grid_morpher.morph_grid(fake_grid,{spawner = player,})

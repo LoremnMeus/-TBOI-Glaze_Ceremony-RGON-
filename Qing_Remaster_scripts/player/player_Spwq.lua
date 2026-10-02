@@ -60,7 +60,7 @@ end
 
 local function pause_blocks_formation()
 	if Game():IsPaused() then return true end
-	if REPENTOGON and Game().IsPauseMenuOpen and Game():IsPauseMenuOpen() then return true end
+	if auxi.is_pause_menu_open() then return true end
 	return false
 end
 
@@ -391,17 +391,6 @@ Function = function(_)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_INIT, params = nil,
-Function = function(_,player)
-	if player:GetPlayerType() == item.entity then
-		if Game():GetFrameCount() < 2 then
-			if save.UnlockData.Others.Ending1.Unlock ~= true then
-				--Game():Fadeout(1,1)
-			end
-		end
-	end
-end,
-})
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
 Function = function(_,player,collid,count)

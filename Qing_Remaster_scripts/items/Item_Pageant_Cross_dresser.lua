@@ -19,18 +19,18 @@ local item = {
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
 Function = function(_,player,collid,count)
+	local d = player:GetData()
+	local idx = d.__Index
+	local itemConfig = Isaac.GetItemConfig()
+	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
 	if auxi.has_have_coll(player,item.entity) then
-		local num = player:GetCollectibleNum(item.entity)
-		num = num * 5 if num > 0 then num = num + 5 end
-		local d = player:GetData()
-		local idx = d.__Index
-		local rng = RNG()
-		rng:SetSeed(player:GetCollectibleRNG(item.entity):GetSeed(),0)
+		-- 第一份 10 件装扮，之后每份 +5
+		local copies = player:GetCollectibleNum(item.entity)
+		local num = 0
+		if copies > 0 then num = 10 + math.max(0, copies - 1) * 5 end
+		local rng = player:GetCollectibleRNG(item.entity)
 		save.elses[item.own_key.."effect"][idx] = save.elses[item.own_key.."effect"][idx] or {}
 		if #save.elses[item.own_key.."effect"][idx] ~= num then
-			local itemConfig = Isaac.GetItemConfig()
-			local size = itemConfig:GetCollectibles().Size
-			--l Game():GetPlayer(0):RemoveCostume(Isaac.GetItemConfig():GetCollectible())
 			for i = 1,#save.elses[item.own_key.."effect"][idx] do
 				local v = save.elses[item.own_key.."effect"][idx][i]
 				player:RemoveCostume(itemConfig:GetCollectible(v))
@@ -53,9 +53,12 @@ Function = function(_,player,collid,count)
 	elseif save.elses[item.own_key.."effect"][idx] then
 		for i = 1,#save.elses[item.own_key.."effect"][idx] do
 			local v = save.elses[item.own_key.."effect"][idx][i]
-			player:RemoveCostume(itemConfig:GetCollectible(v))
+			local cfg = itemConfig:GetCollectible(v)
+			if cfg then player:RemoveCostume(cfg) end
 		end
 		save.elses[item.own_key.."effect"][idx] = nil
+		player:AddCacheFlags(CacheFlag.CACHE_LUCK)
+		player:GetData().should_evaluate_on_update_once = true
 	end
 end,
 })
@@ -78,23 +81,8 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
-	if auxi.has_have_coll(player,item.entity) then
-		if cacheFlag == CacheFlag.CACHE_LUCK then
-			local d = player:GetData()
-			local idx = d.__Index
-			save.elses[item.own_key.."effect"][idx] = save.elses[item.own_key.."effect"][idx] or {}
-			local conter = #save.elses[item.own_key.."effect"][idx]
-			local tbl = auxi.deepCopy(costume_holder.CanAddi)
-			for u,v in pairs(save.elses[item.own_key.."effect"][idx]) do
-				if tbl[v] then tbl[v] = nil end
-			end
-			for u,v in pairs(tbl) do
-				if player:HasCollectible(u) then
-					conter = conter + 1
-				end
-			end
-			player.Luck = player.Luck + 0.1 * conter
-		end
+	if cacheFlag == CacheFlag.CACHE_LUCK and auxi.has_have_coll(player,item.entity) then
+		player.Luck = player.Luck + 2 * player:GetCollectibleNum(item.entity)
 	end
 end,
 })

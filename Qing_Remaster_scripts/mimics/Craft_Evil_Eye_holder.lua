@@ -1,6 +1,7 @@
 -- 共享邪眼（410）：自管 EffectVariant.EVIL_EYE=84；禁止 FireTear(CanBeEye)。
 -- Flight craft / 自定义攻击角色共用 try_spawn + fire_fn。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local enums = require("Qing_Remaster_scripts.core.enums")
 
 local item = {
@@ -361,8 +362,24 @@ local function fire_vanilla_tear(eye, ctx, aim)
 	local player = ctx.player
 	if not player then return end
 	local speed = (player.ShotSpeed or 1) * (tonumber(cfg("evil_tear_speed_mul")) or 10)
-	-- CanBeEye=false：禁止再滚眼球
-	local q = player:FireTear(eye.Position, aim * speed, false, true, false)
+	-- CanBeEye=false：禁止再滚眼球；子射击 inherit 当前 Attack（禁止 new_attack / Once 重复）
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local fire_opts = attack_holder.CopyFireContext("craft_evil_eye_child", {
+		can_be_eye = false,
+		no_tracer = true,
+		can_trigger_streak_end = false,
+		emitter = eye,
+		role = "derived",
+	}) or {
+		mode = "untracked",
+		reason = "craft_evil_eye_child_orphan",
+		can_be_eye = false,
+		no_tracer = true,
+		can_trigger_streak_end = false,
+		emitter = eye,
+		role = "derived",
+	}
+	local q = attack_holder.FireTear(player, eye.Position, aim * speed, fire_opts)
 	if q then
 		q = q:ToTear() or q
 		q.SpawnerEntity = player
@@ -428,7 +445,7 @@ function item.fire_craft_tear(eye, ctx, aim)
 		q.ParentOffset = Vector.Zero
 	end
 	local Blueprint = require("Qing_Remaster_scripts.items.Item_Blue_Print")
-	local craft_uid = air:GetData()[Blueprint.own_key.."craft_uid"]
+	local craft_uid = CraftIdentity.get_uid(air)
 	local flags = CraftProfile.sample_tear_flags(
 		player,
 		craft_prof.stats and craft_prof.stats.luck or 0,
@@ -474,7 +491,7 @@ function item.try_craft_volley(air, player, craft_prof, aim_dir)
 	if not aim_dir or aim_dir:Length() < 0.01 then return end
 	local Blueprint = require("Qing_Remaster_scripts.items.Item_Blue_Print")
 	local Air = require("Qing_Remaster_scripts.items.Item_Air_Flight")
-	local craft_uid = air:GetData()[Blueprint.own_key.."craft_uid"]
+	local craft_uid = CraftIdentity.get_uid(air)
 	item.try_spawn({
 		owner = air,
 		player = player,
@@ -496,7 +513,7 @@ function item.try_craft_volley(air, player, craft_prof, aim_dir)
 			if a and auxi.check_all_exists(a) and a.InitSeed == meta.owner_seed then
 				if Air.combat_allowed and not Air.combat_allowed(a) then return nil end
 				if not meta.craft_uid then return a end
-				local uid = a:GetData()[Blueprint.own_key.."craft_uid"]
+				local uid = CraftIdentity.get_uid(a)
 				if uid == meta.craft_uid then return a end
 			end
 			return nil

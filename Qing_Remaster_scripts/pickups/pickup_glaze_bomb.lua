@@ -11,6 +11,8 @@ local glaze_key = require("Qing_Remaster_scripts.pickups.pickup_glaze_key")
 local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
+local glaze_route = require("Qing_Remaster_scripts.story.glaze_route_rules")
 
 local item = {
 	pickup = enums.Pickups.Glaze_bomb,
@@ -56,7 +58,7 @@ function item.try_collect(player,ent)
 		player:AddBombs(1)
 	end
 	save.elses.glaze_bombs = math.min(99,(save.elses.glaze_bombs or 0) + 1)
-	glaze_crown.notify_pickup(player)
+	glaze_crown.notify_pickup(player, ent and ent.Position)
 	return true
 end
 
@@ -71,7 +73,10 @@ Function = function(_,ent, col, low)
 				ent.Velocity = Vector(0,0)
 				ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_FETUS_FEET,1,1,false,0,2)
-				auxi.remove_others_option_pickup(ent)
+				option_index_holder.commit_selection(ent, player, {
+					skip_will_collect = true,
+					remove_siblings = true,
+				})
 				if ent:IsShopItem() then auxi.buy_a_pickup(ent,player)
 				else ent:GetSprite():Play("Collect", true) end
 				return true
@@ -142,14 +147,12 @@ Function = function(_,ent)
 		end
 		
 		if s:IsPlaying("Pulse") and s:GetFrame() == 56 then
-			local level = Game():GetLevel()
 			local room = Game():GetRoom()
-			local desc = level:GetCurrentRoomDesc()
-			if desc.Data.Type == RoomType.ROOM_DEFAULT and desc.Data.Variant >= 10000 and desc.Data.Variant <= 10500 then
+			local desc = Game():GetLevel():GetCurrentRoomDesc()
+			if glaze_route.is_mirror_room_desc(desc) then
 				for i = 0,7 do
-					local room = Game():GetRoom()
 					local door = room:GetDoor(i)
-					if door ~= nil and door.TargetRoomIndex == -100 then
+					if door ~= nil and glaze_route.is_mirror_door(door) then
 						local dis = (ent.Position - door.Position):Length()
 						if door.Desc.Variant ~= 8 and dis < 100 then
 							save.elses.mirror = true
@@ -169,7 +172,8 @@ Function = function(_,ent,col,low)
 	local room = Game():GetRoom()
 	if ent.IsFetus == false then
 		local succ = consistance_holder.try_check_entity(ent,item.own_key)
-		if succ and room:IsMirrorWorld() and save.UnlockData.Others.Ending1.Unlock == true and col.Type == EntityType.ENTITY_FIREPLACE and col.Variant == 4 then
+		if succ and room:IsMirrorWorld() and glaze_route.is_white_fire_interact_allowed()
+			and glaze_route.is_white_fireplace(col) then
 			local s = ent:GetSprite()
 			if s:IsPlaying("Pulse") then
 				local player = Game():GetPlayer(0)

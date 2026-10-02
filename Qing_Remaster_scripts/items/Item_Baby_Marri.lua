@@ -34,7 +34,7 @@ local function player_state(player)
 	return st
 end
 
---- 天使形态：Level:AddAngelRoomChance（天魔房开启后的天使转化率，非独立出现率）
+--- 天使形态：Level:AddAngelRoomChance（恶魔房开启后的天使转化率，非独立出现率）
 local function angel_conversion_total()
 	local total = 0
 	for i = 0, Game():GetNumPlayers() - 1 do
@@ -98,7 +98,7 @@ local function toggle_mode(player)
 	trigger_visual_toggle(player, st.mode)
 end
 
---- 恶魔形态：MC_POST_DEVIL_CALCULATE 叠加天魔房总开启率（先于转化率结算）
+--- 恶魔形态：MC_POST_DEVIL_CALCULATE 叠加恶魔房总开启率（先于转化率结算）
 local function devil_spawn_bonus_total()
 	local bonus = 0
 	for i = 0, Game():GetNumPlayers() - 1 do

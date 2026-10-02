@@ -20,13 +20,24 @@ local item = {
 	own_key = "Thoth_cd5_Hie_",
 }
 
+
+local function get_effect_root()
+	local key = item.own_key .. "effect"
+	local root = save.elses[key]
+	if type(root) ~= "table" then
+		root = {}
+		save.elses[key] = root
+	end
+	return root
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
 	if continue then
+		get_effect_root()
 	else
 		save.elses[item.own_key.."effect"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
 end,
 })
 
@@ -38,10 +49,10 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.MC_EVALUATE_IMITATE_ITEM, params = nil,
 Function = function(_,player,colid,value)
+	local effects = get_effect_root()
 	local d = player:GetData()
 	local idx = d.__Index
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	if save.elses[item.own_key.."effect"][idx] then
+	if effects[idx] then
 		value[533] = (value[533] or 0) + 1
 		value[182] = (value[182] or 0) + 1
 	end
@@ -50,6 +61,7 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_CARD, params = item.entity,
 Function = function(_,cardtype,player,useFlags)
+	local effects = get_effect_root()
 	local room = Game():GetRoom()
 	local d = player:GetData()
 	local idx = d.__Index
@@ -64,7 +76,7 @@ Function = function(_,cardtype,player,useFlags)
 			q2.HitPoints = 1
 			q3.HitPoints = 1
 		else
-			save.elses[item.own_key.."effect"][idx] = true
+			effects[idx] = true
 			Imitate_item_holder.Evaluate_Imitate_Items(player)
 		end
 	end
@@ -78,7 +90,7 @@ do
 	temp_hud.register_provider(function(player)
 		local idx = player:GetData() and player:GetData().__Index
 		if not idx then return end
-		local bag = save.elses[item.own_key.."effect"]
+		local bag = get_effect_root()
 		if not (bag and bag[idx]) then return end
 		return {
 			[533] = 1, -- Haemolacria

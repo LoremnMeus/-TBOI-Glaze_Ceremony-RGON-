@@ -14,6 +14,14 @@ local grid_trapdoor = require("Qing_Remaster_scripts.grids.grid_trapdoor")
 local Nil = require("Qing_Remaster_scripts.others.Nil_holder")
 local Screen_Filter = require("Qing_Remaster_scripts.others.Screen_Filter")
 
+local function chapter1_runtime_allowed()
+	local ok, scope = pcall(require, "Qing_Remaster_scripts.core.release_scope")
+	if not ok or not scope or not scope.allows_story_chapter then
+		return true
+	end
+	return scope.allows_story_chapter("chapter1") == true
+end
+
 local item = {
 	pre_ToCall = {},
 	ToCall = {},
@@ -353,11 +361,14 @@ function item.get_word(id,force)
 end
 
 function item.try_start(act)			--或许需要考虑传送打断剧情进展。
+	if not chapter1_runtime_allowed() then
+		return false
+	end
 	act = act or 1
 	if act == 1 then
 		if save.elses[Boss_Qing.own_key.."finished"] then
 		elseif save.elses[item.own_key.."act1_end"] then 
-			Boss_Qing.start()
+			Boss_Qing.start(nil, {story_owned = true})
 		else
 			save.elses[item.own_key.."act1_control"] = {}
 		end
@@ -378,6 +389,9 @@ function item.is_act_finish(act)
 end
 
 function item.try_generate_glaze()
+	if not chapter1_runtime_allowed() then
+		return nil
+	end
 	local room = Game():GetRoom()
 	local q = Isaac.Spawn(1000,enums.Entities.Glaze_Helper,0,room:GetGridPosition(293),Vector(0,0),nil):ToEffect()
 	local sq = q:GetSprite() sq:Load("gfx/boss/Glaze/Prince_glaze.anm2",true) sq:Play("Idle_Doctor",true)
@@ -412,6 +426,9 @@ end,
 })
 
 function item.act2_end()
+	if not chapter1_runtime_allowed() then
+		return
+	end
 	local q = grid_trapdoor.spawn_trapdoor(Game():GetRoom():GetCenterPos(),{Function = function(player)
 		Game():GetLevel():SetStage(8,0)
 		Isaac.ExecuteCommand("reseed")
@@ -423,6 +440,11 @@ end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
 Function = function(_)
+	if not chapter1_runtime_allowed() then
+		save.elses[item.own_key.."act1_control"] = nil
+		save.elses[item.own_key.."act2_control"] = nil
+		return
+	end
 	if save.elses[item.own_key.."act1_control"] then
 		if save.elses[item.own_key.."act1_control"].dialog == nil then
 			if Dialog_holder.is_clear() then
@@ -437,7 +459,7 @@ Function = function(_)
 			if Dialog_holder.is_clear() and (save.elses[item.own_key.."act1_control"].cnt or 0) == #(item.get_word(1)) then
 				save.elses[item.own_key.."act1_end"] = true
 				save.elses[item.own_key.."act1_control"] = nil
-				Boss_Qing.start()
+				Boss_Qing.start(nil, {story_owned = true})
 			end
 		end
 	end

@@ -12,6 +12,9 @@ local CraftTearColors = require("Qing_Remaster_scripts.others.craft_tear_color_d
 local CraftTearParams = require("Qing_Remaster_scripts.others.craft_tear_params_data")
 local Bomb_holder = require("Qing_Remaster_scripts.mimics.Bomb_holder")
 local Laser_holder = require("Qing_Remaster_scripts.mimics.Laser_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
+local CharRound = require("Qing_Remaster_scripts.player.character_attack_round")
 local Craft_Familiar_holder = require("Qing_Remaster_scripts.mimics.Craft_Familiar_holder")
 local Craft_Orbital_holder = require("Qing_Remaster_scripts.mimics.Craft_Orbital_holder")
 local Craft_Ludovico_holder = require("Qing_Remaster_scripts.mimics.Craft_Ludovico_holder")
@@ -215,7 +218,7 @@ local function build_runtime_for_profile(ent, player, counts, attacking, aim_dir
 	-- 眼药水 / 单眼：同步眼睛相位（优先 craft 记录）。
 	if CraftProfile.needs_eye_phase(counts) then
 		local bp = get_blueprint()
-		local uid = d[bp.own_key.."craft_uid"]
+		local uid = CraftIdentity.get_uid(ent)
 		local rec = uid and bp.find_craft(player, uid)
 		local phase = (rec and tonumber(rec.eye_phase)) or tonumber(d[item.own_key.."eye_phase"]) or 0
 		d[item.own_key.."eye_phase"] = phase
@@ -226,7 +229,7 @@ local function build_runtime_for_profile(ent, player, counts, attacking, aim_dir
 	-- 191
 	if (counts[191] or 0) > 0 then
 		local bp = get_blueprint()
-		local uid = d[bp.own_key.."craft_uid"]
+		local uid = CraftIdentity.get_uid(ent)
 		local rec = uid and bp.find_craft(player, uid)
 		runtime.dollar_flag = CraftDyn.tick_dollar_bill(ent, rec, counts, attacking)
 	end
@@ -314,24 +317,23 @@ local function tick_number_two(ent, player, craft_prof, attacking)
 end
 
 local function bind_craft_profile(ent, player, attacking, aim_dir)
-	local d = ent:GetData()
 	local bp = get_blueprint()
-	local uid = d[bp.own_key.."craft_uid"]
+	local uid = CraftIdentity.get_uid(ent)
 	if uid then
 		local rec = bp.find_craft(player, uid)
 		local counts = rec and CraftProfile.counts_from_ingredients(rec.ingredients) or {}
 		local runtime = build_runtime_for_profile(ent, player, counts, attacking, aim_dir)
 		local profile = bp.get_profile_for_uid(player, uid, {air = ent, runtime = runtime})
-		d[item.own_key.."craft_profile"] = profile
+		CraftIdentity.set_profile(ent, profile)
 		return profile
 	end
 	local new_uid, profile = bp.claim_air_flight_uid(player)
 	if new_uid then
-		d[bp.own_key.."craft_uid"] = new_uid
-		d[item.own_key.."craft_profile"] = profile
+		CraftIdentity.set_uid(ent, new_uid)
+		CraftIdentity.set_profile(ent, profile)
 		return profile
 	end
-	return d[item.own_key.."craft_profile"]
+	return CraftIdentity.get_profile(ent)
 end
 
 -- 宝宝/环绕物只关心配方计数与 extras。profile 每帧会因 runtime 重建，不能用 table 身份判变。
@@ -1265,6 +1267,35 @@ local function air_note_hit(d, hit)
 	end
 end
 
+-- debug 9 / DebugFlag.HIGH_LUCK (1<<8): engine high luck; craft profile does not inherit it automatically.
+local HIGH_LUCK_FLAG = (DebugFlag and DebugFlag.HIGH_LUCK) or (1 << 8)
+
+function item.is_high_luck_debug()
+	local game = Game()
+	if not game or not game.GetDebugFlags then
+		return false
+	end
+	return (game:GetDebugFlags() & HIGH_LUCK_FLAG) ~= 0
+end
+
+--- Effective Flight luck for rolls (Mom's Eye / Loki / Tech IX when capability-granted).
+--- Priority: ImGui debug_force_luck (>0) → debug 9 HIGH_LUCK → craft profile luck → 0.
+function item.get_effective_luck(ent, craft_prof)
+	local force = tonumber(item.debug_force_luck)
+	if force and force > 0 then
+		return force, "force"
+	end
+	if item.is_high_luck_debug() then
+		return 99, "debug9"
+	end
+	local prof = craft_prof
+	if not prof and ent then
+		prof = CraftIdentity.get_profile(ent)
+	end
+	local luck = (prof and prof.stats and tonumber(prof.stats.luck)) or 0
+	return luck, "profile"
+end
+
 function item.get_hit_rate_summary(ent)
 	local ok, result = pcall(function()
 		if not ent then
@@ -1277,14 +1308,13 @@ function item.get_hit_rate_summary(ent)
 		end
 		if not ent or not ent.GetData then
 			-- 无实体时仍显示幸运调试信息（不依赖房间扫描结果）
-			local luck = 0
-			local dbg = tonumber(item.debug_force_luck)
-			local use_luck = (dbg and dbg > 0) and dbg or luck
+			local use_luck, tag = item.get_effective_luck(nil, nil)
+			local tag_s = (tag == "force" and " [强制]") or (tag == "debug9" and " [debug9]") or ""
 			local p55 = CraftProfile.moms_eye_chance(use_luck)
 			local p87 = CraftProfile.lokis_horns_chance(use_luck)
 			return string.format(
 				"无飞行器\n档案幸运=-- 生效幸运=%.1f%s\n妈眼→%.0f%%  洛基角→%.0f%%\n(0幸运：妈眼50%% / 洛基25%%)",
-				use_luck, (dbg and dbg > 0) and " [强制]" or "",
+				use_luck, tag_s,
 				p55 * 100, p87 * 100
 			)
 		end
@@ -1293,10 +1323,10 @@ function item.get_hit_rate_summary(ent)
 		local shots = tonumber(d[item.own_key.."ShotCount"]) or 0
 		local hits = tonumber(d[item.own_key.."HitCount"]) or 0
 		local miss = tonumber(d[item.own_key.."MissCount"]) or 0
-		local prof = d[item.own_key.."craft_profile"]
+		local prof = CraftIdentity.get_profile(ent)
 		local luck = (prof and prof.stats and tonumber(prof.stats.luck)) or 0
-		local dbg = tonumber(item.debug_force_luck)
-		local use_luck = (dbg and dbg > 0) and dbg or luck
+		local use_luck, tag = item.get_effective_luck(ent, prof)
+		local tag_s = (tag == "force" and " [强制]") or (tag == "debug9" and " [debug9]") or ""
 		local n55 = CraftProfile.count_of(prof and prof.counts, 55)
 		local n87 = CraftProfile.count_of(prof and prof.counts, 87)
 		local p55 = CraftProfile.moms_eye_chance(use_luck)
@@ -1304,7 +1334,7 @@ function item.get_hit_rate_summary(ent)
 		return string.format(
 			"命中EWMA=%.0f%% shots=%d hit=%d miss=%d\n档案幸运=%.1f 生效幸运=%.1f%s\n妈眼x%d→%.0f%%  洛基角x%d→%.0f%%\n(0幸运：妈眼50%% / 洛基25%%，不是接近0)",
 			hr * 100, shots, hits, miss,
-			luck, use_luck, (dbg and dbg > 0) and " [强制]" or "",
+			luck, use_luck, tag_s,
 			n55, p55 * 100, n87, p87 * 100
 		)
 	end)
@@ -1313,18 +1343,23 @@ function item.get_hit_rate_summary(ent)
 end
 --- 仅幸运行（无 FindByType）；ImGui 勾选时可安全刷新
 function item.get_luck_debug_line()
-	local dbg = tonumber(item.debug_force_luck)
-	local use_luck = (dbg and dbg > 0) and dbg or 0
+	local use_luck, tag = item.get_effective_luck(nil, nil)
 	local p55 = CraftProfile.moms_eye_chance(use_luck)
 	local p87 = CraftProfile.lokis_horns_chance(use_luck)
-	if dbg and dbg > 0 then
+	if tag == "force" then
 		return string.format(
 			"强制幸运=%.0f → 妈眼%.0f%% / 洛基%.0f%%（点「刷新命中/弹道」看配方份数）",
 			use_luck, p55 * 100, p87 * 100
 		)
 	end
+	if tag == "debug9" then
+		return string.format(
+			"debug 9 高幸运生效=%.0f → 妈眼%.0f%% / 洛基%.0f%%（ImGui 强制可再覆盖）",
+			use_luck, p55 * 100, p87 * 100
+		)
+	end
 	return string.format(
-		"强制幸运关；档案幸运时 0→妈眼%.0f%%/洛基%.0f%%（点刷新看场上飞行器）",
+		"强制/debug9 关；档案幸运时 0→妈眼%.0f%%/洛基%.0f%%（点刷新看场上飞行器）",
 		CraftProfile.moms_eye_chance(0) * 100,
 		CraftProfile.lokis_horns_chance(0) * 100
 	)
@@ -2781,8 +2816,7 @@ local function air_pick_enemy(from_pos, max_range)
 end
 
 local function air_craft_uid(ent)
-	local bp = get_blueprint()
-	return ent and ent:GetData()[bp.own_key.."craft_uid"]
+	return CraftIdentity.get_uid(ent)
 end
 
 local function air_formation_at(ent, idx, n)
@@ -3079,6 +3113,12 @@ end
 
 local STANDBY_COLOR_KEY = "StandbyColorSaved"
 
+local function air_seal_kidney_attack(d)
+	if not d then return end
+	CharRound.seal_persistent_attack(d[item.own_key.."kidney_attack"])
+	d[item.own_key.."kidney_attack"] = nil
+end
+
 local function air_combat_stop_for_standby(ent, d)
 	air_clear_passway(d)
 	d[item.own_key.."Flourish"] = nil
@@ -3093,6 +3133,7 @@ local function air_combat_stop_for_standby(ent, d)
 	d[item.own_key.."kidney_burst_remaining"] = nil
 	d[item.own_key.."kidney_release"] = nil
 	d[item.own_key.."kidney_active"] = nil
+	air_seal_kidney_attack(d)
 	d[item.own_key.."AuxAttackQueue"] = nil
 	d[item.own_key.."anemic_active"] = nil
 	d[item.own_key.."anemic_room"] = nil
@@ -3241,6 +3282,22 @@ local WEAPON_TYPE_FOR = {
 	[12] = WeaponType.WEAPON_URN_OF_SOULS,
 	[13] = WeaponType.WEAPON_SPIRIT_SWORD,
 	[14] = WeaponType.WEAPON_TEARS, -- fetus / C Section
+}
+
+-- Attack Trigger family for craft fire rounds (M5).
+local CRAFT_ATTACK_FAMILY = {
+	[1] = "tear",
+	[2] = "brimstone",
+	[3] = "technology",
+	[4] = "knife",
+	[5] = "bomb",
+	[6] = "epic",
+	[7] = "tear",
+	[8] = "tear", -- Ludo synthetic; job usually skips Fire*
+	[9] = "techx",
+	[10] = "sword",
+	[13] = "sword",
+	[14] = "tear",
 }
 
 local function apply_craft_flags(ent, craft_prof, fire_flags, air)
@@ -3445,7 +3502,7 @@ local function stamp_craft_source(ent2, air, opts)
 	if not ent2 then return end
 	local td = ent2:GetData()
 	td[item.own_key.."craft_air"] = air
-	td[item.own_key.."craft_uid"] = air and air:GetData()[get_blueprint().own_key.."craft_uid"]
+	td[item.own_key.."craft_uid"] = air and CraftIdentity.get_uid(air)
 	if opts.attack_serial ~= nil then
 		td[item.own_key.."attack_serial"] = opts.attack_serial
 	end
@@ -3487,7 +3544,7 @@ local function on_volley_fired(ent, player, craft_prof, aim_dir)
 		local phase = (tonumber(d[item.own_key.."eye_phase"]) or 0) + 1
 		d[item.own_key.."eye_phase"] = phase
 		local bp = get_blueprint()
-		local uid = d[bp.own_key.."craft_uid"]
+		local uid = CraftIdentity.get_uid(ent)
 		local rec = uid and bp.find_craft(player, uid)
 		if rec then rec.eye_phase = phase end
 	end
@@ -3825,6 +3882,7 @@ local function air_begin_crash(ent, d)
 	d[item.own_key.."kidney_burst_tick"] = nil
 	d[item.own_key.."kidney_release"] = nil
 	d[item.own_key.."kidney_active"] = nil
+	air_seal_kidney_attack(d)
 	if Craft_Ludovico_holder and Craft_Ludovico_holder.release then
 		Craft_Ludovico_holder.release(ent)
 	end
@@ -4193,7 +4251,7 @@ Function = function(_,ent)
 	-- 配方缺真实材料/原型：坠毁状态机；制造复活源落地翻滚后再飞（locked 后须蓝图确认才修好）。
 	do
 		local bp = get_blueprint()
-		local uid = d[bp.own_key.."craft_uid"]
+		local uid = CraftIdentity.get_uid(ent)
 		local broken = (uid and player and bp.is_craft_broken(player, uid))
 			or d[item.own_key.."ForceCrash"] == true
 		d[item.own_key.."Broken"] = broken and true or nil
@@ -4284,9 +4342,10 @@ Function = function(_,ent)
 	if dbg_spd > 0 then move_spd = dbg_spd end
 	local is_spwq = player:GetPlayerType() == player_Spwq.entity
 	local BW = get_bandwidth()
-	if is_spwq then BW.ensure_reconcile(player) end
+	BW.ensure_reconcile(player)
 	local uid = air_craft_uid(ent)
-	local standby = is_spwq and uid ~= nil and BW.is_active(player, uid) ~= true
+	-- All Blueprint holders use bandwidth; standby crafts must not keep fighting.
+	local standby = uid ~= nil and BW.is_active(player, uid) ~= true
 	local was_standby = d[item.own_key.."Standby"] == true
 	d[item.own_key.."Standby"] = standby or nil
 	local taurus_charging = false
@@ -4298,7 +4357,7 @@ Function = function(_,ent)
 	end
 	if move_spd < 0.75 and not taurus_charging then move_spd = 0.75 end
 	d[item.own_key.."MoveSpd"] = move_spd
-	local control = is_spwq and BW.get_control(player) or nil
+	local control = BW.get_control(player)
 	local formation = (control and control.formation_mode) or item.FORMATION_CRUISE
 	local fire_mode = (control and control.fire_control_mode) or item.FIRE_AUTO
 	local last_aim = (control and control.last_aim) or Vector(0, 1)
@@ -4331,6 +4390,13 @@ Function = function(_,ent)
 	if standby then
 		if not was_standby then
 			air_combat_stop_for_standby(ent, d)
+		end
+		-- Hide Cursed Mask aim linker immediately (UPDATE also culls; tick skips on standby).
+		do
+			local ok_m, Mask = pcall(require, "Qing_Remaster_scripts.items.Item_Cursed_Mask")
+			if ok_m and Mask and Mask.clear_craft_linker then
+				Mask.clear_craft_linker(ent, "standby")
+			end
 		end
 		d[item.own_key.."AuxShouldShoot"] = false
 		d[item.own_key.."Target"] = nil
@@ -4473,11 +4539,28 @@ Function = function(_,ent)
 		d[item.own_key.."kidney_burst_remaining"] = nil
 		d[item.own_key.."kidney_release"] = nil
 		d[item.own_key.."kidney_active"] = nil
+		air_seal_kidney_attack(d)
 	end
 	tick_epiphora(ent, dyn_counts, state_succ, aim_for_dyn)
 	tick_camo_undies(ent, dyn_counts, state_succ)
 	tick_jupiter(ent, dyn_counts)
 	craft_prof = bind_craft_profile(ent, player, state_succ, aim_for_dyn) or craft_prof
+	-- Cursed Mask: keep rotating even while not firing this frame.
+	if craft_prof and enums.Items.Cursed_Mask
+		and CraftProfile.count_of(craft_prof.counts, enums.Items.Cursed_Mask) > 0 then
+		local ok_m, Mask = pcall(require, "Qing_Remaster_scripts.items.Item_Cursed_Mask")
+		if ok_m and Mask and Mask.tick_craft_aim then
+			Mask.tick_craft_aim(ent, player)
+		end
+	end
+	-- Tech XIV: walk-place into owner player's shared pointer network (not while standby).
+	if craft_prof and enums.Items.Tech_14
+		and CraftProfile.count_of(craft_prof.counts, enums.Items.Tech_14) > 0 then
+		local ok_t, Tech14 = pcall(require, "Qing_Remaster_scripts.items.Item_Tech_14")
+		if ok_t and Tech14 and Tech14.try_place_pointer then
+			Tech14.try_place_pointer(player, ent)
+		end
+	end
 	tick_number_two(ent, player, craft_prof, state_succ)
 	-- 批次 1 光环：用肾结石改写前的统一攻击意图（含压制/猎杀开火态）
 	do
@@ -4513,10 +4596,8 @@ Function = function(_,ent)
 	local atk_range = craft_prof and craft_prof.stats.range or player.TearRange
 	local atk_luck = craft_prof and craft_prof.stats.luck or player.Luck
 	do
-		local dbg_luck = tonumber(item.debug_force_luck)
-		if dbg_luck and dbg_luck > 0 then
-			atk_luck = dbg_luck
-		end
+		local eff = item.get_effective_luck(ent, craft_prof)
+		atk_luck = eff
 	end
 	-- 单眼：本次发射使用当前眼睛相位（0 / 1）。Lead Pencil 仅右眼。
 	local eye_side = (tonumber(d[item.own_key.."eye_phase"]) or 0) % 2
@@ -4536,7 +4617,28 @@ Function = function(_,ent)
 	local atk_flags = craft_prof and BitSet128(0, 0) or player.TearFlags
 	local fire_flags = atk_flags
 	local craft_shot_serial = tonumber(d[item.own_key.."shot_serial"]) or 0
-	local craft_uid = craft_prof and d[get_blueprint().own_key.."craft_uid"]
+	local craft_uid = craft_prof and CraftIdentity.get_uid(ent)
+
+	local function craft_fire_opts(reason, overrides)
+		local opts = attack_holder.CopyFireContext(reason, overrides)
+		if opts then
+			return opts
+		end
+		attack_holder.warn_missing_parent_once(
+			reason,
+			"Craft main fire job missing Attack context: " .. tostring(reason)
+		)
+		local orphan = {
+			mode = "untracked",
+			reason = tostring(reason) .. "_orphan",
+		}
+		if type(overrides) == "table" then
+			for k, v in pairs(overrides) do
+				orphan[k] = v
+			end
+		end
+		return orphan
+	end
 	local craft_proj_index = 0
 	local dead_eye_charge = tonumber(d[item.own_key.."dead_eye_charge"]) or 0
 	local dead_eye_mul = (has_coll(373) and (1 + 0.25 * math.min(4, dead_eye_charge))) or 1
@@ -4712,6 +4814,14 @@ Function = function(_,ent)
 					return air_tear_height(ent, accel)
 				end,
 			})
+			if ent2.Type == EntityType.ENTITY_TEAR
+				and enums.Items.Wavering_Eyes
+				and has_coll(enums.Items.Wavering_Eyes) then
+				local ok_w, Wav = pcall(require, "Qing_Remaster_scripts.items.Item_Wavering_Eyes")
+				if ok_w and Wav and Wav.on_craft_tear_fire then
+					Wav.on_craft_tear_fire(ent2, ent, player, craft_prof)
+				end
+			end
 			if para then
 				ent2:GetData()[item.own_key.."parasitoid"] = true
 			end
@@ -4786,7 +4896,11 @@ Function = function(_,ent)
 					auxi.random_2() * 12,
 					base:Length() * (1 + auxi.random_2() * 0.3)
 				)
-				local q = player:FireTear(fire_pos, vel, true, true, true)
+				local q = attack_holder.FireTear(player, fire_pos, vel, {
+					mode = "untracked",
+					reason = "craft_lead_pencil_burst",
+					no_tracer = true,
+				})
 				if q then
 					q = q:ToTear() or q
 					q.Height = air_tear_height(ent, q.FallingAcceleration)
@@ -4817,7 +4931,11 @@ Function = function(_,ent)
 			local paid = (player:GetNumCoins() or 0) > 0
 			player:AddCoins(-1)
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_CASH_REGISTER, 1, 1, false, 0, 2)
-			local q = player:FireTear(fire_pos, base, true, true, true)
+			local q = attack_holder.FireTear(player, fire_pos, base, {
+				mode = "untracked",
+				reason = "craft_eye_of_greed",
+				no_tracer = true,
+			})
 			if q then
 				q = q:ToTear() or q
 				q.Height = air_tear_height(ent, q.FallingAcceleration)
@@ -4870,7 +4988,10 @@ Function = function(_,ent)
 	local function air_fire_fetus(q, pos, vel)
 		local params = nil
 		if craft_prof then
-			params = { skip_player_sec_sample = true }
+			params = {
+				skip_player_sec_sample = true,
+				attack = d[item.own_key.."round_attack"],
+			}
 		end
 		return auxi.fire_fetus(q, player, pos, vel, true, true, params)
 	end
@@ -4892,9 +5013,26 @@ Function = function(_,ent)
 	end
 	dir = - dis:Normalized() * 10 * atk_shotspeed
 	dir2 = - dis2:Normalized() * 10 * atk_shotspeed
+	-- Cursed Mask craft module: replace unified fire direction (all weapon branches).
+	if craft_prof and enums.Items.Cursed_Mask
+		and CraftProfile.count_of(craft_prof.counts, enums.Items.Cursed_Mask) > 0 then
+		local ok_m, Mask = pcall(require, "Qing_Remaster_scripts.items.Item_Cursed_Mask")
+		if ok_m and Mask and Mask.resolve_craft_direction then
+			local n = Mask.resolve_craft_direction(ent, player, dir2)
+			local spd = 10 * atk_shotspeed
+			dir = n * spd
+			dir2 = n * spd
+		end
+	end
 	-- 开火前先刷姿态/高度，保证本帧所有攻击与跟随激光吃到同一 Offset
 	local aim_face = tgpos2 - ent.Position
 	if aim_face:Length() < 0.01 then aim_face = ent.Velocity end
+	-- Prefer cursed-mask aim for facing when active.
+	if craft_prof and enums.Items.Cursed_Mask
+		and CraftProfile.count_of(craft_prof.counts, enums.Items.Cursed_Mask) > 0
+		and dir2:Length() > 0.01 then
+		aim_face = dir2
+	end
 	apply_air_aim_visual(
 		ent, s, d, aim_face,
 		state_succ or d[item.own_key.."kidney_active"] == true,
@@ -5063,15 +5201,49 @@ Function = function(_,ent)
 		d[item.own_key.."AuxAttackQueue"] = {}
 	end
 
-	-- 440 Kidney Stone：独立于玩家状态的“卡住 → 结石 → 快速泪弹喷射”。
+	-- 440 Kidney Stone：独立 persistent Attack（不进 open_cohorts / 不与 craft tear cohort 合并）。
 	if craft_prof and (craft_prof.counts[440] or 0) > 0 and kidney_requested_attack then
 		local shot_dir = dir2:Length() > 0.01 and dir2:Normalized() or Vector(1, 0)
+		local kidney_tok = nil
+		local kidney_firing = d[item.own_key.."kidney_release"]
+			or (tonumber(d[item.own_key.."kidney_burst_remaining"]) or 0) > 0
+		if kidney_firing and craft_uid ~= nil and attack_holder.classifier.IsCraftAttackFamiliar(ent) then
+			local attack = d[item.own_key.."kidney_attack"]
+			if not (attack and attack.active and not attack.ending) then
+				attack = CharRound.open_persistent_mimic_attack(ent, player, "tear", {
+					reason = "craft_kidney_stone",
+					position = fire_pos,
+					direction = shot_dir,
+				})
+				d[item.own_key.."kidney_attack"] = attack
+			end
+			if attack then
+				d[item.own_key.."round_attack"] = attack
+				kidney_tok = attack_holder.PushFireContext({
+					mode = "inherit",
+					attack = attack,
+					emitter = ent,
+					role = "primary",
+					reason = "craft_kidney_stone",
+				}).token
+			else
+				attack_holder.warn_missing_parent_once(
+					"craft_kidney_open",
+					"Failed to open kidney persistent Attack"
+				)
+			end
+		end
 		if d[item.own_key.."kidney_release"] then
 			d[item.own_key.."kidney_release"] = nil
 			craft_shot_serial = (tonumber(d[item.own_key.."shot_serial"]) or 0) + 1
 			d[item.own_key.."shot_serial"] = craft_shot_serial
 			craft_proj_index = 0
-			local stone = player:FireTear(fire_pos, shot_dir * 10 * atk_shotspeed, true, true, true)
+			local stone = attack_holder.FireTear(
+				player,
+				fire_pos,
+				shot_dir * 10 * atk_shotspeed,
+				craft_fire_opts("craft_kidney_stone", { no_tracer = true })
+			)
 			if stone then
 				stone = stone:ToTear() or stone
 				air_copy_attack_offset(stone, ent, true)
@@ -5100,7 +5272,12 @@ Function = function(_,ent)
 				d[item.own_key.."kidney_burst_tick"] = 2
 				local spread = ((ent.InitSeed or 1) + d[item.own_key.."kidney_burst_remaining"] * 37) % 25 - 12
 				local spray_dir = auxi.get_by_rotate(shot_dir, spread)
-				local q = player:FireTear(fire_pos, spray_dir * 10 * atk_shotspeed, true, true, true)
+				local q = attack_holder.FireTear(
+					player,
+					fire_pos,
+					spray_dir * 10 * atk_shotspeed,
+					craft_fire_opts("craft_kidney_burst", { no_tracer = true })
+				)
 				if q then
 					q = q:ToTear() or q
 					air_copy_attack_offset(q, ent, true)
@@ -5116,8 +5293,13 @@ Function = function(_,ent)
 					d[item.own_key.."kidney_burst_remaining"] = nil
 					d[item.own_key.."kidney_active"] = nil
 					d[item.own_key.."kidney_cooldown"] = 240 + ((Game():GetFrameCount() + (ent.InitSeed or 1)) % 181)
+					air_seal_kidney_attack(d)
 				end
 			end
+		end
+		if kidney_tok then
+			attack_holder.PopFireContext(kidney_tok)
+			d[item.own_key.."round_attack"] = nil
 		end
 	end
 	for _, job in ipairs(fire_jobs) do
@@ -5150,6 +5332,44 @@ Function = function(_,ent)
 		elseif is_aux then
 			craft_proj_index = 0
 		end
+		-- M5: one Attack per craft fire job (source=craft_uid). All Fire* / knife INIT inherit.
+		-- Ludo job does not Fire* here (persistent entity); skip empty Attack.
+		local round_ctx_token = nil
+		local round_attack = nil
+		if craft_uid ~= nil and not attack_holder.classifier.IsCraftAttackFamiliar(ent) then
+			attack_holder.warn_missing_parent_once(
+				"craft_identity_mismatch",
+				"Flight has craft_uid but classifier rejected it"
+			)
+		end
+		if craft_prof and craft_uid ~= nil
+			and not (weap == 8)
+			and attack_holder.classifier.IsCraftAttackFamiliar(ent) then
+			local family = CRAFT_ATTACK_FAMILY[weap] or "tear"
+			local src = attack_holder.classifier.make_mimic_source(ent, player)
+			round_attack = attack_holder.grouping.create_or_join(player, family, {
+				max_frame_delta = 0,
+				source_id = src.source_id,
+				source = src,
+				position = fire_pos,
+				direction = dir2,
+			})
+			if round_attack then
+				d[item.own_key.."round_attack"] = round_attack
+				round_ctx_token = attack_holder.PushFireContext({
+					mode = "inherit",
+					attack = round_attack,
+					emitter = ent,
+					role = "primary",
+					reason = "craft_fire_job",
+				}).token
+			else
+				attack_holder.warn_missing_parent_once(
+					"craft_round_open",
+					"Failed to open craft fire round"
+				)
+			end
+		end
 		if weap == 8 and craft_prof then
 			-- 制造 Ludovico：持久泪由 Craft_Ludovico_holder 维护；job 内不发射。
 			delay = CraftProfile.attack_delay_from_modifiers(
@@ -5166,7 +5386,12 @@ Function = function(_,ent)
 				haemo_mark_mode = CraftProfile.haemo_burst_mode(craft_prof)
 			end
 			for _, shot_dir in ipairs(dirs) do
-				local q = player:FireTear(fire_pos,shot_dir,true,true,true)
+				local q = attack_holder.FireTear(
+					player,
+					fire_pos,
+					shot_dir,
+					craft_fire_opts("craft_fire_job_tear", { no_tracer = true })
+				)
 				table.insert(tbl,#tbl + 1,q)
 				-- 剖腹产：转胎儿前不要 stamp。否则 CraftTearParams 先写平射下落，
 				-- 且随后 stamp_fetus 会再 stamp 一次（计数已跳过，但下落/高度仍被污染）。
@@ -5196,7 +5421,12 @@ Function = function(_,ent)
 				for i = 1,4 do
 					delay_buffer.addeffe(function(params)
 						for _, shot_dir in ipairs(dirs) do
-							local q = player:FireTear(fire_pos,shot_dir,true,true,true)
+							local q = attack_holder.FireTear(
+								player,
+								fire_pos,
+								shot_dir,
+								craft_fire_opts("craft_cursed_eye_tear", { no_tracer = true })
+							)
 							if weap == 14 then
 								air_fire_fetus(q,fire_pos,shot_dir)
 								stamp_fetus(q)
@@ -5228,7 +5458,12 @@ Function = function(_,ent)
 			if craft_prof and weap == 1 and syn and (syn.extra_shots or 0) > 0 then
 				for i = 1, syn.extra_shots do
 					local shot_dir = auxi.get_by_rotate(dir2, (i - syn.extra_shots * 0.5) * 8)
-					local qe = player:FireTear(fire_pos, shot_dir, true, true, true)
+					local qe = attack_holder.FireTear(
+						player,
+						fire_pos,
+						shot_dir,
+						craft_fire_opts("craft_fire_job_extra_tear", { no_tracer = true })
+					)
 					if qe then
 						qe.Height = air_tear_height(ent, qe.FallingAcceleration)
 						stamp(qe, 1, haemo_mark_mode and { haemo_burst_mode = haemo_mark_mode } or nil)
@@ -5255,6 +5490,8 @@ Function = function(_,ent)
 						position = fire_pos or ent.Position,
 						position_offset = air_combat_offset(ent),
 						timeout = 30,
+						attack = round_attack or d[item.own_key.."round_attack"],
+						emitter = ent,
 					})
 					if q then
 						stamp(q)
@@ -5275,7 +5512,16 @@ Function = function(_,ent)
 				-- Brim + Tech X -> also fire a brimstone ring (secondary morph, beam stays)
 				if syn and syn.brim_techx then
 					local rad = (syn.thick_brim and 50 or 40) * proj_scale
-					local qx = player:FireTechXLaser(fire_pos, dir * 0.15, rad, player, syn.thick_brim and 1 or 0.75)
+					local qx = attack_holder.FireTechXLaser(
+						player,
+						fire_pos,
+						dir * 0.15,
+						rad,
+						craft_fire_opts("craft_brim_techx_ring", {
+							source_entity = player,
+							damage_multiplier = syn.thick_brim and 1 or 0.75,
+						})
+					)
 					qx.PositionOffset = air_combat_offset(ent)
 					qx.Parent = ent
 					to_brim_ring(qx)
@@ -5316,6 +5562,8 @@ Function = function(_,ent)
 					position = ent.Position,
 					position_offset = air_combat_offset(ent),
 					timeout = 30,
+					attack = round_attack or d[item.own_key.."round_attack"],
+					emitter = ent,
 				})
 				if q1 then
 					stamp(q1)
@@ -5344,7 +5592,16 @@ Function = function(_,ent)
 			elseif (not craft_prof) and has_coll(316) then
 				for i = 1,5 do
 					delay_buffer.addeffe(function(params)
-						local q = player:FireTechLaser(ent.Position,0,dir,false,true)
+						local q = attack_holder.FireTechLaser(
+							player,
+							ent.Position,
+							dir,
+							craft_fire_opts("craft_cursed_eye_tech", {
+								offset_id = 0,
+								left_eye = false,
+								one_hit = true,
+							})
+						)
 						q.PositionOffset = air_combat_offset(ent)
 						stamp(q)
 					end,{},i)
@@ -5353,7 +5610,16 @@ Function = function(_,ent)
 			else
 				local dirs = craft_volley_dirs(dir)
 				for _, shot_dir in ipairs(dirs) do
-					local q = player:FireTechLaser(fire_pos,0,shot_dir,false,true)
+					local q = attack_holder.FireTechLaser(
+						player,
+						fire_pos,
+						shot_dir,
+						craft_fire_opts("craft_fire_job_tech", {
+							offset_id = 0,
+							left_eye = false,
+							one_hit = true,
+						})
+					)
 					q.PositionOffset = air_combat_offset(ent)
 					q.Parent = ent
 					stamp(q)
@@ -5372,7 +5638,16 @@ Function = function(_,ent)
 				-- Technology stack -> extra lasers (not thicker beam)
 				if syn and (syn.extra_shots or 0) > 0 then multitar = multitar + syn.extra_shots end
 				for i = 1,multitar do
-					local q = player:FireTechLaser(fire_pos,0,auxi.get_by_rotate(dir, (i - multitar * 0.5) * 6),false,true)
+					local q = attack_holder.FireTechLaser(
+						player,
+						fire_pos,
+						auxi.get_by_rotate(dir, (i - multitar * 0.5) * 6),
+						craft_fire_opts("craft_fire_job_tech_extra", {
+							offset_id = 0,
+							left_eye = false,
+							one_hit = true,
+						})
+					)
 					q.PositionOffset = air_combat_offset(ent)
 					q.Parent = ent
 					stamp(q)
@@ -5436,12 +5711,25 @@ Function = function(_,ent)
 					radius = 70 * proj_scale,
 					dmg = fire_damage * 0.3,
 					pos_offset = air_combat_offset(ent),
+					attack = round_attack or d[item.own_key.."round_attack"],
+					emitter = ent,
+					expected_attack = round_attack ~= nil,
 				})
 				stamp(q2, 0.3, {skip_scale = true})
 			end
 			-- §14.7.1 Knife + Technology：桥接激光；offset 差在 Laser_holder 里并入瞄准。
 			if q and ((syn and syn.knife_tech) or (not craft_prof and has_coll(68) and not has_coll(395))) then
-				local q2 = player:FireTechLaser(fire_pos, 1, dir, false, false, nil, 0.45)
+				local q2 = attack_holder.FireTechLaser(
+					player,
+					fire_pos,
+					dir,
+					craft_fire_opts("craft_knife_tech_bridge", {
+						offset_id = 1,
+						left_eye = false,
+						one_hit = false,
+						damage_multiplier = 0.45,
+					})
+				)
 				q2.DisableFollowParent = true
 				q2.PositionOffset = air_combat_offset(ent)
 				local ld = q2:GetData()
@@ -5493,7 +5781,12 @@ Function = function(_,ent)
 			end
 		elseif weap == 5 then
 			local function fire_craft_bomb(pos, vel)
-				local qb = player:FireBomb(pos, vel)
+				local qb = attack_holder.FireBomb(
+					player,
+					pos,
+					vel,
+					craft_fire_opts("craft_fire_job_bomb")
+				)
 				qb.PositionOffset = air_combat_offset(ent)
 				stamp(qb)
 				-- 最终爆炸伤：含单眼/巧克力/aux/Dead Eye（fire_damage）
@@ -5505,6 +5798,8 @@ Function = function(_,ent)
 					Bomb_holder.attach_craft_aux(qb, craft_prof, player, {
 						damage_mul = (atk_mods.damage_mul or 1) * aux_mul * dead_eye_mul,
 						size_mul = proj_scale,
+						attack = round_attack or d[item.own_key.."round_attack"],
+						expected_attack = round_attack ~= nil,
 					})
 				end
 				return qb
@@ -5528,6 +5823,7 @@ Function = function(_,ent)
 				tearflags = atk_flags | epic_bomb_flags,
 				tearflag = atk_flags | epic_bomb_flags,
 				dmg = fire_damage,
+				attack = round_attack or d[item.own_key.."round_attack"],
 			}
 			if not craft_prof then
 				params.tearflags = player.TearFlags | player:GetBombFlags()
@@ -5584,6 +5880,8 @@ Function = function(_,ent)
 							Bomb_holder.attach_craft_aux(qb, craft_prof, player, {
 								damage_mul = (atk_mods.damage_mul or 1) * aux_mul * dead_eye_mul,
 								size_mul = proj_scale,
+								attack = round_attack or d[item.own_key.."round_attack"],
+								expected_attack = round_attack ~= nil,
 							})
 						end
 					end
@@ -5622,7 +5920,17 @@ Function = function(_,ent)
 					for i = 1,rnd do
 						local radus = (math.random(30) + 30) * tx_rad
 						if brim_ring then radus = radus + 15 * tx_rad end
-						local q = player:FireTechXLaser(fire_pos,auxi.get_by_rotate(shot_dir,auxi.random_2() * 60),radus,player,(auxi.random_2() * 0.3 + 1) * tx_dmg)
+						local tx_mul = (auxi.random_2() * 0.3 + 1) * tx_dmg
+						local q = attack_holder.FireTechXLaser(
+							player,
+							fire_pos,
+							auxi.get_by_rotate(shot_dir,auxi.random_2() * 60),
+							radus,
+							craft_fire_opts("craft_fire_job_techx_lung", {
+								source_entity = player,
+								damage_multiplier = tx_mul,
+							})
+						)
 						q.PositionOffset = air_combat_offset(ent)
 						q.Parent = ent
 						if brim_ring then to_brim_ring(q) else stamp(q, tx_dmg, {skip_scale = true}) end
@@ -5631,7 +5939,16 @@ Function = function(_,ent)
 			else
 				local rad = (brim_ring and 45 or 30) * tx_rad
 				for di, shot_dir in ipairs(dirs) do
-					local q = player:FireTechXLaser(fire_pos,shot_dir,rad,player,tx_dmg)
+					local q = attack_holder.FireTechXLaser(
+						player,
+						fire_pos,
+						shot_dir,
+						rad,
+						craft_fire_opts("craft_fire_job_techx", {
+							source_entity = player,
+							damage_multiplier = tx_dmg,
+						})
+					)
 					q.PositionOffset = air_combat_offset(ent)
 					q.Parent = ent
 					if brim_ring then to_brim_ring(q) else stamp(q, tx_dmg, {skip_scale = true}) end
@@ -5647,7 +5964,16 @@ Function = function(_,ent)
 			end
 			-- §14.7.4 Tech X + Technology：保留环同时附加直线科技
 			if syn and syn.techx_tech then
-				local qtech = player:FireTechLaser(fire_pos, 0, dir, false, true)
+				local qtech = attack_holder.FireTechLaser(
+					player,
+					fire_pos,
+					dir,
+					craft_fire_opts("craft_techx_tech", {
+						offset_id = 0,
+						left_eye = false,
+						one_hit = true,
+					})
+				)
 				qtech.Parent = ent
 				qtech.PositionOffset = air_combat_offset(ent)
 				stamp(qtech, 0.6 * tx_dmg)
@@ -5655,7 +5981,16 @@ Function = function(_,ent)
 			-- Tech X stack -> extra rings
 			if syn and (syn.extra_shots or 0) > 0 then
 				for i = 1, syn.extra_shots do
-					local qe = player:FireTechXLaser(fire_pos,auxi.get_by_rotate(dir, i * 20),(brim_ring and 40 or 28) * tx_rad,player,0.6 * tx_dmg)
+					local qe = attack_holder.FireTechXLaser(
+						player,
+						fire_pos,
+						auxi.get_by_rotate(dir, i * 20),
+						(brim_ring and 40 or 28) * tx_rad,
+						craft_fire_opts("craft_fire_job_techx_extra", {
+							source_entity = player,
+							damage_multiplier = 0.6 * tx_dmg,
+						})
+					)
 					qe.PositionOffset = air_combat_offset(ent)
 					qe.Parent = ent
 					if brim_ring then to_brim_ring(qe) else stamp(qe, 0.6 * tx_dmg, {skip_scale = true}) end
@@ -5720,6 +6055,9 @@ Function = function(_,ent)
 						radius = 70 * proj_scale,
 						dmg = fire_damage * 0.3,
 						pos_offset = air_combat_offset(ent),
+						attack = round_attack or d[item.own_key.."round_attack"],
+						emitter = ent,
+						expected_attack = round_attack ~= nil,
 					})
 					stamp(q2, 0.3, {skip_scale = true})
 				end
@@ -5768,8 +6106,21 @@ Function = function(_,ent)
 				q:SetTimeout(120)
 			end
 		end
+		if round_ctx_token then
+			attack_holder.PopFireContext(round_ctx_token)
+			round_ctx_token = nil
+			d[item.own_key.."round_attack"] = nil
+		end
 		Isaacs_Tear_holder.add_tear(player)
-		drain_shot_counter_effects()
+		do
+			-- Lead Pencil / Eye of Greed：独立 bonus → untracked（不计 Gospel Once）
+			local bonus_tok = attack_holder.PushFireContext({
+				mode = "untracked",
+				reason = "craft_shot_counter_bonus",
+			}).token
+			drain_shot_counter_effects()
+			attack_holder.PopFireContext(bonus_tok)
+		end
 		if auxi.should_do_Seija(player) and not player:GetPlayerType() == player_Spwq.entity then delay = delay * 2 end
 		-- 蓝图制造：射速按表决后的主武器倍率，再经巧克力/TechX 蓄力统一入口。
 		if craft_prof then
@@ -5856,7 +6207,14 @@ Function = function(_,ent)
 		if auxi.check_all_exists(tech2) then
 			air_follow_tech2_laser(tech2, ent, dir)
 		else
-			tech2 = player:FireTechLaser(fire_pos, 0, dir, false, false, ent)
+			tech2 = attack_holder.FireTechLaser(player, fire_pos, dir, {
+				mode = "untracked",
+				reason = "craft_tech2_continuous",
+				offset_id = 0,
+				left_eye = false,
+				one_hit = false,
+				source_entity = ent,
+			})
 			d[item.own_key.."Tech2"] = tech2
 			if tech2 then
 				tech2.DepthOffset = -5
@@ -5885,7 +6243,12 @@ Function = function(_,ent)
 	end
 	if state_succ and has_coll(244) then
 		if (d[item.own_key.."Tech.5_counter"] or 0) <= 0 and auxi.check_rand(atk_luck,10,2,10) then
+			local t5_tok = attack_holder.PushFireContext({
+				mode = "untracked",
+				reason = "craft_tech5_luck",
+			}).token
 			local q = auxi.fire_Tech_5_laser(player,fire_pos,dir)
+			attack_holder.PopFireContext(t5_tok)
 			air_copy_attack_offset(q, ent, false)
 			stamp(q, 1)
 			d[item.own_key.."Tech.5_counter"] = 10
@@ -5935,7 +6298,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 			td[item.own_key.."hit_noted"] = true
 			air_note_hit(ad, true)
 		end
-		local prof = ad[item.own_key.."craft_profile"]
+		local prof = CraftIdentity.get_profile(air)
 		local player = auxi.check_spawner_player(air)
 		if prof and prof.counts and (prof.counts[373] or 0) > 0 then
 			ad[item.own_key.."dead_eye_charge"] = math.min(4, (tonumber(ad[item.own_key.."dead_eye_charge"]) or 0) + 1)
@@ -5975,6 +6338,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE,
 	params = EntityType.ENTITY_TEAR,
 	Function = function(_, tear)
+		if not g.is_gameplay_world_active() then return end
 		if not tear then return end
 		local td = tear:GetData()
 		local air = td[item.own_key.."craft_air"]
@@ -5985,7 +6349,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 			td[item.own_key.."hit_noted"] = true
 			air_note_hit(ad, false)
 		end
-		local prof = ad[item.own_key.."craft_profile"]
+		local prof = CraftIdentity.get_profile(air)
 		if prof and prof.counts and (prof.counts[373] or 0) > 0 then
 			ad[item.own_key.."dead_eye_charge"] = 0
 		end
@@ -6008,7 +6372,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		if not npc or not attack or not adata or attack.Type == EntityType.ENTITY_TEAR then return end
 		local air = adata[item.own_key.."craft_air"]
 		if not air or not auxi.check_all_exists(air) then return end
-		local prof = air:GetData()[item.own_key.."craft_profile"]
+		local prof = CraftIdentity.get_profile(air)
 		local player = auxi.check_spawner_player(air)
 		if not prof or not prof.counts or (prof.counts[257] or 0) <= 0 or not player then return end
 		adata[item.own_key.."fire_mind_hits"] = adata[item.own_key.."fire_mind_hits"] or {}
@@ -6048,6 +6412,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE,
 	params = EntityType.ENTITY_TEAR,
 	Function = function(_, ent)
+		if not g.is_gameplay_world_active() then return end
 		if not ent then return end
 		CraftProfile.try_trigger_craft_haemo_tear(ent)
 	end,
@@ -6087,5 +6452,44 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 })
 
 --[[ 旧四向 Float* 切片已废弃；现用 Transfer 俯仰帧 + Rotation 伪 3D（见 apply_air_aim_visual）。 ]]
+
+-- Consumer capability: Craft Flight Attack may consume named modules when the craft recipe
+-- contains the corresponding collectible. Source identity stays attack_mimic / craft:<uid>.
+-- Keys are Attack-level consumer ids (Tech IX / Assassin / Pearl / Evil Intervention / Seeker).
+do
+	local classifier = attack_holder.classifier
+	local CONSUMER_COLLECTIBLE = {
+		tech9 = enums.Items.Tech_9,
+		assassin = enums.Items.Assassin_s_Eye,
+		pearl = enums.Items.Tears_of_Pearl,
+		evil_intervention = enums.Items.Evil_Intervention,
+		seeker = enums.Items.Seeker_s_Eye,
+		gospel = enums.Items.Gospel,
+	}
+	classifier.RegisterSourceCapabilityResolver(function(source, key, player, attack)
+		local col_id = CONSUMER_COLLECTIBLE[key]
+		if not col_id then
+			return nil
+		end
+		if not classifier.IsIndependentMimicSource(source) then
+			return nil
+		end
+		local fam = source.entity
+		if not fam or fam.Type ~= EntityType.ENTITY_FAMILIAR or fam.Variant ~= item.familiar then
+			return nil
+		end
+		local uid = CraftIdentity.get_uid(fam)
+		if not uid then
+			return nil
+		end
+		-- Auth: Craft_Bandwidth_Manager (not Air Flight Standby GetData cache).
+		local BW = get_bandwidth()
+		if not player or BW.is_active(player, uid) ~= true then
+			return false
+		end
+		-- Any Blueprint holder with a live craft Flight; no Spwq-only gate.
+		return classifier.GetCraftCollectibleCount(source, col_id) > 0
+	end)
+end
 
 return item

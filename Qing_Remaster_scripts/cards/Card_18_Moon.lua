@@ -31,6 +31,9 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = 1000,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then
+		return
+	end
 	local succ = consistance_holder.try_check_entity(ent,item.own_key)
 	if succ then
 		local level = Game():GetLevel()

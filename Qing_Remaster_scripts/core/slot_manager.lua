@@ -13,6 +13,7 @@ function Slot_manager.Init(mod)
 	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Tomorrows_Creditor"))
 	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Rift_Beggar"))
 	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Bloody_Messenger"))
+	table.insert(Slot_manager.items,#Slot_manager.items + 1,require("Qing_Remaster_scripts.slots.Slot_Bank_Branch"))
 end
 
 function Slot_manager.MakeItems()	--没有传入参数。

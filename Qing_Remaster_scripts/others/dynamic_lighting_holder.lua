@@ -123,9 +123,11 @@ local function pass_through()
 end
 
 local function build_shader_params()
+	if auxi.shader_effect_idle() then return pass_through() end
 	if not item.is_enabled() then return pass_through() end
 	-- 暂停菜单 + 换房等暂停态直通，避免切换时 UV/位置错乱
-	if Game():IsPauseMenuOpen() or Game():IsPaused() then return pass_through() end
+	-- 菜单/控制台：auxi.is_pause_menu_open（含 Vanilla Pause_Screen）；换房等：IsPaused
+	if auxi.is_pause_menu_open() or Game():IsPaused() then return pass_through() end
 
 	local buf = item.collect_frame_buffer()
 	local light = buf.lights[1]

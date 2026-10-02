@@ -6,6 +6,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -94,16 +95,48 @@ local item = {
 		[1] = true,
 	},
 }
+
+-- Sparse rewindable roots. nil reverse[idx] still means default multiplier 1.
+local function get_state_roots()
+	local ret = {}
+	for _, suffix in ipairs({"buff", "reverse", "release", "warming"}) do
+		local key = item.own_key .. suffix
+		if type(save.elses[key]) ~= "table" then
+			save.elses[key] = {}
+		end
+		ret[suffix] = save.elses[key]
+	end
+	return ret
+end
+
+local function get_player_state(player)
+	if player == nil or player.GetData == nil then
+		return
+	end
+	local idx = player:GetData().__Index
+	if idx == nil then
+		return
+	end
+	local roots = get_state_roots()
+	local buff = roots.buff[idx]
+	if type(buff) ~= "table" then
+		buff = {}
+		roots.buff[idx] = buff
+	end
+	return idx, buff, roots.reverse, roots.release, roots.warming
+end
+
 auxi.add_to_seija(item.entity)
 
 local function reward(player)
 	local rng = player:GetCollectibleRNG(item.entity)
 	rng = auxi.rng_for_sake(rng)
-	local idx = player:GetData().__Index
+	local idx, buff, reverse, release, warming = get_player_state(player)
+	if idx == nil then return end
 	local tbl = auxi.deepCopy(item.buffs)
 	local rnd = auxi.random_in_weighed_table(tbl,rng)
-	save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
-	save.elses[item.own_key.."buff"][idx][rnd.name] = (save.elses[item.own_key.."buff"][idx][rnd.name] or 0) + 1
+	buff = buff or {}
+	buff[rnd.name] = (buff[rnd.name] or 0) + 1
 	player:AddCacheFlags(CacheFlag.CACHE_ALL)
 	player:GetData().should_evaluate_on_update_once = true
 end
@@ -122,36 +155,35 @@ local function reverse_grid(value)
 end
 
 function item.should_reverse()
-	save.elses[item.own_key.."reverse"] = save.elses[item.own_key.."reverse"] or {}
-	for u,v in pairs(save.elses[item.own_key.."reverse"]) do if v == -1 then return true end end
+	local roots = get_state_roots()
+	for u,v in pairs(roots.reverse) do if v == -1 then return true end end
 	return false
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
 	if auxi.has_have_coll(player,item.entity) then
-		local idx = player:GetData().__Index
+		local idx, buff, reverse, release, warming = get_player_state(player)
+		if idx == nil then return end
 		if idx ~= nil then
-			save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-			save.elses[item.own_key.."reverse"] = save.elses[item.own_key.."reverse"] or {}
-			save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
+			buff = buff or {}
 			if cacheFlag == CacheFlag.CACHE_DAMAGE then
-				player.Damage = player.Damage + auxi.get_damage_multiplier(player) * (math.sqrt((save.elses[item.own_key.."buff"][idx].damage or 0) + 16) - 4) * 0.34 * (save.elses[item.own_key.."reverse"][idx] or 1)
+				player.Damage = player.Damage + auxi.get_damage_multiplier(player) * (math.sqrt((buff.damage or 0) + 16) - 4) * 0.34 * (reverse[idx] or 1)
 			end
 			if cacheFlag == CacheFlag.CACHE_FIREDELAY then
-				player.MaxFireDelay = math.min(300,auxi.TearsUp(player.MaxFireDelay,auxi.get_mxdelay_multiplier(player) * (math.sqrt((save.elses[item.own_key.."buff"][idx].tear or 0) + 16) - 4) * 0.3 * (save.elses[item.own_key.."reverse"][idx] or 1)))
+				player.MaxFireDelay = math.min(300,auxi.TearsUp(player.MaxFireDelay,auxi.get_mxdelay_multiplier(player) * (math.sqrt((buff.tear or 0) + 16) - 4) * 0.3 * (reverse[idx] or 1)))
 			end
 			if cacheFlag == CacheFlag.CACHE_RANGE then
-				player.TearRange = player.TearRange + math.sqrt((save.elses[item.own_key.."buff"][idx].range or 0)) * (save.elses[item.own_key.."reverse"][idx] or 1) * 3
+				player.TearRange = player.TearRange + math.sqrt((buff.range or 0)) * (reverse[idx] or 1) * 3
 			end
 			if cacheFlag == CacheFlag.CACHE_SPEED then
-				player.MoveSpeed = player.MoveSpeed + math.sqrt((save.elses[item.own_key.."buff"][idx].speed or 0)) * 0.03 * (save.elses[item.own_key.."reverse"][idx] or 1)
+				player.MoveSpeed = player.MoveSpeed + math.sqrt((buff.speed or 0)) * 0.03 * (reverse[idx] or 1)
 			end
 			if cacheFlag == CacheFlag.CACHE_LUCK then
-				player.Luck = player.Luck + (math.sqrt((save.elses[item.own_key.."buff"][idx].luck or 0) + 16) - 4) * 0.28 * (save.elses[item.own_key.."reverse"][idx] or 1)
+				player.Luck = player.Luck + (math.sqrt((buff.luck or 0) + 16) - 4) * 0.28 * (reverse[idx] or 1)
 			end
 			if cacheFlag == CacheFlag.CACHE_SIZE then
-				player.SpriteScale = Vector(player.SpriteScale.X,player.SpriteScale.Y * (save.elses[item.own_key.."reverse"][idx] or 1))
+				player.SpriteScale = Vector(player.SpriteScale.X,player.SpriteScale.Y * (reverse[idx] or 1))
 			end
 		end
 	end
@@ -167,10 +199,7 @@ Function = function(_,continue)
 		save.elses[item.own_key.."release"] = {}
 		save.elses[item.own_key.."warming"] = {}
 	end
-	save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-	save.elses[item.own_key.."reverse"] = save.elses[item.own_key.."reverse"] or {}
-	save.elses[item.own_key.."release"] = save.elses[item.own_key.."release"] or {}
-	save.elses[item.own_key.."warming"] = save.elses[item.own_key.."warming"] or {}
+	local roots = get_state_roots()
 end,
 })
 
@@ -186,7 +215,8 @@ Function = function(_,ent,col,low)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	local player = auxi.check_spawner_player(ent)
-	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (save.elses[item.own_key.."reverse"][player:GetData().__Index] or 1) ~= -1 then
+	local roots = get_state_roots()
+	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (roots.reverse[player:GetData().__Index] or 1) ~= -1 then
 		if d.moment_counter == nil then d.moment_counter = 0 end
 		d.moment_counter = d.moment_counter - 1
 		if d.moment_counter <= 0 and col:IsVulnerableEnemy() and col:IsActiveEnemy() and (not col:HasEntityFlags(EntityFlag.FLAG_FRIENDLY)) and col:CanShutDoors() == true then
@@ -197,7 +227,7 @@ Function = function(_,ent,col,low)
 			s2.Color = auxi.AddColor(s.Color,Color(1,1,1,1,1,1,1),0.5,0.5)
 			local d2 = q:GetData()
 			d2.is_moment = true
-			d2.Ignore_me_flag = true
+			attack_holder.MarkIgnore(q)
 			d2.ignore_field = true
 			q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 			d2.target = player
@@ -213,7 +243,8 @@ Function = function(_,ent,col,low)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	local player = auxi.check_spawner_player(ent)
-	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (save.elses[item.own_key.."reverse"][player:GetData().__Index] or 1) ~= -1 then
+	local roots = get_state_roots()
+	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (roots.reverse[player:GetData().__Index] or 1) ~= -1 then
 		if d.moment_counter == nil then d.moment_counter = 0 end
 		d.moment_counter = d.moment_counter - 1
 		if d.moment_counter <= 0 and not col.IsGrid and col:IsVulnerableEnemy() and col:IsActiveEnemy() and (not col:HasEntityFlags(EntityFlag.FLAG_FRIENDLY)) and col:CanShutDoors() == true then
@@ -224,7 +255,7 @@ Function = function(_,ent,col,low)
 			s2.Color = auxi.AddColor(s.Color,Color(1,1,1,1,1,1,1),0.5,0.5)
 			local d2 = q:GetData()
 			d2.is_moment = true
-			d2.Ignore_me_flag = true
+			attack_holder.MarkIgnore(q)
 			d2.ignore_field = true
 			q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 			d2.target = player
@@ -240,7 +271,8 @@ Function = function(_,ent)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	local player = auxi.check_spawner_player(ent)
-	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (save.elses[item.own_key.."reverse"][player:GetData().__Index] or 1) ~= -1 then
+	local roots = get_state_roots()
+	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (roots.reverse[player:GetData().__Index] or 1) ~= -1 then
 		local should_count = false
 		if (ent:IsCircleLaser() and ent.FrameCount % 14 == 1) then should_count = true end
 		if (ent:IsCircleLaser() == false and ent.FrameCount % 7 == 1) then should_count = true end
@@ -266,7 +298,7 @@ Function = function(_,ent)
 				s2.Color = auxi.AddColor(s.Color,Color(1,0,0,1,1,0.3,0.3),0.6,0.4)
 				local d2 = q:GetData()
 				d2.is_moment = true
-				d2.Ignore_me_flag = true
+				attack_holder.MarkIgnore(q)
 				d2.ignore_field = true
 				q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 				d2.target = player
@@ -283,7 +315,8 @@ Function = function(_,ent)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	local player = auxi.check_spawner_player(ent)
-	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (save.elses[item.own_key.."reverse"][player:GetData().__Index] or 1) ~= -1 then
+	local roots = get_state_roots()
+	if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (roots.reverse[player:GetData().__Index] or 1) ~= -1 then
 		if s:IsPlaying("Explode") and s:GetFrame() == 0 then
 			local cnt = 6
 			for i = 1,cnt do
@@ -294,7 +327,7 @@ Function = function(_,ent)
 				local d2 = q:GetData()
 				d2.is_moment = true
 				d2.ignore_field = true
-				d2.Ignore_me_flag = true
+				attack_holder.MarkIgnore(q)
 				q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 				d2.target = player
 				d2.moment_move_mode = 1
@@ -307,11 +340,13 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = 1000,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then return end
 	if ent.Variant == EffectVariant.ROCKET then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
 		local player = auxi.check_spawner_player(ent)
-		if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (save.elses[item.own_key.."reverse"][player:GetData().__Index] or 1) ~= -1 then
+		local roots = get_state_roots()
+		if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (roots.reverse[player:GetData().__Index] or 1) ~= -1 then
 			local cnt = 6
 			for i = 1,cnt do
 				local pos = ent.Position
@@ -320,8 +355,8 @@ Function = function(_,ent)
 				s2.Color = auxi.AddColor(s.Color,Color(1,1,1,1,1,1,1),0.8,0.2)
 				local d2 = q:GetData()
 				d2.is_moment = true
-				d2.Ignore_me_flag = true
-				q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
+				attack_holder.MarkIgnore(q)
+				q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0)
 				d2.target = player
 				d2.moment_move_mode = 1
 				d2.ignore_field = true
@@ -334,12 +369,14 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = 2,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then return end
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	if d.is_moment == nil then
 		local player = Game():GetPlayer(0)
 		local player = auxi.check_spawner_player(ent)
-		if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and ((save.elses[item.own_key.."reverse"] or {})[player:GetData().__Index] or 1) ~= -1 then
+		local roots = get_state_roots()
+		if player and auxi.has_have_coll(player,item.entity) and player:GetData().__Index and (roots.reverse[player:GetData().__Index] or 1) ~= -1 then
 			local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity,player):ToTear() q.Mass = 0
 			local s2 = q:GetSprite()
 			s2:Load(s:GetFilename(),true)
@@ -349,9 +386,9 @@ Function = function(_,ent)
 			local d2 = q:GetData()
 			d2.is_moment = true
 			d2.moment_move_mode = 0
-			d2.Ignore_me_flag = true
+			attack_holder.MarkIgnore(q)
 			d2.ignore_field = true
-			q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
+			q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0)
 			d2.target = player
 			q.CollisionDamage = 1.5
 		end
@@ -363,7 +400,8 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_DE
 Function = function(_,player,tp,id,value)
 	if auxi.has_have_coll(player,item.entity) then
 		local idx = player:GetData().__Index
-		if idx and ((save.elses[item.own_key.."reverse"] or {})[idx] or 1) == -1 then
+		local roots = get_state_roots()
+		if idx and (roots.reverse[idx] or 1) == -1 then
 			local name = value.Name
 			local des = value.Description
 			return {Name = auxi.reverse_string(name),Description = auxi.reverse_string(des),}
@@ -393,20 +431,21 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player)
 	if auxi.has_have_coll(player,item.entity) then
 		if player.FrameCount % 5 == 1 then 
-			local idx = player:GetData().__Index
+			local idx, buff, reverse, release, warming = get_player_state(player)
+			if idx == nil then return end
 			if idx then
 				local total = 0
-				save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
-				if save.elses[item.own_key.."release"][idx] then
+				buff = buff or {}
+				if release[idx] then
 					if auxi.should_do_Seija(player) then
 						for u,v in pairs(item.buffs) do
-							total = total + (save.elses[item.own_key.."buff"][idx][v.name] or 0)
+							total = total + (buff[v.name] or 0)
 						end
 					else
 						for u,v in pairs(item.buffs) do
-							if save.elses[item.own_key.."buff"][idx][v.name] then
-								save.elses[item.own_key.."buff"][idx][v.name] = math.max(0,math.min(save.elses[item.own_key.."buff"][idx][v.name] - 0.08,save.elses[item.own_key.."buff"][idx][v.name] * 0.998))
-								total = total + save.elses[item.own_key.."buff"][idx][v.name]
+							if buff[v.name] then
+								buff[v.name] = math.max(0,math.min(buff[v.name] - 0.08,buff[v.name] * 0.998))
+								total = total + buff[v.name]
 							end
 						end
 					end
@@ -414,11 +453,11 @@ Function = function(_,player)
 					player:GetData().should_evaluate_on_update_once = true
 				else
 					for u,v in pairs(item.buffs) do
-						total = total + (save.elses[item.own_key.."buff"][idx][v.name] or 0)
+						total = total + (buff[v.name] or 0)
 					end
 				end
 				if total > 999 then
-					if (save.elses[item.own_key.."reverse"][idx] or 1) ~= -1 then
+					if (reverse[idx] or 1) ~= -1 then
 						local room = Game():GetRoom()
 						for i = 1,5 do
 							delay_buffer.addeffe(function(params)
@@ -466,11 +505,11 @@ Function = function(_,player)
 								end
 							end
 						end
-						save.elses[item.own_key.."reverse"][idx] = -1
-						save.elses[item.own_key.."warming"][idx] = 7
+						reverse[idx] = -1
+						warming[idx] = 7
 					end
 				elseif total > 300 then
-					if save.elses[item.own_key.."release"][idx] ~= true then
+					if release[idx] ~= true then
 						local language = Options.Language
 						if item.words[language] == nil then language = "en" end
 						local word = item.words[language][2]
@@ -484,10 +523,10 @@ Function = function(_,player)
 							end,{},i)
 						end
 						sound_tracker.PlayStackedSound(enums.SoundEffect.Machine,1,1,false,0,2)
-						save.elses[item.own_key.."release"][idx] = true
+						release[idx] = true
 					end
 				elseif total < 3 then
-					if (save.elses[item.own_key.."reverse"][idx] or 1) ~= 1 then
+					if (reverse[idx] or 1) ~= 1 then
 						local language = Options.Language
 						if item.words[language] == nil then language = "en" end
 						local word = item.words[language][7]
@@ -495,8 +534,8 @@ Function = function(_,player)
 						local des = word.Description
 						item_displaying_holder.check_and_description("ItemDesc",item.entity,name,des,player)
 					end
-					save.elses[item.own_key.."release"][idx] = nil
-					if (save.elses[item.own_key.."reverse"][idx] or 1) == -1 then
+					release[idx] = nil
+					if (reverse[idx] or 1) == -1 then
 						player:AnimateCollectible(item.entity,"Pickup")
 						player:SetColor(Color(1,1,1,1,0,0,0),60,70,false,false)
 						local n_entity = Isaac.GetRoomEntities()
@@ -506,35 +545,35 @@ Function = function(_,player)
 							end
 						end
 						reverse_grid(false)
-						save.elses[item.own_key.."reverse"][idx] = 1
-						save.elses[item.own_key.."warming"][idx] = 0
+						reverse[idx] = 1
+						warming[idx] = 0
 					end
 				end
 				local should_desc = nil
-				save.elses[item.own_key.."warming"][idx] = save.elses[item.own_key.."warming"][idx] or 0
-				if (save.elses[item.own_key.."reverse"][idx] or 1) == 1 then
-					if total > 950 and save.elses[item.own_key.."warming"][idx] < 6 then
+				warming[idx] = warming[idx] or 0
+				if (reverse[idx] or 1) == 1 then
+					if total > 950 and warming[idx] < 6 then
 						should_desc = 6
-					elseif total > 885 and save.elses[item.own_key.."warming"][idx] < 5 then
+					elseif total > 885 and warming[idx] < 5 then
 						should_desc = 5
-					elseif total > 800 and save.elses[item.own_key.."warming"][idx] < 4 then
+					elseif total > 800 and warming[idx] < 4 then
 						should_desc = 4
-					elseif total > 550 and save.elses[item.own_key.."warming"][idx] < 3 then
+					elseif total > 550 and warming[idx] < 3 then
 						should_desc = 3
 					end
 				else
-					if total < 550 and save.elses[item.own_key.."warming"][idx] > 3 then
+					if total < 550 and warming[idx] > 3 then
 						should_desc = 3
-					elseif total < 800 and save.elses[item.own_key.."warming"][idx] > 4 then
+					elseif total < 800 and warming[idx] > 4 then
 						should_desc = 4
-					elseif total < 885 and save.elses[item.own_key.."warming"][idx] > 5 then
+					elseif total < 885 and warming[idx] > 5 then
 						should_desc = 5
-					elseif total < 950 and save.elses[item.own_key.."warming"][idx] > 6 then
+					elseif total < 950 and warming[idx] > 6 then
 						should_desc = 6
 					end
 				end
 				if should_desc then
-					save.elses[item.own_key.."warming"][idx] = should_desc
+					warming[idx] = should_desc
 					local language = Options.Language
 					if item.words[language] == nil then language = "en" end
 					local word = item.words[language][should_desc]
@@ -614,7 +653,7 @@ Function = function(_,ent)
 					local d2 = q:GetData()
 					d2.is_moment = true
 					d2.ignore_field = true
-					d2.Ignore_me_flag = true
+					attack_holder.MarkIgnore(q)
 					q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 					d2.target = player
 					d2.moment_move_mode = 1
@@ -627,7 +666,7 @@ Function = function(_,ent)
 					local d2 = q:GetData()
 					d2.is_moment = true
 					d2.ignore_field = true
-					d2.Ignore_me_flag = true
+					attack_holder.MarkIgnore(q)
 					q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 					d2.target = player
 					d2.moment_move_mode = 1

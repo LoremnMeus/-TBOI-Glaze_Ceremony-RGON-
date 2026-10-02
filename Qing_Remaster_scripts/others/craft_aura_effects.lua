@@ -3,7 +3,9 @@
 -- 446/559/423/574 近身光环伤乘 Craft_Orbital_holder.aura_damage_mul（contact_mul/√n + 追敌折扣）。
 -- 半径/资源常量可被 craft_aura_effect_probe 校准覆盖（item.cfg）。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+local electric_chain = require("Qing_Remaster_scripts.auxiliary.electric_chain")
 
 local item = {
 	pre_ToCall = {},
@@ -71,7 +73,6 @@ local DEFAULTS = {
 	cop_laser_po_y = 0,
 }
 
-local volt_hit_window = {} -- [ptr] = frame；同帧多 Flight 去重
 local linger_clouds = {} -- [GetPtrHash] = 最新 wrapper；行为状态不能使用可能被 GC 丢弃的弱键
 
 local function runtime_key(ent)
@@ -125,7 +126,7 @@ end
 local function craft_uid_of(air)
 	if not air then return nil end
 	local bp = get_blueprint()
-	return air:GetData()[bp.own_key.."craft_uid"]
+	return CraftIdentity.get_uid(air)
 end
 
 local function clamp01(x)
@@ -352,7 +353,7 @@ function item.on_player_hurt(player)
 	for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, Air.familiar or -1, -1, false, false)) do
 		local d = ent:GetData()
 		local owner = auxi.check_spawner_player(ent)
-		if owner and GetPtrHash(owner) == GetPtrHash(player) and d[bp.own_key.."craft_uid"] then
+		if owner and GetPtrHash(owner) == GetPtrHash(player) and CraftIdentity.get_uid(ent) then
 			item.reset_linger(ent)
 		end
 	end
@@ -539,77 +540,12 @@ local function tick_monstrance(air, player, craft_prof)
 	end
 end
 
---- 视觉点：Position + PositionOffset（伪 3D；PO.Y 抬高会参与瞄准角）
-local function visual_pos(pos, po)
-	pos = pos or Vector(0, 0)
-	po = po or Vector(0, 0)
-	return Vector(pos.X + po.X, pos.Y + po.Y)
-end
-
---- 探针：EntityLaser ELECTRIC(10)，OneHit，Timeout=2；伤害走激光 CollisionDamage。
---- from_po：本段起点高度（首段=Flight PO+枪口；链跳=上一目标 PO，禁止继续套 Flight 高位）。
-local function fire_volt_laser(from_pos, from_po, target, air, dmg, range, blacklist, hops_left)
-	if not from_pos or not target or not air then return nil end
-	from_po = copy_po(from_po)
-	local to_po = copy_po(target.PositionOffset)
-	local dir = visual_pos(target.Position, to_po) - visual_pos(from_pos, from_po)
-	local leg = dir:Length() + (tonumber(target.Size) or 0)
-	if leg < 1 then leg = 1 end
-	local laser_var = LaserVariant.ELECTRIC or 10
-	local ent = Isaac.Spawn(EntityType.ENTITY_LASER, laser_var, 0, from_pos, Vector.Zero, air)
-	if not ent then return nil end
-	local q = ent:ToLaser()
-	if not q then return nil end
-	q.Parent = air
-	q.SpawnerEntity = air
-	q.Angle = dir:GetAngleDegrees()
-	if q.SetMaxDistance then
-		q:SetMaxDistance(leg)
-	else
-		q.MaxDistance = leg
+local function volt_chain_continue(source)
+	local ok, Air = pcall(require, "Qing_Remaster_scripts.items.Item_Air_Flight")
+	if ok and Air and Air.combat_allowed then
+		return Air.combat_allowed(source)
 	end
-	local life = math.max(1, math.floor(tonumber(cfg("volt_laser_timeout")) or 2))
-	if q.SetTimeout then
-		q:SetTimeout(life)
-	else
-		q.Timeout = life
-	end
-	q.OneHit = true
-	q.CollisionDamage = dmg
-	-- 整段激光贴起点高度；链跳不得再写 Flight 的高 PO
-	q.PositionOffset = from_po
-	if q.SetDisableFollowParent then
-		pcall(function() q:SetDisableFollowParent(true) end)
-	elseif q.DisableFollowParent ~= nil then
-		q.DisableFollowParent = true
-	end
-	q:GetData()[item.own_key.."volt"] = {
-		hops = math.max(0, math.floor(tonumber(hops_left) or 0)),
-		blacklist = blacklist,
-		range = range,
-		air = air,
-		dmg = dmg,
-		-- 下一段从本目标视觉高度出发
-		next_from_po = to_po,
-		hit_ptr = GetPtrHash(target),
-	}
-	return q
-end
-
-local function pick_volt_target(origin, radius, blacklist)
-	local best, best_dist = nil, radius + 1
-	for _, npc in ipairs(Isaac.FindInRadius(origin, radius, EntityPartition.ENEMY)) do
-		if npc:IsVulnerableEnemy() and not npc:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) then
-			local ptr = GetPtrHash(npc)
-			if not blacklist[ptr] then
-				local dist = (npc.Position - origin):Length()
-				if dist < best_dist then
-					best, best_dist = npc, dist
-				end
-			end
-		end
-	end
-	return best
+	return true
 end
 
 local function tick_volt(air, player, craft_prof)
@@ -635,28 +571,23 @@ local function tick_volt(air, player, craft_prof)
 		sync_follow_fx(spark, air, nil)
 		set_effect_life(spark, 0)
 	end
-	local blacklist = {}
-	local target = pick_volt_target(air.Position, radius, blacklist)
-	if not target then return end
-	local ptr = GetPtrHash(target)
-	blacklist[ptr] = true
-	local hit_dmg = dmg
-	if (tonumber(volt_hit_window[ptr]) or -1) == frame then
-		hit_dmg = 0 -- 同帧多 Flight：只保留视觉，不叠伤
-	else
-		volt_hit_window[ptr] = frame
-	end
-	-- 首段：只用 Flight 视觉高度（volt_laser_po_y 默认 0，不再叠眼高）
 	local muzzle = tonumber(cfg("volt_laser_po_y")) or 0
 	local from_po = copy_po(air.PositionOffset) + Vector(0, muzzle)
-	fire_volt_laser(air.Position, from_po, target, air, hit_dmg, radius, blacklist, chain_max - 1)
-	if frame % 30 == 0 then
-		for k, f in pairs(volt_hit_window) do
-			if (tonumber(f) or 0) < frame - 2 then
-				volt_hit_window[k] = nil
-			end
-		end
-	end
+	electric_chain.fire({
+		source_entity = air,
+		from_pos = air.Position,
+		from_offset = from_po,
+		first_target = electric_chain.pick_target(air.Position, radius, {}),
+		damage = dmg,
+		chain_damage = dmg,
+		range = radius,
+		chain_range = radius,
+		max_hops = chain_max - 1,
+		timeout = tonumber(cfg("volt_laser_timeout")) or 2,
+		one_hit = true,
+		dedup_same_frame = true,
+		can_continue = volt_chain_continue,
+	})
 end
 
 local function convert_projectile_to_tear(proj, air, craft_prof, player)
@@ -773,63 +704,10 @@ table.insert(item.ToCall, {
 	end,
 })
 
--- 220V 链跳：从 EndPoint 续射；起点 PO 用上一目标高度，禁止再套 Flight 高位
-table.insert(item.ToCall, {
-	CallBack = ModCallbacks.MC_POST_LASER_UPDATE,
-	params = nil,
-	Function = function(_, laser)
-		if not laser then return end
-		local vd = laser:GetData()[item.own_key.."volt"]
-		if not vd then return end
-		local hops = math.floor(tonumber(vd.hops) or 0)
-		if hops <= 0 then
-			vd.hops = nil
-			return
-		end
-		local air = vd.air
-		if not air or not auxi.check_all_exists(air) then
-			vd.hops = nil
-			return
-		end
-		do
-			local ok, Air = pcall(require, "Qing_Remaster_scripts.items.Item_Air_Flight")
-			if ok and Air and Air.combat_allowed and not Air.combat_allowed(air) then
-				vd.hops = nil
-				return
-			end
-		end
-		local blacklist = vd.blacklist or {}
-		local range = tonumber(vd.range) or (tonumber(cfg("volt_radius")) or 80)
-		local origin = laser.EndPoint or laser.Position
-		if not origin then
-			vd.hops = nil
-			return
-		end
-		local target = pick_volt_target(origin, range, blacklist)
-		if not target then
-			vd.hops = nil
-			return
-		end
-		local ptr = GetPtrHash(target)
-		blacklist[ptr] = true
-		local frame = Game():GetFrameCount()
-		local hit_dmg = tonumber(vd.dmg) or 0
-		if (tonumber(volt_hit_window[ptr]) or -1) == frame then
-			hit_dmg = 0
-		else
-			volt_hit_window[ptr] = frame
-		end
-		vd.hops = nil -- 本段已消费；下一段自带 hops-1
-		local from_po = copy_po(vd.next_from_po) -- 上一命中目标的 PO（地面/敌人高度）
-		fire_volt_laser(origin, from_po, target, air, hit_dmg, range, blacklist, hops - 1)
-	end,
-})
-
 table.insert(item.ToCall, {
 	CallBack = ModCallbacks.MC_POST_NEW_ROOM,
 	params = nil,
 	Function = function()
-		volt_hit_window = {}
 		linger_clouds = {}
 	end,
 })

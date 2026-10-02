@@ -9,6 +9,7 @@ local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local Card_All = require("Qing_Remaster_scripts.cards.Card_All")
 local Mouse_UI = require("Qing_Remaster_scripts.others.Mouse_UI_holder")
 local Select = require("Qing_Remaster_scripts.others.fullscreen_select_holder")
+local thoth_use = require("Qing_Remaster_scripts.cards.thoth_use_semantics")
 
 local item = {
 	pre_ToCall = {},
@@ -268,6 +269,7 @@ local function get_bag(player)
 	local bag = root[idx]
 	if type(bag) ~= "table" then
 		bag = {
+			-- owned = 本局是否已完成首次持书初始化（初始启示 / 卡册生命周期），≠ 当前仍持有书
 			owned = false,
 			revelation = 0,
 			registered = {},
@@ -282,6 +284,10 @@ local function get_bag(player)
 		root[idx] = bag
 	end
 	return peek_bag(player)
+end
+
+local function holds_book(player)
+	return player and auxi.has_have_coll(player, item.entity) or false
 end
 
 local function is_face_registered(bag, card_id)
@@ -321,7 +327,7 @@ local grant_revelation
 
 local function register_face(player, card_id)
 	local bag = get_bag(player)
-	if not bag or not bag.owned then return false end
+	if not bag or not holds_book(player) then return false end
 	if not auxi.is_thoth_card(card_id) then return false end
 	if is_face_registered(bag, card_id) then return false end
 	local recorded = false
@@ -447,8 +453,9 @@ grant_revelation = function(player, amount, play_sfx)
 	return after
 end
 
+-- 首次本局持有书时初始化启示；bag.owned 只记“已初始化”，失去书后仍保留卡册/启示。
 local function ensure_owned(player)
-	if not player or not auxi.has_have_coll(player, item.entity) then return end
+	if not holds_book(player) then return end
 	local bag = get_bag(player)
 	if not bag or bag.owned == true then return end
 	bag.owned = true
@@ -474,10 +481,9 @@ end
 local function list_thoth_cards()
 	if thoth_list_cache then return thoth_list_cache end
 	thoth_list_cache = {}
-	for _, entry in ipairs(Card_All.list_configurable_cards()) do
-		if type(entry.id) == "number" and entry.id > 0 then
-			thoth_list_cache[#thoth_list_cache + 1] = entry.id
-		end
+	local card_registry = require("Qing_Remaster_scripts.cards.card_registry")
+	for _, id in ipairs(card_registry.get_thoth_cards()) do
+		thoth_list_cache[#thoth_list_cache + 1] = id
 	end
 	return thoth_list_cache
 end
@@ -532,6 +538,11 @@ function item.debug_unlock_all_faces()
 	end
 end
 
+--- Debug：最近一次透特牌 Attempt/Commit/Abort 摘要
+function item.debug_thoth_use_status()
+	return thoth_use.format_last_event()
+end
+
 local function card_meta(card_id)
 	card_id = tonumber(card_id)
 	if not card_id then return {frame = 0, name = txt("empty")} end
@@ -559,11 +570,16 @@ local function card_meta(card_id)
 	return cached
 end
 
+-- 未收录判定只看当前仍持有书的玩家卡册（与 Wiki「持书玩家」一致）。
 local function is_face_unseen(card_id)
-	local root = data_root()
-	for _, bag in pairs(root) do
-		if type(bag) == "table" and bag.owned and is_face_registered(bag, card_id) then
-			return false
+	local game = Game()
+	for i = 0, game:GetNumPlayers() - 1 do
+		local player = game:GetPlayer(i)
+		if holds_book(player) then
+			local bag = get_bag(player)
+			if bag and is_face_registered(bag, card_id) then
+				return false
+			end
 		end
 	end
 	return true
@@ -588,6 +604,24 @@ local function pick_weighted_thoth(rng)
 		if roll < acc then return pool[i].id end
 	end
 	return pool[#pool].id
+end
+
+-- 直接生成透特牌拾取物：复用 pick_weighted_thoth，不走 MC_GET_CARD / 普通塔罗替换。
+local function spawn_pickup_thoth_card(player)
+	if not player then return nil end
+	local rng = player:GetCollectibleRNG(item.entity)
+	local card_id = pick_weighted_thoth(rng)
+	if not card_id then return nil end
+	local room = Game():GetRoom()
+	local pos = room:FindFreePickupSpawnPosition(player.Position, 0, true)
+	return Isaac.Spawn(
+		EntityType.ENTITY_PICKUP,
+		PickupVariant.PICKUP_TAROTCARD,
+		card_id,
+		pos,
+		Vector.Zero,
+		player
+	):ToPickup()
 end
 
 local function count_unseen_thoth()
@@ -3025,6 +3059,12 @@ table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.POST
 Function = function(_, player, collid, cnt, touched)
 	ensure_owned(player)
 	register_held_thoth_cards(player)
+	-- Only fresh (Touched == false) pedestals grant a Thoth card pickup.
+	if touched ~= true then
+		for _ = 1, math.max(1, cnt or 1) do
+			spawn_pickup_thoth_card(player)
+		end
+	end
 	sync_charge(player)
 end,
 })
@@ -3037,19 +3077,38 @@ Function = function(_, player, card, slot)
 end,
 })
 
+-- 透特牌「真正成功使用」→ 解锁成就；当前持有本书时再 +2 启示。
+-- MC_USE_CARD 只开 attempt；immediate / deferred / no_effect 由 thoth_use_semantics 裁决。
+thoth_use.on_commit(function(player, card_id, reason)
+	if not auxi.is_thoth_card(card_id) then return end
+	Unlocker.unlock_achievement(save.UnlockData.Others.Thoth, "Unlock", {Achievement_page = "gfx/ui/Some achievements/" .. enums.AchievementGraphics.others.Thoth .. ".png",})
+	if holds_book(player) then
+		local before = stored_revelation(player)
+		grant_revelation(player, item.use_revelation, true)
+		local after = stored_revelation(player)
+		local ev = thoth_use.get_last_event()
+		if ev then
+			ev.extra = ev.extra or {}
+			ev.extra.revelation = string.format("%s → %s", tostring(before), tostring(after))
+			ev.extra.book_owned = true
+		end
+	else
+		local ev = thoth_use.get_last_event()
+		if ev then
+			ev.extra = ev.extra or {}
+			ev.extra.book_owned = false
+		end
+	end
+end)
+
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_USE_CARD, params = nil,
 Function = function(_, card, player, useFlags)
-	if auxi.is_thoth_card(card) then
-		Unlocker.unlock_achievement(save.UnlockData.Others.Thoth, "Unlock", {Achievement_page = "gfx/ui/Some achievements/" .. enums.AchievementGraphics.others.Thoth .. ".png",})
-	end
+	if not auxi.is_thoth_card(card) then return end
 	local ok, d = pcall(function() return player:GetData() end)
 	if ok and type(d) == "table" and d[item.own_key.."casting"] then return end
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then return end
-	local bag = get_bag(player)
-	if not bag or not bag.owned then return end
-	if auxi.is_thoth_card(card) then
-		grant_revelation(player, item.use_revelation, true)
-	end
+	-- 候选真实实体使用：按 policy begin / immediate-commit / no_effect
+	thoth_use.resolve_use_card(player, card)
 end,
 })
 
@@ -3121,6 +3180,7 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = nil,
 Function = function(_, ent)
+	if not g.is_gameplay_world_active() then return end
 	if ent.Type == 3 and ent.Variant == FamiliarVariant.WISP and ent.SubType == item.entity then
 		Isaac.Spawn(5, 300, 0, ent.Position, ent.Velocity, nil)
 	end

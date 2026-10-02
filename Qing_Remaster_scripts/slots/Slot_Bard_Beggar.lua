@@ -15,93 +15,65 @@ local item = {
 	entity = enums.Slots.Bard_beggar,
 	own_key = "Slot_Bard_Beggar_",
 	Talking_Pos_Offset = Vector(30,-50),
-	Prizes = {
-		{
-			check = function(player,info) return player:HasGoldenBomb() end,
-			replacer = "gfx/items/slots/item_to_pay_goldenbomb.png",
-			weigh = 999,bonus = 4,
-			work = function(player,info) player:RemoveGoldenBomb() end,
-		},
-		{
-			check = function(player,info) return player:HasGoldenKey() end,
-			replacer = "gfx/items/slots/item_to_pay_goldenkey.png",
-			weigh = 999,bonus = 4,
-			work = function(player,info) player:RemoveGoldenKey() end,
-		},
-		{
-			check = function(player,info) if player:GetNumBombs() >= 10 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_10bombs.png",
-			weigh = function(player,info) return 10 * math.ceil(player:GetNumBombs()/20) end,
-			bonus = function(player,info,rng) return rng:RandomInt(4) end,
-			work = function(player,info) player:AddBombs(-10) end,
-		},
-		{
-			check = function(player,info) if player:GetNumBombs() >= 1 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_bomb.png",
-			weigh = function(player,info) return 3 * math.ceil(player:GetNumBombs()/20) end,
-			bonus = function(player,info,rng) return math.floor(rng:RandomInt(4)/3) end,
-			work = function(player,info) player:AddBombs(-1) end,
-		},
-		{
-			check = function(player,info) if player:GetNumKeys() >= 1 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_key.png",
-			weigh = function(player,info) return 2 * math.ceil(player:GetNumKeys()/20) end,
-			bonus = function(player,info,rng) return math.floor(rng:RandomInt(4)/3) end,
-			work = function(player,info) player:AddKeys(-1) end,
-		},
-		{
-			check = function(player,info) if player:GetNumCoins() >= 1 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_coin.png",
-			weigh = function(player,info) return 1 * math.ceil(player:GetNumCoins()/20) end,
-			bonus = function(player,info) return 0.1 end,
-			work = function(player,info) player:AddCoins(-1) end,
-		},
-		{
-			check = function(player,info) if player:GetNumCoins() >= 25 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_25coin.png",
-			weigh = function(player,info) return 10 * math.ceil(player:GetNumCoins()/20) end,
-			bonus = function(player,info) return rng:RandomInt(4) end,
-			work = function(player,info) player:AddCoins(-1) end,
-		},
-		{
-			check = function(player,info) if player:GetHearts() + player:GetSoulHearts() + player:GetBoneHearts() >= 3 and player:GetHearts() >= 2 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_heart.png",
-			weigh = function(player,info) return 2 * math.ceil(player:GetHearts()/2) end,
-			bonus = function(player,info) return 0.33 end,
-			work = function(player,info) player:AddHearts(-2) player:TakeDamage(0,DamageFlag.DAMAGE_NO_PENALTIES | DamageFlag.DAMAGE_FAKE,EntityRef(player),60) end,
-		},
-		{
-			check = function(player,info) if player:GetHearts() + player:GetSoulHearts() + player:GetBoneHearts() >= 3 and player:GetSoulHearts() >= 2 and player:GetBlackHearts() == 0 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_soulheart.png",
-			weigh = function(player,info) return 5 * math.ceil(player:GetSoulHearts()/2) end,
-			bonus = function(player,info) return 0.6 end,
-			work = function(player,info) player:AddSoulHearts(-2) player:TakeDamage(0,DamageFlag.DAMAGE_NO_PENALTIES | DamageFlag.DAMAGE_FAKE,EntityRef(player),60) end,
-		},
-		{
-			check = function(player,info) if player:GetHearts() + player:GetSoulHearts() + player:GetBoneHearts() >= 3 and player:GetSoulHearts() >= 2 and player:GetBlackHearts() > 0 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_blackheart.png",
-			weigh = function(player,info) return 7 * math.ceil(player:GetSoulHearts()/2) end,
-			bonus = function(player,info) return 1 end,
-			work = function(player,info) local black_infos = auxi.split_bits(player:GetBlackHearts()) player:RemoveBlackHeart((black_infos[1] or 0) * 2) player:AddSoulHearts(-2) player:TakeDamage(0,DamageFlag.DAMAGE_NO_PENALTIES | DamageFlag.DAMAGE_FAKE,EntityRef(player),60) end,
-		},
-		{
-			check = function(player,info) if player:GetHearts() + player:GetSoulHearts() + player:GetBoneHearts() >= 3 and player:GetBoneHearts() >= 1 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_boneheart.png",
-			weigh = function(player,info) return 6 * math.ceil(player:GetBoneHearts()) end,
-			bonus = function(player,info) return 1 end,
-			work = function(player,info) player:AddBoneHearts(-1) player:TakeDamage(0,DamageFlag.DAMAGE_NO_PENALTIES | DamageFlag.DAMAGE_FAKE,EntityRef(player),30) end,
-		},
-		{
-			check = function(player,info) if player:GetEternalHearts() >= 1 then return true end end,
-			replacer = "gfx/items/slots/item_to_pay_eternalheart.png",
-			weigh = function(player,info) return 10 * math.ceil(player:GetBoneHearts()) end,
-			bonus = function(player,info) return 1.5 end,
-			work = function(player,info) player:AddEternalHearts(-1) player:TakeDamage(0,DamageFlag.DAMAGE_NO_PENALTIES | DamageFlag.DAMAGE_FAKE,EntityRef(player),30) end,
-		},
-	},
-	Tosay = {
+	Dialogue = {
 		zh = {
-			{
+			intro = {
+				"啊，一位新的听众。",
+				"我不收门票，只收一点能写进歌里的东西。",
+				"硬币、钥匙、炸弹，或者一点生命——都能谱成曲子。",
+				"今天付给我的，明天会唱回来。",
+			},
+			repeat_meet = {
+				"又见面了。",
+				"这一层，想把什么写进下一首歌？",
+			},
+			offers = {
+				coin = {
+					first = {
+						"五枚金币，正好够写一个副歌。",
+						"下一次付账时，听听它们怎么滚回来。",
+					},
+					repeat_say = {
+						"副歌已经写好了，下次付账时听听回响。",
+					},
+				},
+				key = {
+					first = {
+						"一把钥匙，却不是用来开眼前的门。",
+						"下一层的路，我替你先看一眼。",
+					},
+					repeat_say = {
+						"前路仍在歌里，下一层记得听。",
+					},
+				},
+				bomb = {
+					first = {
+						"一枚炸弹，换三段战歌。",
+						"下一层，前三场战斗尽管放声些。",
+					},
+					repeat_say = {
+						"战歌还在，前三场战斗别怯场。",
+					},
+				},
+				heart = {
+					first = {
+						"生命最适合写成安静的曲子。",
+						"这一颗心我先替你收下。",
+						"下一层第一次疼的时候，让这首安魂曲替你承受吧。",
+					},
+					repeat_say = {
+						"安魂曲还在，第一次疼会有歌声挡着。",
+					},
+				},
+			},
+			bless_hud = {
+				coin = {"吟游祝福", "富饶之歌正在奏响"},
+				key = {"吟游祝福", "前路已写入歌中"},
+				bomb = {"吟游祝福", "前三场战斗奏响"},
+				heart = {"吟游祝福", "第一次伤痛将被歌声带走"},
+			},
+			idle = {
+{
 				"英雄来到了遍布恶龙的王国！",
 				"拔下石中宝剑，战胜三百恶魔！",
 				"成为天命的主人！",
@@ -248,24 +220,10 @@ local item = {
 				"只期盼你停住流转的目光~",
 				"请赐予我无限爱与被爱的力量",
 				"让我能安心在菩提下静静的观想~",
+			}
 			},
-			Special_words = {
-				[1] = {
-					"孩子，初次见面",
-					"在下是一名吟游诗人，正在这无人打扰之地寻找灵感~",
-					"什么？你说你见过我？",
-					"也许你说的是我的远房亲戚",
-					"他们的连锁服务已经开到全球各地了~",
-					"如果愿意付一点小费的话，我就来为你献唱一曲。",
-					"当然，不愿意的话，我也不会强求的。",
-				},
-				[2] = {
-					"又见面了，孩子。",
-					"想要我为你献上一曲么？",
-				},
-			},
-			Special_items = {
-				[4] = {
+			special_items = {
+[4] = {
 					"哦，如此可爱的小猫咪！",
 					"我会好好善待它的。",
 				},
@@ -395,10 +353,77 @@ local item = {
 				},
 			},
 		},
+		en = {
+			intro = {
+				"Ah, a new listener.",
+				"No cover charge—just something I can write into a song.",
+				"Coins, keys, bombs, or a little life—all make fine ink.",
+				"Pay me today, and I'll sing it back tomorrow.",
+			},
+			repeat_meet = {
+				"We meet again.",
+				"What shall we leave for the next floor's song?",
+			},
+			offers = {
+				coin = {
+					first = {
+						"Five coins—just enough for a chorus.",
+						"Next time you pay a bill, listen for the change rolling back.",
+					},
+					repeat_say = {
+						"The chorus is written—listen for the echo when you pay.",
+					},
+				},
+				key = {
+					first = {
+						"A key—not for the door in front of you.",
+						"I'll read the next floor's road ahead for you.",
+					},
+					repeat_say = {
+						"The road is still in the song—listen on the next floor.",
+					},
+				},
+				bomb = {
+					first = {
+						"One bomb for three verses of war song.",
+						"On the next floor, let the first three battles ring louder.",
+					},
+					repeat_say = {
+						"The war song remains—don't hold back in the first three fights.",
+					},
+				},
+				heart = {
+					first = {
+						"Life writes the quietest melodies.",
+						"I'll hold this heart for you.",
+						"When the next floor hurts you once, let this requiem take it.",
+					},
+					repeat_say = {
+						"The requiem still waits—the first pain won't land.",
+					},
+				},
+			},
+			bless_hud = {
+				coin = {"Bard Blessing", "Song of Plenty is playing"},
+				key = {"Bard Blessing", "The road is written in song"},
+				bomb = {"Bard Blessing", "Three battles await the chorus"},
+				heart = {"Bard Blessing", "The first pain will be sung away"},
+			},
+			idle = {
+				{"Hero, dragon, kingdom—the usual tale ends here~"},
+				{"Don't mourn a broken mirror—they live in another world~"},
+				{"Hey, Judas! Don't cry—find a sad song and sing it happier~"},
+			},
+			special_items = {
+				[4] = {"Oh, what a lovely little cat!", "I'll take good care of it."},
+				[144] = {"Ah, a distant cousin of mine!", "He doesn't seem to like how rich you look."},
+				[278] = {"Ah, another cousin!", "I thought we'd parted ways long ago!"},
+				[628] = {"......", "(elegant, helpless piano)"},
+			},
+		},
 	},
 }
-
-local spec
+local try_greet, utter_next
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_SLOT_INIT, params = item.entity.Variant,
 Function = function(_,ent)
@@ -427,26 +452,31 @@ Function = function(_,ent)
 	if anim == "Idle0" or anim == "Appearing" then
 		s:Play("Idle",true)
 	end
-	if d.tosay == nil or #d.tosay == 0 then	d.should_prize = false end
+	if d._say_cd and d._say_cd > 0 then
+		d._say_cd = d._say_cd - 1
+	end
+	-- 进房后自顾自开场，不依赖交易或举物会话。
+	try_greet(ent)
+	if d.tosay == nil or #d.tosay == 0 then d.should_prize = false end
 	if s:IsPlaying("Idle") then
+		utter_next(ent)
 		if d.should_prize then s:Play("Prize",true) end
 	end
 	if s:IsPlaying("Prize") then
 		if s:IsEventTriggered("Sing") then
-			if d.tosay and d.tosay[1] then
-				gui.draw_ch_with_time_to_dispair(ent.Position + item.Talking_Pos_Offset + Vector(-(#d.tosay[1])/2,0),Vector(0,-50),d.tosay[1],60)
-				table.remove(d.tosay,1)
-				if #d.tosay == 0 then	
-					consistance_holder.try_hold_over_entity(ent,item.own_key)
-					consistance_holder.try_hold_entity(ent,item.own_key)
-				end
-			end
+			d._say_cd = 0
 		end
+		utter_next(ent)
 	end
-	
+
 	if s:IsFinished("Teleport") then ent:Remove() return end
 	if s:IsFinished("Prize") then
 		if d._Data and d._Data[item.own_key] and d._Data[item.own_key].Accepted then
+			-- 献唱台词说完再离开；多句时循环 Prize。
+			if (d.tosay and #d.tosay > 0) or (d._say_cd or 0) > 0 then
+				s:Play("Prize",true)
+				return
+			end
 			s:Play("Teleport",true)
 			ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 			return
@@ -467,48 +497,126 @@ Function = function(_,ent,killer)
 end,
 })
 
-local function addtosay(ent,num,rng)
-	rng = auxi.rng_for_sake(rng)
-	num = num or 1
+local function dialogue_lang()
+	local language = Options.Language
+	if item.Dialogue[language] == nil then language = "zh" end
+	return language
+end
+
+local function queue_dialogue(ent, lines)
+	if not lines or #lines == 0 then return end
 	local d = ent:GetData()
 	d.tosay = d.tosay or {}
-	local language = Options.Language
-	if item.Tosay[language] == nil then	language = "zh" end
-	for i = 1,num do
-		local rnd = rng:RandomInt(#item.Tosay[language]) + 1
-		for j = 1,#item.Tosay[language][rnd] do
-			table.insert(d.tosay,item.Tosay[language][rnd][j])
-		end
+	for i = 1, #lines do
+		table.insert(d.tosay, lines[i])
 	end
 end
 
-local function try_prize(player,rng,ent)
-	local s = ent:GetSprite()
+local function pick_idle_dialogue(rng)
+	rng = auxi.rng_for_sake(rng)
+	local pack = item.Dialogue[dialogue_lang()]
+	local idle = pack and pack.idle
+	if not idle or #idle == 0 then return nil end
+	return idle[rng:RandomInt(#idle) + 1]
+end
+
+local function pick_special_item_dialogue(player, ent, rng)
+	rng = auxi.rng_for_sake(rng)
 	local d = ent:GetData()
-	local tbl = {}
-	for u,v in pairs(item.Prizes) do
-		local succ = v.check(player,v)
-		if succ then table.insert(tbl,#tbl+1,{weigh = auxi.check_if_any(v.weigh,player,v) or 0,info = v,}) end
+	if d._special_dialogue_done then return nil end
+	local pack = item.Dialogue[dialogue_lang()]
+	local special = pack and pack.special_items
+	if not special then return nil end
+	local matches = {}
+	for id, lines in pairs(special) do
+		if player:HasCollectible(id) then matches[#matches + 1] = lines end
 	end
-	local rnd = auxi.random_in_weighed_table(tbl,rng)
-	if rnd then
-		local v = rnd.info
-		s:ReplaceSpritesheet(2,v.replacer) s:LoadGraphics()
-		local cnt = auxi.check_to_number(auxi.check_if_any(v.bonus,player,v,rng))
-		for i = 1,cnt do addtosay(ent,1,rng) end
-		v.work(player,v)
-		consistance_holder.try_hold_over_entity(ent,item.own_key)
-		d._Data[item.own_key]["Counter"] = (d._Data[item.own_key]["Counter"] or 0) + cnt
-		consistance_holder.try_hold_entity(ent,item.own_key)
-		return true
+	if #matches == 0 then return nil end
+	d._special_dialogue_done = true
+	return matches[rng:RandomInt(#matches) + 1]
+end
+
+local function queue_open_dialogue(player, ent)
+	local special = pick_special_item_dialogue(player, ent, ent:GetDropRNG())
+	if special then
+		queue_dialogue(ent, special)
+		return
 	end
+	local pack = item.Dialogue[dialogue_lang()]
+	if not save.elses[item.own_key.."met"] then
+		save.elses[item.own_key.."met"] = true
+		queue_dialogue(ent, pack.intro)
+	else
+		queue_dialogue(ent, pack.repeat_meet)
+	end
+end
+
+-- 台词气泡约 60 帧；间隙略短，便于连说又不叠成一团。
+local SAY_GAP = 50
+
+utter_next = function(ent)
+	local d = ent:GetData()
+	if (d._say_cd or 0) > 0 then return false end
+	if not d.tosay or not d.tosay[1] then return false end
+	local line = d.tosay[1]
+	table.remove(d.tosay, 1)
+	gui.draw_ch_with_time_to_dispair(
+		ent.Position + item.Talking_Pos_Offset + Vector(-(#line) / 2, 0),
+		Vector(0, -50),
+		line,
+		60
+	)
+	d._say_cd = SAY_GAP
+	if #d.tosay == 0 then
+		consistance_holder.try_hold_over_entity(ent, item.own_key)
+		consistance_holder.try_hold_entity(ent, item.own_key)
+	end
+	return true
+end
+
+try_greet = function(ent)
+	local d = ent:GetData()
+	if d._greeted then return end
+	if d._Data and d._Data[item.own_key] and d._Data[item.own_key].Accepted then
+		d._greeted = true
+		return
+	end
+	local player = Game():GetNearestPlayer(ent.Position)
+	if not player then return end
+	d._greeted = true
+	queue_open_dialogue(player, ent)
+end
+
+local function queue_offer_dialogue(ent, opt, rng)
+	rng = auxi.rng_for_sake(rng)
+	local pack = item.Dialogue[dialogue_lang()].offers[opt.id]
+	if not pack then return end
+	local said = save.elses[item.own_key.."offer_said"] or {}
+	local lines = said[opt.id] and pack.repeat_say or pack.first
+	if not said[opt.id] then
+		said[opt.id] = true
+		save.elses[item.own_key.."offer_said"] = said
+	end
+	queue_dialogue(ent, lines)
+	if rng:RandomInt(100) < 20 then
+		local idle = pick_idle_dialogue(rng)
+		if idle then queue_dialogue(ent, idle) end
+	end
+end
+
+local function bless_hud_text(kind)
+	local pack = item.Dialogue[dialogue_lang()].bless_hud
+	local hud = pack and pack[kind]
+	if hud then return hud[1], hud[2] end
+	if dialogue_lang() == "zh" then return "吟游祝福", "本层生效" end
+	return "Bard Blessing", "Active this floor"
 end
 
 local function blessing_bag()
 	return save.elses[item.own_key.."bless"]
 end
 
-local function set_blessing(kind,rng)
+local function set_blessing(kind, rng)
 	rng = auxi.rng_for_sake(rng or RNG())
 	save.elses[item.own_key.."bless"] = {
 		kind = kind,
@@ -544,8 +652,8 @@ local OFFERS = {
 		hud_num = "5",
 		title_zh = "富饶之歌",
 		title_en = "Song of Plenty",
-		eid_zh = "{{Coin}} 富饶之歌#支付5枚硬币#下层首次购物返还8-12枚硬币",
-		eid_en = "{{Coin}} Song of Plenty#Pay 5 coins#First shop buy next floor refunds 8-12¢",
+		eid_zh = "{{Coin}} 富饶之歌#支付5枚硬币#下层首次购物返还8-12枚硬币，不超过实际花费",
+		eid_en = "{{Coin}} Song of Plenty#Pay 5 coins#First shop buy next floor refunds 8-12¢, up to what you paid",
 		can = function(player) return player:GetNumCoins() >= 5 end,
 		take = function(player) player:AddCoins(-5) end,
 	},
@@ -576,6 +684,12 @@ local OFFERS = {
 	{
 		id = "heart",
 		anm2 = "gfx/005.011_heart.anm2",
+		anm2_fn = function(player)
+			if player:GetHearts() >= 2 then
+				return "gfx/005.011_heart.anm2"
+			end
+			return "gfx/005.013_heart (soul).anm2"
+		end,
 		replacer = "gfx/items/slots/item_to_pay_heart.png",
 		replacer_fn = function(player)
 			if player:GetHearts() >= 2 then
@@ -598,6 +712,10 @@ spec = {
 	variant = item.entity.Variant,
 	range = 48,
 	render_hud = false,
+	on_open = function(player, ent)
+		-- 开场台词由 UPDATE 的 try_greet 自顾自触发；此处仅兜底。
+		try_greet(ent)
+	end,
 	can_open = function(ent)
 		if not ent or not ent:Exists() then return false end
 		local s = ent:GetSprite()
@@ -627,7 +745,7 @@ spec = {
 		opt.take(player)
 		set_blessing(opt.id,ent:GetDropRNG())
 		local d = ent:GetData()
-		addtosay(ent,1,ent:GetDropRNG())
+		queue_offer_dialogue(ent, opt, ent:GetDropRNG())
 		s:Play("PayPrize",true)
 		d.should_prize = true
 		consistance_holder.try_hold_over_entity(ent,item.own_key)
@@ -726,11 +844,8 @@ Function = function(_)
 		if bless.kind == "key" then reveal_treasure() end
 		local hud = Game():GetHUD()
 		if hud and hud.ShowItemText then
-			if slot_offer_lift.lang_zh() then
-				hud:ShowItemText("吟游祝福","本层生效")
-			else
-				hud:ShowItemText("Bard Blessing","Active this floor")
-			end
+			local title, subtitle = bless_hud_text(bless.kind)
+			if title then hud:ShowItemText(title, subtitle or "") end
 		end
 		refresh_damage()
 	else

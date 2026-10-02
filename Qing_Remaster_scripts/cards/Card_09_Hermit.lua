@@ -71,10 +71,11 @@ Function = function(_,cardtype,player,useFlags)
 		act_tbl = auxi.randomTable(act_tbl,rng)
 		for i = 1,3 do table.insert(act_tbl,#act_tbl + 1,{id = 36,touch = true,}) end
 		for i = 1,#act_tbl do table.insert(tbl,#tbl + 1,act_tbl[i]) end
-		unique_holder.Hold_for_missing(true)
-		local q = Isaac.Spawn(5,100,tonumber(tbl[1].id) or 36,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-		auxi.self_morph(q,{5,100,tonumber(tbl[1].id) or 36,})
-		unique_holder.Hold_for_missing()
+		local q = unique_holder.with_missing(33, function()
+			local q = Isaac.Spawn(5,100,tonumber(tbl[1].id) or 36,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+			auxi.self_morph(q,{5,100,tonumber(tbl[1].id) or 36,})
+			return q
+		end)
 		if (tonumber(tbl[1].id) or 36) == 36 then Game():Fart(q.Position,64,player,1,0)
 		else sound_tracker.PlayStackedSound(SoundEffect.SOUND_THUMBSUP,1,1,false,0,2) end
 		if tbl[1].touch then q.Touched = true end
@@ -83,11 +84,12 @@ Function = function(_,cardtype,player,useFlags)
 			local ndx = option_index_holder.find_a_new_index()
 			q.OptionsPickupIndex = ndx
 			for i = 1,2 do
-				unique_holder.Hold_for_missing(true)
-				local q2 = Isaac.Spawn(5,100,tonumber(tbl[1].id) or 36,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-				auxi.self_morph(q2,{5,100,tonumber(tbl[1].id) or 36,})
-				unique_holder.Hold_for_missing()
-				q2.OptionsPickupIndex = ndxx
+				local q2 = unique_holder.with_missing(33, function()
+					local q2 = Isaac.Spawn(5,100,tonumber(tbl[1].id) or 36,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+					auxi.self_morph(q2,{5,100,tonumber(tbl[1].id) or 36,})
+					return q2
+				end)
+				q2.OptionsPickupIndex = ndx
 				if tbl[1].touch then q2.Touched = true end
 				if (tonumber(tbl[1].id) or 36) == 36 then Game():Fart(q.Position,64,player,1,0)
 				else sound_tracker.PlayStackedSound(SoundEffect.SOUND_THUMBSUP,1,1,false,0,2) end
@@ -98,5 +100,39 @@ Function = function(_,cardtype,player,useFlags)
 end,
 })
 
+function item.has_recoverable_lost_record(player)
+	if not player then return false end
+	local idx = player:GetData().__Index
+	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	local record = save.elses[item.own_key.."effect"][idx] or {}
+	local config = Isaac:GetItemConfig()
+	for u,v in pairs(record) do
+		if tonumber(u) then
+			local collectibleinfo = config:GetCollectible(tonumber(u))
+			if collectibleinfo and collectibleinfo.Tags & ItemConfig.TAG_QUEST ~= ItemConfig.TAG_QUEST then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+if EID then
+	EID:addDescriptionModifier("qing_card_hermit_lost_fallback"..tostring(item.entity), function(desc)
+		return desc.ObjType == 5 and desc.ObjVariant == 300 and desc.ObjSubType == item.entity
+	end, function(desc)
+		local player = (EID and EID.player) or Game():GetPlayer(0)
+		if item.has_recoverable_lost_record(player) then
+			return desc
+		end
+		local language = auxi.get_EID_language()
+		if language == "zh_cn" then
+			EID:appendToDescription(desc, "#若本局没有可恢复记录，生成 {{Collectible36}}")
+		else
+			EID:appendToDescription(desc, "#If none remain, spawns {{Collectible36}}")
+		end
+		return desc
+	end)
+end
 
 return item

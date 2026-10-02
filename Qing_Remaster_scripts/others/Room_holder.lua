@@ -13,6 +13,17 @@ local item = {
 	own_key = "Room_holder_",
 	recorder = {},
 }
+
+-- Shift may be absent after Hourglass / rewind wholesale restore of save.elses.
+-- nil == no pending room shifts (default empty). Do not rebuild via POST_REWIND.
+local function get_shift_state()
+	local key = item.own_key .. "Shift"
+	if type(save.elses[key]) ~= "table" then
+		save.elses[key] = {}
+	end
+	return save.elses[key]
+end
+
 --已完成：将未访问过的房间替换为任意房间；将已访问过的房间替换为任意房间（稍有瑕疵）
 function item.Trans_to(sgid,dir,anim,player,dim,params)
 	params = params or {}
@@ -40,8 +51,8 @@ function item.Replace_with(sgid,dim,params)
 		desc.Data = auxi.check_if_any(params.data) or desc.Data
 		if params.others then for u,v in pairs(params.others) do desc[u] = v end end
 		local idix = auxi.get_acceptible_index(sgid,dim)
-		save.elses[item.own_key.."Shift"] = save.elses[item.own_key.."Shift"] or {}
-		if desc.VisitedCount ~= 0 then save.elses[item.own_key.."Shift"][idix] = true end
+		local shift = get_shift_state()
+		if desc.VisitedCount ~= 0 then shift[idix] = true end
 	end
 end
 
@@ -115,8 +126,9 @@ Function = function(_)
 	end
 	item.Room_Shifter = nil
 	local idix = auxi.get_acceptible_index()
-	local succ = save.elses[item.own_key.."Shift"][idix]
-	save.elses[item.own_key.."Shift"][idix] = nil
+	local shift = get_shift_state()
+	local succ = shift[idix]
+	shift[idix] = nil
 	if succ then 
 		Game():GetRoom():RespawnEnemies()
 		item.Trans_to(Game():GetLevel():GetCurrentRoomDesc().SafeGridIndex,Direction.NO_DIRECTION, RoomTransitionAnim.MINECART,Game():GetPlayer(0),nil,{Record_place = true,})
@@ -148,9 +160,11 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_ROOM_ENTITY_SPAWN, params = nil,
 Function = function(_,tp,vr,st,grididx,seed)
+	-- Remover: room/STB alias Type 999 → runtime ENTITY_EFFECT 1000 (entities2 id=1000).
 	--return {999,enums.Entities.Remover,0}
 	local idix = auxi.get_acceptible_index()
-	if save.elses[item.own_key.."Shift"] and save.elses[item.own_key.."Shift"][idix] then
+	local shift = get_shift_state()
+	if shift[idix] then
 		--print("Spawn "..tp.." "..vr.." "..st.." "..seed)
 		local ret = nil
 		if tp <= 999 then ret = {999,enums.Entities.Remover,0} end
@@ -179,11 +193,10 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GA
 Function = function(_,continue)
 	item.buffer = {}
 	item.buffer2 = {}
-	if continue then
-	else
+	if not continue then
 		save.elses[item.own_key.."Shift"] = {}
 	end
-	save.elses[item.own_key.."Shift"] = save.elses[item.own_key.."Shift"] or {}
+	get_shift_state()
 end,
 })
 

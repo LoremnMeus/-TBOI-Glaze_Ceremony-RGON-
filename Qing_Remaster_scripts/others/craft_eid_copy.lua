@@ -1,6 +1,12 @@
 -- 蓝图材料 → 玩家可见 EID 文案（正式句式）。
 -- 审计短名仍用 FLAG_NAME / EXTRA_NAME；本模块不把短名直接拼进 EID。
 -- 审阅：codex_work/notes/blueprint_eid_length_and_orbit_review.md
+--
+-- 规则：
+-- 1. register_compat / EXTRA_IMPL 只表示已实装，不等于自动有 pedestal EID。
+-- 2. CRAFT_EXCLUDED / ingredient banned 只服务制造页与审计，不产生 pedestal EID。
+-- 3. Blueprint EID 只写装入飞行器后玩家可观察的差异；一般 1 行，最多 2 行。
+-- 4. 有定制 lines 且已含属性时设 suppress_auto_stats，禁止再拼泛化属性句。
 local enums = require("Qing_Remaster_scripts.core.enums")
 local json = require("json")
 local dev_env = require("Qing_Remaster_scripts.core.dev_environment")
@@ -531,6 +537,73 @@ local EXTRA_EID = {
 		lines_zh = {"使飞行器蓄力齐射；蓄力时所属玩家受伤，会传送飞行器及关联宝宝。"},
 		lines_en = {"Makes the Air Flight charge multi-shots; taking damage while charging teleports it and linked familiars."},
 	},
+	-- Batch-1 / 1.2 / 2：只写玩家可观察效果；register_compat ≠ 自动有 EID。
+	-- 有 STAT_DELTA 且文案已含属性时设 suppress_auto_stats，避免再拼泛化属性句。
+	cursed_mask = {
+		suppress_auto_stats = true,
+		lines_zh = {
+			"{{Damage}} 飞行器攻击 +2",
+			"进入房间后，飞行器的攻击方向会持续旋转并逐渐减慢",
+		},
+		lines_en = {
+			"{{Damage}} Air Flight Damage +2",
+			"On entering a room, the Air Flight's firing direction spins and gradually slows",
+		},
+	},
+	field = {
+		lines_zh = {"飞行器位于力场内时，{{Tears}} 射速 +1"},
+		lines_en = {"While inside a Field, the Air Flight gains {{Tears}} +1 fire rate"},
+	},
+	wavering_eyes = {
+		lines_zh = {
+			"连续命中会使飞行器的攻击逐渐获得摇摆、射速与追踪强化",
+			"连续失误会失去这些强化",
+		},
+		lines_en = {
+			"Consecutive hits gradually grant the Air Flight waver, fire-rate and homing upgrades",
+			"Repeated misses remove the buildup",
+		},
+	},
+	procrastination = {
+		lines_zh = {"飞行器获得所属玩家通过拖延症积累的攻击加成"},
+		lines_en = {"The Air Flight gains the Damage accumulated by its owner through Procrastination"},
+	},
+	aphasia = {
+		lines_zh = {"飞行器获得所属玩家当前由失语症提供的攻击加成"},
+		lines_en = {"The Air Flight gains the owner's current Aphasia Damage bonus"},
+	},
+	crown_glaze = {
+		lines_zh = {"飞行器根据所属玩家当前的辉片层数获得攻击与幸运"},
+		lines_en = {"The Air Flight gains Damage and Luck from the owner's current Crown shards"},
+	},
+	tech9 = {
+		lines_zh = {"飞行器攻击时有概率追加科技激光或科技X激光环"},
+		lines_en = {"Air Flight attacks have a chance to add a Technology laser or Tech X ring"},
+	},
+	assassin = {
+		lines_zh = {"飞行器的攻击会伺机刺向附近的敌人"},
+		lines_en = {"The Air Flight's attacks seize openings to strike nearby enemies"},
+	},
+	pearl = {
+		lines_zh = {"飞行器有概率发射可吞噬并弹反敌方弹幕的珍珠"},
+		lines_en = {"The Air Flight may fire pearls that absorb and return enemy projectiles"},
+	},
+	evil_intervention = {
+		lines_zh = {"飞行器有概率发射会吞噬敌方攻击的追踪蝴蝶"},
+		lines_en = {"The Air Flight may fire homing butterflies that devour enemy attacks"},
+	},
+	seeker = {
+		lines_zh = {"偏离目标的攻击会短暂停顿并重新寻找附近敌人"},
+		lines_en = {"Off-course Air Flight attacks briefly pause and seek nearby enemies again"},
+	},
+	tech14 = {
+		lines_zh = {"飞行器飞过的格子也会留下科技限制器"},
+		lines_en = {"The Air Flight also leaves Tech XIV limiters on grid cells it flies over"},
+	},
+	gospel = {
+		lines_zh = {"飞行器每4次攻击中有一次成为福音攻击"},
+		lines_en = {"Every 4th Air Flight attack becomes a Gospel attack"},
+	},
 }
 
 local function profile()
@@ -596,10 +669,18 @@ local function resolve_meta(id)
 		meta[k] = v
 	end
 
+	-- 审计排除 / 禁材料：不进 pedestal Blueprint EID（制造页可另显示不适用）
 	if CP.is_ingredient_banned and CP.is_ingredient_banned(id) then
-		meta.status = "unsupported"
-		return meta
+		return nil
 	end
+	if CP.is_craft_excluded and CP.is_craft_excluded(id) then
+		return nil
+	end
+
+	local ek = CP.EXTRA_IMPL and CP.EXTRA_IMPL[id]
+	local early_extra = ek and EXTRA_EID[ek] or nil
+	local suppress_auto_stats = meta.suppress_auto_stats == true
+		or (early_extra and early_extra.suppress_auto_stats == true)
 
 	for _, m in ipairs(CP.MORPH or {}) do
 		if m.id == id then
@@ -610,15 +691,16 @@ local function resolve_meta(id)
 	end
 
 	local delta = CP.STAT_DELTA and CP.STAT_DELTA[id]
-	if delta and meta.stats == nil then
+	if delta and meta.stats == nil and not suppress_auto_stats then
 		local icons = icons_from_delta(delta)
 		if #icons > 0 then
 			meta.stats = icons
+			meta.stat_delta = delta
 			meta.status = meta.status or "supported"
 		end
 	end
 	local oe = CP.ONE_EYE and CP.ONE_EYE[id]
-	if oe and not meta.stats then
+	if oe and not meta.stats and not suppress_auto_stats then
 		meta.stats = {"Damage"}
 		meta.status = meta.status or "supported"
 	elseif oe and meta.stats then
@@ -639,7 +721,6 @@ local function resolve_meta(id)
 		meta.status = meta.status or "supported"
 	end
 
-	local ek = CP.EXTRA_IMPL and CP.EXTRA_IMPL[id]
 	if ek then
 		local row = find_familiar_row(ek)
 		if row and row.movement then
@@ -654,6 +735,11 @@ local function resolve_meta(id)
 		if ex then
 			meta = merge_meta(meta, ex)
 			meta.status = meta.status or "supported"
+			if ex.suppress_auto_stats then
+				meta.suppress_auto_stats = true
+				meta.stats = nil
+				meta.stat_delta = nil
+			end
 		end
 	end
 
@@ -712,11 +798,45 @@ local function sentence_weapon(meta, zh)
 	return "Changes the Air Flight's primary attack to "..name.."."
 end
 
---- 固定句；仅在确有属性继承时输出，不列图标
-local function sentence_stats(meta, zh)
-	if not meta.stats or #meta.stats == 0 then return nil end
-	if zh then return "该模块为飞行器提供对应属性。" end
-	return "Provides the Air Flight with the corresponding stats."
+--- 有 STAT_DELTA 时写具体数值行；有定制文案且 suppress_auto_stats 时跳过。
+local STAT_LINE_LABEL = {
+	damage = {zh = "{{Damage}} 飞行器攻击", en = "{{Damage}} Air Flight Damage"},
+	firedelay = {zh = "{{Tears}} 飞行器射速", en = "{{Tears}} Air Flight Tears"},
+	range = {zh = "{{Range}} 飞行器射程", en = "{{Range}} Air Flight Range"},
+	shotspeed = {zh = "{{Shotspeed}} 飞行器弹速", en = "{{Shotspeed}} Air Flight Shot Speed"},
+	speed = {zh = "{{Speed}} 飞行器移速", en = "{{Speed}} Air Flight Speed"},
+	luck = {zh = "{{Luck}} 飞行器幸运", en = "{{Luck}} Air Flight Luck"},
+}
+
+local function format_signed_stat(n)
+	n = tonumber(n)
+	if n == nil then return nil end
+	local s
+	if math.abs(n - math.floor(n + 0.0000001)) < 0.0000001 then
+		s = tostring(math.floor(n + 0.0000001))
+	else
+		s = string.format("%.2f", n):gsub("0+$", ""):gsub("%.$", "")
+	end
+	if n >= 0 then return "+" .. s end
+	return s
+end
+
+local function sentence_stat_lines(meta, zh)
+	if not meta or meta.suppress_auto_stats then return nil end
+	local delta = meta.stat_delta
+	if type(delta) ~= "table" then return nil end
+	local out = {}
+	for _, row in ipairs(STAT_ICON_ORDER) do
+		local v = delta[row.key]
+		if v ~= nil and v ~= 0 then
+			local label = STAT_LINE_LABEL[row.key]
+			local signed = format_signed_stat(v)
+			if label and signed then
+				out[#out + 1] = (zh and label.zh or label.en) .. " " .. signed
+			end
+		end
+	end
+	return #out > 0 and out or nil
 end
 
 --- eid_* 已是完整句，原样返回
@@ -808,12 +928,21 @@ function M.collectible_craft_eid_lines(id, zh)
 
 	local lines = {}
 	if meta.status == "unsupported" then
-		push_line(lines, zh and "该道具暂不可作为飞行器材料。" or "This item cannot currently be used as an Air Flight ingredient.")
+		-- 仅 CRAFT_EID_META 显式 unsupported（如旧兼容停用）；排除项已在 resolve_meta 返回 nil
+		local had = push_module_lines(lines, meta, zh)
+		if not had then
+			push_line(lines, zh and "该道具不适用于飞行器。" or "This item is not applicable to Air Flight.")
+		end
 		return lines
 	end
 
 	push_line(lines, sentence_weapon(meta, zh))
-	push_line(lines, sentence_stats(meta, zh))
+	local stat_lines = sentence_stat_lines(meta, zh)
+	if stat_lines then
+		for _, s in ipairs(stat_lines) do
+			push_line(lines, s)
+		end
+	end
 	push_line(lines, sentence_tear(meta, zh))
 	push_line(lines, sentence_bomb(meta, zh))
 

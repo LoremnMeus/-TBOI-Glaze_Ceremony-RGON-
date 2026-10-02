@@ -47,8 +47,15 @@ Function = function(_,cardtype,player,useFlags)
 	else
 		local mul = 0.1
 		if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then mul = 0.2 end
-		local n_enemy = auxi.getenemies(Isaac.GetRoomEntities(),function(ent) if ent:IsBoss() == false then return true end end)
-		local targ = auxi.getenemies(Isaac.GetRoomEntities(),function(ent) if ent:IsBoss() then return true end end)[1]
+		local n_enemy = {}
+		local targ = nil
+		for _,ent in pairs(auxi.getenemies(Isaac.GetRoomEntities())) do
+			if ent:IsBoss() then
+				targ = targ or ent
+			else
+				table.insert(n_enemy,ent)
+			end
+		end
 		if #n_enemy > 0 or targ then
 			if targ == nil then 
 				targ = n_enemy[1]
@@ -70,9 +77,9 @@ Function = function(_,cardtype,player,useFlags)
 				else
 					local delta = v.HitPoints - v.MaxHitPoints * mul
 					if delta > 0 then
-						local rnd = math.random(3) + 1
+						local rnd = rng:RandomInt(3) + 2
 						for i = 1,rnd do
-							local q = auxi.fire_nil(v.Position,auxi.MakeVector(math.random(360)) * (math.random(1000)/1000 * 15 + 10),{cooldown = 600,})
+							local q = auxi.fire_nil(v.Position,auxi.MakeVector(rng:RandomFloat() * 360) * (rng:RandomFloat() * 15 + 10),{cooldown = 600,})
 							local s = q:GetSprite()
 							s:Load("gfx/cards/cd03_emp_tear.anm2",true)
 							s:Play("RegularTear6",true)

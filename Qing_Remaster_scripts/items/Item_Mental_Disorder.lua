@@ -8,6 +8,7 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
+local screen_desync = require("Qing_Remaster_scripts.auxiliary.screen_desync")
 
 local ERR_PICKUP = "PICKUP"
 local ERR_ENEMY = "ENEMY"
@@ -17,7 +18,6 @@ local ROLL_DELAY = 3
 local W_PICKUP = 50
 local W_ENEMY = 35
 local W_ITEM = 15
-local DESYNC_SHADER = "Qing_Mental_Desync"
 local DESYNC_MAX_DEFAULT = 10
 local DESYNC_LEAVE_FRAMES = 3
 
@@ -27,7 +27,6 @@ local item = {
 	post_ToCall = {},
 	entity = enums.Items.Mental_Disorder,
 	own_key = "Item_Mental_Disorder_",
-	screen_glitch = nil,
 	-- GetPtrHash -> {left, next} 真实干扰实体，本房只 glitch 1～2 次
 	decoy_glitch = {},
 	reality_tears = {},
@@ -140,89 +139,9 @@ local function mark_illusion(ent, st)
 	if st then st.Seed = ent.InitSeed end
 end
 
-local function px_uv(px, axis)
-	local m = auxi.check_screen_multi(Vector(1, 1)) * 256
-	local den = axis == "y" and m.Y or m.X
-	if den < 1 then den = 256 end
-	return px / den
-end
-
-local function empty_desync_params()
-	return {
-		P1 = {0, 0, 0, 0},
-		P2 = {0, 0, 0, 0},
-		P3 = {0, 0, 0, 0},
-	}
-end
-
 --- 启动全屏 Mental Desync；mild 用于离房/拾取假物的极轻闪
 function item.trigger_desync(frames, mild)
-	frames = math.max(1, math.floor(tonumber(frames) or DESYNC_MAX_DEFAULT))
-	local seed = Game():GetFrameCount() + (Game():GetRoom():GetDecorationSeed() or 0)
-	local rng = RNG()
-	rng:SetSeed(math.max(1, seed % 2147483646), 35)
-	local function band_y(lo, hi)
-		local y0 = lo + rng:RandomFloat() * (hi - lo)
-		local h = 0.04 + rng:RandomFloat() * 0.04
-		return y0, math.min(0.98, y0 + h)
-	end
-	local b1a, b1b = band_y(0.16, 0.28)
-	local b2a, b2b = band_y(0.48, 0.58)
-	local b3 = 0.68 + rng:RandomFloat() * 0.12
-	local sign1 = rng:RandomInt(2) == 0 and 1 or -1
-	local sign2 = -sign1
-	item.screen_glitch = {
-		timer = frames,
-		max = frames,
-		mild = mild == true,
-		seed = seed,
-		band1 = {b1a, b1b},
-		band2 = {b2a, b2b},
-		band3_y = b3,
-		off1 = sign1 * (0.005 + rng:RandomFloat() * 0.004),
-		off2 = sign2 * (0.007 + rng:RandomFloat() * 0.005),
-		off3 = sign1 * (0.012 + rng:RandomFloat() * 0.006),
-		global = {
-			(rng:RandomFloat() - 0.5) * px_uv(2, "x"),
-			(rng:RandomFloat() - 0.5) * px_uv(1.5, "y"),
-		},
-	}
-end
-
-local function desync_strength(gch)
-	if not gch or (gch.timer or 0) <= 0 then return 0 end
-	if gch.mild then
-		return 0.08 + 0.04 * (gch.timer / math.max(1, gch.max))
-	end
-	local t = gch.timer
-	if t >= 8 then return 0.25
-	elseif t >= 5 then return 0.65
-	elseif t >= 3 then return 0.35
-	else return 0.12 end
-end
-
-local function pack_desync_params()
-	local gch = item.screen_glitch
-	if not gch or (gch.timer or 0) <= 0 then return empty_desync_params() end
-	local strength = desync_strength(gch)
-	local chromatic = px_uv(gch.mild and 1.2 or 2.4, "x")
-	-- 中段略加强色差，仍 ≤ ~4px
-	if not gch.mild and gch.timer >= 5 and gch.timer < 8 then
-		chromatic = px_uv(3.2, "x")
-	end
-	-- 5～8 帧区间加一次极小全局跳动（timer 倒计时：3～5）
-	local gx, gy = gch.global[1], gch.global[2]
-	if not gch.mild and gch.timer >= 3 and gch.timer < 6 then
-		gx = gx * 2.2
-		gy = gy * 2.2
-	elseif gch.timer >= 8 then
-		gx, gy = gx * 0.25, gy * 0.25
-	end
-	return {
-		P1 = {strength, chromatic, gch.off1, gch.off2},
-		P2 = {gch.band1[1], gch.band1[2], gch.band2[1], gch.band2[2]},
-		P3 = {gx, gy, gch.band3_y, gch.off3},
-	}
+	screen_desync.trigger(frames, mild)
 end
 
 local function get_band_sprite()
@@ -943,7 +862,7 @@ Function = function(_, continue)
 		save.elses[item.own_key.."error"] = empty_error()
 	end
 	save.elses[item.own_key.."error"] = save.elses[item.own_key.."error"] or empty_error()
-	item.screen_glitch = nil
+	screen_desync.reset()
 	item.decoy_glitch = {}
 	item.reality_tears = {}
 	item.reclaim_fx = nil
@@ -1074,25 +993,12 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
 Function = function(_)
-	local gch = item.screen_glitch
-	if gch and (gch.timer or 0) > 0 then
-		gch.timer = gch.timer - 1
-		if gch.timer <= 0 then item.screen_glitch = nil end
-	end
 	if item.hud_ghost_next and item.hud_ghost_next > 0 then
 		item.hud_ghost_next = item.hud_ghost_next - 1
 	else
 		item.hud_ghost_flip = not item.hud_ghost_flip
 		item.hud_ghost_next = 30 + math.random(0, 30)
 	end
-end,
-})
-
-table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_GET_SHADER_PARAMS, params = nil,
-Function = function(_, name)
-	if name ~= DESYNC_SHADER then return end
-	if Game():IsPauseMenuOpen() then return empty_desync_params() end
-	return pack_desync_params()
 end,
 })
 

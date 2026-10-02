@@ -34,23 +34,46 @@ local item = {
 auxi.add_to_seija(item.entity)
 
 function item.is_option_pending_remove(ent)
-	if auxi.check_all_exists(ent) ~= true then return true end
+	if auxi.check_all_exists(ent) ~= true then
+		return true
+	end
 	local pickup = ent:ToPickup()
-	if not pickup then return true end
+	if not pickup then
+		return true
+	end
 	local d = pickup:GetData()
-	return d.OptionsPickupIndex_should_remove == true or d[option_index_holder.own_key.."Remove"] == true or d[option_index_holder.own_key.."Pick"] == true
+	-- 只认 Option_Index_holder Remove = loser；禁止读 OptionsPickupIndex_should_remove（旧语义与名称相反）
+	return d[option_index_holder.own_key.."Remove"] == true
 end
 
-function item.remove_linked_effects(ent)
+function item.is_option_picked(ent)
+	if auxi.check_all_exists(ent) ~= true then return false end
+	local pickup = ent:ToPickup()
+	if not pickup then return false end
+	return pickup:GetData()[option_index_holder.own_key.."Pick"] == true
+end
+
+-- owner 消失原因：正常 Options 结算 vs 外部/异常清理
+local CLEANUP_EXTERNAL = "external"
+local CLEANUP_OPTION_SELECTION = "option_selection"
+
+--- 释放虚无假眼对三个伴生候选的引用。
+--- option_selection：只断引用，不 Remove（原版 Options 负责 sibling cleanup；winner 可能留下新底座）。
+--- external：主动 Remove 三个伴生，避免孤零零留在房间。
+--- 禁止按 child 的 live Pick flag 决定是否 Remove（时序竞争）；原因由调用方一次判定后传入。
+function item.cleanup_linked_effects(ent, reason)
 	local d = ent:GetData()
-	if d[item.own_key.."effect"] then
-		for i = 1,3 do
-			local effect = d[item.own_key.."effect"][i]
-			if auxi.check_all_exists(effect) then
-				effect:Remove()
-			end
-			d[item.own_key.."effect"][i] = nil
+	local effects = d[item.own_key.."effect"]
+	if not effects then
+		return
+	end
+	local should_remove = reason ~= CLEANUP_OPTION_SELECTION
+	for i = 1, 3 do
+		local effect = effects[i]
+		if should_remove and auxi.check_all_exists(effect) then
+			effect:Remove()
 		end
+		effects[i] = nil
 	end
 end
 
@@ -67,22 +90,28 @@ end,
 
 function item.record_entity(ent)
 	local id = ent.SubType
-	local st = ent.SubType 
+	local st = ent.SubType
 	local vr = ent.Variant
-	record_holder.try_hold(ent,{check = function(et) 
+	record_holder.try_hold(ent,{check = function(et)
 		if et.SubType ~= st or et.Variant ~= vr then return true,"Turn" end
 	end,Function = function(tp,et)
-		if tp == "Turn" then 
-			if et:ToPickup().OptionsPickupIndex ~= 0 and not (item.Ignorers[et.SubType] and item.Ignorers[st]) then
-				local q = Isaac.Spawn(1000,15,0,et.Position,Vector(0,0),nil) 
-				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLACK_POOF,1,1,false,0,2) 
+		if tp == "Turn" then
+			-- winner 拾取后 SubType/Variant 合法变化：不删、不黑烟
+			if item.is_option_picked(et) then return end
+			local pickup = et:ToPickup()
+			if pickup
+				and pickup.OptionsPickupIndex ~= 0
+				and not (item.Ignorers[et.SubType] and item.Ignorers[st])
+			then
+				local q = Isaac.Spawn(1000,15,0,et.Position,Vector(0,0),nil)
+				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLACK_POOF,1,1,false,0,2)
 				if item.display_distance == nil then
 					local language = Options.Language
 					local wdinfo = item.words[language] or item.words["en"]
 					item_displaying_holder.check_and_description("CardDesc",item.entity,wdinfo[1],"",player)
 					item.display_distance = true
 				end
-				et:Remove() 
+				et:Remove()
 			end
 		end
 	end,})
@@ -117,11 +146,14 @@ function item.try_find(ent,id)
 		d._Data[item.own_key]["counter"] = d._Data[item.own_key]["counter"] or 0
 		local rng = ent:GetDropRNG()
 		for i = 1,3 do
+			-- Pool roll must stay outside with_missing: missing override forces PRE_GET_COLLECTIBLE → id.
 			local colid = auxi.get_item_from_pool(nil,true,rng)
 			if colid == item.entity and #(auxi.getothers(5,100,item.entity)) > 10 then colid = enums.Items.Hypermnesia end
-			unique_holder.Hold_for_missing(true) 
-			local q = Isaac.Spawn(5,100,colid,item.get_rotation_pos(ent,i),Vector(0,0),nil):ToPickup()
-			auxi.self_morph(q,{5,100,colid,})
+			local q = unique_holder.with_missing(33, function()
+				local spawned = Isaac.Spawn(5,100,colid,item.get_rotation_pos(ent,i),Vector(0,0),nil):ToPickup()
+				auxi.self_morph(spawned,{5,100,colid,})
+				return spawned
+			end)
 			q.OptionsPickupIndex = ent.OptionsPickupIndex
 			local d2 = q:GetData()
 			d._Data[item.own_key]["effect"][i] = consistance_holder.get_name(q,{params_name_only = true,})[1]
@@ -130,7 +162,6 @@ function item.try_find(ent,id)
 			d2[item.own_key.."record"] = {tg = ent,price = ent.Price,}
 			q.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE
 			if ent.Price ~= 0 then q.Price = ent.Price price_holder.catch_price_over(q) end
-			unique_holder.Hold_for_missing() 
 		end
 		consistance_holder.try_hold_entity(ent,item.own_key)
 		return d[item.own_key.."effect"][id]
@@ -149,7 +180,13 @@ Function = function(_,ent)
 	local d = ent:GetData()
 	if ent.SubType == item.entity then
 		if item.is_option_pending_remove(ent) then
-			item.remove_linked_effects(ent)
+			-- was_rejected_by_selection 会 consume：只查一次，把 reason 传入 cleanup
+			local rejected = option_index_holder.was_rejected_by_selection
+				and option_index_holder.was_rejected_by_selection(ent) == true
+			item.cleanup_linked_effects(
+				ent,
+				rejected and CLEANUP_OPTION_SELECTION or CLEANUP_EXTERNAL
+			)
 			return
 		end
 		if ent.OptionsPickupIndex == 0 then 
@@ -184,6 +221,10 @@ Function = function(_,ent)
 		
 	end
 	if d[item.own_key.."record"] then
+		-- winner 已被玩家选中：后续底座保留/换主动/里以撒换被动等，虚无假眼不再干预
+		if item.is_option_picked(ent) then
+			return
+		end
 		local tg = d[item.own_key.."record"].tg
 		if item.is_option_pending_remove(ent) or item.is_option_pending_remove(tg) or (auxi.check_all_exists(tg) and tg.SubType ~= item.entity) then
 			Isaac.Spawn(1000,15,0,ent.Position,Vector(0,0),nil)
@@ -191,7 +232,7 @@ Function = function(_,ent)
 			return
 		end
 		local tgpos = d[item.own_key.."record"].pos
-		if tgpos then 
+		if tgpos then
 			ent.TargetPosition = tgpos
 			ent.Position = tgpos
 			ent.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_NONE

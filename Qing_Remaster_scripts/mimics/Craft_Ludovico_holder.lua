@@ -1,7 +1,9 @@
 -- Craft Ludovico：制造 Flight 的持久受控载体。
 -- 形态：普通泪 / 妈刀贴图泪（原版亦为可控泪换刀外观）/ 硫磺环 / 科技环（Tech≡Tech X）。
 -- 控制权来自 Flight；多发=卫星；Incubus/该隐另一只眼/Twisted=宝宝卫星。
+local g = require("Qing_Remaster_scripts.core.globals")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local enums = require("Qing_Remaster_scripts.core.enums")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
 local CraftTearColors = require("Qing_Remaster_scripts.others.craft_tear_color_data")
 local CraftTearParams = require("Qing_Remaster_scripts.others.craft_tear_params_data")
@@ -252,7 +254,20 @@ local function spawn_tear(rec, slot, is_sat, scale_mul, dmg_mul)
 	local air = rec.air
 	if not player or not air or not auxi.check_all_exists(air) then return nil end
 	local pos = air.Position
-	local q = player:FireTear(pos, Vector.Zero, false, true, false)
+	-- untracked：Ludo synthetic cadence 由 adapter POST_TEAR_UPDATE 拥有；禁止 holder new_attack。
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local fire_opts = attack_holder.CopyFireContext("craft_ludo_spawn_tear", {
+		can_be_eye = false,
+		no_tracer = true,
+		can_trigger_streak_end = false,
+	}) or {
+		mode = "untracked",
+		reason = "craft_ludo_spawn_tear",
+		can_be_eye = false,
+		no_tracer = true,
+		can_trigger_streak_end = false,
+	}
+	local q = attack_holder.FireTear(player, pos, Vector.Zero, fire_opts)
 	if not q then return nil end
 	q = q:ToTear() or q
 	q.Parent = air
@@ -329,7 +344,17 @@ local function spawn_ring(rec, slot, anchor, is_brim, dmg_mul, radius_mul)
 	if is_brim and syn.brim_tech then
 		base_mul = base_mul * (CraftProfile.brimstone_synergy_mul(profile) or 1.5)
 	end
-	local q = player:FireTechXLaser(anchor.Position, Vector.Zero, rad, player, base_mul * (dmg_mul or 1))
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local ring_opts = attack_holder.CopyFireContext("craft_ludo_spawn_ring", {
+		source_entity = player,
+		damage_multiplier = base_mul * (dmg_mul or 1),
+	}) or {
+		mode = "untracked",
+		reason = "craft_ludo_spawn_ring",
+		source_entity = player,
+		damage_multiplier = base_mul * (dmg_mul or 1),
+	}
+	local q = attack_holder.FireTechXLaser(player, anchor.Position, Vector.Zero, rad, ring_opts)
 	if not q then return nil end
 	q = q:ToLaser() or q
 	q.Parent = anchor
@@ -951,8 +976,8 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	end,
 })
 
-table.insert(item.ToCall, #item.ToCall + 1, {
-	CallBack = ModCallbacks.MC_POST_NEW_ROOM,
+table.insert(item.myToCall, #item.myToCall + 1, {
+	CallBack = enums.Callbacks.PRE_NEW_ROOM,
 	params = nil,
 	Function = function()
 		for _, rec in pairs(item.registry) do
@@ -970,6 +995,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE,
 	params = EntityType.ENTITY_FAMILIAR,
 	Function = function(_, ent)
+		if not g.is_gameplay_world_active() then return end
 		if not ent then return end
 		if item.registry[GetPtrHash(ent)] then
 			item.release(ent)

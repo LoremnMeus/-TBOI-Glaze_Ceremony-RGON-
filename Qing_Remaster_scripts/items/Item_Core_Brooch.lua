@@ -35,10 +35,50 @@ local item = {
 	},
 }
 
+local function get_roots()
+	local effect_key = item.own_key .. "effect"
+	local buff_key = item.own_key .. "buff"
+	local select_key = item.own_key .. "ToSelect"
+	local effect = save.elses[effect_key]
+	if type(effect) ~= "table" then
+		effect = {}
+		save.elses[effect_key] = effect
+	end
+	local buff = save.elses[buff_key]
+	if type(buff) ~= "table" then
+		buff = {}
+		save.elses[buff_key] = buff
+	end
+	local select_state = save.elses[select_key]
+	if type(select_state) ~= "table" then
+		select_state = {}
+		save.elses[select_key] = select_state
+	end
+	return effect, buff, select_state
+end
+
+local function get_player_state(player)
+	local idx = player and player.GetData and player:GetData().__Index
+	if idx == nil then return nil end
+	local effect, buff, select_state = get_roots()
+	if type(buff[idx]) ~= "table" then
+		buff[idx] = {}
+	end
+	return {
+		idx = idx,
+		effect = effect,
+		buff_root = buff,
+		buff = buff[idx],
+		select_root = select_state,
+	}
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then else save.elses[item.own_key.."effect"] = {} end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	if not continue then
+		save.elses[item.own_key.."effect"] = {}
+	end
+	get_roots()
 end,
 })
 
@@ -48,14 +88,18 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 	local d = player:GetData()
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 	else
-		local idx = player:GetData().__Index
-		if d[item.own_key.."effect"] then 
+		if d[item.own_key.."effect"] then
 			d[item.own_key.."effect"] = nil
 			player:AnimateCollectible(item.entity,"HideItem","PlayerPickup")
 			selection_holder.remove_select(player,item.own_key)
 		else d[item.own_key.."lift"] = {} d[item.own_key.."effect"] = {} item.last_open_dir = 9 end
-		save.elses[item.own_key.."ToSelect"] = save.elses[item.own_key.."ToSelect"] or {}
-		save.elses[item.own_key.."ToSelect"][idx] = save.elses[item.own_key.."ToSelect"][idx] or item.makechoice(player)
+		local st = get_player_state(player)
+		if not st then return {Discharge = false} end
+		local selected = st.select_root[st.idx]
+		if selected == nil then
+			selected = item.makechoice(player)
+			st.select_root[st.idx] = selected
+		end
 		return {Discharge = false}
 	end
 	return ret
@@ -77,18 +121,22 @@ Function = function(_,player,offset)
 		if d[item.own_key.."effect"] and player:IsHoldingItem() then
 			if selection_holder.check_select(player,item.own_key) then
 				--render_selector(player)
-				local idx = player:GetData().__Index
-				save.elses[item.own_key.."ToSelect"] = save.elses[item.own_key.."ToSelect"] or {}
-				save.elses[item.own_key.."ToSelect"][idx] = save.elses[item.own_key.."ToSelect"][idx] or item.makechoice(player)
+				local st = get_player_state(player)
+				if not st then return end
+				local selected = st.select_root[st.idx]
+				if selected == nil then
+					selected = item.makechoice(player)
+					st.select_root[st.idx] = selected
+				end
 				local stpos = Isaac.WorldToScreen(player.Position) + item.start_pos - ((item.maxlimit - 1)/2) * item.mov_pos
 				for i = 1,item.maxlimit do
-					local info = item.buffinfo[save.elses[item.own_key.."ToSelect"][idx][i] or 1]
-					local s = Sprite() s:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true) s:ReplaceSpritesheet(0,"gfx/ui/status/"..(info.name)..".png") s:LoadGraphics() s:Play("Idle",true) 
+					local info = item.buffinfo[selected[i] or 1]
+					local s = Sprite() s:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true) s:ReplaceSpritesheet(0,"gfx/ui/status/"..(info.name)..".png") s:LoadGraphics() s:Play("Idle",true)
 					local selected = (i - 1) == (d[item.own_key.."effect"].selected or 0)
 					if not selected then s.Color = Color(1,1,1,1,-0.2,-0.2,-0.2) end
 					s:Render(stpos,Vector(0,0),Vector(0,0))
-					if selected then 
-						local s2 = Sprite() s2:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true) s2:ReplaceSpritesheet(0,"gfx/ui/math/catch_mark.png") s2:LoadGraphics() s2:Play("Idle",true) 
+					if selected then
+						local s2 = Sprite() s2:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true) s2:ReplaceSpritesheet(0,"gfx/ui/math/catch_mark.png") s2:LoadGraphics() s2:Play("Idle",true)
 						s2:Render(stpos,Vector(0,0),Vector(0,0))
 					end
 					stpos = stpos + item.mov_pos
@@ -105,22 +153,24 @@ local function move(player,dir)
 	if dir == 4 or dir == 6 then d[item.own_key.."effect"].selected = ((d[item.own_key.."effect"].selected or 0) - 1) % item.maxlimit end
 	if dir == 5 or dir == 7 then d[item.own_key.."effect"].selected = ((d[item.own_key.."effect"].selected or 0) + 1) % item.maxlimit end
 	if dir == 9 then
-		save.elses[item.own_key.."effect"][idx] = (save.elses[item.own_key.."effect"][idx] or 0) + 1
-		save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-		save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
+		local st = get_player_state(player)
+		if not st then return 0 end
+		local count = (st.effect[st.idx] or 0) + 1
+		st.effect[st.idx] = count
+		local choices = st.select_root[st.idx]
 		for i = 1,item.maxlimit do
-			local info = item.buffinfo[save.elses[item.own_key.."ToSelect"][idx][i] or 1]
+			local info = item.buffinfo[(choices and choices[i]) or 1]
 			local selected = (i - 1) == (d[item.own_key.."effect"].selected or 0)
-			if selected then save.elses[item.own_key.."buff"][idx][info.name] = (save.elses[item.own_key.."buff"][idx][info.name] or 0) + item.maxlimit * 0.1
-			else save.elses[item.own_key.."buff"][idx][info.name] = (save.elses[item.own_key.."buff"][idx][info.name] or 0) - 0.1 end
+			if selected then st.buff[info.name] = (st.buff[info.name] or 0) + item.maxlimit * 0.1
+			else st.buff[info.name] = (st.buff[info.name] or 0) - 0.1 end
 			player:AddCacheFlags(info.cache)
 		end
 		player:GetData().should_evaluate_on_update_once = true
-		save.elses[item.own_key.."ToSelect"][idx] = nil
+		st.select_root[st.idx] = nil
 		local slot = auxi.check_slot_with_item(player,item.entity)
 		player:UseActiveItem(item.entity,UseFlag.USE_OWNED,slot)
-		if save.elses[item.own_key.."effect"][idx] >= 10 then 
-			save.elses[item.own_key.."effect"][idx] = 0
+		if count >= 10 then
+			st.effect[st.idx] = 0
 			player:RemoveCollectible(item.entity)
 			player:AnimateSad()
 			Game():BombExplosionEffects(player.Position,player.Damage * 5,BitSet128(0,0),Color(1,1,1,1,0.3,0,0),player,1,false,false)
@@ -135,29 +185,27 @@ end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
-	if save.elses[item.own_key.."buff"] then
-		local idx = player:GetData().__Index
-		if idx ~= nil and save.elses[item.own_key.."buff"][idx] then
+	local st = get_player_state(player)
+	if not st then return end
+	local buff = st.buff
 			if cacheFlag == CacheFlag.CACHE_DAMAGE then
-				player.Damage = player.Damage + (save.elses[item.own_key.."buff"][idx].damage or 0)
+				player.Damage = player.Damage + (buff.damage or 0)
 			end
 			if cacheFlag == CacheFlag.CACHE_FIREDELAY then
-				player.MaxFireDelay = auxi.TearsUp(player.MaxFireDelay,(save.elses[item.own_key.."buff"][idx].tear or 0))
+				player.MaxFireDelay = auxi.TearsUp(player.MaxFireDelay,(buff.tear or 0))
 			end
 			if cacheFlag == CacheFlag.CACHE_RANGE then
-				player.TearRange = player.TearRange + (save.elses[item.own_key.."buff"][idx].range or 0) * 40 * 2.5
+				player.TearRange = player.TearRange + (buff.range or 0) * 40 * 2.5
 			end
 			if cacheFlag == CacheFlag.CACHE_SPEED then
-				player.MoveSpeed = player.MoveSpeed + (save.elses[item.own_key.."buff"][idx].speed or 0) * 0.5
+				player.MoveSpeed = player.MoveSpeed + (buff.speed or 0) * 0.5
 			end
 			if cacheFlag == CacheFlag.CACHE_LUCK then
-				player.Luck = player.Luck + (save.elses[item.own_key.."buff"][idx].luck or 0) * 5
+				player.Luck = player.Luck + (buff.luck or 0) * 5
 			end
 			if cacheFlag == CacheFlag.CACHE_SHOTSPEED then
-				player.ShotSpeed = player.ShotSpeed + (save.elses[item.own_key.."buff"][idx].shotspeed or 0)
+				player.ShotSpeed = player.ShotSpeed + (buff.shotspeed or 0)
 			end
-		end
-	end
 end,
 })
 
@@ -231,8 +279,8 @@ Function = function(_,player,tp,cid,slot)
 		local pos = ui.PlayerActiveUIPos(player,slot,auxi.GetPlayerOrder(player),cid)
 		local c = slot_render_holder.get_alpha()
 		local col = Color(0.5 * c,c,c,1)
-		local idx = player:GetData().__Index
-		local counter = 10 - (save.elses[item.own_key.."effect"][idx] or 0)
+		local st = get_player_state(player)
+		local counter = 10 - ((st and st.effect[st.idx]) or 0)
 		local str = "*"..tostring(counter)
 		gui.draw_ch(pos + Vector(-16,-16),str,1,1,auxi.Color_2_KColor(col),true,ffont)
 	end

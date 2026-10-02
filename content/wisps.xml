@@ -200,6 +200,8 @@
 	<wisp id="56" hp="2" layer="2" damage="1" tearScale="0.6" flameColor="flame_black" tearFlags="20" coreColor="default" tearColor="tear_black" coreGfx="Book_of_The_Law_core.png" />
 	<wisp id="57" hp="1.5" layer="0" damage="2" tearScale="1" flameColor="flame_blue" coreColor="core_dark_blue" tearColor="tear_grey" coreGfx="Book_of_Vision_core.png" />
 	<wisp id="58" count="0" hp="2.5" layer="0" damage="1.5" tearScale="0.6" flameColor="flame_grey" coreColor="core_blue" tearColor="tear_green" coreGfx="Book_of_Voice_core.png" />
+	<!-- Spectralsword: Book of Virtues disabled -->
+	<wisp id="65" count="0"/>
 	<wisp id="66" count="0"/>
 	<wisp id="76" hp="1" layer="1" damage="1.5" tearScale="0.6" flameColor="flame_red" coreColor="core_red" tearColor="tear_red" coreGfx="Tzolkin_core.png" />
 	<wisp id="80" hp="1.5" layer="2" damage="1.5" tearScale="0.6" flameColor="flame_grey" coreColor="core_grey" tearColor="tear_grey"/>

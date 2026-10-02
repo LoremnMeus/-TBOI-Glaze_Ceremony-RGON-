@@ -19,6 +19,25 @@ local item = {
 	},
 }
 
+-- effect may be absent after Hourglass / rewind wholesale restore.
+-- nil room/grid entries mean "not yet marked".
+local function get_effect_state()
+	local key = item.own_key .. "effect"
+	if type(save.elses[key]) ~= "table" then
+		save.elses[key] = {}
+	end
+	return save.elses[key]
+end
+
+local function get_room_effect_state(ridx)
+	local root = get_effect_state()
+	if type(root[ridx]) ~= "table" then
+		root[ridx] = {}
+	end
+	return root[ridx]
+end
+
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
 	if continue then
@@ -38,8 +57,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_ROOM_E
 Function = function(_,tp,vr,st,idx,seed)
 	local ridx = auxi.get_acceptible_index()
 	--print(ridx.." "..tp.." "..vr.." "..st.." "..idx)
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	if (save.elses[item.own_key.."effect"][ridx] or {})[idx] then return {303,enums.Enemies.RemoverToken,0} end
+	local room_effect = get_room_effect_state(ridx)
+	if room_effect[idx] then return {303,enums.Enemies.RemoverToken,0} end
 end,
 })
 
@@ -59,18 +78,23 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 		local level = Game():GetLevel()
 		local rooms = level:GetRooms()
 		local desc = level:GetCurrentRoomDesc()
-		save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+		local room_states = {}
 		for i = 1, rooms.Size do 
 			local targ = rooms:Get(i - 1) 
 			if targ.VisitedCount == 0 then 
 				local ridx = auxi.get_acceptible_index(targ.SafeGridIndex,auxi.GetDimension(targ))
+				local room_effect = room_states[ridx]
+				if not room_effect then
+					room_effect = get_room_effect_state(ridx)
+					room_states[ridx] = room_effect
+				end
 				local spawns = targ.Data.Spawns
 				local sz = spawns.Size
 				local width = targ.Data.Width
 				for i = 1,sz do
 					local entinfo = spawns:Get(i - 1):PickEntry(rng:RandomFloat())
 					local idx = (spawns:Get(i - 1).X + 1) + (spawns:Get(i - 1).Y + 1) * (width + 2)
-					if entinfo.Type >= 10 and entinfo.Type < 999 and not item.Ignorer[entinfo.Type] and (save.elses[item.own_key.."effect"][ridx] or {})[idx] ~= true then
+					if entinfo.Type >= 10 and entinfo.Type < 999 and not item.Ignorer[entinfo.Type] and room_effect[idx] ~= true then
 						local tpinfo = {Type = entinfo.Type,Variant = entinfo.Variant,SubType = entinfo.Subtype,}
 						local check_info = danger_data.check_data(tpinfo)
 						if check_info and (check_info.i1 or "") == "monsters" then table.insert(tbl,#tbl + 1,{ridx = ridx,idx = idx,info = tpinfo,}) end
@@ -84,8 +108,12 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 			cnt = math.min(cnt,#tbl)
 			for i = 1,cnt do
 				local tpinfo = tbl[i].info
-				save.elses[item.own_key.."effect"][tbl[i].ridx] = save.elses[item.own_key.."effect"][tbl[i].ridx] or {}
-				save.elses[item.own_key.."effect"][tbl[i].ridx][tbl[i].idx] = true
+				local marked = room_states[tbl[i].ridx]
+				if not marked then
+					marked = get_room_effect_state(tbl[i].ridx)
+					room_states[tbl[i].ridx] = marked
+				end
+				marked[tbl[i].idx] = true
 				--print(tbl[i].ridx.." "..tbl[i].idx)
 				local pos = room:GetRandomPosition(0)
 				if (pos - Game():GetPlayer(0).Position):Length() < 30 then pos = room:GetRandomPosition(0) end

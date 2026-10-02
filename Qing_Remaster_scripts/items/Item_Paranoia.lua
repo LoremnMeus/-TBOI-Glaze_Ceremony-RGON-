@@ -38,12 +38,12 @@ Function = function(_,ent,col,low)
 			end
 			if colinfo.Type == ItemType.ITEM_ACTIVE and auxi.would_replace_active(player) then
 				local actid = player:GetActiveItem(0)
-				unique_holder.Hold_for_missing(true)
-				local q = Isaac.Spawn(5,100,actid,Game():GetRoom():FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-				auxi.self_morph(q,{5,100,actid,})
-				q.Touched = true
-				q.Charge = player:GetActiveCharge(0) + player:GetBatteryCharge(0)
-				unique_holder.Hold_for_missing()
+				unique_holder.with_missing(33, function()
+					local q = Isaac.Spawn(5,100,actid,Game():GetRoom():FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+					auxi.self_morph(q,{5,100,actid,})
+					q.Touched = true
+					q.Charge = player:GetActiveCharge(0) + player:GetBatteryCharge(0)
+				end)
 			end
 			auxi.try_start_ambush()
 			print(ent.Touched)

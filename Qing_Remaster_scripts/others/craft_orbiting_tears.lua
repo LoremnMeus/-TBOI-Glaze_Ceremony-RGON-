@@ -3,6 +3,7 @@
 -- 自管轨（去 ORBIT）。FA=0/FS=0；Height=offset2height(正确PO)，并写入同一 PositionOffset（禁止 PO=0）。
 -- 轨 Velocity=切向+air.Vel。595 HALO SubType5。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
 local CraftTearColors = require("Qing_Remaster_scripts.others.craft_tear_color_data")
@@ -111,7 +112,7 @@ end
 
 local function craft_uid_of(air)
 	if not air then return nil end
-	return air:GetData()[get_blueprint().own_key.."craft_uid"]
+	return CraftIdentity.get_uid(air)
 end
 
 local function flight_damage(profile, player)
@@ -474,7 +475,7 @@ end
 local function ensure_saturn_halo(air)
 	if not air then return end
 	local d = air:GetData()
-	local craft_prof = d[get_air_mod().own_key.."craft_profile"]
+	local craft_prof = CraftIdentity.get_profile(air)
 	if count_of(craft_prof, IDS.SATURNUS) <= 0 then
 		clear_follow_fx(air, "saturn_halo")
 		return
@@ -1039,7 +1040,7 @@ function item.on_new_room()
 	for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, Air.familiar or enums.Familiars.QingsAirs, -1, false, false)) do
 		local air = ent:ToFamiliar()
 		if air and auxi.check_all_exists(air) then
-			local craft_prof = air:GetData()[Air.own_key.."craft_profile"]
+			local craft_prof = CraftIdentity.get_profile(air)
 			local player = auxi.check_spawner_player(air)
 			if craft_prof and player and count_of(craft_prof, IDS.SATURNUS) > 0 then
 				item.clear_for_air(air)

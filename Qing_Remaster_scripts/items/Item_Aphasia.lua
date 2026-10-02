@@ -15,6 +15,16 @@ local item = {
 	entity = enums.Items.Aphasia,
 }
 
+--- Base damage add from Aphasia accum (no character damage multiplier).
+function item.get_damage_bonus(player)
+	local idx = player and player:GetData() and player:GetData().__Index
+	if idx == nil then return 0 end
+	save.elses = save.elses or {}
+	save.elses.Aphasia_damage = save.elses.Aphasia_damage or {}
+	local accum = tonumber(save.elses.Aphasia_damage[idx]) or 0
+	return (math.sqrt(accum + 4) - 2) * 0.4
+end
+
 function item.insert_word(player,wd)
 	local d = player:GetData()
 	local idx = player:GetData().__Index
@@ -40,9 +50,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_C
 Function = function(_,player,cacheFlag)
 	if auxi.has_have_coll(player,item.entity) then
 		if cacheFlag == CacheFlag.CACHE_DAMAGE then
-			local d = player:GetData()
-			local idx = player:GetData().__Index
-			player.Damage = player.Damage + (math.sqrt((save.elses.Aphasia_damage[idx] or 0) + 4) - 2) * 0.4 * auxi.get_damage_multiplier(player)
+			player.Damage = player.Damage
+				+ item.get_damage_bonus(player) * auxi.get_damage_multiplier(player)
 		end
 	end
 end,

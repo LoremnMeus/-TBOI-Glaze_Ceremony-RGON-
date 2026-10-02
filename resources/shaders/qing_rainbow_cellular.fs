@@ -25,36 +25,36 @@ uniform sampler2D Texture0;
 // -----------------------------------------------------------------------------
 const float TAU = 6.28318530717958647692;
 
-// 更小色块（32×32 上约更密的晶片）
-const float CELL_SIZE = 2.35;
-const float CELL_WARP = 1.35;
+// 略大色块，避免 32×32 上“综合色发灰”
+const float CELL_SIZE = 2.75;
+const float CELL_WARP = 1.10;
 
 const float DARK_THRESHOLD = 0.28;
 const float BRIGHT_THRESHOLD = 0.64;
 
-const float SHADOW_HUE = -0.045;
+const float SHADOW_HUE = -0.020;
 const float MID_HUE = 0.0;
-const float HIGHLIGHT_HUE = 0.055;
+const float HIGHLIGHT_HUE = 0.030;
 
-const float SHADOW_SAT = 0.95;
+const float SHADOW_SAT = 0.96;
 const float MID_SAT = 1.00;
-const float HIGHLIGHT_SAT = 0.88;
+const float HIGHLIGHT_SAT = 0.92;
 
 const float SHADOW_VALUE = 0.48;
-const float MID_VALUE = 0.78;
+const float MID_VALUE = 0.80;
 const float HIGHLIGHT_VALUE = 1.00;
 
-// 动感：只在 baseHue 附近漂移（禁止 baseHue+phase 整环旋转）
-const float CELL_HUE_WAVE = 0.022;
-const float NOISE_HUE_AMOUNT = 0.065;
-const float FINE_SHIMMER = 0.010;
+// 降低 hue 漂移，避免 palette 选得再好也被噪声打散
+const float CELL_HUE_WAVE = 0.010;
+const float NOISE_HUE_AMOUNT = 0.028;
+const float FINE_SHIMMER = 0.004;
 
 const float BLACK_LOW = 0.045;
 const float BLACK_HIGH = 0.10;
 
-// HSV→RGB 后软补偿感知亮度（压青绿、抬红蓝）
-const float PERCEPTUAL_TARGET_LUM = 0.32;
-const float PERCEPTUAL_MIX = 0.35;
+// 弱化强制感知亮度校正，避免颜色“都被压到一个灰灰的观感”
+const float PERCEPTUAL_TARGET_LUM = 0.34;
+const float PERCEPTUAL_MIX = 0.18;
 
 // -----------------------------------------------------------------------------
 // Hash / noise / HSV
@@ -98,29 +98,31 @@ float getLuminance(vec3 c)
 }
 
 /*
- * 加权色相表（16 档）：palette 是主人，动画只在附近漂移。
- * 红/玫红 6 · 橙 2 · 绿 1 · 青蓝 3 · 紫品红 4；无 teal。
+ * 加权色相表（16 档）：
+ * 目标：补亮黄 / 强化蓝 / 减少紫绿统治
+ * 分布：
+ * 红橙 3 · 黄橙 3 · 绿 2 · 蓝 4 · 紫品红 4
  */
 float weightedPaletteHue(float u)
 {
 	float i = floor(clamp(u, 0.0, 0.9999) * 16.0);
 
-	if (i < 0.5) return 0.000;
-	if (i < 1.5) return 0.015;
-	if (i < 2.5) return 0.035;
-	if (i < 3.5) return 0.060;
-	if (i < 4.5) return 0.925;
-	if (i < 5.5) return 0.965;
-	if (i < 6.5) return 0.085;
-	if (i < 7.5) return 0.115;
-	if (i < 8.5) return 0.355;
-	if (i < 9.5) return 0.525;
-	if (i < 10.5) return 0.600;
-	if (i < 11.5) return 0.665;
-	if (i < 12.5) return 0.735;
-	if (i < 13.5) return 0.800;
-	if (i < 14.5) return 0.855;
-	return 0.900;
+	if (i < 0.5) return 0.000; // red
+	if (i < 1.5) return 0.025; // red-orange
+	if (i < 2.5) return 0.055; // orange-red
+	if (i < 3.5) return 0.095; // orange
+	if (i < 4.5) return 0.145; // amber
+	if (i < 5.5) return 0.175; // bright yellow
+	if (i < 6.5) return 0.285; // yellow-green
+	if (i < 7.5) return 0.390; // emerald
+	if (i < 8.5) return 0.535; // cyan-blue
+	if (i < 9.5) return 0.585; // sky blue
+	if (i < 10.5) return 0.625; // vivid blue
+	if (i < 11.5) return 0.675; // deep blue
+	if (i < 12.5) return 0.745; // blue-purple
+	if (i < 13.5) return 0.805; // violet
+	if (i < 14.5) return 0.875; // magenta
+	return 0.940; // rose
 }
 
 // Warp ONLY color-cell lookup space (not texture UV).

@@ -14,17 +14,6 @@ local item = {
 	own_key = "Item_Shadow_Bottle_",
 }
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_GAME_EXIT, params = nil,
-Function = function(_)
-	for u,v in pairs(Isaac.GetRoomEntities()) do
-        if v:GetData()[item.own_key.."effect"] then
-            v:ClearEntityFlags(EntityFlag.FLAG_FRIENDLY)
-            v:Remove()
-        end
-    end
-end,
-})
-
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
 	local cnt = auxi.get_player_have_collectible_num(item.entity)
@@ -33,8 +22,7 @@ Function = function(_)
 		for i = 1,cnt do
 			local q = Level_Shaddoll.spawn_random_shadow(nil,{level = function() return auxi.random_in_weighed_table(Level_Shaddoll.weigh_table[1]).id end,})
 			q:AddEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_CHARM)
-			local d = q:GetData()
-			d[item.own_key.."effect"] = true
+			q:GetData()[item.own_key.."effect"] = true
 		end
 	end
 end,

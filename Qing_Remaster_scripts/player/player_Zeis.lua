@@ -566,7 +566,10 @@ Function = function(_,ent,col,low)
 					end
 					if auxi.can_start_ambush(ent) then auxi.try_start_ambush() end
 					card_06r_lover.try_take_on_lover(player,ent)
-					auxi.remove_others_option_pickup(ent)
+					option_index_holder.commit_selection(ent, player, {
+						skip_will_collect = true,
+						remove_siblings = true,
+					})
 					d[item.own_key.."effect"] = {}
 					save.elses[item.own_key.."Record"] = save.elses[item.own_key.."Record"] or {}
 					save.elses[item.own_key.."Record"][st] = save.elses[item.own_key.."Record"][st] or {}
@@ -590,7 +593,10 @@ Function = function(_,ent,col,low)
 					if ent.Price ~= 0 then auxi.buy_a_pickup(ent,player,{NoAnim = true,}) end
 					if auxi.can_start_ambush(ent) then auxi.try_start_ambush() end
 					card_06r_lover.try_take_on_lover(player,ent)
-					auxi.remove_others_option_pickup(ent)
+					option_index_holder.commit_selection(ent, player, {
+						skip_will_collect = true,
+						remove_siblings = true,
+					})
 					player:AnimateCollectible(st,"Pickup","PlayerPickupSparkle")
 					player:SetPocketActiveItem(st,2,false)
 					save.elses[item.own_key.."Death_C"] = true

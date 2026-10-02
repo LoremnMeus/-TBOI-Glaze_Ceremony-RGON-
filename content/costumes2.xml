@@ -1,8 +1,8 @@
 <costumes anm2root="gfx/characters/">
 	<costume anm2path="SPWQingHair.anm2" type="none" priority="99" />
+	<costume anm2path="QingHead.anm2" type="none" priority="99" />
 	<costume anm2path="Qingrobes.anm2" type="none" priority="16" />
 	<costume anm2path="Gaint_Punch_Head.anm2" type="passive" id="10"/>
-	<costume anm2path="Qingrobes.anm2" type="passive" id = "3"/>
 	<costume anm2path="My_Best_Friend_Head.anm2" type="passive" id="12"/>
 	<costume anm2path="Assassin_s_eye_head.anm2" type="passive" id="5"/>
 	<costume anm2path="darkness_head.anm2" type="passive" id="1" skinColor="1" overwriteColor="true"/>
@@ -42,6 +42,8 @@
 	<costume anm2path="Anna2_body.anm2" type="none" priority="99" isFlying="true"/>
 	<costume anm2path="Anna_Horn.anm2" type="none" priority="99"/>
 	<costume anm2path="Autio_Hair.anm2" type="none" priority="99"/>
+	<!-- 天依头发：仅 hair/head4 叠层，不替换底模脸；世末天依旅人幽灵用 -->
+	<costume anm2path="TianYi_Hair.anm2" type="none" priority="99"/>
 	<costume anm2path="Delicate_Flower_Head.anm2" type="none" priority="99"/>
 	<costume anm2path="Tech_14_Head.anm2" type="passive" id="92"/>
 	<costume anm2path="Zeistos_Head.anm2" type="none" priority="99"/>

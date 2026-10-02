@@ -5,9 +5,12 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
 local glaze_bomb = require("Qing_Remaster_scripts.pickups.pickup_glaze_bomb")
+local gate = require("Qing_Remaster_scripts.story.story_runtime_gate")
+local glaze_route = require("Qing_Remaster_scripts.story.glaze_route_rules")
 
 local item = {
 	ToCall = {},
+	myToCall = {},
 	own_key = "Thread_Glaze",
 }
 
@@ -19,25 +22,15 @@ local function bomb_runtime_key(ent)
 end
 
 local function checkBaseConditions()
-    local level = Game():GetLevel()
-    return save.UnlockData.Others.Ending1.Unlock and
-           level:GetStage() == LevelStage.STAGE1_2 and
-           (level:GetStageType() == StageType.STAGETYPE_REPENTANCE or 
-            level:GetStageType() == StageType.STAGETYPE_REPENTANCE_B)
+	return glaze_route.is_valid_floor()
 end
 
--- 辅助函数：检查门是否符合条件
 local function isValidDoor(door)
-    return door and 
-           door:GetType() == GridEntityType.GRID_DOOR and
-           door:ToDoor().TargetRoomIndex == -100
+	return glaze_route.is_mirror_door(door)
 end
 
--- 辅助函数：检查房间描述是否符合条件
 local function isValidRoomDesc(desc)
-    return desc.Data.Type == RoomType.ROOM_DEFAULT and
-           desc.Data.Variant >= 10000 and
-           desc.Data.Variant <= 10500
+	return glaze_route.is_mirror_room_desc(desc)
 end
 
 -- 处理Glaze碎片生成
@@ -54,41 +47,26 @@ local function handleGlazeSpawn()
        room:IsMirrorWorld() ~= save.elses.is_mirror and
        isValidRoomDesc(desc) then
 
-        for _, gridIndex in pairs({60, 74}) do
+        for _, gridIndex in pairs(glaze_route.MIRROR_DOOR_GRID_INDICES) do
             local door = room:GetGridEntity(gridIndex)
             if isValidDoor(door) then
-                local pedestalIdx = (gridIndex == 60) and 61 or 73
-                local spawnItem = enums.Items.A_Shard_Of_Glaze
-                
-                local q1 = Isaac.Spawn(5, 100, spawnItem, room:GetGridPosition(pedestalIdx), Vector.Zero, nil):ToPickup()
-                q1:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE)
-                consistance_holder.try_hold_entity(q1, item.own_key, {ignore_subtype = true})
-                
+                -- Legacy Glaze Shard pedestal retired: Story token only.
                 room:MamaMegaExplosion(room:GetGridPosition(gridIndex))
-                
-                local s1 = q1:GetSprite()
-                s1:ReplaceSpritesheet(5, "gfx/items/to_item_altar.png")
-                s1:LoadGraphics()
-                s1:SetOverlayFrame("Alternates", 0)
-                
                 Game():Darken(1, 60)
                 Game():ShakeScreen(30)
                 save.elses.mirr = true
+                local story_owned = gate.is_commission_accepted() and gate.is_chapter1_available()
+                local ok, material_adapter = pcall(require, "Qing_Remaster_scripts.story.material_story_adapter")
+                if ok and material_adapter and material_adapter.on_thread_complete then
+                    material_adapter.on_thread_complete("glaze", {story_owned = story_owned == true})
+                end
             end
         end
     end
 end
 
--- 处理Pickup初始化
-local function handlePickupInit(ent)
-    if save.elses.mirr and ent.Type == 5 and ent.Variant == 100 then
-        if consistance_holder.try_check_entity(ent, item.own_key) then
-            local s = ent:GetSprite()
-            s:ReplaceSpritesheet(5, "gfx/items/to_item_altar.png")
-            s:LoadGraphics()
-            s:SetOverlayFrame("Alternates", 0)
-        end
-    end
+-- 处理Pickup初始化（legacy shard altar sprites no longer used）
+local function handlePickupInit(_ent)
 end
 
 -- 处理镜像世界延迟逻辑
@@ -101,7 +79,7 @@ local function handleMirrorWorldDelay()
 
     if not isValidRoomDesc(desc) then return end
 
-    for _, gridIndex in pairs({60, 74}) do
+    for _, gridIndex in pairs(glaze_route.MIRROR_DOOR_GRID_INDICES) do
         local door = room:GetGridEntity(gridIndex)
         if isValidDoor(door) and door:ToDoor().Desc.Variant ~= 8 then
 			local mxn = 10000
@@ -139,10 +117,8 @@ local function handleMirrorWorldDelay()
 			if mrd2 ~= mxn then 
 				if save.elses.mirror_delay[oppositeWorld] > 0 then save.elses.mirror_delay[oppositeWorld] = math.min(mrd2,save.elses.mirror_delay[oppositeWorld])
 				else save.elses.mirror_delay[oppositeWorld] = mrd2 end
-				--save.elses.mirror_bombs = (save.elses.mirror_bombs or 0) + 1
 			end
 	
-			-- 鏇存柊瀵归潰涓栫晫鐨勫欢杩?
 			if save.elses.mirror_delay[oppositeWorld] >= 0 then
 				save.elses.mirror_delay[oppositeWorld] = save.elses.mirror_delay[oppositeWorld] - 1
 			end
@@ -165,7 +141,6 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	end,
 })
 
--- 娉ㄥ唽鍥炶皟
 table.insert(item.ToCall, #item.ToCall + 1, {
     CallBack = ModCallbacks.MC_POST_UPDATE,
     params = nil,
@@ -186,10 +161,9 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NPC_INIT, params = EntityType.ENTITY_FIREPLACE,
 Function = function(_,ent)
-	local level = Game():GetLevel()
 	local room = Game():GetRoom()
-	if ent.Type == EntityType.ENTITY_FIREPLACE and ent.Variant == 4 then
-		if save.UnlockData.Others.Ending1.Unlock == true then
+	if glaze_route.is_white_fireplace(ent) then
+		if glaze_route.is_white_fire_interact_allowed() then
 			if save.elses.mirr ~= true and room:IsMirrorWorld() == true then
 				local s = ent:GetSprite()
 				s:Load("gfx/Glaze/glaze_fireplace.anm2")
@@ -199,7 +173,7 @@ Function = function(_,ent)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_LEVEL, params = nil,
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
 	save.elses.mirr = false
 	save.elses.mirror = false
@@ -219,5 +193,132 @@ Function = function(_,continue)
 	end
 end,
 })
+
+local function glaze_clear_mirror()
+	save.elses.mirr = false
+	save.elses.mirror = false
+	save.elses.is_mirror = false
+	save.elses.mirror_delay = {-1, -1}
+end
+
+local function stage_type_name(st)
+	if st == StageType.STAGETYPE_REPENTANCE then return "REPENTANCE" end
+	if st == StageType.STAGETYPE_REPENTANCE_B then return "REPENTANCE_B" end
+	if st == StageType.STAGETYPE_ORIGINAL then return "ORIGINAL" end
+	return tostring(st)
+end
+
+local function build_checklist(_ctx)
+	local level = Game() and Game():GetLevel()
+	local room = Game() and Game():GetRoom()
+	local desc = level and level:GetCurrentRoomDesc()
+	local fires = glaze_route.find_white_fireplaces(room)
+	local mirror_room_index = glaze_route.find_mirror_room_index(level)
+	local current_index = desc and (desc.SafeGridIndex or desc.GridIndex) or nil
+	local in_mirror_room = glaze_route.is_mirror_room_desc(desc) == true
+		or (mirror_room_index ~= nil and current_index == mirror_room_index)
+	local is_mirror = room and room:IsMirrorWorld() == true
+	local transfer = save.elses.mirror == true
+	local returned = transfer and room and (room:IsMirrorWorld() ~= save.elses.is_mirror)
+	local token_owned = false
+	do
+		local ok, story_state = pcall(require, "Qing_Remaster_scripts.story.story_state")
+		if ok and story_state and story_state.has_token then
+			token_owned = story_state.has_token("chapter1", "chapter1.material.glaze") == true
+		end
+	end
+	local rows = {
+		{id = "chapter1_available", ok = gate.is_chapter1_available() == true, label = {zh = "Chapter 1 available", en = "Chapter 1 available"}},
+		{id = "commission", ok = gate.is_commission_accepted() == true, label = {zh = "Commission accepted", en = "Commission accepted"}},
+		{id = "material_event", ok = glaze_route.is_material_event_enabled(), label = {zh = "Material event enabled", en = "Material event enabled"}},
+		{id = "stage", ok = level and level:GetStage() == LevelStage.STAGE1_2, label = {zh = "Stage = STAGE1_2", en = "Stage = STAGE1_2"}, detail = level and tostring(level:GetStage()) or nil},
+		{id = "stage_type", ok = level ~= nil and (level:GetStageType() == StageType.STAGETYPE_REPENTANCE or level:GetStageType() == StageType.STAGETYPE_REPENTANCE_B), label = {zh = "StageType = REPENTANCE*", en = "StageType = REPENTANCE*"}, detail = level and stage_type_name(level:GetStageType()) or nil},
+		{id = "mirror_room", ok = in_mirror_room, label = {zh = "Mirror room matched", en = "Mirror room matched"}, detail = mirror_room_index and ("idx=" .. tostring(mirror_room_index)) or "not generated"},
+		{id = "mirror_world", ok = is_mirror, label = {zh = "Mirror world = true", en = "Mirror world = true"}, detail = tostring(is_mirror)},
+		{id = "white_fire", ok = #fires > 0, label = {zh = "White fireplace Variant 4 found", en = "White fireplace Variant 4 found"}, detail = tostring(#fires)},
+		{id = "glaze_bomb", ok = (save.elses.glaze_bombs or 0) > 0, label = {zh = "Glaze bomb available", en = "Glaze bomb available"}, detail = tostring(save.elses.glaze_bombs or 0)},
+		{id = "transfer", ok = transfer, label = {zh = "Mirror transfer registered", en = "Mirror transfer registered"}},
+		{id = "returned", ok = returned == true, label = {zh = "Returned to opposite world", en = "Returned to opposite world"}},
+		{id = "token", ok = token_owned or save.elses.mirr == true, label = {zh = "chapter1.material.glaze token granted", en = "chapter1.material.glaze token granted"}},
+	}
+	return rows
+end
+
+item.story_test = {
+	snapshot = function(_ctx)
+		return {
+			mirr = save.elses.mirr,
+			mirror = save.elses.mirror,
+			is_mirror = save.elses.is_mirror,
+			mirror_delay = save.elses.mirror_delay,
+			glaze_bombs = save.elses.glaze_bombs,
+		}
+	end,
+	restore = function(snap, _ctx)
+		glaze_clear_mirror()
+		if type(snap) ~= "table" then return end
+		save.elses.mirr = snap.mirr
+		save.elses.mirror = snap.mirror
+		save.elses.is_mirror = snap.is_mirror
+		save.elses.mirror_delay = snap.mirror_delay
+		if snap.glaze_bombs ~= nil then
+			save.elses.glaze_bombs = snap.glaze_bombs
+		end
+	end,
+	reset = function(_ctx)
+		glaze_clear_mirror()
+		return true
+	end,
+	prepare = function(ctx)
+		ctx = ctx or {}
+		local phase = ctx.phase or "pre_trigger"
+		glaze_clear_mirror()
+		if phase == "bomb_interact" then
+			-- Ready for natural bomb → white fire; do not forge completion.
+			save.elses.glaze_bombs = 1
+		elseif phase == "mirror_transfer_ready" then
+			-- Bomb already crossed from mirror world; player should return to normal.
+			save.elses.mirror = true
+			save.elses.is_mirror = true
+			save.elses.mirr = false
+		elseif phase == "mirror_ready" or phase == "discovered" or phase == "pre_trigger" then
+			save.elses.mirror = false
+			save.elses.mirr = false
+		elseif phase == "complete" then
+			save.elses.mirr = true
+		end
+		return true
+	end,
+	trigger = function(_ctx)
+		return false, "glaze uses natural mirror bomb flow"
+	end,
+	inspect = function(ctx)
+		local level = Game() and Game():GetLevel()
+		local room = Game() and Game():GetRoom()
+		local desc = level and level:GetCurrentRoomDesc()
+		local fires = glaze_route.find_white_fireplaces(room)
+		local mirror_index = glaze_route.find_mirror_room_index(level)
+		return {
+			phase = save.elses.mirr and "complete" or (save.elses.mirror and "switching" or "idle"),
+			mirr = save.elses.mirr == true,
+			mirror = save.elses.mirror == true,
+			is_mirror = save.elses.is_mirror,
+			glaze_bombs = save.elses.glaze_bombs or 0,
+			gate = glaze_route.is_material_event_enabled(),
+			base = checkBaseConditions(),
+			floor_ok = level and level:GetStage() == LevelStage.STAGE1_2 or false,
+			stage_type = level and stage_type_name(level:GetStageType()) or nil,
+			mirror_room_index = mirror_index,
+			in_mirror_room = glaze_route.is_mirror_room_desc(desc) == true,
+			mirror_world = room and room:IsMirrorWorld() == true or false,
+			white_fire_count = #fires,
+			checklist = build_checklist(ctx),
+		}
+	end,
+	cleanup = function(_ctx)
+		glaze_clear_mirror()
+		return true
+	end,
+}
 
 return item

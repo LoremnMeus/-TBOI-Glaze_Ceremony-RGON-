@@ -8,6 +8,7 @@ local temp_hud = require("Qing_Remaster_scripts.callbacks.temp_item_hud_holder")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
+local room_space = require("Qing_Remaster_scripts.others.room_space_mapper")
 
 local item = {
 	ToCall = {},
@@ -229,18 +230,13 @@ end
 --- 与 capture_snapshot_1x1 同一套钳制，供落地后高亮框使用。
 --- 奇数边长用 floor(N/2) 居中（11→左右各 5；旧 floor(N/2-ε) 会多偏左一格，锚显得偏右）。
 --- 贴边钳制后，玩家格仍是该窗口下「最近可居中」的落点；锚实体优先落在玩家位置。
+--- 选区算法权威源：room_space_mapper.select_standard_canvas（须与 SNAP_W/H 一致）。
 local function compute_snapshot_origin(pos)
-	local room = Game():GetRoom()
-	local wd = room:GetGridWidth()
-	local ht = room:GetGridHeight()
-	local pidx = room:GetGridIndex(pos)
-	local px = pidx % wd
-	local py = math.floor(pidx / wd)
-	local ox = px - math.floor(SNAP_W / 2)
-	local oy = py - math.floor(SNAP_H / 2)
-	ox = math.max(1, math.min(ox, math.max(1, wd - 1 - SNAP_W)))
-	oy = math.max(1, math.min(oy, math.max(1, ht - 1 - SNAP_H)))
-	return ox,oy,wd,ht
+	local canvas = room_space.select_standard_canvas(pos, {
+		grid_w = SNAP_W,
+		grid_h = SNAP_H,
+	})
+	return canvas.grid_origin_x, canvas.grid_origin_y, canvas.room_grid_w, canvas.room_grid_h
 end
 
 local function floor_seed()

@@ -4,10 +4,12 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local callback_manager = require("Qing_Remaster_scripts.core.callback_manager")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
+local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
+local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
 
 local item = {
 	ToCall = {},
-	post_ToCall = {},
+    post_ToCall = {},
 	myToCall = {},
 	own_key = "collectible_holder_",
 	update_filter = nil,
@@ -16,6 +18,9 @@ local item = {
 	trinkets_size = 1,
 	trinketList = {},
 	trinket_at_hand = {},
+	-- Runtime only: last pedestal acquisition context per persistent player index.
+	-- Not save.elses (entity userdata must not persist across Continue).
+	_last_gain_context = {},
 }
 
 function item.check_item_list()
@@ -62,10 +67,196 @@ function item.compare_player_data(idx,player)
 	end
 end
 
-function item.add_queued_data(player,colid,touched)
+--- INTERNAL.
+--- Consumer code MUST NOT call this to fabricate a pickup.
+--- Use simulate_pickup / simulate_active_pickup instead.
+function item.add_queued_data(player, colid, touched)
+	if not player or not colid then
+		return
+	end
 	local idx = player:GetData().__Index
 	save.elses[item.own_key.."record"] = save.elses[item.own_key.."record"] or {}
-	table.insert(save.elses[item.own_key.."record"],#save.elses[item.own_key.."record"] + 1,{idx = idx,id = colid,touched = touched,frame = Game():GetFrameCount(),})
+	table.insert(save.elses[item.own_key.."record"], #save.elses[item.own_key.."record"] + 1, {
+		idx = idx,
+		id = colid,
+		touched = touched,
+		frame = Game():GetFrameCount(),
+	})
+end
+
+--- Record the pedestal/pickup that produced the current queued collectible gain.
+--- Runtime only. Acquisition paths call set_*; POST_GAIN_COLLECTIBLE passes the
+--- resolved context as an argument. get_last_gain_context remains for legacy readers.
+--- ctx: { pickup?, pedestal?, id? }
+function item.set_last_gain_context(player, ctx)
+	if not player then
+		return
+	end
+	local idx = player:GetData().__Index
+	if idx == nil then
+		return
+	end
+	ctx = ctx or {}
+	local pickup = ctx.pickup or ctx.pedestal
+	local pedestal = ctx.pedestal or ctx.pickup
+	item._last_gain_context[idx] = {
+		pickup = pickup,
+		pedestal = pedestal,
+		id = tonumber(ctx.id) or 0,
+		frame = Game():GetFrameCount(),
+	}
+end
+
+--- Last known acquisition pedestal for this player (runtime). May be nil / invalid.
+--- Prefer the gain_context argument on POST_GAIN_COLLECTIBLE for new consumers.
+function item.get_last_gain_context(player)
+	if not player then
+		return nil
+	end
+	local idx = player:GetData().__Index
+	if idx == nil then
+		return nil
+	end
+	return item._last_gain_context[idx]
+end
+
+--- Context for the collectible id currently being gained. Drops stale records for other ids.
+function item.resolve_gain_context(player, gained_id)
+	local ctx = item.get_last_gain_context(player)
+	if not ctx then
+		return nil
+	end
+	local cid = tonumber(ctx.id) or 0
+	gained_id = tonumber(gained_id) or 0
+	if cid ~= 0 and gained_id ~= 0 and cid ~= gained_id then
+		return nil
+	end
+	return ctx
+end
+
+function item.clear_last_gain_context(player)
+	if not player then
+		return
+	end
+	local idx = player:GetData().__Index
+	if idx == nil then
+		return
+	end
+	item._last_gain_context[idx] = nil
+end
+
+--- Canonical one-shot pickup presentation (NOT LiftItem holding UI).
+--- Behavior reference: Item_Paranoia.lua — do not copy that consumer; call this API.
+local function play_simulated_pickup_presentation(player, id, opts)
+	opts = opts or {}
+	if opts.animate ~= false and player.AnimateCollectible then
+		player:AnimateCollectible(id, "Pickup", "PlayerPickupSparkle")
+	end
+	if opts.sound ~= false then
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_POWERUP1, 1, 1, false, 0, 2)
+	end
+	if opts.display ~= false and item_displaying_holder.display_item then
+		item_displaying_holder.display_item(player, id)
+	end
+end
+
+--- Programmatic collectible acquisition that should feel like a normal player pickup.
+--- opts:
+---   touched / first_time
+---   charge (AddCollectible charge arg; default 0)
+---   active_slot (optional; omit for vanilla default slot choice)
+---   animate / display / sound (default true)
+--- Returns false if args invalid; otherwise true after grant + presentation.
+function item.simulate_pickup(player, id, opts)
+	opts = opts or {}
+	id = tonumber(id) or 0
+	if not player or id <= 0 then
+		return false
+	end
+	local cfg = Isaac.GetItemConfig():GetCollectible(id)
+	if not cfg then
+		return false
+	end
+
+	local touched = opts.touched == true
+	local first_time = opts.first_time
+	if first_time == nil then
+		first_time = not touched
+	end
+	local charge = math.max(0, tonumber(opts.charge) or 0)
+	local slot = opts.active_slot
+
+	item.add_queued_data(player, id, touched)
+	if opts.pickup or opts.pedestal then
+		item.set_last_gain_context(player, {
+			pickup = opts.pickup,
+			pedestal = opts.pedestal or opts.pickup,
+			id = id,
+		})
+	end
+	if slot ~= nil then
+		player:AddCollectible(id, charge, first_time == true, slot)
+	else
+		player:AddCollectible(id, charge, first_time == true)
+	end
+	play_simulated_pickup_presentation(player, id, opts)
+	return true
+end
+
+--- Exact ActiveSlot acquisition + split charge restore + normal Pickup presentation.
+--- opts:
+---   touched / first_time
+---   slot / active_slot (required for non-PRIMARY restore; defaults SLOT_PRIMARY)
+---   main_charge / battery_charge
+---   animate / display / sound (default true)
+--- Does NOT use LiftItem. Does NOT Remove any pedestal (caller commits carrier after success).
+function item.simulate_active_pickup(player, id, opts)
+	opts = opts or {}
+	id = tonumber(id) or 0
+	if not player or id <= 0 then
+		return false
+	end
+	local cfg = Isaac.GetItemConfig():GetCollectible(id)
+	if not cfg or cfg.Type ~= ItemType.ITEM_ACTIVE then
+		return false
+	end
+
+	local touched = opts.touched == true
+	local first_time = opts.first_time
+	if first_time == nil then
+		first_time = not touched
+	end
+	local slot = opts.slot
+	if slot == nil then
+		slot = opts.active_slot
+	end
+	if slot == nil then
+		slot = ActiveSlot.SLOT_PRIMARY
+	end
+	local main = math.max(0, tonumber(opts.main_charge) or 0)
+	local battery = math.max(0, tonumber(opts.battery_charge) or 0)
+
+	item.add_queued_data(player, id, touched)
+	if opts.pickup or opts.pedestal then
+		item.set_last_gain_context(player, {
+			pickup = opts.pickup,
+			pedestal = opts.pedestal or opts.pickup,
+			id = id,
+		})
+	end
+	player:AddCollectible(id, 0, first_time == true, slot)
+	if player.AddActiveCharge then
+		if main > 0 then
+			player:AddActiveCharge(main, slot, false, false, true)
+		end
+		if battery > 0 then
+			player:AddActiveCharge(battery, slot, false, true, true)
+		end
+	elseif player.SetActiveCharge then
+		player:SetActiveCharge(main + battery, slot)
+	end
+	play_simulated_pickup_presentation(player, id, opts)
+	return true
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
@@ -196,25 +387,38 @@ Function = function(_,player,offset)
 						local gained = diff
 						if queuedItem then
 							if (v == queuedItem.Item and queuedItem.Type ~= ItemType.ITEM_TRINKET) then
-								callback_manager.work("POST_GAIN_COLLECTIBLE",function(funct,params) if params == nil or params == v then funct(nil,player,v,1,queuedItem.Touched,curNum,false) end end)
+								local gain_context = item.resolve_gain_context(player, v)
+								callback_manager.work("POST_GAIN_COLLECTIBLE",function(funct,params) if params == nil or params == v then funct(nil,player,v,1,queuedItem.Touched,curNum,false,gain_context) end end)
 								gained = gained - 1
 								save.elses.collectible_queue_item[idx] = nil
 							end
 						elseif save.elses[item.own_key.."record"] and #save.elses[item.own_key.."record"] > 0 then
 							for i = #save.elses[item.own_key.."record"],1,-1 do
 								local tv = save.elses[item.own_key.."record"][i]
-								if math.abs(stv.frame - Game():GetFrameCount()) > 2 then table.remove(save.elses[item.own_key.."record"],i) 
+								if math.abs(tv.frame - Game():GetFrameCount()) > 2 then
+									table.remove(save.elses[item.own_key.."record"], i)
 								else
 									if tv.idx == idx and tv.id == v then
-										callback_manager.work("POST_GAIN_COLLECTIBLE",function(funct,params) if params == nil or params == v then funct(nil,player,v,1,v.touched,curNum,false) end end)
+										local gain_context = item.resolve_gain_context(player, v)
+										callback_manager.work(
+											"POST_GAIN_COLLECTIBLE",
+											function(funct, params)
+												if params == nil or params == v then
+													funct(nil, player, v, 1, tv.touched, curNum, false, gain_context)
+												end
+											end
+										)
 										gained = gained - 1
-										if gained <= 0 then break end
+										if gained <= 0 then
+											break
+										end
 									end
 								end
 							end
 						end
 						if (gained > 0) then
-							callback_manager.work("POST_GAIN_COLLECTIBLE",function(funct,params) if params == nil or params == v then funct(nil,player,v,gained,false,curNum,true) end end)
+							local gain_context = item.resolve_gain_context(player, v)
+							callback_manager.work("POST_GAIN_COLLECTIBLE",function(funct,params) if params == nil or params == v then funct(nil,player,v,gained,false,curNum,true,gain_context) end end)
 						end
 					else
 						callback_manager.work("POST_LOSE_COLLECTIBLE",function(funct,params) if params == nil or params == v then funct(nil,player,v,-diff,curNum) end end)
@@ -299,6 +503,11 @@ function item.Do_Update(player)
 						local swapped = ent.FrameCount <= 0
 						local taken = (ent.SubType <= 0 and idMatches) or not ent:Exists()
 						if (swapped or taken) then
+							item.set_last_gain_context(player, {
+								pickup = ent,
+								pedestal = ent,
+								id = id,
+							})
 							callback_manager.work("POST_PICKUP_COLLECTIBLE",function(funct,params) if params == nil or params == id then funct(nil,player,id,queued.Touched,ent) end end)
 							break
 						end

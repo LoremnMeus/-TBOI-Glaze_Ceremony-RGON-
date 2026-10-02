@@ -1,10 +1,5 @@
-local g = require("Qing_Remaster_scripts.core.globals")
-local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
-local AI = require("Qing_Remaster_scripts.bosses.Boss_All")
-local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
-local Color_holder = require("Qing_Remaster_scripts.others.Color_cross_holder")
 local CompletionMarks = require("Qing_Remaster_scripts.core.completion_marks_manager")
 
 local item = {
@@ -86,81 +81,159 @@ local item = {
 }
 item.AnimInfo["Idle_Speaking"] = item.AnimInfo["Idle"] item.AnimInfo["Idle_Shake_Head"] = item.AnimInfo["Idle"]
 
-function item.start(ent)
+-- Runtime is driven by one 30 Hz MC_POST_UPDATE clock, not NPC interpolation ticks.
+local Controller = require("Qing_Remaster_scripts.bosses.glaze.glaze_controller")
+local Placeholder = require("Qing_Remaster_scripts.bosses.glaze.glaze_placeholder")
+local StoryAdapter = require("Qing_Remaster_scripts.bosses.glaze.glaze_story_adapter")
+local Debug = require("Qing_Remaster_scripts.bosses.glaze.glaze_debug")
+local Palace = require("Qing_Remaster_scripts.bosses.glaze.glaze_palace")
+local Assets = require("Qing_Remaster_scripts.bosses.glaze.glaze_visual_assets")
+local DevEnvironment = require("Qing_Remaster_scripts.core.dev_environment")
+Placeholder.labels = not DevEnvironment.is_public_release()
+local cracked_color = Color(1, 1, 1, 1)
+cracked_color:SetColorize(.45, .8, 1, .6)
+local normal_color = Color(1, 1, 1, 1)
+
+local function play_music()
 	local music = MusicManager()
-	if (music:GetCurrentMusicID() ~= enums.Music.Light_and_Dark) then
-		music:Play(enums.Music.Light_and_Dark,0)
+	if music:GetCurrentMusicID() ~= enums.Music.Light_and_Dark then
+		music:Play(enums.Music.Light_and_Dark, 0)
 		music:UpdateVolume()
 	end
-	local tgs = auxi.getothers(996,item.entity)
-	if #tgs == 0 and auxi.check_all_exists(ent) ~= true then 
-		ent = Isaac.Spawn(996,item.entity,0,Game():GetRoom():GetCenterPos(),Vector(0,0),nil)
-	else
-		for i = 1,#tgs do tgs[i]:Remove() end
+end
+
+function item.start(ent, opts)
+	opts = opts or {}
+	if not ent or not ent:Exists() then
+		for _, ctx in pairs(Controller.active) do
+			if ctx.boss:Exists() then return ctx.boss end
+		end
+		ent = Isaac.Spawn(996, item.entity, 0, Game():GetRoom():GetCenterPos(), Vector.Zero, nil):ToNPC()
 	end
+	local ctx = Controller.init(ent)
+	ctx.practice = opts.practice == true
+	ctx.story_owned = opts.story_owned == true
+	ctx.story_test = opts.story_test == true
+	if ctx.practice and opts.story_owned ~= true then
+		ctx.story_owned = false
+	end
+	ent:GetData().glaze_practice = ctx.practice
+	ent:GetData().glaze_story_owned = ctx.story_owned
+	play_music()
 	return ent
 end
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_NPC_UPDATE, params = 996,
-Function = function(_,ent)
-	if ent.Variant == item.entity then
-		local s = ent:GetSprite()
-		local d = ent:GetData()
-		local anim = s:GetAnimation()
-		local frame = s:GetFrame()
-		
-		d[item.own_key.."Render"] = {}
-		if d[AI.own_key.."Move"] == nil then AI.move2pos(ent,Vector(320,240),15) end
-		Color_holder.try_add_edge_color(ent,Color(0,0,0,0),{cnt = 0,work = function(ent,tg,rpos)
-			local d = tg:GetData() if d[item.own_key.."WingSprite"] == nil then local s = Sprite() s:Load("gfx/boss/Glaze/Prince_Glaze.anm2",true) s:Play("Wing",true) d[item.own_key.."WingSprite"] = s end
-			local info = auxi.check_lerp(s:GetFrame(),item.AnimInfo[s:GetAnimation()] or {{frame = 0,offset = 0,},})
-			local s2 = d[item.own_key.."WingSprite"] s2:Render(rpos + Vector(0,info.offset + 3),Vector(0,0),Vector(0,0)) 
-			if d[item.own_key.."Render"] and d[item.own_key.."Render"].Wing == nil then s2:Update() d[item.own_key.."Render"].Wing = true end
-		end,})
-		local info = auxi.check_lerp(s:GetFrame(),item.AnimInfo[s:GetAnimation()] or {{frame = 0,offset = 0,},})
-		if item.Allow_Offset[anim] then s.Offset = Vector(0,info.offset) else s.Offset = Vector(0,0) end
-		AI.Control_Move(ent)
-		if s:IsFinished(anim) then
-			local tg = auxi.check_if_any(item.Swapper[anim],ent) or "Idle"
-			if ___QING___.Attack1 then ___QING___.Attack1 = nil tg = "Attack1" end
-			if ___QING___.Attack2 then ___QING___.Attack2 = nil tg = "Attack2" end
-			s:Play(tg,true)
-		end
-	end
-end,
-})
+item.debug = Debug.bind(item, Controller)
+item.story_test = item.debug.story_test
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NPC_RENDER, params = 996,
-Function = function(_,ent,offset)
-	if ent.Variant == item.entity then
-		local d = ent:GetData()
-		local s = ent:GetSprite()
-		if d[item.own_key.."CrownSprite"] == nil then local s = Sprite() s:Load("gfx/boss/Glaze/Prince_Glaze.anm2",true) s:Play("Crown",true) s.Rotation = -15 d[item.own_key.."CrownSprite"] = s end
-		local info = auxi.check_lerp(s:GetFrame(),item.AnimInfo[s:GetAnimation()] or {{frame = 0,offset = 0,},})
-		local rpos = Isaac.WorldToScreen(ent.Position + ent.PositionOffset)
-		local s2 = d[item.own_key.."CrownSprite"] s2:Render(rpos + Vector(-6,info.offset - 26),Vector(0,0),Vector(0,0)) 
-		if d[item.own_key.."Render"] and d[item.own_key.."Render"].Crown == nil then s2:Update() d[item.own_key.."Render"].Crown = true end
-	end
-end,
-})
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_NPC_INIT, params = 996,
+Function = function(_, ent)
+	if ent.Variant ~= item.entity then return end
+	Controller.init(ent)
+	local d = ent:GetData()
+	local wing = Sprite()
+	wing:Load("gfx/boss/Glaze/Prince_glaze.anm2", true)
+	wing:Play("Wing", true)
+	d[item.own_key .. "WingSprite"] = wing
+	-- Crown art shared with Item Crown path via glaze_visual_assets (not Item module).
+	local crown = Sprite()
+	crown:Load(Assets.Crown.anm2, true)
+	crown:Play(Assets.Crown.animation, true)
+	d[item.own_key .. "CrownSprite"] = crown
+	play_music()
+end})
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NPC_INIT, params = 996,
-Function = function(_,ent)
-	if ent.Variant == item.entity then
-		local s = ent:GetSprite()
-		local d = ent:GetData()
-		item.start(ent)
-		ent.PositionOffset = Vector(0,-25)
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_NPC_UPDATE, params = 996,
+Function = function(_, ent)
+	if ent.Variant ~= item.entity then return end
+	if ent:IsDead() then return end
+	local ctx = Controller.init(ent)
+	local d, s = ent:GetData(), ent:GetSprite()
+	local frame = Game():GetFrameCount()
+	if d.glaze_visual_frame == frame then return end
+	d.glaze_visual_frame = frame
+	local cracked = (ctx.phase == 3 or (ctx.transition == 2 and ctx.transition_frame >= 130)) and not ctx.perfect
+	s.Color = cracked and cracked_color or normal_color
+	if s:IsFinished(s:GetAnimation()) then s:Play("Idle", true) end
+	for _, name in ipairs({"Wing", "Crown"}) do
+		local sprite = d[item.own_key .. name .. "Sprite"]
+		if sprite then sprite:Update() end
 	end
-end,
-})
+	ent.EntityCollisionClass = (ctx.transition or ctx.state == "appear") and EntityCollisionClass.ENTCOLL_NONE or EntityCollisionClass.ENTCOLL_ALL
+end})
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_KILL, params = 996,
-Function = function(_,ent)
-	if ent.Variant == item.entity then
-		CompletionMarks.complete_extra_all_players("boss.glaze")
+local function render_pos(ent, offset)
+	local s = ent:GetSprite()
+	local info = auxi.check_lerp(s:GetFrame(), item.AnimInfo[s:GetAnimation()] or {{frame = 0, offset = 0}})
+	return Isaac.WorldToScreen(ent.Position + ent.PositionOffset) + offset - Game():GetRoom():GetRenderScrollOffset(), info.offset
+end
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_PRE_NPC_RENDER, params = 996,
+Function = function(_, ent, offset)
+	if ent.Variant ~= item.entity then return end
+	local ctx = ent:GetData()[Controller.key]
+	local wing = ent:GetData()[item.own_key .. "WingSprite"]
+	if not ctx or not wing then return end
+	-- Palace back layer once per Isaac render frame (PRE may run twice with interpolation).
+	local frame = Isaac.GetFrameCount()
+	if ctx._palace_draw_frame ~= frame then
+		ctx._palace_draw_frame = frame
+		Palace.render(ctx)
 	end
-end,
-})
+	local pos, bob = render_pos(ent, offset)
+	-- Existing Wing frames are 120px wide with XPivot=60: crop the right half for Finale.
+	wing.Color = (ctx.phase == 3 and not ctx.perfect) and cracked_color or normal_color
+	wing:Render(pos + Vector(0, bob + 3), Vector.Zero, ctx.final_state and Vector(60, 0) or Vector.Zero)
+end})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_NPC_RENDER, params = 996,
+Function = function(_, ent, offset)
+	if ent.Variant ~= item.entity then return end
+	local ctx = ent:GetData()[Controller.key]
+	local crown = ent:GetData()[item.own_key .. "CrownSprite"]
+	if not ctx or not crown or not (ctx.crown_visible or ctx.perfect) or ctx.final_state then return end
+	local pos, bob = render_pos(ent, offset)
+	crown:Render(pos + Vector(-6, bob - 26) + (ctx.crown_offset or Vector.Zero))
+end})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = 996,
+Function = function(_, ent, amount)
+	if ent.Variant ~= item.entity then return end
+	return Controller.damage(Controller.init(ent), amount)
+end})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_UPDATE, Function = Controller.tick_all})
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_RENDER, Function = function()
+	for _, ctx in pairs(Controller.active) do
+		Placeholder.render(ctx)
+		Controller.render_transition_shards(ctx)
+	end
+	item.debug.render_preview()
+end})
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_EXECUTE_CMD, Function = function(_, command, params)
+	item.debug.command(command, params)
+end})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_ENTITY_KILL, params = 996,
+Function = function(_, ent)
+	if ent.Variant ~= item.entity then return end
+	local ctx = ent:GetData()[Controller.key]
+	if not ctx then return end
+	StoryAdapter.on_defeat(ctx)
+	if not ctx.practice then CompletionMarks.complete_extra_all_players("boss.glaze") end
+	Controller.cleanup(ctx)
+end})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = 996,
+Function = function(_, ent)
+	local g = require("Qing_Remaster_scripts.core.globals")
+	if not g.is_gameplay_world_active() then return end
+	if ent.Variant ~= item.entity then return end
+	local ctx = ent:GetData()[Controller.key]
+	if ctx then Controller.cleanup(ctx) end
+end})
+for _, callback in ipairs({ModCallbacks.MC_POST_NEW_ROOM, ModCallbacks.MC_PRE_GAME_EXIT, ModCallbacks.MC_POST_GAME_STARTED}) do
+	table.insert(item.ToCall, {CallBack = callback, Function = Controller.cleanup_all})
+end
 
 return item

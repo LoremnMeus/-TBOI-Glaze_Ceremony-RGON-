@@ -255,6 +255,15 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	params = nil,
 	Function = function()
 		item.torsion_info = {}
+		auxi.set_shader_effect_idle(true)
+	end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_GAME_STARTED,
+	params = nil,
+	Function = function()
+		auxi.set_shader_effect_idle(false)
 	end,
 })
 
@@ -270,7 +279,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		else
 			return
 		end
-		if Game():IsPauseMenuOpen() then
+		if auxi.shader_effect_idle() or auxi.is_pause_menu_open() then
 			return empty_dual()
 		end
 

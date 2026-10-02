@@ -3,13 +3,62 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 
-local item = {ToCall={},myToCall={},pre_myToCall={},own_key="h_c_",debug={probe_enabled=false,errors=0,migrations=0,migration_orphans=0,parameter_conflicts=0,ambiguous_matches=0,similarity_resolutions=0,ambiguous_fallbacks=0,last_error=nil,last_event="not initialized"}}
+local item = {
+	pre_ToCall={},
+	ToCall={},
+	myToCall={},
+	pre_myToCall={},
+	own_key="h_c_",
+	debug={
+		probe_enabled=false,
+		family_probe_enabled=false,
+		errors=0,
+		migrations=0,
+		migration_orphans=0,
+		parameter_conflicts=0,
+		ambiguous_matches=0,
+		similarity_resolutions=0,
+		ambiguous_fallbacks=0,
+		supersedes=0,
+		supersede_records_dropped=0,
+		supersede_empty_snapshots=0,
+		family_supersedes=0,
+		family_records_dropped=0,
+		empty_collectible_families_cleaned=0,
+		family_states_dropped=0,
+		morph_callbacks=0,
+		morph_callbacks_to_empty=0,
+		morph_policy_supersede=0,
+		morph_policy_state_switch=0,
+		morph_policy_empty_pending=0,
+		morph_policy_same_lifetime=0,
+		morph_policy_unknown=0,
+		semantic_probe_bypass=false,
+		lifecycle_trace={},
+		state_switch_trace={},
+		family_probe_last=nil,
+		last_error=nil,
+		last_event="not initialized",
+	},
+}
 local SCHEMA_VERSION,duplicate_key=2,"___hci_"
-local runtime={claims={},pending_remove={},tracked={},tracked_entities={},next_claim_token=1,room_epoch=0}
+local runtime={claims={},pending_remove={},tracked={},tracked_entities={},next_claim_token=1,room_epoch=0,morph_pending={},state_switch_followups={}}
 
 function item.reset_debug_stats()
 	item.debug.errors=0 item.debug.migrations=0 item.debug.migration_orphans=0 item.debug.parameter_conflicts=0
 	item.debug.ambiguous_matches=0 item.debug.similarity_resolutions=0 item.debug.ambiguous_fallbacks=0
+	item.debug.supersedes=0 item.debug.supersede_records_dropped=0 item.debug.supersede_empty_snapshots=0
+	item.debug.family_supersedes=0 item.debug.family_records_dropped=0 item.debug.empty_collectible_families_cleaned=0
+	item.debug.family_states_dropped=0
+	item.debug.morph_callbacks=0 item.debug.morph_callbacks_to_empty=0
+	item.debug.morph_policy_supersede=0 item.debug.morph_policy_state_switch=0
+	item.debug.morph_policy_empty_pending=0 item.debug.morph_policy_same_lifetime=0 item.debug.morph_policy_unknown=0
+	item.debug.semantic_probe_bypass=false
+	item.debug.lifecycle_trace={}
+	item.debug.state_switch_trace={}
+	item.debug.family_probe_last=nil
+	runtime.morph_pending={}
+	runtime.state_switch_followups={}
 	item.debug.last_error=nil item.debug.last_report=nil item.debug.last_duplicate_test=nil item.debug.last_event="debug reset"
 end
 
@@ -44,6 +93,99 @@ end
 local function identity_from_entity(ent,params)
 	params=params or {}
 	return {init_seed=ent.InitSeed,type=ent.Type,variant=ent.Variant,subtype=params.record_subtype or ent.SubType or ent.Subtype}
+end
+
+--- Pedestal lifetime family：InitSeed+Type+Variant（不含 SubType）。A/B/C 轮换同属一 family。
+local function family_identity_from_entity(ent)
+	if not ent then return nil end
+	return {init_seed=ent.InitSeed,type=ent.Type,variant=ent.Variant}
+end
+
+local function family_identity_from_record(record)
+	local identity=record and record.identity
+	if not identity then return nil end
+	return {init_seed=identity.init_seed,type=identity.type,variant=identity.variant}
+end
+
+local function family_key(identity)
+	if not identity then return nil end
+	return table.concat({tostring(identity.init_seed),tostring(identity.type),tostring(identity.variant)},":")
+end
+
+local function record_belongs_to_family(record,identity)
+	if not record or not record.identity or not identity then return false end
+	local old=record.identity
+	if old.init_seed~=identity.init_seed then return false end
+	if old.type~=identity.type then return false end
+	if old.variant~=identity.variant then return false end
+	return true
+end
+
+--- bound record 是否仍匹配当前实体状态（尊重 match.ignore_*）。
+local function record_matches_entity(record,ent)
+	if not record or not ent then return false end
+	local identity=record.identity or {}
+	local match=record.match or {}
+	if identity.init_seed~=ent.InitSeed then return false end
+	if not match.ignore_type and identity.type~=ent.Type then return false end
+	if not match.ignore_variant and identity.variant~=ent.Variant then return false end
+	if not match.ignore_subtype then
+		local subtype=ent.SubType or ent.Subtype or 0
+		if identity.subtype~=subtype then return false end
+	end
+	return true
+end
+
+local FAMILY_MARKER="_Consistance_holder_family"
+local TRACE_MAX=32
+local FAMILY_PROBE_OWNER="_ConsistanceFamilyProbe_"
+
+local function note_lifecycle(event,fields)
+	fields=fields or {}
+	item.debug.lifecycle_trace=item.debug.lifecycle_trace or {}
+	local frame=0
+	pcall(function() frame=Game():GetFrameCount() end)
+	local room=0
+	pcall(function() room=Game():GetLevel():GetCurrentRoomIndex() end)
+	local row={
+		frame=frame,
+		room=room,
+		event=tostring(event),
+		ptr=fields.ptr,
+		old_family=fields.old_family,
+		new_family=fields.new_family,
+		old_subtype=fields.old_subtype,
+		new_subtype=fields.new_subtype,
+		dropped=fields.dropped,
+		owner=fields.owner,
+	}
+	local buf=item.debug.lifecycle_trace
+	buf[#buf+1]=row
+	while #buf>TRACE_MAX do table.remove(buf,1) end
+	item.debug.last_event=tostring(event)
+end
+
+local function write_family_marker(ent,identity)
+	if not ent or not identity then return end
+	local data=safe_get_data(ent)
+	if not data then return end
+	data[FAMILY_MARKER]={
+		init_seed=identity.init_seed,
+		type=identity.type,
+		variant=identity.variant,
+	}
+end
+
+local function clear_family_marker(ent)
+	local data=safe_get_data(ent)
+	if data then data[FAMILY_MARKER]=nil end
+end
+
+local function read_family_marker(ent)
+	local data=safe_get_data(ent)
+	local m=data and data[FAMILY_MARKER]
+	if type(m)~="table" then return nil end
+	return {init_seed=m.init_seed,type=m.type,variant=m.variant}
 end
 local function current_room_key()
 	local ok,key=pcall(function()
@@ -151,7 +293,7 @@ local function migrate_legacy(old)
 			for owner,desc in pairs(row.bucket) do
 				if type(desc)=="table" then
 					local id=tostring(store.next_record_id) store.next_record_id=store.next_record_id+1
-					store.records[id]={id=id,owner=owner,data=auxi.deepCopy(desc.data or {}),identity=auxi.deepCopy(identity),match=auxi.deepCopy(match),scope=desc.one_room and "room" or (desc.kplv and "run" or "level"),retain_on_remove=desc.c==true,legacy_name=row.name}
+					store.records[id]={id=id,owner=owner,data=auxi.deepCopy(desc.data or {}),identity=auxi.deepCopy(identity),match=auxi.deepCopy(match),scope=desc.one_room and "room" or (desc.kplv and "run" or "level"),retain_on_remove=desc.c==true,zero_subtype_is_transient=false,legacy_name=row.name}
 				end
 			end
 		else
@@ -199,7 +341,7 @@ end
 function item.drop_record(id) return drop_record(id) end
 local function add_record(owner,data,identity,match,params,ent)
 	local store=ensure_store() local id=tostring(store.next_record_id) store.next_record_id=store.next_record_id+1
-	local record={id=id,owner=owner,data=auxi.deepCopy(data or {}),identity=identity,match=match,scope=normalize_scope(params),retain_on_remove=params and params.consistance==true or false,evidence_enabled=false}
+	local record={id=id,owner=owner,data=auxi.deepCopy(data or {}),identity=identity,match=match,scope=normalize_scope(params),retain_on_remove=params and params.consistance==true or false,zero_subtype_is_transient=params and params.zero_subtype_is_transient==true or false,evidence_enabled=false}
 	record.fingerprint=fingerprint(identity,match) store.records[id]=record store.index[record.fingerprint]=store.index[record.fingerprint] or {} table.insert(store.index[record.fingerprint],id)
 	local ids=store.index[record.fingerprint] local same_owner_ids={}
 	for _,record_id in ipairs(ids) do local candidate=store.records[tostring(record_id)] if candidate and candidate.owner==owner then table.insert(same_owner_ids,record_id) end end
@@ -350,32 +492,99 @@ function item.try_hold_entity(ent,checkname,params,params2)
 	local data=safe_get_data(ent) if not data then return nil end
 	data._Data=data._Data or {} data._Data[checkname]=data._Data[checkname] or {}
 	local names=get_runtime_names_from_data(data) local store=ensure_store()
+	local match=normalize_match(params)
+	local subtype=ent.SubType or ent.Subtype or 0
+	-- SubType=0 默认是合法 identity；仅由业务显式声明时视作过渡空态。
+	if params.zero_subtype_is_transient==true and subtype==0 and not match.ignore_subtype then
+		local old_id=names[checkname] and tostring(names[checkname]) or nil
+		if old_id then release_record_claim(old_id) end
+		names[checkname]=nil
+		data._Data[checkname]=nil
+		refresh_tracked_entity(ent,data)
+		return nil
+	end
 	local id=names[checkname] and tostring(names[checkname]) or nil local record=id and store.records[id] or nil
+	local rematched=false
+	local created=false
+	if record and not record_matches_entity(record,ent) then
+		-- A→B：必须清旧 payload，禁止把 A_data 写进 B record
+		release_record_claim(id)
+		names[checkname]=nil
+		data._Data[checkname]=nil
+		record=nil
+		id=nil
+		rematched=true
+		note_lifecycle("UNBIND_SUBTYPE",{owner=checkname,ptr=entity_ptr_hash(ent),new_subtype=subtype})
+	end
 	if record==nil then local candidates=find_candidates(ent,checkname,params,false) record=candidates[1] if record then id=record.id end end
-	if record==nil then record=add_record(checkname,data._Data[checkname],identity_from_entity(ent,params),normalize_match(params),params,ent) id=record.id
+	if record==nil then
+		data._Data[checkname]=data._Data[checkname] or {}
+		record=add_record(checkname,data._Data[checkname],identity_from_entity(ent,params),match,params,ent)
+		id=record.id
+		created=true
+	elseif rematched then
+		-- rematch 到已有 B：从 store 加载，不要用残留 A_data 覆盖
+		data._Data[checkname]=auxi.deepCopy(record.data or {})
+		update_record_evidence(record,ent)
+		if params.one_room~=nil or params.keep_level~=nil then record.scope=normalize_scope(params) end
+		if params.consistance~=nil then record.retain_on_remove=params.consistance==true end
+		if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
+		note_lifecycle("REMATCH",{owner=checkname,ptr=entity_ptr_hash(ent),new_subtype=subtype,new_family=family_key(family_identity_from_entity(ent))})
 	else
 		record.data=auxi.deepCopy(data._Data[checkname])
 		update_record_evidence(record,ent)
 		if params.one_room~=nil or params.keep_level~=nil then record.scope=normalize_scope(params) end
 		if params.consistance~=nil then record.retain_on_remove=params.consistance==true end
+		if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
 	end
-	if runtime.claims[id]==nil then claim_record(id) end names[checkname]=id refresh_tracked_entity(ent,data) if params.printname then print(id) end return id
+	if runtime.claims[id]==nil then claim_record(id) end
+	names[checkname]=id
+	write_family_marker(ent,family_identity_from_entity(ent))
+	refresh_tracked_entity(ent,data)
+	if params.printname then print(id) end
+	if created then
+		note_lifecycle("BIND",{owner=checkname,ptr=entity_ptr_hash(ent),new_family=family_key(family_identity_from_entity(ent)),new_subtype=subtype})
+	elseif rematched and not created then
+		-- REMATCH already noted when loading existing B; creating new B after unbind also BIND above
+	end
+	return id
 end
 function item.try_check_entity(ent,checkname,testing,params)
 	if ent==nil then return nil end params=params or {}
 	local data=safe_get_data(ent) if not data then return nil end data._Data=data._Data or {}
 	local names=get_runtime_names_from_data(data) local store=ensure_store()
-	if checkname and not testing and data._Data[checkname]~=nil then
-		local id=names[checkname] and tostring(names[checkname]) or nil if id and store.records[id] and runtime.claims[id]==nil then claim_record(id) end
-		if id and store.records[id] then demote_cross_floor_if_needed(store.records[id]) end
+	local bound_id=checkname and names[checkname] and tostring(names[checkname]) or nil
+	local bound=bound_id and store.records[bound_id] or nil
+	local bound_zero_is_transient=bound and bound.zero_subtype_is_transient==true or false
+	-- 绑定存在但已不匹配当前 SubType/Variant：解除后 rematch（A→B 不得继续读 A）
+	if checkname and bound and runtime.pending_remove[bound_id]~=true and not record_matches_entity(bound,ent) then
+		release_record_claim(bound_id)
+		names[checkname]=nil
+		data._Data[checkname]=nil
+		bound=nil
+		bound_id=nil
+		note_lifecycle("UNBIND_SUBTYPE",{owner=checkname,ptr=entity_ptr_hash(ent),new_subtype=ent.SubType or ent.Subtype})
+	end
+	-- fast-path：有效 binding + record 仍匹配当前实体
+	if checkname and not testing and data._Data[checkname]~=nil and bound~=nil and runtime.pending_remove[bound_id]~=true and record_matches_entity(bound,ent) then
+		if runtime.claims[bound_id]==nil then claim_record(bound_id) end
+		demote_cross_floor_if_needed(bound)
+		update_record_evidence(bound,ent)
 		refresh_tracked_entity(ent,data) return true
 	end
-	local bound_id=checkname and names[checkname] and tostring(names[checkname]) or nil local bound=bound_id and store.records[bound_id] or nil
-	if bound and (testing or runtime.pending_remove[bound_id]~=true) then
+	if bound and (testing or runtime.pending_remove[bound_id]~=true) and record_matches_entity(bound,ent) then
 		if testing then return {desc=bound,name=bound_id} end
 		data._Data[checkname]=auxi.deepCopy(bound.data) if runtime.claims[bound_id]==nil then claim_record(bound_id) end
 		demote_cross_floor_if_needed(bound)
 		update_record_evidence(bound,ent) refresh_tracked_entity(ent,data) return true
+	end
+	-- 只有显式 opt-in（或现有 record 保存的 policy）才把 0 当作过渡空态。
+	local match=normalize_match(params)
+	local subtype=ent.SubType or ent.Subtype or 0
+	local zero_is_transient=params.zero_subtype_is_transient==true or bound_zero_is_transient
+	if zero_is_transient and subtype==0 and not match.ignore_subtype and checkname and not testing then
+		refresh_tracked_entity(ent,data)
+		return nil
 	end
 	local candidates=find_candidates(ent,checkname,params,testing==true) local record=candidates[1] if not record then return nil end
 	if testing then return {desc=record,name=record.id} end
@@ -383,6 +592,8 @@ function item.try_check_entity(ent,checkname,testing,params)
 		data._Data[checkname]=auxi.deepCopy(record.data) names[checkname]=record.id claim_record(record.id)
 		demote_cross_floor_if_needed(record)
 		update_record_evidence(record,ent) refresh_tracked_entity(ent,data)
+		write_family_marker(ent,family_identity_from_entity(ent))
+		note_lifecycle("REMATCH",{owner=checkname,ptr=entity_ptr_hash(ent),new_subtype=ent.SubType or ent.Subtype,new_family=family_key(family_identity_from_entity(ent))})
 	else return {desc=record,name=record.id} end
 	return true
 end
@@ -411,6 +622,272 @@ function item.try_remove_entity(ent,checkname,params)
 	if checkname then data._Data[checkname]=nil names[checkname]=nil else data._Data={} data._Consistance_holder_names={} end
 	refresh_tracked_entity(ent,data)
 	if params.printname then for _,id in ipairs(ids) do print(id) end end return removed
+end
+
+--- 从当前 GetData bindings + store 实时构建；不依赖 runtime.tracked（clear_claims 后仍可用）。
+--- Morph 后 same GetPtrHash ≠ 同一 Consistance lifetime。
+function item.get_entity_snapshot(ent)
+	if ent==nil then return nil end
+	local data=safe_get_data(ent)
+	if not data then return nil end
+	local names=data._Consistance_holder_names or {}
+	local store=ensure_store()
+	local snapshot={
+		identity=identity_from_entity(ent,{}),
+		ptr=entity_ptr_hash(ent),
+		entries={},
+		evidence=evidence_from_entity(ent),
+	}
+	for owner,raw_id in pairs(names) do
+		local id=tostring(raw_id)
+		local record=store.records[id]
+		if record then
+			local payload=data._Data and data._Data[owner]
+			table.insert(snapshot.entries,{
+				owner=owner,
+				id=id,
+				data=auxi.deepCopy(payload~=nil and payload or record.data or {}),
+			})
+		end
+	end
+	return snapshot
+end
+
+--- SUPERSEDE entity：只清当前实体当前 binding 指向的 records（局部 cleanup）。
+--- Morph/D6 整 pedestal lifetime 请用 supersede_family（含历史 A/B/C subtype records）。
+function item.supersede_entity(ent)
+	if ent==nil then return nil end
+	local snapshot=item.get_entity_snapshot(ent)
+	item.debug.supersedes=(item.debug.supersedes or 0)+1
+	if not snapshot then
+		item.debug.supersede_empty_snapshots=(item.debug.supersede_empty_snapshots or 0)+1
+		item.debug.last_event="supersede empty"
+		return nil
+	end
+	local dropped=0
+	for _,entry in ipairs(snapshot.entries or {}) do
+		if drop_record(entry.id) then dropped=dropped+1 end
+	end
+	item.debug.supersede_records_dropped=(item.debug.supersede_records_dropped or 0)+dropped
+	if #snapshot.entries==0 then
+		item.debug.supersede_empty_snapshots=(item.debug.supersede_empty_snapshots or 0)+1
+	end
+	local data=safe_get_data(ent)
+	if data then
+		data._Consistance_holder_names={}
+	end
+	refresh_tracked_entity(ent,data)
+	item.debug.last_event=string.format("supersede dropped=%d owners=%d",dropped,#(snapshot.entries or {}))
+	return snapshot
+end
+
+function item.get_family_snapshot(identity)
+	if not identity then return {identity=nil,entries={}} end
+	local store=ensure_store()
+	local ret={identity=auxi.deepCopy(identity),entries={}}
+	for id,record in pairs(store.records or {}) do
+		if record_belongs_to_family(record,identity) then
+			ret.entries[#ret.entries+1]={
+				id=tostring(id),
+				owner=record.owner,
+				data=auxi.deepCopy(record.data or {}),
+			}
+		end
+	end
+	return ret
+end
+
+--- SUPERSEDE family：清整个 pedestal lifetime（InitSeed+Type+Variant），含未显示的历史 subtype records。
+function item.supersede_family(identity)
+	if not identity then return nil end
+	local snapshot=item.get_family_snapshot(identity)
+	local dropped=0
+	for _,entry in ipairs(snapshot.entries or {}) do
+		if drop_record(entry.id) then dropped=dropped+1 end
+	end
+	item.debug.family_supersedes=(item.debug.family_supersedes or 0)+1
+	item.debug.family_records_dropped=(item.debug.family_records_dropped or 0)+dropped
+	note_lifecycle("FAMILY_SUPERSEDE",{old_family=family_key(identity),dropped=dropped})
+	return snapshot
+end
+
+--- 解除实体当前 runtime binding（不清 store record）。owner=nil 时清全部 Consistance names。
+--- 注意：drop_family_state() 不自动清 runtime binding；若删除的正是当前显示 SubType，业务应同时调用本函数。
+function item.invalidate_entity_binding(ent,owner)
+	if ent==nil then return 0 end
+	local data=safe_get_data(ent)
+	if not data then return 0 end
+	local names=get_runtime_names_from_data(data)
+	data._Data=data._Data or {}
+	local n=0
+	if owner~=nil then
+		local id=names[owner] and tostring(names[owner]) or nil
+		if id then release_record_claim(id) end
+		if names[owner]~=nil or data._Data[owner]~=nil then
+			names[owner]=nil
+			data._Data[owner]=nil
+			n=1
+		end
+	else
+		for checkname,raw_id in pairs(names) do
+			release_record_claim(raw_id)
+			names[checkname]=nil
+			data._Data[checkname]=nil
+			n=n+1
+		end
+		data._Consistance_holder_names={}
+	end
+	refresh_tracked_entity(ent,data)
+	return n
+end
+
+--- 永久移除 Family 内某 SubType 的 subtype-sensitive records（不碰 ignore_subtype pedestal-level）。
+--- 插入候选无需调用；只有业务确认「B 不会再回到此 pedestal」时才 drop。
+function item.drop_family_state(identity,subtype,owner)
+	if not identity or subtype==nil then return 0 end
+	local store=ensure_store()
+	local remove={}
+	for id,record in pairs(store.records or {}) do
+		if record_belongs_to_family(record,identity) then
+			local match=record.match or {}
+			if not match.ignore_subtype
+			and record.identity
+			and record.identity.subtype==subtype
+			and (owner==nil or record.owner==owner) then
+				remove[#remove+1]=tostring(id)
+			end
+		end
+	end
+	for _,id in ipairs(remove) do
+		drop_record(id)
+	end
+	item.debug.family_states_dropped=(item.debug.family_states_dropped or 0)+#remove
+	note_lifecycle("FAMILY_STATE_DROP",{old_family=family_key(identity),old_subtype=subtype,dropped=#remove,owner=owner})
+	return #remove
+end
+
+--- Debug：按 SubType 聚合 family 内 subtype-sensitive states（非业务真源）。
+function item.get_family_states(identity)
+	local snapshot=item.get_family_snapshot(identity)
+	local by_subtype={}
+	local store=ensure_store()
+	for _,entry in ipairs(snapshot.entries or {}) do
+		local record=store.records[tostring(entry.id)]
+		if record and record.identity then
+			local match=record.match or {}
+			if not match.ignore_subtype then
+				local st=record.identity.subtype
+				local row=by_subtype[st]
+				if not row then
+					row={subtype=st,owners={}}
+					by_subtype[st]=row
+				end
+				row.owners[#row.owners+1]=record.owner
+			end
+		end
+	end
+	return by_subtype
+end
+
+--- Morph 时 old family 发现：1) runtime family marker 2) 当前 bindings 3) 当前实体（仅兜底）
+local function collect_morph_old_families(ent)
+	local families={}
+	local function add(fam)
+		local key=family_key(fam)
+		if key then families[key]=fam end
+	end
+	add(read_family_marker(ent))
+	local snapshot=item.get_entity_snapshot(ent)
+	local store=ensure_store()
+	for _,entry in ipairs((snapshot and snapshot.entries) or {}) do
+		local record=store.records[tostring(entry.id)]
+		add(family_identity_from_record(record))
+	end
+	if count(families)==0 then
+		add(family_identity_from_entity(ent))
+	end
+	return families
+end
+
+--- Morph lifetime cleanup：整 family drop，并清 marker / bindings。
+local function supersede_families_from_entity_bindings(ent)
+	local families=collect_morph_old_families(ent)
+	local n=0
+	local dropped_total=0
+	for _,fam in pairs(families) do
+		local snap=item.supersede_family(fam)
+		n=n+1
+		dropped_total=dropped_total+#((snap and snap.entries) or {})
+	end
+	clear_family_marker(ent)
+	local data=safe_get_data(ent)
+	if data then data._Consistance_holder_names={} end
+	refresh_tracked_entity(ent,data)
+	return n,dropped_total
+end
+
+local function cleanup_empty_collectible_families_on_room_exit()
+	local seen={}
+	local cleaned=0
+	local ok,list=pcall(function() return Isaac.GetRoomEntities() end)
+	if not ok or type(list)~="table" then return 0 end
+	for _,ent in ipairs(list) do
+		local pickup=ent.ToPickup and ent:ToPickup() or nil
+		if pickup
+		and pickup.Variant==PickupVariant.PICKUP_COLLECTIBLE
+		and (pickup.SubType or 0)==0 then
+			local identity=read_family_marker(pickup) or family_identity_from_entity(pickup)
+			local key=family_key(identity)
+			if key and not seen[key] then
+				seen[key]=true
+				local snap=item.supersede_family(identity)
+				cleaned=cleaned+1
+				item.debug.empty_collectible_families_cleaned=(item.debug.empty_collectible_families_cleaned or 0)+1
+				note_lifecycle("EMPTY_FAMILY_GC",{
+					old_family=key,
+					dropped=#((snap and snap.entries) or {}),
+					ptr=entity_ptr_hash(pickup),
+				})
+				clear_family_marker(pickup)
+			end
+		end
+	end
+	return cleaned
+end
+
+--- Debug：手动触发「空 collectible pedestal 离房 family GC」（不换房）。
+function item.debug_cleanup_empty_collectibles()
+	return cleanup_empty_collectible_families_on_room_exit()
+end
+
+--- Debug：删除 owner 前缀匹配的全部 records（Test Lab 应急清理）。
+function item.purge_owners_by_prefix(prefix)
+	if type(prefix)~="string" or prefix=="" then return 0 end
+	local store=ensure_store()
+	local remove={}
+	for id,record in pairs(store.records or {}) do
+		local owner=record and record.owner
+		if type(owner)=="string" and owner:sub(1,#prefix)==prefix then
+			remove[#remove+1]=tostring(id)
+		end
+	end
+	for _,id in ipairs(remove) do drop_record(id) end
+	return #remove
+end
+
+--- Debug：统计某 owner 的 record 数 / 按 subtype 聚合。
+function item.count_owner_records(owner)
+	local store=ensure_store()
+	local n=0
+	local by_subtype={}
+	for _,record in pairs(store.records or {}) do
+		if record.owner==owner then
+			n=n+1
+			local st=record.identity and record.identity.subtype
+			by_subtype[st]=(by_subtype[st] or 0)+1
+		end
+	end
+	return n,by_subtype
 end
 
 local function cleanup_scope(event)
@@ -695,14 +1172,267 @@ function item.run_duplicate_spawn_test()
 	return true
 end
 function item.get_debug_snapshot()
-	local store=ensure_store() local scopes={room=0,level=0,run=0} local retained,index_buckets,index_links,evidence_records=0,0,0,0 local evidence_groups={}
+	local store=ensure_store() local scopes={room=0,level=0,run=0} local retained,index_buckets,index_links,evidence_records,zero_transient_records=0,0,0,0,0 local evidence_groups={}
+	local by_owner={} local match_modes={exact=0,ignore_subtype=0,ignore_variant=0,ignore_type=0}
 	for _,record in pairs(store.records) do
 		scopes[record.scope]=(scopes[record.scope] or 0)+1
 		if record.retain_on_remove then retained=retained+1 end
+		if record.zero_subtype_is_transient==true then zero_transient_records=zero_transient_records+1 end
 		if record.evidence_enabled then evidence_records=evidence_records+1 evidence_groups[tostring(record.fingerprint).."|"..tostring(record.owner)]=true end
+		local owner=tostring(record.owner or "?")
+		local row=by_owner[owner]
+		if not row then
+			row={owner=owner,records=0,retained=0,zero_transient_records=0,buckets={}}
+			by_owner[owner]=row
+		end
+		row.records=row.records+1
+		if record.retain_on_remove then row.retained=row.retained+1 end
+		if record.zero_subtype_is_transient==true then row.zero_transient_records=row.zero_transient_records+1 end
+		if record.fingerprint then row.buckets[record.fingerprint]=true end
+		local m=record.match or {}
+		if m.ignore_type then match_modes.ignore_type=match_modes.ignore_type+1
+		elseif m.ignore_variant then match_modes.ignore_variant=match_modes.ignore_variant+1
+		elseif m.ignore_subtype then match_modes.ignore_subtype=match_modes.ignore_subtype+1
+		else match_modes.exact=match_modes.exact+1 end
 	end
 	for _,ids in pairs(store.index) do index_buckets=index_buckets+1 index_links=index_links+#ids end
-	return {schema_version=store.schema_version,records=count(store.records),index_buckets=index_buckets,index_links=index_links,claims=count(runtime.claims),pending_remove=count(runtime.pending_remove),room=scopes.room or 0,level=scopes.level or 0,run=scopes.run or 0,retained=retained,orphans=count(store.migration_orphans),evidence_records=evidence_records,evidence_groups=count(evidence_groups),errors=item.debug.errors,parameter_conflicts=item.debug.parameter_conflicts,ambiguous_matches=item.debug.ambiguous_matches,similarity_resolutions=item.debug.similarity_resolutions,ambiguous_fallbacks=item.debug.ambiguous_fallbacks,last_error=item.debug.last_error,last_event=item.debug.last_event}
+	local owners={}
+	for _,row in pairs(by_owner) do
+		local bucket_n=0
+		for _ in pairs(row.buckets) do bucket_n=bucket_n+1 end
+		owners[#owners+1]={owner=row.owner,records=row.records,retained=row.retained,zero_transient_records=row.zero_transient_records,index_buckets=bucket_n}
+	end
+	table.sort(owners,function(a,b)
+		if a.records~=b.records then return a.records>b.records end
+		return a.owner<b.owner
+	end)
+	local top_owners={}
+	for i=1,math.min(8,#owners) do top_owners[i]=owners[i] end
+	local report=item.debug.last_report
+	local trace=item.debug.lifecycle_trace or {}
+	local trace_copy={}
+	for i=#trace,math.max(1,#trace-19),-1 do
+		trace_copy[#trace_copy+1]=trace[i]
+	end
+	return {
+		schema_version=store.schema_version,
+		records=count(store.records),
+		index_buckets=index_buckets,
+		index_links=index_links,
+		claims=count(runtime.claims),
+		pending_remove=count(runtime.pending_remove),
+		room=scopes.room or 0,
+		level=scopes.level or 0,
+		run=scopes.run or 0,
+		retained=retained,
+		zero_transient_records=zero_transient_records,
+		orphans=count(store.migration_orphans),
+		evidence_records=evidence_records,
+		evidence_groups=count(evidence_groups),
+		errors=item.debug.errors,
+		parameter_conflicts=item.debug.parameter_conflicts,
+		ambiguous_matches=item.debug.ambiguous_matches,
+		similarity_resolutions=item.debug.similarity_resolutions,
+		ambiguous_fallbacks=item.debug.ambiguous_fallbacks,
+		supersedes=item.debug.supersedes or 0,
+		supersede_records_dropped=item.debug.supersede_records_dropped or 0,
+		supersede_empty_snapshots=item.debug.supersede_empty_snapshots or 0,
+		family_supersedes=item.debug.family_supersedes or 0,
+		family_records_dropped=item.debug.family_records_dropped or 0,
+		empty_collectible_families_cleaned=item.debug.empty_collectible_families_cleaned or 0,
+		family_states_dropped=item.debug.family_states_dropped or 0,
+		morph_callbacks=item.debug.morph_callbacks or 0,
+		morph_callbacks_to_empty=item.debug.morph_callbacks_to_empty or 0,
+		morph_policy={
+			supersede=item.debug.morph_policy_supersede or 0,
+			state_switch=item.debug.morph_policy_state_switch or 0,
+			empty_pending=item.debug.morph_policy_empty_pending or 0,
+			same_lifetime=item.debug.morph_policy_same_lifetime or 0,
+			unknown=item.debug.morph_policy_unknown or 0,
+		},
+		match_modes=match_modes,
+		top_owners=top_owners,
+		lifecycle_trace=trace_copy,
+		family_probe_enabled=item.debug.family_probe_enabled==true,
+		family_probe_last=item.debug.family_probe_last,
+		integrity_ok=report and report.ok or nil,
+		integrity_failures=report and (report.failure_count or 0) or nil,
+		last_error=item.debug.last_error,
+		last_event=item.debug.last_event,
+	}
+end
+
+local function is_collectible_pickup(ent)
+	if not ent then return false end
+	local pickup=ent.ToPickup and ent:ToPickup() or ent
+	return pickup and pickup.Type==EntityType.ENTITY_PICKUP and pickup.Variant==PickupVariant.PICKUP_COLLECTIBLE
+end
+
+local function read_collectible_cycle(pickup)
+	local cycle={}
+	if not pickup or not pickup.GetCollectibleCycle then return cycle end
+	local ok,list=pcall(function() return pickup:GetCollectibleCycle() end)
+	if not ok or type(list)~="table" then return cycle end
+	for _,id in ipairs(list) do cycle[#cycle+1]=id end
+	return cycle
+end
+
+function item.inspect_collectible(ent)
+	if not is_collectible_pickup(ent) then return nil end
+	local pickup=ent.ToPickup and ent:ToPickup() or ent
+	local data=safe_get_data(pickup) or {}
+	local names=get_runtime_names_from_data(data)
+	local store=ensure_store()
+	local marker=read_family_marker(pickup)
+	local family=marker or family_identity_from_entity(pickup)
+	local bindings={}
+	for owner,raw_id in pairs(names or {}) do
+		local id=tostring(raw_id)
+		local record=store.records[id]
+		local match=record and record.match or {}
+		local mode="exact"
+		if match.ignore_type then mode="ignore_type"
+		elseif match.ignore_variant then mode="ignore_variant"
+		elseif match.ignore_subtype then mode="ignore_subtype" end
+		bindings[#bindings+1]={
+			owner=owner,
+			id=id,
+			record_subtype=record and record.identity and record.identity.subtype or nil,
+			match_mode=mode,
+			retain=record and record.retain_on_remove==true or false,
+		}
+	end
+	table.sort(bindings,function(a,b) return tostring(a.owner)<tostring(b.owner) end)
+	local states=item.get_family_states(family) or {}
+	local state_rows={}
+	for st,row in pairs(states) do
+		state_rows[#state_rows+1]={subtype=st,owners=row.owners or {}}
+	end
+	table.sort(state_rows,function(a,b) return (tonumber(a.subtype) or 0)<(tonumber(b.subtype) or 0) end)
+	local options_index=nil
+	pcall(function() options_index=pickup.OptionsPickupIndex end)
+	return {
+		ptr=entity_ptr_hash(pickup),
+		init_seed=pickup.InitSeed,
+		type=pickup.Type,
+		variant=pickup.Variant,
+		subtype=pickup.SubType or pickup.Subtype or 0,
+		family_key=family_key(family),
+		family_marker=marker and family_key(marker) or nil,
+		options_pickup_index=options_index,
+		collectible_cycle=read_collectible_cycle(pickup),
+		bindings=bindings,
+		family_states=state_rows,
+	}
+end
+
+function item.inspect_nearest_collectible(max_dist)
+	max_dist=max_dist or 120
+	local player=Isaac.GetPlayer(0)
+	if not player then return nil end
+	local best,best_d=nil,nil
+	local ok,list=pcall(function() return Isaac.GetRoomEntities() end)
+	if not ok or type(list)~="table" then return nil end
+	for _,ent in ipairs(list) do
+		if is_collectible_pickup(ent) then
+			local d=player.Position:Distance(ent.Position)
+			if d<=max_dist and (best_d==nil or d<best_d) then
+				best=ent
+				best_d=d
+			end
+		end
+	end
+	if not best then return nil end
+	local info=item.inspect_collectible(best)
+	if info then info.distance=best_d info.entity=best end
+	return info
+end
+
+local FAMILY_PROBE_SEEN="_ConsistanceFamilyProbe_seen"
+
+function item.clear_family_probe(ent)
+	item.debug.family_probe_enabled=false
+	item.debug.family_probe_last=nil
+	if ent and is_collectible_pickup(ent) then
+		local pickup=ent.ToPickup and ent:ToPickup() or ent
+		item.invalidate_entity_binding(pickup,FAMILY_PROBE_OWNER)
+		local data=safe_get_data(pickup)
+		if data then data[FAMILY_PROBE_SEEN]=nil end
+	else
+		local ok,list=pcall(function() return Isaac.GetRoomEntities() end)
+		if ok and type(list)=="table" then
+			for _,e in ipairs(list) do
+				if is_collectible_pickup(e) then
+					local pickup=e.ToPickup and e:ToPickup() or e
+					item.invalidate_entity_binding(pickup,FAMILY_PROBE_OWNER)
+					local data=safe_get_data(pickup)
+					if data then data[FAMILY_PROBE_SEEN]=nil end
+				end
+			end
+		end
+	end
+	return true
+end
+
+function item.attach_family_probe(ent)
+	if not ent then
+		local nearest=item.inspect_nearest_collectible(200)
+		ent=nearest and nearest.entity
+	end
+	if not is_collectible_pickup(ent) then return false end
+	local pickup=ent.ToPickup and ent:ToPickup() or ent
+	local subtype=pickup.SubType or pickup.Subtype or 0
+	if subtype==0 then
+		item.debug.family_probe_last={ok=false,reason="subtype_0"}
+		return false
+	end
+	item.debug.family_probe_enabled=true
+	local data=safe_get_data(pickup)
+	if not data then return false end
+	data._Data=data._Data or {}
+	data[FAMILY_PROBE_SEEN]=nil
+	item.tick_family_probe(pickup)
+	return true
+end
+
+function item.tick_family_probe(ent)
+	if item.debug.family_probe_enabled~=true then return end
+	if not is_collectible_pickup(ent) then return end
+	local pickup=ent.ToPickup and ent:ToPickup() or ent
+	local subtype=pickup.SubType or pickup.Subtype or 0
+	if subtype==0 then return end
+	local data=safe_get_data(pickup)
+	if not data then return end
+	data._Data=data._Data or {}
+	if data[FAMILY_PROBE_SEEN]==subtype then return end
+	data[FAMILY_PROBE_SEEN]=subtype
+	local hit=item.try_check_entity(pickup,FAMILY_PROBE_OWNER,false,{})
+	if hit then
+		local payload=data._Data[FAMILY_PROBE_OWNER] or {}
+		local ok=payload.stored_subtype==subtype
+		payload.visit_count=(payload.visit_count or 0)+1
+		data._Data[FAMILY_PROBE_OWNER]=payload
+		item.try_hold_entity(pickup,FAMILY_PROBE_OWNER,{consistance=true})
+		item.debug.family_probe_last={
+			ok=ok,
+			subtype=subtype,
+			stored_subtype=payload.stored_subtype,
+			visit_count=payload.visit_count,
+			family=family_key(family_identity_from_entity(pickup)),
+			mode="rematch",
+		}
+	else
+		data._Data[FAMILY_PROBE_OWNER]={stored_subtype=subtype,visit_count=1}
+		item.try_hold_entity(pickup,FAMILY_PROBE_OWNER,{consistance=true})
+		item.debug.family_probe_last={
+			ok=true,
+			subtype=subtype,
+			stored_subtype=subtype,
+			visit_count=1,
+			family=family_key(family_identity_from_entity(pickup)),
+			mode="create",
+		}
+	end
 end
 function item.run_integrity_audit()
 	local store=ensure_store()
@@ -732,13 +1462,23 @@ function item.run_integrity_audit()
 end
 function item.check_table()
 	local s=item.get_debug_snapshot()
-	print(string.format("Consistance V%d records=%d buckets=%d claims=%d pending=%d room=%d level=%d run=%d retained=%d errors=%d",s.schema_version,s.records,s.index_buckets,s.claims,s.pending_remove,s.room,s.level,s.run,s.retained,s.errors))
+	print(string.format("Consistance V%d records=%d buckets=%d claims=%d pending=%d room=%d level=%d run=%d retained=%d errors=%d supersedes=%d family=%d/%d empty=%d",s.schema_version,s.records,s.index_buckets,s.claims,s.pending_remove,s.room,s.level,s.run,s.retained,s.errors,s.supersedes,s.family_supersedes,s.family_records_dropped,s.empty_collectible_families_cleaned))
+	if s.top_owners then
+		for _,row in ipairs(s.top_owners) do
+			print(string.format("  owner=%s records=%d retained=%d buckets=%d",row.owner,row.records,row.retained,row.index_buckets))
+		end
+	end
 end
 
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_GAME_STARTED,params=nil,Function=function(_,continue)
 	item.reset_debug_stats() clear_claims() if not continue then save.elses.Consistance_holder=new_store() end local store=ensure_store() rebuild_index(store) item.debug.last_event=continue and "continued run initialized" or "new run initialized"
 end})
-table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_ROOM,params=nil,Function=function() clear_claims() cleanup_scope("room") end})
+table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_ROOM,params=nil,Function=function()
+	-- 1) 仍为空的 collectible pedestal：整 family 结束；2) clear_claims；3) room scope cleanup
+	cleanup_empty_collectible_families_on_room_exit()
+	clear_claims()
+	cleanup_scope("room")
+end})
 -- 新层 PRE_NEW_ROOM 阶段尽早 preserve（勿忘草向量可能在实体生成后被清空）
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_PRE_NEW_LEVEL,params=nil,Function=function()
 	item.preserve_cross_floor_records()
@@ -755,6 +1495,445 @@ table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_LEVEL,params=ni
 end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_UPDATE,params=nil,Function=function()
 	if not item[item.own_key.."filter"] and Game():GetRoom():GetFrameCount()>0 then sweep_removed_tracked_entities() end
+	if item.debug.family_probe_enabled==true then
+		local ok,list=pcall(function() return Isaac.GetRoomEntities() end)
+		if ok and type(list)=="table" then
+			for _,ent in ipairs(list) do
+				if is_collectible_pickup(ent) then item.tick_family_probe(ent) end
+			end
+		end
+	end
+end})
+--- Morph Policy（2026-09 实测锁定）：
+--- Morph callback ≠ lifetime replacement。
+--- EMPTY_PENDING / SUPERSEDE / STATE_SWITCH / SAME_LIFETIME
+function item.classify_morph(before,after,policy)
+	policy=policy or {}
+	if type(before)~="table" or type(after)~="table" then return "UNKNOWN" end
+	local after_sub=after.subtype or 0
+	if policy.zero_subtype_is_transient==true and after_sub==0 then return "EMPTY_PENDING" end
+	if before.init_seed==nil then return "UNKNOWN" end
+	if before.init_seed~=after.init_seed then return "SUPERSEDE" end
+	local before_sub=before.subtype or 0
+	if before_sub~=after_sub then return "STATE_SWITCH" end
+	return "SAME_LIFETIME"
+end
+
+local function bump_morph_policy(kind)
+	if kind=="SUPERSEDE" then item.debug.morph_policy_supersede=(item.debug.morph_policy_supersede or 0)+1
+	elseif kind=="STATE_SWITCH" then item.debug.morph_policy_state_switch=(item.debug.morph_policy_state_switch or 0)+1
+	elseif kind=="EMPTY_PENDING" then item.debug.morph_policy_empty_pending=(item.debug.morph_policy_empty_pending or 0)+1
+	elseif kind=="SAME_LIFETIME" then item.debug.morph_policy_same_lifetime=(item.debug.morph_policy_same_lifetime or 0)+1
+	else item.debug.morph_policy_unknown=(item.debug.morph_policy_unknown or 0)+1 end
+end
+
+--- 只解绑 subtype-sensitive owners；保留 ignore_subtype pedestal-level binding。
+local function invalidate_subtype_sensitive_bindings(ent)
+	if ent==nil then return 0 end
+	local data=safe_get_data(ent)
+	if not data then return 0 end
+	local names=get_runtime_names_from_data(data)
+	local store=ensure_store()
+	local owners={}
+	for owner,raw_id in pairs(names) do
+		local record=store.records[tostring(raw_id)]
+		local match=record and record.match or {}
+		if not match.ignore_subtype then
+			owners[#owners+1]=owner
+		end
+	end
+	for _,owner in ipairs(owners) do
+		item.invalidate_entity_binding(ent,owner)
+	end
+	return #owners
+end
+
+local STATE_SWITCH_TRACE_MAX=24
+
+--- DEBUG：实体上每个 Consistance owner 的 record / binding / _Data 三层快照。
+local function snapshot_entity_owner_bindings(ent,opts)
+	opts=opts or {}
+	local out={}
+	if ent==nil then return out end
+	local data=safe_get_data(ent)
+	local names=(data and data._Consistance_holder_names) or {}
+	local store=ensure_store()
+	for owner,raw_id in pairs(names) do
+		local id=tostring(raw_id)
+		local record=store.records[id]
+		local match=record and record.match or {}
+		local row={
+			owner=owner,
+			record_id=id,
+			record_exists=record~=nil,
+			ignore_subtype=match.ignore_subtype==true,
+			owner_data_exists=data._Data~=nil and data._Data[owner]~=nil,
+			matches=record~=nil and record_matches_entity(record,ent)==true,
+			claimed=runtime.claims[id]~=nil,
+		}
+		-- PRE Morph：为 ignore_subtype 保留 payload，供 POST STATE_SWITCH 连续 reattach
+		if opts.capture_payload==true and row.ignore_subtype and data._Data and type(data._Data[owner])=="table" then
+			row.payload=auxi.deepCopy(data._Data[owner])
+		end
+		out[#out+1]=row
+	end
+	table.sort(out,function(a,b) return tostring(a.owner)<tostring(b.owner) end)
+	return out
+end
+
+--- STATE_SWITCH：ignore_subtype record 保持同一 R；仅恢复 runtime binding / payload。
+--- 应对 CollectibleCycle Morph 重置 GetData 而 InitSeed/family 不变的情况。
+local function reattach_ignore_subtype_bindings(ent,bindings)
+	if ent==nil or type(bindings)~="table" then return 0 end
+	local data=safe_get_data(ent)
+	if not data then return 0 end
+	data._Data=data._Data or {}
+	local names=get_runtime_names_from_data(data)
+	local store=ensure_store()
+	local n=0
+	for _,row in ipairs(bindings) do
+		if row.ignore_subtype==true and row.record_id and row.owner then
+			local id=tostring(row.record_id)
+			local record=store.records[id]
+			if record and record_matches_entity(record,ent) then
+				names[row.owner]=id
+				if type(row.payload)=="table" then
+					data._Data[row.owner]=auxi.deepCopy(row.payload)
+				else
+					data._Data[row.owner]=auxi.deepCopy(record.data or {})
+				end
+				if runtime.claims[id]==nil then claim_record(id) end
+				n=n+1
+			end
+		end
+	end
+	if n>0 then
+		write_family_marker(ent,family_identity_from_entity(ent))
+		refresh_tracked_entity(ent,data)
+		note_lifecycle("STATE_SWITCH_REATTACH",{
+			ptr=entity_ptr_hash(ent),
+			new_subtype=ent.SubType or ent.Subtype,
+			dropped=n,
+		})
+	end
+	return n
+end
+
+local function clone_bindings_public(rows)
+	local out={}
+	for _,r in ipairs(rows or {}) do
+		out[#out+1]={
+			owner=r.owner,
+			record_id=r.record_id,
+			record_exists=r.record_exists,
+			ignore_subtype=r.ignore_subtype,
+			owner_data_exists=r.owner_data_exists,
+			matches=r.matches,
+			claimed=r.claimed,
+		}
+	end
+	return out
+end
+
+local function classify_binding_layer_delta(pre_rows,post_rows)
+	pre_rows=pre_rows or {}
+	post_rows=post_rows or {}
+	local post_by_owner={}
+	for _,row in ipairs(post_rows) do post_by_owner[row.owner]=row end
+	local worst="both_survive"
+	for _,pre in ipairs(pre_rows) do
+		if pre.ignore_subtype==true then
+			local post=post_by_owner[pre.owner]
+			local record_still=false
+			if pre.record_id then
+				local store=ensure_store()
+				record_still=store.records[tostring(pre.record_id)]~=nil
+			end
+			local binding_still=post~=nil and post.record_id==pre.record_id
+			local data_still=post~=nil and post.owner_data_exists==true
+			if not record_still then
+				worst="record_dropped"
+			elseif not binding_still and not data_still then
+				if worst~="record_dropped" then worst="runtime_binding_and_data_cleared" end
+			elseif not binding_still then
+				if worst~="record_dropped" and worst~="runtime_binding_and_data_cleared" then
+					worst="binding_slot_removed"
+				end
+			elseif not data_still then
+				if worst=="both_survive" then worst="owner_data_removed" end
+			end
+		end
+	end
+	return worst
+end
+
+local function note_state_switch_trace(row)
+	item.debug.state_switch_trace=item.debug.state_switch_trace or {}
+	local buf=item.debug.state_switch_trace
+	buf[#buf+1]=row
+	while #buf>STATE_SWITCH_TRACE_MAX do table.remove(buf,1) end
+	item.debug.last_state_switch=row
+end
+
+local function snapshot_morph_identity(pickup)
+	if not pickup then return nil end
+	return {
+		init_seed=pickup.InitSeed,
+		type=pickup.Type,
+		variant=pickup.Variant,
+		subtype=pickup.SubType or pickup.Subtype or 0,
+	}
+end
+
+--- Generic Morph Policy：只决定旧 lifetime 是否结束；不自动 hold 新 record。
+--- pending 可选：PRE Morph 快照（含 owner bindings），供 STATE_SWITCH 诊断 / 连续性。
+function item.apply_morph_policy(pickup,before,after,pending,policy)
+	local kind=item.classify_morph(before,after,policy)
+	bump_morph_policy(kind)
+	note_lifecycle("MORPH_POLICY",{
+		ptr=entity_ptr_hash(pickup),
+		old_family=before and family_key(before) or nil,
+		new_family=after and family_key(after) or nil,
+		old_subtype=before and before.subtype or nil,
+		new_subtype=after and after.subtype or nil,
+		dropped=kind,
+	})
+	if item.debug.semantic_probe_bypass==true then
+		return kind
+	end
+	if kind=="EMPTY_PENDING" then
+		item.debug.morph_callbacks_to_empty=(item.debug.morph_callbacks_to_empty or 0)+1
+		invalidate_subtype_sensitive_bindings(pickup)
+		-- family marker 保留，供离房 EMPTY_FAMILY_GC
+		return kind
+	end
+	if kind=="SUPERSEDE" then
+		local identity={
+			init_seed=before.init_seed,
+			type=before.type,
+			variant=before.variant,
+		}
+		item.supersede_family(identity)
+		item.invalidate_entity_binding(pickup)
+		clear_family_marker(pickup)
+		return kind
+	end
+	if kind=="STATE_SWITCH" then
+		local pre_bindings=(pending and pending.bindings) or snapshot_entity_owner_bindings(pickup,{capture_payload=true})
+		local cleared=invalidate_subtype_sensitive_bindings(pickup)
+		local mid_bindings=snapshot_entity_owner_bindings(pickup)
+		local reattached=reattach_ignore_subtype_bindings(pickup,pre_bindings)
+		local post_bindings=snapshot_entity_owner_bindings(pickup)
+		local layer_mid=classify_binding_layer_delta(pre_bindings,mid_bindings)
+		local layer=classify_binding_layer_delta(pre_bindings,post_bindings)
+		local frame=0
+		pcall(function() frame=Game():GetFrameCount() end)
+		local row={
+			phase="post",
+			frame=frame,
+			ptr=entity_ptr_hash(pickup),
+			init_seed=after and after.init_seed or (pickup and pickup.InitSeed),
+			old_subtype=before and before.subtype or nil,
+			new_subtype=after and after.subtype or nil,
+			subtype_sensitive_cleared=cleared,
+			reattached_ignore_subtype=reattached,
+			pre_bindings=clone_bindings_public(pre_bindings),
+			mid_bindings=clone_bindings_public(mid_bindings),
+			post_bindings=clone_bindings_public(post_bindings),
+			layer_diagnosis_mid=layer_mid,
+			layer_diagnosis=layer,
+			next_bindings=nil,
+		}
+		note_state_switch_trace(row)
+		runtime.state_switch_followups=runtime.state_switch_followups or {}
+		runtime.state_switch_followups[#runtime.state_switch_followups+1]={
+			init_seed=row.init_seed,
+			type=after and after.type or (pickup and pickup.Type),
+			variant=after and after.variant or (pickup and pickup.Variant),
+			trace_index=#(item.debug.state_switch_trace or {}),
+			pre_bindings=clone_bindings_public(pre_bindings),
+			armed_frame=frame,
+		}
+		-- family marker 不变
+		return kind
+	end
+	-- SAME_LIFETIME / UNKNOWN：Generic 不猜业务 replacement
+	return kind
+end
+
+local function find_collectible_by_family_seed(init_seed,etype,variant)
+	if init_seed==nil then return nil end
+	local ok,list=pcall(function() return Isaac.GetRoomEntities() end)
+	if not ok or type(list)~="table" then return nil end
+	for _,ent in ipairs(list) do
+		local p=ent.ToPickup and ent:ToPickup() or ent
+		if p and p.Type==EntityType.ENTITY_PICKUP and p.Variant==PickupVariant.PICKUP_COLLECTIBLE then
+			if p.InitSeed==init_seed
+				and (etype==nil or p.Type==etype)
+				and (variant==nil or p.Variant==variant)
+			then
+				return p
+			end
+		end
+	end
+	return nil
+end
+
+local function tick_state_switch_followups()
+	local list=runtime.state_switch_followups
+	if type(list)~="table" or #list==0 then return end
+	runtime.state_switch_followups={}
+	local frame=0
+	pcall(function() frame=Game():GetFrameCount() end)
+	for _,fu in ipairs(list) do
+		local pickup=find_collectible_by_family_seed(fu.init_seed,fu.type,fu.variant)
+		local next_bindings=snapshot_entity_owner_bindings(pickup)
+		local layer=classify_binding_layer_delta(fu.pre_bindings,next_bindings)
+		local trace=item.debug.state_switch_trace or {}
+		local row=fu.trace_index and trace[fu.trace_index] or nil
+		if row then
+			row.next_bindings=next_bindings
+			row.next_frame=frame
+			row.next_found=pickup~=nil
+			row.layer_diagnosis_next=layer
+			if layer~="both_survive" and (row.layer_diagnosis=="both_survive" or row.layer_diagnosis==nil) then
+				row.layer_diagnosis=layer
+			elseif layer~="both_survive" then
+				row.layer_diagnosis=layer
+			end
+			item.debug.last_state_switch=row
+		else
+			note_state_switch_trace({
+				phase="next_update",
+				frame=frame,
+				init_seed=fu.init_seed,
+				pre_bindings=fu.pre_bindings,
+				next_bindings=next_bindings,
+				next_found=pickup~=nil,
+				layer_diagnosis=layer,
+			})
+		end
+	end
+end
+
+table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_UPDATE,params=nil,Function=function()
+	tick_state_switch_followups()
+end})
+
+--- DEBUG-ONLY：单 owner 的 record / binding / data 三层（供 lifecycle probe）。
+function item.debug_binding_layer(ent,owner)
+	if ent==nil or owner==nil then return nil end
+	local data=safe_get_data(ent)
+	local names=(data and data._Consistance_holder_names) or {}
+	local bound_id=names[owner] and tostring(names[owner]) or nil
+	local store=ensure_store()
+	local record=bound_id and store.records[bound_id] or nil
+	local store_id=nil
+	local store_ignore=nil
+	if record==nil then
+		for id,rec in pairs(store.records or {}) do
+			if rec and rec.owner==owner and record_matches_entity(rec,ent) then
+				store_id=tostring(id)
+				store_ignore=rec.match and rec.match.ignore_subtype==true or false
+				break
+			end
+		end
+	end
+	local ignore=nil
+	if record and record.match then
+		ignore=record.match.ignore_subtype==true
+	else
+		ignore=store_ignore
+	end
+	return {
+		bound_record_id=bound_id,
+		record_exists=(record~=nil) or (store_id~=nil),
+		record_ignore_subtype=ignore==true,
+		owner_data_exists=data~=nil and data._Data~=nil and data._Data[owner]~=nil,
+		store_record_id=record and bound_id or store_id,
+		matches_entity=record~=nil and record_matches_entity(record,ent)==true or (store_id~=nil),
+		claimed=(bound_id and runtime.claims[bound_id]~=nil) or (store_id and runtime.claims[store_id]~=nil) or false,
+	}
+end
+
+function item.get_last_state_switch_trace()
+	return item.debug.last_state_switch
+end
+
+function item.get_state_switch_trace()
+	return item.debug.state_switch_trace or {}
+end
+
+local function remember_morph_before(pickup)
+	local ptr=entity_ptr_hash(pickup)
+	if not ptr then return end
+	runtime.morph_pending=runtime.morph_pending or {}
+	runtime.morph_pending[ptr]={
+		identity=snapshot_morph_identity(pickup),
+		marker=read_family_marker(pickup),
+		bindings=snapshot_entity_owner_bindings(pickup,{capture_payload=true}),
+		frame=0,
+	}
+	pcall(function() runtime.morph_pending[ptr].frame=Game():GetFrameCount() end)
+end
+
+local function take_morph_before(pickup,previousType,previousVariant,previousSubtype,keptSeed)
+	local ptr=entity_ptr_hash(pickup)
+	local pending=ptr and runtime.morph_pending and runtime.morph_pending[ptr] or nil
+	if ptr and runtime.morph_pending then runtime.morph_pending[ptr]=nil end
+	if pending and pending.identity then
+		return pending
+	end
+	-- PRE 缺失时兜底：marker seed + POST previous Type/Variant/SubType
+	local marker=read_family_marker(pickup)
+	local seed=pickup and pickup.InitSeed or nil
+	if marker and marker.init_seed then
+		seed=marker.init_seed
+	elseif keptSeed==false and marker==nil then
+		-- seed 已变且无 marker：无法可靠还原 old seed
+		seed=nil
+	end
+	return {
+		identity={
+			init_seed=seed,
+			type=previousType or (pickup and pickup.Type),
+			variant=previousVariant or (pickup and pickup.Variant),
+			subtype=previousSubtype or 0,
+		},
+		marker=marker,
+		bindings=snapshot_entity_owner_bindings(pickup),
+		frame=0,
+	}
+end
+
+-- PRE：保存 Morph 前 identity（早于 POST policy）。
+table.insert(item.pre_ToCall,{CallBack=ModCallbacks.MC_PRE_PICKUP_MORPH,params=nil,priority=-200,Function=function(_,pickup)
+	if not pickup then return end
+	local p=pickup.ToPickup and pickup:ToPickup() or pickup
+	if not p or p.Type~=EntityType.ENTITY_PICKUP then return end
+	if p.Variant~=PickupVariant.PICKUP_COLLECTIBLE then return end
+	remember_morph_before(p)
+end})
+
+-- POST：classify_morph → apply_morph_policy（早于业务 Morph handlers）。
+-- CollectibleCycle 每次切换也会触发 Morph，但 seed 不变 → STATE_SWITCH，不得 supersede。
+table.insert(item.pre_ToCall,{CallBack=ModCallbacks.MC_POST_PICKUP_MORPH,params=nil,priority=-100,Function=function(_,pickup,previousType,previousVariant,previousSubtype,_keptPrice,keptSeed,_ignoredModifiers)
+	if not pickup then return end
+	local p=pickup.ToPickup and pickup:ToPickup() or pickup
+	if not p or p.Type~=EntityType.ENTITY_PICKUP then return end
+	if p.Variant~=PickupVariant.PICKUP_COLLECTIBLE then return end
+	item.debug.morph_callbacks=(item.debug.morph_callbacks or 0)+1
+	local pending=take_morph_before(p,previousType,previousVariant,previousSubtype,keptSeed)
+	local before=pending and pending.identity or nil
+	local after=snapshot_morph_identity(p)
+	note_lifecycle("MORPH_CALLBACK",{
+		ptr=entity_ptr_hash(p),
+		old_family=before and family_key(before) or nil,
+		new_family=family_key(after),
+		old_subtype=before and before.subtype or nil,
+		new_subtype=after.subtype,
+	})
+	item.apply_morph_policy(p,before,after,pending,{zero_subtype_is_transient=true})
 end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_NEW_ROOM,params=nil,Function=function() item[item.own_key.."filter"]=nil end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_USE_ITEM,params=CollectibleType.COLLECTIBLE_GLOWING_HOUR_GLASS,Function=function() item[item.own_key.."filter"]=true item.debug.last_event="glowing hourglass filter enabled" end})

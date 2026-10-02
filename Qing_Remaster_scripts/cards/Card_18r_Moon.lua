@@ -10,6 +10,7 @@ local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local Achievement_Display_holder = require("Qing_Remaster_scripts.others.Achievement_Display_holder")
 local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
+local Player_Pseudo_Fear = require("Qing_Remaster_scripts.mimics.Player_Pseudo_Fear_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -20,6 +21,8 @@ local item = {
 	own_key = "Thoth_cd18r_Moo_",
 	init_sound = 1,
 	color = Color(0.5,0.1,0.5,1),
+	-- 旧版 AddFear(20*30) ≈ 20s（Game/status 30Hz）；伪恐惧走 PLAYER_UPDATE 60Hz → 20*60。
+	player_fear_duration = 20 * 60,
 	coloring_effect = {
 		[5] = true,
 		[7] = true,
@@ -59,12 +62,6 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTIT
 Function = function(_,ent)
 	if Game():GetRoom():GetFrameCount() > 1 and item[item.own_key.."effect"] then
 		if ent:HasEntityFlags(EntityFlag.FLAG_FEAR) then
-			local rng = ent:GetDropRNG()
-			rng = auxi.rng_for_sake(rng)
-			if rng:RandomInt(100) > 95 then
-				local q = Isaac.Spawn(5,300,item.entity,ent.Position,Vector(0,0),nil):ToPickup()
-				q:Morph(5,300,item.entity,true,true,true)
-			end
 			item[item.own_key.."sound"] = math.min(3,(item[item.own_key.."sound"] or item.init_sound) + 0.2)
 			if MusicManager():GetCurrentMusicID() == enums.Music.Weapon_A then
 			else
@@ -81,7 +78,8 @@ Function = function(_,ent,amt,flag,source,cooldown)
 		if ent:HasEntityFlags(EntityFlag.FLAG_FEAR) then
 			if flag & DamageFlag.DAMAGE_CLONES == 0 and amt ~= 0 then
 				ent:TakeDamage(amt * 2,flag | DamageFlag.DAMAGE_CLONES,source,cooldown)
-				sound_tracker.PlayStackedSound(SoundEffect.SOUND_MEATY_DEATHS,0.7 + math.random(1000)/1000 * 0.7,0.8 + math.random(1000)/1000 * 0.4,false,0,2)
+				local rng = ent:GetDropRNG()
+				sound_tracker.PlayStackedSound(SoundEffect.SOUND_MEATY_DEATHS,0.7 + rng:RandomFloat() * 0.7,0.8 + rng:RandomFloat() * 0.4,false,0,2)
 			end
 		end
 	end
@@ -102,14 +100,10 @@ Function = function(_,cardtype,player,useFlags)
 		MusicManager():Play(enums.Music.Weapon_A, item[item.own_key.."sound"])
 		if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then
 			for u,v in pairs(n_enemy) do	
-				local ti = 9999 * 60 * 30
+				local ti = 2 * 60 * 30
 				Attribute_holder.try_hold_and_rewind_attribute(v,"ENTITY_FLAG_FLAG_FEAR",true,ti,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FEAR))
 				local color = item.color
 				Attribute_holder.try_hold_and_rewind_attribute(v,"Color",color,ti,Attribute_holder.descriptors.color())		--重载不等号
-			end
-			for playerNum = 1, Game():GetNumPlayers() do
-				local t_player = Game():GetPlayer(playerNum - 1)
-				t_player:AddFear(EntityRef(player),20 * 30)
 			end
 			item[item.own_key.."effect"] = 2
 		else
@@ -121,7 +115,7 @@ Function = function(_,cardtype,player,useFlags)
 			end
 			for playerNum = 1, Game():GetNumPlayers() do
 				local t_player = Game():GetPlayer(playerNum - 1)
-				t_player:AddFear(EntityRef(player),10 * 60)
+				Player_Pseudo_Fear.apply(t_player, item.player_fear_duration)
 			end
 			item[item.own_key.."effect"] = 1
 		end

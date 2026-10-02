@@ -1,6 +1,7 @@
 -- 蓝图白/黑王冠视觉：挂在 Air Flight 头顶，沿用原版 FloatGlow / FloatNoGlow 明灭。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local enums = require("Qing_Remaster_scripts.core.enums")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 
 local item = {
 	pre_ToCall = {},
@@ -70,9 +71,8 @@ local function apply_air_scale(spr, air)
 end
 
 local function crown_flags(air)
-	local Air = get_air_mod()
 	local d = air:GetData()
-	local prof = Air and d[Air.own_key.."craft_profile"]
+	local prof = CraftIdentity.get_profile(air)
 	local counts = prof and prof.counts
 	if not counts then return nil end
 	local has_light = (counts[COL_LIGHT] or 0) > 0

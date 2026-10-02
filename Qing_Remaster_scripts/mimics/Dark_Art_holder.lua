@@ -3,7 +3,7 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
-local tear_trigger_holder = require("Qing_Remaster_scripts.callbacks.tear_trigger_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -27,7 +27,15 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFEC
 Function = function(_,ent)
 	if ent.FrameCount == 1 and ent.SpawnerEntity and ent.SpawnerEntity.Type == EntityType.ENTITY_PLAYER then
 		local player = ent.SpawnerEntity:ToPlayer()
-		tear_trigger_holder.trigger_tear("Darkart",ent,nil,player,player.Velocity)
+		attack_holder.EmitSyntheticSample(player, {
+			family = "tear",
+			source_entity = ent,
+			position = ent.Position,
+			direction = player.Velocity,
+			sample_weight = 1,
+			reason = "dark_art",
+			synthetic_kind = "sample",
+		})
 	end
 end,
 })

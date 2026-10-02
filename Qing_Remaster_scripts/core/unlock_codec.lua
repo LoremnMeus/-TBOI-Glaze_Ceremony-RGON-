@@ -162,17 +162,6 @@ function codec.unpack(packed, schema)
 	return data
 end
 
--- 旧存档：顶层 wq / Glaze / BossBoard_* 等嵌套表
-function codec.from_legacy_save(SAVE_STATE, over_unlock_info)
-	local data = {}
-	for cat,_ in pairs(over_unlock_info or {}) do
-		if type(SAVE_STATE[cat]) == "table" then
-			data[cat] = SAVE_STATE[cat]
-		end
-	end
-	return data
-end
-
 function codec.bind_schema(schema)
 	codec._schema = schema
 end

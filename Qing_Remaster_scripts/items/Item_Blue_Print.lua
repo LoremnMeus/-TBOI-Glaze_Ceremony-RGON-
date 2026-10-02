@@ -6,14 +6,18 @@ local selection_holder = require("Qing_Remaster_scripts.others.selection_holder"
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Mouse_UI = require("Qing_Remaster_scripts.others.Mouse_UI_holder")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local Imitate_item_holder = require("Qing_Remaster_scripts.callbacks.imitate_item_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
+local temp_hud = require("Qing_Remaster_scripts.callbacks.temp_item_hud_holder")
 
-local function get_bandwidth()
+local BP = {}
+
+function BP.get_bandwidth()
 	return require("Qing_Remaster_scripts.mimics.Craft_Bandwidth_Manager")
 end
 
-local function get_tutorial()
+function BP.get_tutorial()
 	return require("Qing_Remaster_scripts.others.blueprint_tutorial")
 end
 
@@ -23,6 +27,7 @@ local item = {
 	myToCall = {},
 	entity = enums.Items.Blue_Print,
 	own_key = "Item_Blue_Print_",
+	CRAFT_UID_KEY = CraftIdentity.CRAFT_UID_KEY,
 	panel = nil,
 	suppress_open_until = -1,
 	pending_reopen_until = nil, -- 换房/下层丢弃 panel 后，仍举着则自动重开
@@ -46,15 +51,20 @@ local item = {
 	bg_offset_default = Vector(0, 13), -- 背景精灵渲染偏移
 	audit_text_y_default = 2, -- 效果描述相对目标图标再下移
 	slot_count_default = 3, -- 旧调试滑条；材料槽数现由底座品质决定
+	mirror_slot_oy = 54, -- 相对机体图标中心的镜像模块槽 Y 偏移
 	quality_anm2 = "gfx/ui/EID/eid_quality.anm2",
 	quality_icon_offset = Vector(8, -12), -- 相对背包 token 中心，右上
 	form_bench_page_size = 4,
+	form_orbit_spin_deg = 0.55, -- 编队卡环绕模块每帧转角（缓转）
+	stock_loadout_icon_scale = 0.42, -- 仓库行右侧装配图标缩放
+	stock_loadout_icon_step = 12, -- 仓库装配图标中心距
 	cost_offset_y_default = 21, -- 成本小槽相对目标图标中心下移（材料槽以此为分割线）
 	cost_extra_count_default = 0, -- 成本小槽额外显示数量（便于测排版）
 	cost_slot_size_default = 18, -- 实测合适；间距随尺寸 = size+2
 	cost_slot_row_gap = 2, -- 成本多行时的行距
 	cost_slot_max_cols = 8,
 	cost_token_scale = 0.5,
+	mirror_shader = "shaders/qing_blueprint_mirror",
 	cost_qmark_offset_default = Vector(-2, 1),
 	cost_qmark_path = "gfx/effects/questionmark_black.png",
 	cost_attract_dist = 52,
@@ -85,7 +95,8 @@ local item = {
 		{id = "build", zh = "制造", en = "Build"},
 		{id = "inventory", zh = "仓库", en = "Stock"},
 	},
-	-- 可建造目标（暂两件）；显示名对接 CraftProfile.TARGET_BASE（空行/空怖）
+	-- 可建造底盘列表（扩展口：以后可再加第二种真正需要独立底盘的机体）。
+	-- 当前仅 Air Flight；显示名对接 CraftProfile.TARGET_BASE（空行01号…）。
 	build_targets = {
 		{
 			id = enums.Items.Air_Flight,
@@ -94,14 +105,6 @@ local item = {
 				{ox = -48, oy = -8},
 				{ox = 48, oy = -8},
 				{ox = 0, oy = 42},
-			},
-		},
-		{
-			id = enums.Items.Air_Terror,
-			gfx = "gfx/items/collectibles/collectibles_Air_Terror.png",
-			slots = {
-				{ox = -48, oy = 0},
-				{ox = 48, oy = 0},
 			},
 		},
 	},
@@ -131,7 +134,7 @@ local blocked_actions = {
 	[ButtonAction.ACTION_MENUDOWN] = true,
 }
 
-local function action_inputs_held(panel)
+function BP.action_inputs_held(panel)
 	if not panel or not panel.player then return false end
 	local ctrlid = panel.player.ControllerIndex or 0
 	if Input.IsActionPressed(ButtonAction.ACTION_MENUCONFIRM, ctrlid) then return true end
@@ -141,16 +144,16 @@ local function action_inputs_held(panel)
 end
 
 -- 开场仍用 lock_until；操作后改为“触发一次，松手即结束锁定”，便于双击
-local function input_locked(panel)
+function BP.input_locked(panel)
 	if Game():GetFrameCount() < (panel.lock_until or 0) then return true end
 	if panel.action_hold_lock then
-		if action_inputs_held(panel) then return true end
+		if BP.action_inputs_held(panel) then return true end
 		panel.action_hold_lock = false
 	end
 	return false
 end
 
-local function lock_actions(panel, frames)
+function BP.lock_actions(panel, frames)
 	if not panel then return end
 	if frames and frames > 0 and frames < (item.action_delay or 12) then
 		-- 显式短锁（如翻页）仍按帧
@@ -161,17 +164,17 @@ local function lock_actions(panel, frames)
 	panel.action_hold_lock = true
 end
 
-local function focus_equals(panel, id)
+function BP.focus_equals(panel, id)
 	return panel and panel.focus_id == id
 end
 
-local function get_debug_number(key, default_value)
+function BP.get_debug_number(key, default_value)
 	local root = save.ModConfigSettings
 	local debug_settings = root and root.QingRemasterOptions and root.QingRemasterOptions.Debug
 	return tonumber(debug_settings and debug_settings[key]) or default_value
 end
 
-local function get_debug_bool(key, default_value)
+function BP.get_debug_bool(key, default_value)
 	local root = save.ModConfigSettings
 	local debug_settings = root and root.QingRemasterOptions and root.QingRemasterOptions.Debug
 	local v = debug_settings and debug_settings[key]
@@ -180,85 +183,120 @@ local function get_debug_bool(key, default_value)
 end
 
 --- ImGui：显示材料来源角标（原/审）与来源描边；默认关闭
-local function show_source_marks()
-	return get_debug_bool("BlueprintShowSourceMarks", false)
+function BP.show_source_marks()
+	return BP.get_debug_bool("BlueprintShowSourceMarks", false)
 end
 
-local function get_dot_offset()
+--- 全道具审计目录是否允许（Debug 开关；开发树默认开，公开包默认关）
+function BP.all_items_mode_allowed()
+	local env = require("Qing_Remaster_scripts.core.dev_environment")
+	return BP.get_debug_bool("BlueprintAllItemsModeEnabled", not env.is_public_release())
+end
+
+function BP.find_tab_index(tab_id)
+	if not tab_id then return nil end
+	for i, tab in ipairs(item.tabs) do
+		if tab and tab.id == tab_id then
+			return i
+		end
+	end
+	return nil
+end
+
+--- 关闭权限时强制回 BAG（保留已有 audit 配方，仅禁止全道具目录）
+function BP.enforce_all_items_gate(panel)
+	local craft = panel and panel.craft
+	if not craft then return end
+	if craft.tutorial_bag then
+		if craft.all_items then craft.all_items = false end
+		return
+	end
+	if craft.all_items and not BP.all_items_mode_allowed() then
+		craft.all_items = false
+		craft.bag_page = 0
+		craft._catalog = nil
+		craft._catalog_impl = nil
+		craft._catalog_missing_stat = nil
+		BP.clear_bag_tokens_keep_busy(craft, panel)
+		panel.nav_graph = nil
+	end
+end
+
+function BP.get_dot_offset()
 	local def = item.dot_offset_default or Vector(-2, -9)
 	return Vector(
-		get_debug_number("BlueprintDotOffsetX", def.X),
-		get_debug_number("BlueprintDotOffsetY", def.Y)
+		BP.get_debug_number("BlueprintDotOffsetX", def.X),
+		BP.get_debug_number("BlueprintDotOffsetY", def.Y)
 	)
 end
 
-local function get_bg_offset()
+function BP.get_bg_offset()
 	local def = item.bg_offset_default or Vector(0, 0)
 	return Vector(
-		get_debug_number("BlueprintBgOffsetX", def.X),
-		get_debug_number("BlueprintBgOffsetY", def.Y)
+		BP.get_debug_number("BlueprintBgOffsetX", def.X),
+		BP.get_debug_number("BlueprintBgOffsetY", def.Y)
 	)
 end
 
-local function get_audit_text_y()
-	return get_debug_number("BlueprintAuditTextY", item.audit_text_y_default or 2)
+function BP.get_audit_text_y()
+	return BP.get_debug_number("BlueprintAuditTextY", item.audit_text_y_default or 2)
 end
 
-local function get_cost_y_offset()
-	return get_debug_number("BlueprintCostOffsetY", item.cost_offset_y_default or 21)
+function BP.get_cost_y_offset()
+	return BP.get_debug_number("BlueprintCostOffsetY", item.cost_offset_y_default or 21)
 end
 
-local function get_craft_group_y()
-	return get_debug_number("BlueprintCraftGroupY", item.craft_group_y_default or 14)
+function BP.get_craft_group_y()
+	return BP.get_debug_number("BlueprintCraftGroupY", item.craft_group_y_default or 14)
 end
 
-local function get_tag_col_offset()
+function BP.get_tag_col_offset()
 	local def = item.tag_col_offset_default or Vector(-36, 0)
 	return Vector(
-		get_debug_number("BlueprintTagColOffsetX", def.X),
-		get_debug_number("BlueprintTagColOffsetY", def.Y)
+		BP.get_debug_number("BlueprintTagColOffsetX", def.X),
+		BP.get_debug_number("BlueprintTagColOffsetY", def.Y)
 	)
 end
 
-local function get_tag_col_width()
-	local n = get_debug_number("BlueprintTagColWidth", item.tag_col_width_default or 56)
+function BP.get_tag_col_width()
+	local n = BP.get_debug_number("BlueprintTagColWidth", item.tag_col_width_default or 56)
 	return math.max(40, math.min(96, n))
 end
 
-local function get_cost_token_scale()
-	return get_debug_number("BlueprintCostTokenScale", item.cost_token_scale or 0.5)
+function BP.get_cost_token_scale()
+	return BP.get_debug_number("BlueprintCostTokenScale", item.cost_token_scale or 0.5)
 end
 
-local function get_cost_slot_size()
-	local n = get_debug_number("BlueprintCostSlotSize", item.cost_slot_size_default or 18)
+function BP.get_cost_slot_size()
+	local n = BP.get_debug_number("BlueprintCostSlotSize", item.cost_slot_size_default or 18)
 	return math.max(8, math.min(48, n))
 end
 
-local function get_cost_slot_spacing()
+function BP.get_cost_slot_spacing()
 	-- 中心距随小槽尺寸：尺寸 + 2
-	return get_cost_slot_size() + 2
+	return BP.get_cost_slot_size() + 2
 end
 
-local function get_cost_qmark_offset()
+function BP.get_cost_qmark_offset()
 	local def = item.cost_qmark_offset_default or Vector(-2, 1)
 	return Vector(
-		get_debug_number("BlueprintCostQmarkOffsetX", def.X),
-		get_debug_number("BlueprintCostQmarkOffsetY", def.Y)
+		BP.get_debug_number("BlueprintCostQmarkOffsetX", def.X),
+		BP.get_debug_number("BlueprintCostQmarkOffsetY", def.Y)
 	)
 end
 
-local function get_cost_extra_count()
-	local n = math.floor(get_debug_number("BlueprintCostExtraCount", item.cost_extra_count_default or 0) + 0.5)
+function BP.get_cost_extra_count()
+	local n = math.floor(BP.get_debug_number("BlueprintCostExtraCount", item.cost_extra_count_default or 0) + 0.5)
 	return math.max(0, math.min(12, n))
 end
 
-local function get_slot_count()
-	local n = math.floor(get_debug_number("BlueprintSlotCount", item.slot_count_default or 3) + 0.5)
+function BP.get_slot_count()
+	local n = math.floor(BP.get_debug_number("BlueprintSlotCount", item.slot_count_default or 3) + 0.5)
 	return math.max(1, math.min(7, n))
 end
 
 --- 本件制造锁定的成本槽数（编辑不跟「下一件」阶梯走）
-local function locked_required_cost_from_rec(rec)
+function BP.locked_required_cost_from_rec(rec)
 	if not rec then return 0 end
 	local n = tonumber(rec.required_cost)
 	if n ~= nil then return math.max(0, math.floor(n + 0.5)) end
@@ -266,9 +304,9 @@ local function locked_required_cost_from_rec(rec)
 	return math.max(0, #(rec.cost_items or {}))
 end
 
-local function resolve_session_required_cost(player, edit_uid, edit_rec, draft)
+function BP.resolve_session_required_cost(player, edit_uid, edit_rec, draft)
 	if edit_uid then
-		local n = locked_required_cost_from_rec(edit_rec)
+		local n = BP.locked_required_cost_from_rec(edit_rec)
 		if draft then
 			local dn = tonumber(draft.required_cost)
 			if dn ~= nil then n = math.max(n, math.floor(dn + 0.5)) end
@@ -285,32 +323,32 @@ local function resolve_session_required_cost(player, edit_uid, edit_rec, draft)
 end
 
 --- 始终至少 1 个灰色底座槽；里小青首架隐藏；确认是否必填仍看 required_cost
-local function cost_display_count(craft)
+function BP.cost_display_count(craft)
 	if not craft then return 1 end
 	if craft.hide_cost then return 0 end
 	local need = craft.required_cost or 0
 	local have = #(craft.cost_ids or {})
-	return math.max(1, need, have) + get_cost_extra_count()
+	return math.max(1, need, have) + BP.get_cost_extra_count()
 end
 
-local function cost_cols_for_width(avail_w)
-	local spacing = get_cost_slot_spacing()
+function BP.cost_cols_for_width(avail_w)
+	local spacing = BP.get_cost_slot_spacing()
 	local max_cols = item.cost_slot_max_cols or 8
 	return math.max(1, math.min(max_cols, math.floor(math.max(8, avail_w) / spacing)))
 end
 
-local function cost_row_count(n, cols)
+function BP.cost_row_count(n, cols)
 	if n <= 0 then return 0 end
 	return math.ceil(n / math.max(1, cols))
 end
 
 --- 成本带相对目标中心的顶/底 oy（材料槽整框不得侵入）；无成本时返回 nil
-local function cost_band_oy_range(cost_n, avail_w)
+function BP.cost_band_oy_range(cost_n, avail_w)
 	if not cost_n or cost_n <= 0 then return nil, nil, 0 end
-	local size = get_cost_slot_size()
-	local cost_y = get_cost_y_offset() -- 首行中心
-	local cols = cost_cols_for_width(avail_w or 160)
-	local rows = math.max(1, cost_row_count(cost_n, cols))
+	local size = BP.get_cost_slot_size()
+	local cost_y = BP.get_cost_y_offset() -- 首行中心
+	local cols = BP.cost_cols_for_width(avail_w or 160)
+	local rows = math.max(1, BP.cost_row_count(cost_n, cols))
 	local row_gap = item.cost_slot_row_gap or 2
 	local top = cost_y - size * 0.5
 	local bot = top + rows * size + (rows - 1) * row_gap
@@ -318,7 +356,7 @@ local function cost_band_oy_range(cost_n, avail_w)
 end
 
 --- 材料槽椭圆环绕。底座至多 1 个、画在图标下方，不再为成本带预留整行。
-local function make_slot_layout(n, _cost_n, _avail_w)
+function BP.make_slot_layout(n, _cost_n, _avail_w)
 	n = math.max(0, math.min(7, n or 0))
 	if n <= 0 then return {} end
 	local rx = item.slot_ellipse_rx or 56
@@ -334,11 +372,11 @@ local function make_slot_layout(n, _cost_n, _avail_w)
 end
 
 --- 按当前成本行数刷新材料槽偏移（每帧，保证成本带始终占行）
-local function refresh_slot_offsets(craft, avail_w)
+function BP.refresh_slot_offsets(craft, avail_w)
 	if not craft or not craft.slots then return end
 	local n = #craft.slots
-	local cost_n = cost_display_count(craft)
-	local layout = make_slot_layout(n, cost_n, avail_w)
+	local cost_n = BP.cost_display_count(craft)
+	local layout = BP.make_slot_layout(n, cost_n, avail_w)
 	for i, slot in ipairs(craft.slots) do
 		local L = layout[i]
 		if L then
@@ -362,7 +400,7 @@ local function refresh_slot_offsets(craft, avail_w)
 	end
 end
 
-local function ensure_cost_qmark_sprite()
+function BP.ensure_cost_qmark_sprite()
 	-- alchemy_pot_item：pivot 16,16 居中；贴图可单独替换
 	local path = item.cost_qmark_path or "gfx/effects/questionmark_black.png"
 	if item._cost_qmark and item._cost_qmark_ver == 3 and item._cost_qmark_path == path then
@@ -379,8 +417,9 @@ local function ensure_cost_qmark_sprite()
 	return s
 end
 
---- 下一件非「纯审计」制造所需成本
---- 里小青：无飞行器 0，已有至少一架则固定 1；其他：3,5,7… 中最小未占用
+--- 下一件非「纯审计」制造所需成本基底数。
+--- 所有角色：一架 = 1 个基底（品质由该唯一基底决定）。
+--- 里小青角色优惠：尚无真实飞行器时第一架 = 0，之后 = 1。
 function item.get_required_cost(player)
 	if player and player:GetPlayerType() == enums.Players.Spwq then
 		local n = 0
@@ -392,21 +431,13 @@ function item.get_required_cost(player)
 		if n <= 0 then return 0 end
 		return 1
 	end
-	local used = {}
-	for _, rec in ipairs(item.get_craft_store(player)) do
-		if not CraftProfile.craft_is_pure_audit_rec(rec) then
-			used[locked_required_cost_from_rec(rec)] = true
-		end
-	end
-	local n = 3
-	while used[n] do n = n + 2 end
-	return n
+	return 1
 end
 
 --- 里小青第一架真实飞行器：不显示底座，始终按品质 2（3 槽、倍率 1）填充。
 local SPWQ_FIRST_AIR_QUALITY = 2
 
-local function is_spwq_free_first_air(player, craft)
+function BP.is_spwq_free_first_air(player, craft)
 	if not player or player:GetPlayerType() ~= enums.Players.Spwq then return false end
 	if not craft then return false end
 	if craft.tutorial_bag or craft.tutorial then return false end
@@ -414,19 +445,19 @@ local function is_spwq_free_first_air(player, craft)
 	return (tonumber(craft.required_cost) or 0) <= 0
 end
 
-local function apply_spwq_first_air_quality(rec, player)
+function BP.apply_spwq_first_air_quality(rec, player)
 	if not rec or rec.tutorial == true then return rec end
-	if not is_spwq_free_first_air(player, rec) then return rec end
+	if not BP.is_spwq_free_first_air(player, rec) then return rec end
 	rec.base_quality = SPWQ_FIRST_AIR_QUALITY
 	rec.remembered_quality = SPWQ_FIRST_AIR_QUALITY
 	return rec
 end
 
-local function migrate_required_cost_once(bucket)
+function BP.migrate_required_cost_once(bucket)
 	if type(bucket) ~= "table" or bucket.cost_migrated_v2 == true then return end
 	for _, rec in ipairs(bucket) do
 		if type(rec) == "table" then
-			local n = locked_required_cost_from_rec(rec)
+			local n = BP.locked_required_cost_from_rec(rec)
 			if n > 1 then
 				local kept = {}
 				local kept_real = 0
@@ -452,25 +483,25 @@ local function migrate_required_cost_once(bucket)
 	bucket.cost_migrated_v2 = true
 end
 
-local function panel_alpha()
+function BP.panel_alpha()
 	local a = item._draw_alpha
 	if a == nil then return 1 end
 	return a
 end
 
-local function tint_kcolor(color, mul_a)
+function BP.tint_kcolor(color, mul_a)
 	color = color or KColor(1, 1, 1, 1)
-	mul_a = mul_a or panel_alpha()
+	mul_a = mul_a or BP.panel_alpha()
 	return KColor(color.Red, color.Green, color.Blue, (color.Alpha or 1) * mul_a)
 end
 
-local function tint_color(r, g, b, a)
-	return Color(r or 1, g or 1, b or 1, (a or 1) * panel_alpha())
+function BP.tint_color(r, g, b, a)
+	return Color(r or 1, g or 1, b or 1, (a or 1) * BP.panel_alpha())
 end
 
 local TUT_DIM = KColor(0.4, 0.4, 0.46, 0.42)
-local function tut_dim_id(id, color)
-	if get_tutorial().is_locking() and not get_tutorial().allows(id) then
+function BP.tut_dim_id(id, color)
+	if BP.get_tutorial().is_locking() and not BP.get_tutorial().allows(id) then
 		return TUT_DIM
 	end
 	return color
@@ -478,18 +509,51 @@ end
 
 --- 成本小槽中的道具不参与配方效果：无论其原始状态，图标都显示为真灰度。
 --- 这里只供 tok.cost 使用；背包/材料槽继续沿用原有 Tint 状态色。
-local function cost_token_color()
-	local a = panel_alpha()
+function BP.cost_token_color()
+	local a = BP.panel_alpha()
 	return auxi.table2color({R = 0.88, G = 0.88, B = 0.88, A = a * 0.88, RC = 1, GC = 1, BC = 1, AC = 1})
 end
 
-local function clear_sprite_color(spr)
+function BP.clear_sprite_color(spr)
 	if not spr then return end
 	spr.Color = auxi.table2color({R = 1, G = 1, B = 1, A = 1, RC = 0, GC = 0, BC = 0, AC = 0})
 end
 
+function BP.is_mirror_only_token(tok)
+	if not tok then return false end
+	if tok.mirror_copy == true then return true end
+	local id = tok.id
+	return type(id) == "string" and (id:sub(1, 7) == "mirror_" or id:sub(1, 11) == "mirrorfill_")
+end
+
+function BP.apply_mirror_token_visual(spr, col_id)
+	if not spr then return end
+	if REPENTOGON then
+		temp_hud.apply_sprite_shader(spr, item.mirror_shader)
+		local t = (Game():GetFrameCount() % 150) / 150
+		local seed = ((tonumber(col_id) or 0) * 0.061803399) % 1
+		local col = Color(1, 1, 1, 1, 0, 0, 0)
+		if col.SetColorize then
+			col:SetColorize(seed, 1.0, 0, t)
+		else
+			col = Color(1, 1, 1, 1, 0, 0, 0, seed, 1.0, 0, t)
+		end
+		spr.Color = col
+	else
+		spr.Color = BP.tint_color(0.68, 0.9, 1.0, 0.98)
+	end
+end
+
+function BP.clear_mirror_token_visual(spr)
+	if not spr then return end
+	if REPENTOGON then
+		temp_hud.clear_sprite_shader(spr)
+	end
+	BP.clear_sprite_color(spr)
+end
+
 --- 在矩形内绘制文本（水平居中 + 垂直居中；可选左对齐留白）
-local function draw_text_in_rect(rect, text, color, opts)
+function BP.draw_text_in_rect(rect, text, color, opts)
 	if not rect or not text then return end
 	opts = opts or {}
 	local sx = opts.sx or 1
@@ -500,7 +564,7 @@ local function draw_text_in_rect(rect, text, color, opts)
 	local y = rect.y + (opts.pad_y ~= nil and opts.pad_y or ((rect.h - line_h) * 0.5))
 	local x = rect.x + pad_x
 	local box_w = math.max(0, math.floor(rect.w - pad_x * 2))
-	color = tint_kcolor(color)
+	color = BP.tint_kcolor(color)
 	if opts.align == "left" then
 		font:DrawStringScaledUTF8(text, x, y, sx, sy, color, 0, false)
 	else
@@ -508,15 +572,15 @@ local function draw_text_in_rect(rect, text, color, opts)
 	end
 end
 
-local function lang_is_zh()
+function BP.lang_is_zh()
 	return Options.Language == "zh" or Options.Language == "zh_cn"
 end
 
-local function tab_label(tab)
-	return lang_is_zh() and tab.zh or tab.en
+function BP.tab_label(tab)
+	return BP.lang_is_zh() and tab.zh or tab.en
 end
 
-local function next_serial_for_target(player, target, exclude_uid)
+function BP.next_serial_for_target(player, target, exclude_uid)
 	local max_s = 0
 	for _, rec in ipairs(item.get_crafted_list(player) or {}) do
 		if rec.target == target and rec.uid ~= exclude_uid then
@@ -527,15 +591,18 @@ local function next_serial_for_target(player, target, exclude_uid)
 	return max_s + 1
 end
 
---- 建造页：下一项序号的「空行XX号 / 空怖XX号」（不含附加型号）
-local function target_label(info, player)
+--- 建造页入口标签。仅一种底盘时显示「新建设计」，避免像选职业。
+function BP.target_label(info, player)
 	if not info then return "?" end
-	local serial = next_serial_for_target(player, info.id)
-	return CraftProfile.build_display_name(info.id, serial, nil, lang_is_zh())
+	if #item.build_targets <= 1 then
+		return BP.lang_is_zh() and "新建设计" or "New Design"
+	end
+	local serial = BP.next_serial_for_target(player, info.id)
+	return CraftProfile.build_display_name(info.id, serial, nil, BP.lang_is_zh())
 end
 
 --- 材料 + 成本槽道具一并参与附加型号字母抽取
-local function naming_ingredients(ingredients, cost_items)
+function BP.naming_ingredients(ingredients, cost_items)
 	local merged = {}
 	local n = 0
 	for k, entry in pairs(ingredients or {}) do
@@ -552,7 +619,7 @@ local function naming_ingredients(ingredients, cost_items)
 	return merged
 end
 
-local function ensure_rec_serial(player, rec)
+function BP.ensure_rec_serial(player, rec)
 	if not rec or tonumber(rec.serial) then return end
 	local n = 0
 	for _, r in ipairs(item.get_crafted_list(player) or {}) do
@@ -567,31 +634,32 @@ local function ensure_rec_serial(player, rec)
 	rec.serial = n + 1
 end
 
-local function refresh_rec_display_name(rec, player)
+function BP.refresh_rec_display_name(rec, player)
 	if not rec then return end
-	if player then ensure_rec_serial(player, rec) end
+	if player then BP.ensure_rec_serial(player, rec) end
 	local serial = tonumber(rec.serial) or 1
-	local src = naming_ingredients(rec.ingredients, rec.cost_items)
+	local src = BP.naming_ingredients(rec.ingredients, rec.cost_items)
 	rec.display_name = CraftProfile.build_display_name(rec.target, serial, src, true)
 	rec.display_name_en = CraftProfile.build_display_name(rec.target, serial, src, false)
 end
 
-local function rec_label(rec)
+function BP.rec_label(rec)
 	if not rec then return "?" end
-	local zh = lang_is_zh()
+	local zh = BP.lang_is_zh()
 	local name = zh and rec.display_name or rec.display_name_en
 	if not name or name == "" then
-		name = CraftProfile.build_display_name(rec.target, rec.serial or 1, naming_ingredients(rec.ingredients, rec.cost_items), zh)
+		name = CraftProfile.build_display_name(rec.target, rec.serial or 1, BP.naming_ingredients(rec.ingredients, rec.cost_items), zh)
 	end
 	local tag = (rec.audit and rec.tutorial ~= true) and (zh and " [审]" or " [A]") or ""
 	local bang = rec.broken and "!" or ""
 	return bang .. name .. tag
 end
 
-local function rec_loadout_ids(rec)
+function BP.rec_loadout_ids(rec)
 	local base_id = nil
 	local mods = {}
-	if not rec then return base_id, mods end
+	local mirror_id = nil
+	if not rec then return base_id, mods, mirror_id end
 	for _, entry in ipairs(rec.cost_items or {}) do
 		local id = CraftProfile.ingredient_id(entry)
 		if id and id > 0 then
@@ -613,17 +681,48 @@ local function rec_loadout_ids(rec)
 		local id = CraftProfile.ingredient_id(entry)
 		if id and id > 0 then mods[#mods + 1] = id end
 	end
-	return base_id, mods
+	if rec.mirror_module then
+		local mid = CraftProfile.ingredient_id(rec.mirror_module)
+		if mid and mid > 0 then mirror_id = mid end
+	end
+	return base_id, mods, mirror_id
 end
 
-local function player_exists_safe(player)
+--- 规范背包格 id（bag_/all_）；底座/槽位归还后的 inst_/costfill_/slotfill_ 不算
+function BP.is_canonical_bag_token_id(tid)
+	if type(tid) ~= "string" then return false end
+	return tid:sub(1, 4) == "bag_" or tid:sub(1, 4) == "all_"
+end
+
+--- 底座/材料归还时保留的孤儿 token：认领进当前页背包格，避免「原件 + 库存补货」双显
+function BP.claim_orphan_bag_token(kept, kept_map, col, is_proto, proto_uid)
+	if not kept or not kept_map or not col then return nil end
+	for _, tok in ipairs(kept) do
+		if tok and tok.from_bag and not tok.slot and not tok.cost and not tok.mirror_slot
+			and not tok.lost_ghost and not BP.is_canonical_bag_token_id(tok.id)
+			and kept_map[tok.id] == tok
+		then
+			local match = false
+			if is_proto then
+				match = tok.is_prototype and tok.prototype_uid ~= nil
+					and (tok.prototype_uid == proto_uid or tostring(tok.prototype_uid) == tostring(proto_uid))
+			else
+				match = (not tok.is_prototype) and tok.collectible == col
+			end
+			if match then return tok end
+		end
+	end
+	return nil
+end
+
+function BP.player_exists_safe(player)
 	if not player then return false end
 	local ok, exists = pcall(function() return player:Exists() end)
 	return ok and exists == true
 end
 
 --- 面板是否仍绑定有效玩家（重启/换局后残留引用视为无效）
-local function panel_is_alive()
+function BP.panel_is_alive()
 	if item.panel == nil then return false end
 	-- 重开后 FrameCount 回绕，但 Exists() 偶发仍对旧 userdata 返回 true
 	local opened = item.panel.opened_frame
@@ -634,11 +733,11 @@ local function panel_is_alive()
 		pcall(restore_eid_after_blueprint)
 		return false
 	end
-	return player_exists_safe(item.panel.player)
+	return BP.player_exists_safe(item.panel.player)
 end
 
-local function same_panel_player(player)
-	if not panel_is_alive() or not player then return false end
+function BP.same_panel_player(player)
+	if not BP.panel_is_alive() or not player then return false end
 	local ok, same = pcall(function()
 		return auxi.check_for_the_same(item.panel.player, player)
 	end)
@@ -647,14 +746,14 @@ end
 
 local drop_held_blueprint, scrub_stale_panel -- forward decl（定义在 close_panel 之后）
 
-local function get_target_info(col_id)
+function BP.get_target_info(col_id)
 	for _, info in ipairs(item.build_targets) do
 		if info.id == col_id then return info end
 	end
 end
 
-local function player_key(player)
-	if not player or not player_exists_safe(player) then return "0" end
+function BP.player_key(player)
+	if not player or not BP.player_exists_safe(player) then return "0" end
 	local ok, key = pcall(function()
 		local data = player:GetData()
 		return data.__Index or player.InitSeed
@@ -663,7 +762,7 @@ local function player_key(player)
 end
 
 -- pack 曾把 tostring 键误收成数字键；读档后 by_player[0] 有数据但运行时查 ["0"]。
-local function merge_blueprint_bucket(dst, src)
+function BP.merge_blueprint_bucket(dst, src)
 	if type(dst) ~= "table" or type(src) ~= "table" then return dst or src end
 	for i = 1, #src do
 		table.insert(dst, src[i])
@@ -687,7 +786,7 @@ local function merge_blueprint_bucket(dst, src)
 	return dst
 end
 
-local function heal_string_keyed_map(map)
+function BP.heal_string_keyed_map(map)
 	if type(map) ~= "table" then return map end
 	local moved = {}
 	for k, v in pairs(map) do
@@ -711,7 +810,7 @@ local function heal_string_keyed_map(map)
 	return map
 end
 
-local function heal_blueprint_root(root)
+function BP.heal_blueprint_root(root)
 	if type(root) ~= "table" then return root end
 	root.by_player = root.by_player or {}
 	local bp = root.by_player
@@ -727,27 +826,27 @@ local function heal_blueprint_root(root)
 		if bp[sk] == nil then
 			bp[sk] = bucket
 		else
-			bp[sk] = merge_blueprint_bucket(bp[sk], bucket)
+			bp[sk] = BP.merge_blueprint_bucket(bp[sk], bucket)
 		end
 		bp[nk] = nil
 	end
 	for _, bucket in pairs(bp) do
 		if type(bucket) == "table" then
-			bucket.prototypes = heal_string_keyed_map(bucket.prototypes)
+			bucket.prototypes = BP.heal_string_keyed_map(bucket.prototypes)
 		end
 	end
 	return root
 end
 
-local function ensure_save()
-	save.elses.Qing_Blue_Print = heal_blueprint_root(save.elses.Qing_Blue_Print or {
+function BP.ensure_save()
+	save.elses.Qing_Blue_Print = BP.heal_blueprint_root(save.elses.Qing_Blue_Print or {
 		uid_counter = 0,
 		by_player = {},
 	})
 	return save.elses.Qing_Blue_Print
 end
 
-local function checkpoint_run_save(reason)
+function BP.checkpoint_run_save(reason)
 	if save.RuntimeLoaded ~= true or type(save.SaveModData) ~= "function" then return false end
 	local ok, result = pcall(save.SaveModData, "blueprint:"..tostring(reason or "unknown"))
 	if not ok then
@@ -757,17 +856,17 @@ local function checkpoint_run_save(reason)
 	return result ~= false
 end
 
-local function get_player_bucket(player)
-	local root = ensure_save()
-	local key = player_key(player)
+function BP.get_player_bucket(player)
+	local root = BP.ensure_save()
+	local key = BP.player_key(player)
 	root.by_player[key] = root.by_player[key] or {}
 	return root.by_player[key]
 end
 
 function item.get_craft_store(player)
-	local bucket = get_player_bucket(player)
+	local bucket = BP.get_player_bucket(player)
 	if player and player:GetPlayerType() == enums.Players.Spwq then
-		migrate_required_cost_once(bucket)
+		BP.migrate_required_cost_once(bucket)
 	end
 	return bucket
 end
@@ -787,7 +886,7 @@ end
 --- 旧档曾给每架成品发过对应收藏品；按成品数各扣一件，剩下的才是底座拾取。
 function item.migrate_strip_granted_craft_items(player)
 	if not player then return false end
-	local bucket = get_player_bucket(player)
+	local bucket = BP.get_player_bucket(player)
 	if bucket.stripped_granted_craft_items then return false end
 	bucket.stripped_granted_craft_items = true
 	local removed = false
@@ -801,7 +900,7 @@ function item.migrate_strip_granted_craft_items(player)
 		end
 	end
 	if removed then
-		checkpoint_run_save("strip_granted_craft_items")
+		BP.checkpoint_run_save("strip_granted_craft_items")
 	end
 	return removed
 end
@@ -817,15 +916,15 @@ end
 
 --- 原型全局元数据（清房保底、交易房限额等）
 function item.ensure_prototype_root()
-	local root = ensure_save()
+	local root = BP.ensure_save()
 	root.prototype_uid_counter = root.prototype_uid_counter or 0
 	root.clean_streak = root.clean_streak or 0
 	root.shop_proto_rooms = root.shop_proto_rooms or {}
 	return root
 end
 
-local function get_prototype_inv(player)
-	local bucket = get_player_bucket(player)
+function BP.get_prototype_inv(player)
+	local bucket = BP.get_player_bucket(player)
 	bucket.prototypes = bucket.prototypes or {}
 	return bucket.prototypes
 end
@@ -839,7 +938,7 @@ function item.add_prototype(player, collectible_id, meta)
 	local root = item.ensure_prototype_root()
 	root.prototype_uid_counter = (root.prototype_uid_counter or 0) + 1
 	local uid = root.prototype_uid_counter
-	local inv = get_prototype_inv(player)
+	local inv = BP.get_prototype_inv(player)
 	inv[tostring(uid)] = {
 		uid = uid,
 		id = collectible_id,
@@ -847,27 +946,27 @@ function item.add_prototype(player, collectible_id, meta)
 		quality = meta and meta.quality,
 		source = meta and meta.source or "pickup",
 	}
-	checkpoint_run_save("prototype_add")
+	BP.checkpoint_run_save("prototype_add")
 	item.refresh_craft_integrity(player)
 	return uid
 end
 
 function item.get_prototype(player, uid)
 	if not player or uid == nil then return nil end
-	return get_prototype_inv(player)[tostring(uid)]
+	return BP.get_prototype_inv(player)[tostring(uid)]
 end
 
 function item.clear_prototypes(player)
 	if not player then return end
-	local bucket = get_player_bucket(player)
+	local bucket = BP.get_player_bucket(player)
 	bucket.prototypes = {}
-	checkpoint_run_save("prototype_clear")
+	BP.checkpoint_run_save("prototype_clear")
 end
 
 function item.list_free_prototypes(player, exclude_uid)
 	local out = {}
 	local used = item.count_allocated_prototypes(player, exclude_uid)
-	for _, rec in pairs(get_prototype_inv(player)) do
+	for _, rec in pairs(BP.get_prototype_inv(player)) do
 		local uid = rec.uid or tonumber(rec.uid)
 		if uid and not used[uid] and not used[tostring(uid)]
 			and not CraftProfile.is_ingredient_banned(rec.id) then
@@ -901,13 +1000,34 @@ function item.count_allocated_prototypes(player, exclude_uid)
 	return used
 end
 
-local function draft_key(target_id, edit_uid)
+--- 旧档：材料槽里的 mirror 迁入专用 mirror_module 字段。
+function BP.migrate_rec_mirror_fields(rec)
+	if type(rec) ~= "table" then return end
+	if rec.mirror_module then return end
+	for k, entry in pairs(rec.ingredients or {}) do
+		if CraftProfile.is_mirror_entry(entry) then
+			local id = CraftProfile.ingredient_id(entry)
+			if id and id ~= 0 then
+				rec.mirror_module = {id = id, source = "mirror"}
+			end
+			rec.ingredients[k] = nil
+			break
+		end
+	end
+end
+
+function BP.player_has_mirror_birthright(player)
+	if not player or player:GetPlayerType() ~= enums.Players.Spwq then return false end
+	return player:HasCollectible(CollectibleType.COLLECTIBLE_BIRTHRIGHT, true)
+end
+
+function BP.draft_key(target_id, edit_uid)
 	if edit_uid then return "e_"..tostring(edit_uid) end
 	return "t_"..tostring(target_id or 0)
 end
 
-local function get_drafts(player)
-	local bucket = get_player_bucket(player)
+function BP.get_drafts(player)
+	local bucket = BP.get_player_bucket(player)
 	bucket.drafts = bucket.drafts or {}
 	return bucket.drafts
 end
@@ -915,8 +1035,8 @@ end
 --- 审计全道具 UI 偏好（标签筛选等），跨打开复原
 --- tag_status_schema=2：状态标签并入后，清掉旧「仅有效」迁移留下的 invalid/unimplemented=false
 local AUDIT_TAG_STATUS_SCHEMA = 2
-local function get_audit_ui_prefs(player)
-	local bucket = get_player_bucket(player)
+function BP.get_audit_ui_prefs(player)
+	local bucket = BP.get_player_bucket(player)
 	bucket.audit_ui = bucket.audit_ui or {}
 	local prefs = bucket.audit_ui
 	if prefs.tag_status_schema ~= AUDIT_TAG_STATUS_SCHEMA then
@@ -932,10 +1052,10 @@ local function get_audit_ui_prefs(player)
 	return prefs
 end
 
-local function clear_craft_draft(player, target_id, edit_uid)
+function BP.clear_craft_draft(player, target_id, edit_uid)
 	if not player then return end
-	local drafts = get_drafts(player)
-	drafts[draft_key(target_id, edit_uid)] = nil
+	local drafts = BP.get_drafts(player)
+	drafts[BP.draft_key(target_id, edit_uid)] = nil
 end
 
 local filter_draft_items, save_craft_draft, refresh_craft_token_lost
@@ -973,7 +1093,7 @@ function item.count_allocated(player, exclude_uid)
 end
 
 --- 统计某配方需要的真实道具份数（不含原型/审计）
-local function craft_need_real_counts(rec)
+function BP.craft_need_real_counts(rec)
 	local need = {}
 	if not rec then return need end
 	local fb = rec.audit == true
@@ -994,7 +1114,7 @@ local function craft_need_real_counts(rec)
 	return need
 end
 
-local function craft_need_prototype_uids(rec)
+function BP.craft_need_prototype_uids(rec)
 	local uids = {}
 	if not rec then return uids end
 	for _, entry in pairs(rec.ingredients or {}) do
@@ -1016,7 +1136,7 @@ function item.ordered_crafts_for_allocation(player)
 		for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, enums.Familiars.QingsAirs, -1, false, false)) do
 			local p = auxi.check_spawner_player(fam)
 			if p and auxi.check_for_the_same(p, player) and auxi.check_all_exists(fam) then
-				local uid = fam:GetData()[item.own_key.."craft_uid"]
+				local uid = CraftIdentity.get_uid(fam)
 				if uid then bound[uid] = true end
 			end
 		end
@@ -1059,7 +1179,7 @@ function item.refresh_craft_integrity(player)
 		local n = player:GetCollectibleNum(id, true)
 		if n and n > 0 then remain[id] = n end
 	end
-	local proto_inv = get_prototype_inv(player)
+	local proto_inv = BP.get_prototype_inv(player)
 	local proto_ok = {}
 	for _, prec in pairs(proto_inv or {}) do
 		local uid = prec.uid
@@ -1069,10 +1189,11 @@ function item.refresh_craft_integrity(player)
 		end
 	end
 	for _, rec in ipairs(item.ordered_crafts_for_allocation(player)) do
+		BP.migrate_rec_mirror_fields(rec)
 		local locked = CraftProfile.craft_revive_is_locked(rec)
 		local broken = false
 		local missing = {}
-		local need = craft_need_real_counts(rec)
+		local need = BP.craft_need_real_counts(rec)
 		if locked then
 			-- 有制造复活状态：材料即使齐也不自动修好/回填；且不扣 remain
 			broken = true
@@ -1132,6 +1253,23 @@ function item.refresh_craft_integrity(player)
 								missing[id] = (missing[id] or 0) + 1
 							end
 						end
+					end
+				end
+			end
+			local mm = rec.mirror_module
+			if mm then
+				if not BP.player_has_mirror_birthright(player) then
+					broken = true
+					missing.mirror = true
+				else
+					local id = CraftProfile.ingredient_id(mm)
+					if not id or not CraftProfile.has_impl(id) then
+						broken = true
+						missing.mirror = true
+					elseif (player:GetCollectibleNum(id, true) or 0) <= 0 then
+						broken = true
+						missing.mirror = true
+						missing[id] = (missing[id] or 0) + 1
 					end
 				end
 			end
@@ -1198,7 +1336,7 @@ function item.delete_craft(player, uid)
 			local p = auxi.check_spawner_player(fam)
 			if p and auxi.check_for_the_same(p, player) and auxi.check_all_exists(fam) then
 				local d = fam:GetData()
-				if d[item.own_key.."craft_uid"] == uid then
+				if CraftIdentity.get_uid(fam) == uid then
 					if Craft_Familiar_holder.release_for_air then
 						pcall(Craft_Familiar_holder.release_for_air, fam)
 					end
@@ -1215,18 +1353,18 @@ function item.delete_craft(player, uid)
 	end
 
 	table.remove(store, idx)
-	clear_craft_draft(player, rec.target, uid)
+	BP.clear_craft_draft(player, rec.target, uid)
 
 	player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
 	player:EvaluateItems()
 	item.refresh_craft_integrity(player)
-	checkpoint_run_save("craft_delete")
-	pcall(function() get_bandwidth().on_craft_removed(player, uid) end)
+	BP.checkpoint_run_save("craft_delete")
+	pcall(function() BP.get_bandwidth().on_craft_removed(player, uid) end)
 	return true
 end
 
 function item.get_tutorial_save(player)
-	local bucket = get_player_bucket(player)
+	local bucket = BP.get_player_bucket(player)
 	if type(bucket.tutorial) ~= "table" then
 		bucket.tutorial = {offered = false, done = false, declined = false}
 	end
@@ -1237,7 +1375,7 @@ end
 function item.create_audit_craft(player, spec)
 	spec = spec or {}
 	if not player then return nil end
-	local root = ensure_save()
+	local root = BP.ensure_save()
 	local store = item.get_craft_store(player)
 	root.uid_counter = (root.uid_counter or 0) + 1
 	local uid = root.uid_counter
@@ -1251,13 +1389,15 @@ function item.create_audit_craft(player, spec)
 		audit = spec.audit ~= false,
 		tutorial = spec.tutorial == true,
 		lesson_kind = spec.lesson_kind,
-		serial = spec.serial or next_serial_for_target(player, target),
+		serial = spec.serial or BP.next_serial_for_target(player, target),
 		experimental = false,
 		eye_phase = 0,
 		base_quality = spec.base_quality,
 		remembered_quality = spec.base_quality,
 	}
-	rec.profile = CraftProfile.build_profile(rec.ingredients, {
+	rec.profile = CraftProfile.build_profile(
+		CraftProfile.ingredients_with_mirror(rec.ingredients, rec.mirror_module),
+		{
 		player = player,
 		rec = rec,
 		commit_state = true,
@@ -1266,14 +1406,14 @@ function item.create_audit_craft(player, spec)
 	if spec.display_name then rec.display_name = spec.display_name end
 	if spec.display_name_en then rec.display_name_en = spec.display_name_en end
 	if not rec.display_name then
-		refresh_rec_display_name(rec, player)
+		BP.refresh_rec_display_name(rec, player)
 	end
 	table.insert(store, rec)
-	pcall(function() get_bandwidth().on_craft_added(player, uid) end)
+	pcall(function() BP.get_bandwidth().on_craft_added(player, uid) end)
 	if spec.active == false then
-		pcall(function() get_bandwidth().set_active(player, uid, false) end)
+		pcall(function() BP.get_bandwidth().set_active(player, uid, false) end)
 	end
-	checkpoint_run_save("craft_tutorial_add")
+	BP.checkpoint_run_save("craft_tutorial_add")
 	if spec.skip_eval ~= true then
 		player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
 		player:EvaluateItems()
@@ -1299,10 +1439,12 @@ end
 function item.get_profile_for_uid(player, uid, opts)
 	local rec = item.find_craft(player, uid)
 	if not rec then return nil end
-	apply_spwq_first_air_quality(rec, player)
+	BP.apply_spwq_first_air_quality(rec, player)
 	opts = opts or {}
 	-- 始终按当前配方重建，保证库存「更改」后立刻生效；动态项随所属玩家实时重算
-	rec.profile = CraftProfile.build_profile(rec.ingredients, {
+	rec.profile = CraftProfile.build_profile(
+		CraftProfile.ingredients_with_mirror(rec.ingredients, rec.mirror_module),
+		{
 		player = player,
 		rec = rec,
 		air = opts.air,
@@ -1319,16 +1461,16 @@ function item.get_profile_for_uid(player, uid, opts)
 	return rec.profile
 end
 
-local function clamp_charge_ratio(r)
+function BP.clamp_charge_ratio(r)
 	return CraftProfile.clamp_charge_ratio(r)
 end
 
-local function clamp_choco_ratio(r)
-	return clamp_charge_ratio(r)
+function BP.clamp_choco_ratio(r)
+	return BP.clamp_charge_ratio(r)
 end
 
 --- 当前配方需要显示的蓄力滑条（自下而上；不依赖后文 read_ingredients）
-local function list_charge_sliders(craft)
+function BP.list_charge_sliders(craft)
 	if not craft then return {} end
 	local ings = {}
 	for i, slot in ipairs(craft.slots or {}) do
@@ -1368,7 +1510,7 @@ function item.claim_air_flight_uid(player)
 	for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, enums.Familiars.QingsAirs, -1, false, false)) do
 		local p = auxi.check_spawner_player(fam)
 		if p and auxi.check_for_the_same(p, player) then
-			local uid = fam:GetData()[item.own_key.."craft_uid"]
+			local uid = CraftIdentity.get_uid(fam)
 			if uid then bound[uid] = true end
 		end
 	end
@@ -1410,9 +1552,9 @@ end
 
 --- 蓝图面板是否打开（可选限定玩家）。时停期间小青标记仍可能读输入，调用方须自行屏蔽。
 function item.is_panel_open(player)
-	if not panel_is_alive() then return false end
+	if not BP.panel_is_alive() then return false end
 	if player == nil then return true end
-	return same_panel_player(player)
+	return BP.same_panel_player(player)
 end
 
 function item.get_panel_rect()
@@ -1453,7 +1595,7 @@ function item.get_content_rect(panel_rect)
 	)
 end
 
-local function ensure_bg_sprite()
+function BP.ensure_bg_sprite()
 	if item._bg_sprite == nil then
 		local s = Sprite()
 		s:Load(item.bg_anm2, true)
@@ -1463,7 +1605,7 @@ local function ensure_bg_sprite()
 	return item._bg_sprite
 end
 
-local function ensure_charge_slider_sprite()
+function BP.ensure_charge_slider_sprite()
 	if item._charge_slider_sprite == nil then
 		local s = Sprite()
 		s:Load("gfx/mimics/Blueprint/slider.anm2", true)
@@ -1473,15 +1615,15 @@ local function ensure_charge_slider_sprite()
 	return item._charge_slider_sprite
 end
 
-local function slider_layer_color(kcolor, alpha_mul)
+function BP.slider_layer_color(kcolor, alpha_mul)
 	kcolor = kcolor or KColor(1, 1, 1, 1)
 	return Color(
 		kcolor.Red, kcolor.Green, kcolor.Blue,
-		(kcolor.Alpha or 1) * panel_alpha() * (alpha_mul or 1)
+		(kcolor.Alpha or 1) * BP.panel_alpha() * (alpha_mul or 1)
 	)
 end
 
-local function load_col_sprite(col_id)
+function BP.load_col_sprite(col_id)
 	if not col_id then return nil end
 	item._col_spr_cache = item._col_spr_cache or {}
 	local cached = item._col_spr_cache[col_id]
@@ -1493,7 +1635,7 @@ local function load_col_sprite(col_id)
 	return spr
 end
 
-local function quality_to_frame(quality)
+function BP.quality_to_frame(quality)
 	local q = tonumber(quality)
 	if q == nil then return 5 end
 	if q >= 0 and q <= 4 then return math.floor(q) end
@@ -1501,7 +1643,7 @@ local function quality_to_frame(quality)
 	return 6
 end
 
-local function get_quality_sprite()
+function BP.get_quality_sprite()
 	if item._quality_spr then return item._quality_spr end
 	local s = Sprite()
 	s:Load(item.quality_anm2, true)
@@ -1510,19 +1652,19 @@ local function get_quality_sprite()
 	return s
 end
 
-local function render_token_quality_icon(tok)
+function BP.render_token_quality_icon(tok)
 	if not tok or tok.cost or tok.slot then return end
 	if not tok.from_bag then return end
 	local q = CraftProfile.collectible_quality(tok.collectible)
 	if q == nil then return end
-	local s = get_quality_sprite()
-	s.Color = Color(1, 1, 1, panel_alpha())
-	s:SetFrame("Quality", quality_to_frame(q))
+	local s = BP.get_quality_sprite()
+	s.Color = Color(1, 1, 1, BP.panel_alpha())
+	s:SetFrame("Quality", BP.quality_to_frame(q))
 	s:Render(tok.pos + (item.quality_icon_offset or Vector(8, -12)), Vector.Zero, Vector.Zero)
 	s.Color = Color(1, 1, 1, 1)
 end
 
-local function craft_has_base(craft)
+function BP.craft_has_base(craft)
 	if not craft then return false end
 	for _, tid in ipairs(craft.cost_ids or {}) do
 		local tok = craft.token_map and craft.token_map[tid]
@@ -1531,13 +1673,13 @@ local function craft_has_base(craft)
 	return false
 end
 
-local function sync_show_quality(craft)
+function BP.sync_show_quality(craft)
 	if not craft or craft.quality_user_set then return end
 	-- 默认关；仅底座空着时自动打开，方便挑品质。
-	craft.show_quality = not craft_has_base(craft)
+	craft.show_quality = not BP.craft_has_base(craft)
 end
 
-local function toggle_show_quality(panel)
+function BP.toggle_show_quality(panel)
 	local craft = panel and panel.craft
 	if not craft then return end
 	craft.quality_user_set = true
@@ -1545,11 +1687,11 @@ local function toggle_show_quality(panel)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.4, 1, false, 0, 2)
 end
 
-local function token_rect(tok)
+function BP.token_rect(tok)
 	return Mouse_UI.make_rect_centered(tok.pos, item.token_size, item.token_size)
 end
 
-local function clamp_to_rect(pos, rect, half)
+function BP.clamp_to_rect(pos, rect, half)
 	half = half or item.token_size * 0.5
 	return Vector(
 		math.max(rect.x + half, math.min(rect.x + rect.w - half, pos.X)),
@@ -1557,12 +1699,12 @@ local function clamp_to_rect(pos, rect, half)
 	)
 end
 
-local function smoothstep(t)
+function BP.smoothstep(t)
 	t = math.max(0, math.min(1, t))
 	return t * t * (3 - 2 * t)
 end
 
-local function begin_snap_anim(tok, target_pos)
+function BP.begin_snap_anim(tok, target_pos)
 	if not tok or not target_pos then return end
 	local from = Vector(tok.pos.X, tok.pos.Y)
 	local to = Vector(target_pos.X, target_pos.Y)
@@ -1581,7 +1723,7 @@ local function begin_snap_anim(tok, target_pos)
 	tok.vel = Vector(0, 0)
 end
 
-local function find_empty_ingredient_slot(craft, exclude_index)
+function BP.find_empty_ingredient_slot(craft, exclude_index)
 	for i, slot in ipairs((craft and craft.slots) or {}) do
 		if i ~= exclude_index and not slot.token then
 			return i
@@ -1591,7 +1733,7 @@ local function find_empty_ingredient_slot(craft, exclude_index)
 end
 
 --- 被挤出槽位：优先落在当前页道具列下方的空隙，避免插进图标之间
-local function bag_area_anchor(tok)
+function BP.bag_area_anchor(tok)
 	local panel = item.panel
 	local craft = panel and panel.craft
 	local g = panel and panel.ui and panel.ui.craft_geom
@@ -1659,11 +1801,11 @@ local function bag_area_anchor(tok)
 	return Vector(x, y)
 end
 
-local function tick_token_anim(tok)
+function BP.tick_token_anim(tok)
 	local a = tok.anim
 	if not a then return false end
 	a.t = a.t + 1
-	local u = smoothstep(a.t / a.dur)
+	local u = BP.smoothstep(a.t / a.dur)
 	tok.pos = auxi.Lerp(a.from, a.to, u)
 	if a.t >= a.dur then
 		tok.pos = Vector(a.to.X, a.to.Y)
@@ -1674,7 +1816,7 @@ local function tick_token_anim(tok)
 end
 
 local BAG_SKIP = nil
-local function bag_skip_ids()
+function BP.bag_skip_ids()
 	if BAG_SKIP then return BAG_SKIP end
 	BAG_SKIP = {
 		[item.entity] = true,
@@ -1685,14 +1827,14 @@ local function bag_skip_ids()
 	return BAG_SKIP
 end
 
-local function collectible_eligible(col)
+function BP.collectible_eligible(col)
 	return col and not col.Hidden
 		and (col.Type == ItemType.ITEM_PASSIVE or col.Type == ItemType.ITEM_FAMILIAR or col.Type == ItemType.ITEM_ACTIVE)
 end
 
 -- ---------- 背包收集（真实持有 − 已分配给其他飞行器 − 当前槽占用）+ 空闲原型----------
 -- 返回混合列表：number（真实）或 {collectible, source="prototype", prototype_uid}
-local function collect_bag_items(player, exclude_uid, slot_reserve)
+function BP.collect_bag_items(player, exclude_uid, slot_reserve)
 	local list = {}
 	local used = item.count_allocated(player, exclude_uid)
 	local reserve_real = slot_reserve and slot_reserve.real or slot_reserve or {}
@@ -1704,11 +1846,11 @@ local function collect_bag_items(player, exclude_uid, slot_reserve)
 	end
 	local config = Isaac.GetItemConfig()
 	local size = config:GetCollectibles().Size
-	local skip = bag_skip_ids()
+	local skip = BP.bag_skip_ids()
 	for id = 1, size do
 		if not skip[id] then
 			local col = config:GetCollectible(id)
-			if collectible_eligible(col) then
+			if BP.collectible_eligible(col) then
 				local num = player:GetCollectibleNum(id, true) - (used[id] or 0)
 				for _ = 1, num do
 					table.insert(list, id)
@@ -1726,25 +1868,25 @@ local function collect_bag_items(player, exclude_uid, slot_reserve)
 	return list
 end
 
-local function bag_entry_collectible(entry)
+function BP.bag_entry_collectible(entry)
 	if type(entry) == "table" then return entry.collectible or entry.id end
 	return entry
 end
 
-local function bag_entry_is_proto(entry)
+function BP.bag_entry_is_proto(entry)
 	return type(entry) == "table" and entry.source == "prototype"
 end
 
 --- 全道具模式：配置表全部可显示道具（每种一份，便于审查兼容）。
-local function collect_all_catalog_items()
+function BP.collect_all_catalog_items()
 	local list = {}
 	local config = Isaac.GetItemConfig()
 	local size = config:GetCollectibles().Size
-	local skip = bag_skip_ids()
+	local skip = BP.bag_skip_ids()
 	for id = 1, size do
 		if not skip[id] then
 			local col = config:GetCollectible(id)
-			if collectible_eligible(col) then
+			if BP.collectible_eligible(col) then
 				list[#list + 1] = id
 			end
 		end
@@ -1752,7 +1894,7 @@ local function collect_all_catalog_items()
 	return list
 end
 
-local function page_slice(list, page, page_size)
+function BP.page_slice(list, page, page_size)
 	page = math.max(0, page or 0)
 	page_size = page_size or item.bag_page_size
 	local total = #list
@@ -1767,7 +1909,7 @@ local function page_slice(list, page, page_size)
 	return slice, page, pages, total
 end
 
-local function slot_reserve_from_craft(craft)
+function BP.slot_reserve_from_craft(craft)
 	local reserve = {real = {}, proto = {}}
 	if not craft then return reserve end
 	local function add(tok)
@@ -1775,7 +1917,7 @@ local function slot_reserve_from_craft(craft)
 		if tok.source == "prototype" and tok.prototype_uid then
 			reserve.proto[tok.prototype_uid] = true
 			reserve.proto[tostring(tok.prototype_uid)] = true
-		else
+		elseif not tok.mirror_slot and tok.source ~= "mirror" then
 			local id = tok.collectible
 			reserve.real[id] = (reserve.real[id] or 0) + 1
 		end
@@ -1787,9 +1929,9 @@ local function slot_reserve_from_craft(craft)
 		add(craft.token_map[tid])
 	end
 	-- 非审计：拖出/动画中的已占用 token（未回槽也未 from_bag）也要计入，防同 id 虚增
-	if not craft.all_items then
+		if not craft.all_items then
 		for _, tok in ipairs(craft.tokens or {}) do
-			if tok and not tok.slot and not tok.cost and not tok.from_bag then
+			if tok and not tok.slot and not tok.cost and not tok.mirror_slot and not tok.from_bag then
 				add(tok)
 			end
 		end
@@ -1797,7 +1939,7 @@ local function slot_reserve_from_craft(craft)
 	return reserve
 end
 
-local function bag_layout_positions(bag_rect, count)
+function BP.bag_layout_positions(bag_rect, count)
 	local positions = {}
 	local cell = item.token_size + 4
 	local cols = math.max(1, math.floor(bag_rect.w / cell))
@@ -1811,13 +1953,14 @@ local function bag_layout_positions(bag_rect, count)
 end
 
 -- ---------- 视图切换 ----------
-local function set_tab(panel, idx)
+function BP.set_tab(panel, idx)
 	if idx < 1 or idx > #item.tabs then return end
 	if panel.craft then save_craft_draft(panel) end
 	panel.tab = idx
 	panel.view = "list"
 	panel.craft = nil
 	panel.drag = nil
+	panel.form_press = nil
 	panel.pad_carry = nil
 	panel.delete_confirm_uid = nil
 	panel.focus_id = "tab_"..idx
@@ -1826,57 +1969,70 @@ local function set_tab(panel, idx)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_CLIP_CLOSE, 0.55, 1, false, 0, 2)
 end
 
-local function open_craft_view(panel, target_id, edit_uid)
-	local info = get_target_info(target_id)
+function BP.open_craft_view(panel, target_id, edit_uid)
+	local info = BP.get_target_info(target_id)
 	if not info then return end
 	local approx_w = 160
-	local ingredients, cost_items = nil, nil
-	local draft = get_drafts(panel.player)[draft_key(target_id, edit_uid)]
-	local prefs = get_audit_ui_prefs(panel.player)
+	local ingredients, cost_items, draft_mm = nil, nil, nil
+	local draft = BP.get_drafts(panel.player)[BP.draft_key(target_id, edit_uid)]
+	local prefs = BP.get_audit_ui_prefs(panel.player)
 	local use_all_items = false
 	-- 旧三态筛选仅用于迁移进标签；正式筛选走 tag_enabled
 	local use_audit_filter = prefs.audit_filter or (prefs.hide_gray == true and "impl" or "all")
 	local edit_rec = edit_uid and item.find_craft(panel.player, edit_uid) or nil
-	local cost_n_hint = resolve_session_required_cost(panel.player, edit_uid, edit_rec, draft)
+	local cost_n_hint = BP.resolve_session_required_cost(panel.player, edit_uid, edit_rec, draft)
 	local function rebuild_slots(n, cost_hint)
-		local layout = make_slot_layout(n, cost_hint or cost_n_hint, approx_w)
+		local layout = BP.make_slot_layout(n, cost_hint or cost_n_hint, approx_w)
 		local slots = {}
 		for i, s in ipairs(layout) do
 			slots[i] = {ox = s.ox, oy = s.oy, token = nil}
 		end
 		return slots
 	end
-	-- 含审计材料的成品：默认打开全道具目录
+	-- 含审计材料的成品：默认打开全道具目录（需 Debug 权限）
+	local allow_all = BP.all_items_mode_allowed()
 	local edit_has_audit = edit_rec and CraftProfile.craft_has_any_audit_rec(edit_rec)
-	if edit_has_audit then
+	if allow_all and edit_has_audit then
 		use_all_items = true
 		use_audit_filter = edit_rec.audit_filter or use_audit_filter
 	end
 	if draft then
 		if not edit_has_audit then
-			use_all_items = draft.all_items == true
+			use_all_items = allow_all and draft.all_items == true
 		end
 		use_audit_filter = draft.audit_filter or use_audit_filter
-		ingredients, cost_items = filter_draft_items(
+		ingredients, cost_items, draft_mm = filter_draft_items(
 			panel.player, draft.ingredients, draft.cost_items, edit_uid, use_all_items
 		)
 	elseif edit_rec then
+		BP.migrate_rec_mirror_fields(edit_rec)
 		ingredients = edit_rec.ingredients
 		cost_items = edit_rec.cost_items
 	end
+	local mirror_module = nil
+	if draft and draft.mirror_module then
+		mirror_module = draft.mirror_module
+	elseif edit_rec and edit_rec.mirror_module then
+		mirror_module = edit_rec.mirror_module
+	end
+	if draft_mm and not mirror_module then mirror_module = draft_mm end
 	local remembered = nil
 	if draft and draft.remembered_quality ~= nil then
 		remembered = CraftProfile.normalize_base_quality(draft.remembered_quality)
 	elseif edit_rec then
 		remembered = CraftProfile.normalize_base_quality(edit_rec.base_quality or edit_rec.remembered_quality)
 	end
-	if get_tutorial().uses_lesson_bag(edit_rec) then
+	if BP.get_tutorial().uses_lesson_bag(edit_rec) then
 		use_all_items = false
 		if not edit_uid then
 			ingredients, cost_items = nil, nil
 			remembered = nil
 			draft = nil
+			mirror_module = nil
 		end
+	end
+	if not allow_all then
+		use_all_items = false
 	end
 	local live_q = CraftProfile.quality_from_cost_items(cost_items)
 	if live_q ~= nil then remembered = live_q end
@@ -1885,7 +2041,7 @@ local function open_craft_view(panel, target_id, edit_uid)
 		and panel.player
 		and panel.player:GetPlayerType() == enums.Players.Spwq
 		and target_id == enums.Items.Air_Flight
-		and not get_tutorial().uses_lesson_bag(edit_rec)
+		and not BP.get_tutorial().uses_lesson_bag(edit_rec)
 		and not (edit_rec and edit_rec.tutorial)
 	then
 		hide_cost = true
@@ -1900,7 +2056,7 @@ local function open_craft_view(panel, target_id, edit_uid)
 	local main_ratio = 1
 	if draft then main_ratio = draft.main_charge_ratio or draft.chocolate_charge_ratio or draft.techx_charge_ratio or 1
 	elseif edit_rec then main_ratio = edit_rec.main_charge_ratio or edit_rec.chocolate_charge_ratio or edit_rec.techx_charge_ratio or 1 end
-	main_ratio = clamp_charge_ratio(main_ratio)
+	main_ratio = BP.clamp_charge_ratio(main_ratio)
 	local tag_src = (edit_rec and edit_rec.tag_enabled)
 		or (draft and draft.tag_enabled)
 		or prefs.tag_enabled
@@ -1917,11 +2073,13 @@ local function open_craft_view(panel, target_id, edit_uid)
 		slots = slots,
 		slot_count = slot_n,
 		cost_ids = {},
+		mirror_token_id = nil,
+		mirror_slot_enabled = BP.player_has_mirror_birthright(panel.player),
 		tokens = {},
 		token_map = {},
 		snapshot = nil,
 		all_items = use_all_items,
-		tutorial_bag = get_tutorial().uses_lesson_bag(edit_rec),
+		tutorial_bag = BP.get_tutorial().uses_lesson_bag(edit_rec),
 		show_quality = false,
 		quality_user_set = false,
 		hide_gray = false,
@@ -1944,8 +2102,12 @@ local function open_craft_view(panel, target_id, edit_uid)
 			local idx = tonumber(i) or i
 			local col = CraftProfile.ingredient_id(entry)
 			local src = CraftProfile.ingredient_source(entry, edit_fb)
-			local is_proto = src == "prototype"
-			if slots[idx] and col and col ~= 0 then
+			if CraftProfile.is_mirror_entry(entry) then
+				if not mirror_module then
+					mirror_module = {id = col, source = "mirror"}
+				end
+			elseif slots[idx] and col and col ~= 0 then
+				local is_proto = src == "prototype"
 				local tid = is_proto
 					and ("slotfill_"..idx.."_p"..tostring(entry.prototype_uid))
 					or ("slotfill_"..idx.."_"..col)
@@ -1959,7 +2121,7 @@ local function open_craft_view(panel, target_id, edit_uid)
 					vel = Vector(0, 0),
 					slot = idx,
 					from_bag = false,
-					sprite = load_col_sprite(col),
+					sprite = BP.load_col_sprite(col),
 					impl = CraftProfile.has_impl(col),
 					gate_kind = CraftProfile.effect_gate_kind(col),
 					visual_scale = 1,
@@ -1972,6 +2134,30 @@ local function open_craft_view(panel, target_id, edit_uid)
 		local snap = {}
 		for k, v in pairs(ingredients) do snap[k] = v end
 		panel.craft.snapshot = snap
+	end
+	if mirror_module and panel.craft.mirror_slot_enabled then
+		local col = CraftProfile.ingredient_id(mirror_module)
+		if col and col ~= 0 then
+			local tid = "mirrorfill_"..tostring(col)
+			local tok = {
+				id = tid,
+				collectible = col,
+				source = "mirror",
+				is_mirror = true,
+				mirror_slot = true,
+				mirror_copy = true,
+				pos = Vector(0, 0),
+				vel = Vector(0, 0),
+				from_bag = false,
+				sprite = BP.load_col_sprite(col),
+				impl = CraftProfile.has_impl(col),
+				gate_kind = CraftProfile.effect_gate_kind(col),
+				visual_scale = 1,
+			}
+			panel.craft.tokens[#panel.craft.tokens + 1] = tok
+			panel.craft.token_map[tid] = tok
+			panel.craft.mirror_token_id = tid
+		end
 	end
 	if cost_items then
 		local edit_fb = edit_rec and edit_rec.audit == true
@@ -1988,10 +2174,10 @@ local function open_craft_view(panel, target_id, edit_uid)
 					vel = Vector(0, 0),
 					cost = true,
 					from_bag = false,
-					sprite = load_col_sprite(col),
+					sprite = BP.load_col_sprite(col),
 					impl = CraftProfile.has_impl(col),
 					gate_kind = CraftProfile.effect_gate_kind(col),
-					visual_scale = get_cost_token_scale(),
+					visual_scale = BP.get_cost_token_scale(),
 				}
 				panel.craft.tokens[#panel.craft.tokens + 1] = tok
 				panel.craft.token_map[tid] = tok
@@ -2013,7 +2199,7 @@ local function open_craft_view(panel, target_id, edit_uid)
 					from_bag = true,
 					lost = true,
 					lost_ghost = true,
-					sprite = load_col_sprite(col),
+					sprite = BP.load_col_sprite(col),
 					impl = CraftProfile.has_impl(col),
 					gate_kind = CraftProfile.effect_gate_kind(col),
 					visual_scale = 1,
@@ -2024,8 +2210,9 @@ local function open_craft_view(panel, target_id, edit_uid)
 		end
 	end
 	refresh_craft_token_lost(panel.player, panel.craft)
-	sync_show_quality(panel.craft)
+	BP.sync_show_quality(panel.craft)
 	panel.drag = nil
+	panel.form_press = nil
 	panel.pad_carry = nil
 	panel.focus_id = "btn_confirm"
 	panel.nav_group = "body"
@@ -2034,15 +2221,15 @@ end
 
 function item.open_tutorial_craft_view(panel)
 	if not panel then return end
-	open_craft_view(panel, enums.Items.Air_Flight, nil)
+	BP.open_craft_view(panel, enums.Items.Air_Flight, nil)
 end
 
 --- opts.clear_draft：确认成功后清草稿；opts.skip_draft：不再读写草稿
-local function leave_craft_view(panel, opts)
+function BP.leave_craft_view(panel, opts)
 	opts = opts or {}
 	if panel and panel.craft and panel.player and not opts.skip_draft then
 		if opts.clear_draft then
-			clear_craft_draft(panel.player, panel.craft.target, panel.craft.edit_uid)
+			BP.clear_craft_draft(panel.player, panel.craft.target, panel.craft.edit_uid)
 		else
 			save_craft_draft(panel)
 		end
@@ -2050,16 +2237,17 @@ local function leave_craft_view(panel, opts)
 	panel.view = "list"
 	panel.craft = nil
 	panel.drag = nil
+	panel.form_press = nil
 	panel.pad_carry = nil
 	panel.focus_id = "tab_"..tostring(panel.tab or 1)
 	panel.nav_group = "tabs"
 	panel.body_focus_mem = nil
 end
 
-local function clear_blueprint_selection(player)
+function BP.clear_blueprint_selection(player)
 	pcall(function()
 		local function safe_remove(p)
-			if not player_exists_safe(p) then return end
+			if not BP.player_exists_safe(p) then return end
 			selection_holder.remove_select(p, selection_key)
 		end
 		if player then
@@ -2077,7 +2265,7 @@ end
 -- 蓝图面板打开期间暂时隐藏 EID（关闭后恢复原状态）
 local eid_hide_state = nil -- nil=未接管; bool=打开前 isHidden
 
-local function hide_eid_for_blueprint()
+function BP.hide_eid_for_blueprint()
 	if not EID then return end
 	if eid_hide_state == nil then
 		eid_hide_state = EID.isHidden and true or false
@@ -2085,7 +2273,7 @@ local function hide_eid_for_blueprint()
 	EID.isHidden = true
 end
 
-local function restore_eid_after_blueprint()
+function BP.restore_eid_after_blueprint()
 	if eid_hide_state == nil then return end
 	if EID then
 		EID.isHidden = eid_hide_state
@@ -2093,24 +2281,24 @@ local function restore_eid_after_blueprint()
 	eid_hide_state = nil
 end
 
-local function close_panel(skip_draft)
+function BP.close_panel(skip_draft)
 	if not item.panel then
 		-- 无面板时勿强行遍历玩家清选择（暂停重置途中不安全）
 		pcall(function() auxi.time_free(item.own_key) end)
-		restore_eid_after_blueprint()
+		BP.restore_eid_after_blueprint()
 		return
 	end
 	-- 重置/换房时 panel.player 可能已失效：只在仍 Exists 时碰 GetData
-	local alive_player = player_exists_safe(item.panel.player) and item.panel.player or nil
+	local alive_player = BP.player_exists_safe(item.panel.player) and item.panel.player or nil
 	if not skip_draft and item.panel.craft and alive_player then
 		pcall(function() save_craft_draft(item.panel) end)
 	end
-	pcall(function() get_tutorial().on_panel_closed(alive_player) end)
+	pcall(function() BP.get_tutorial().on_panel_closed(alive_player) end)
 	-- 先清 panel，避免换房时实体失效导致半清理卡死
 	item.panel = nil
 	item.suppress_open_until = Game():GetFrameCount() + 2
 	if alive_player then
-		clear_blueprint_selection(alive_player)
+		BP.clear_blueprint_selection(alive_player)
 		drop_held_blueprint(alive_player)
 		pcall(function()
 			local Spwq = require("Qing_Remaster_scripts.player.player_Spwq")
@@ -2121,11 +2309,11 @@ local function close_panel(skip_draft)
 	end
 	-- alive_player 为空时禁止遍历 GetPlayer：暂停菜单重置途中 userdata 上 GetData 会硬崩
 	pcall(function() auxi.time_free(item.own_key) end)
-	restore_eid_after_blueprint()
+	BP.restore_eid_after_blueprint()
 end
 
 drop_held_blueprint = function(player)
-	if not player_exists_safe(player) then return end
+	if not BP.player_exists_safe(player) then return end
 	pcall(function()
 		if player:IsHoldingItem() then
 			player:AnimateCollectible(item.entity, "HideItem", "PlayerPickup")
@@ -2136,23 +2324,23 @@ end
 --- 清掉失效/残留面板（重启游戏后 module 级 item.panel 可能仍在）
 scrub_stale_panel = function()
 	if not item.panel then return false end
-	if panel_is_alive() then return false end
+	if BP.panel_is_alive() then return false end
 	item.panel = nil
 	item.suppress_open_until = -1
-	-- 面板玩家已失效：禁止 clear_blueprint_selection(nil) / 遍历 GetPlayer（重置时 GetData 会崩）
+	-- 面板玩家已失效：禁止 BP.clear_blueprint_selection(nil) / 遍历 GetPlayer（重置时 GetData 会崩）
 	pcall(function() auxi.time_free(item.own_key) end)
-	restore_eid_after_blueprint()
+	BP.restore_eid_after_blueprint()
 	return true
 end
 
-local function open_panel(player)
+function BP.open_panel(player)
 	scrub_stale_panel()
-	if item.panel then close_panel() end
+	if item.panel then BP.close_panel() end
 	-- 换房残留保险
 	pcall(function() auxi.time_free(item.own_key) end)
 	pcall(function() selection_holder.remove_select(player, selection_key) end)
 	drop_held_blueprint(player)
-	hide_eid_for_blueprint()
+	BP.hide_eid_for_blueprint()
 	item.panel = {
 		player = player,
 		tab = 1,
@@ -2177,24 +2365,24 @@ local function open_panel(player)
 	auxi.time_stop(item.own_key)
 	item.refresh_craft_integrity(player)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOOK_PAGE_TURN_12, 1, 1, false, 0, 2)
-	pcall(function() get_tutorial().on_panel_opened(player) end)
+	pcall(function() BP.get_tutorial().on_panel_opened(player) end)
 end
 
 function item.open_for_player(player)
 	if not player then return false end
 	scrub_stale_panel()
-	if same_panel_player(player) then return true end
-	if item.panel then close_panel() end
-	open_panel(player)
+	if BP.same_panel_player(player) then return true end
+	if item.panel then BP.close_panel() end
+	BP.open_panel(player)
 	return true
 end
 
 -- ---------- 制造页几何 ----------
-local function craft_geometry(panel_rect, content, craft)
+function BP.craft_geometry(panel_rect, content, craft)
 	local mid = content.x + content.w * 0.42
 	local left = Mouse_UI.make_rect(content.x, content.y, mid - content.x - 4, content.h)
 	local right = Mouse_UI.make_rect(mid + 4, content.y, content.x + content.w - mid - 4, content.h)
-	local target_pos = Vector(left.x + left.w * 0.5, left.y + 48 + get_craft_group_y())
+	local target_pos = Vector(left.x + left.w * 0.5, left.y + 48 + BP.get_craft_group_y())
 	local confirm_rect = Mouse_UI.make_rect(left.x + 8, left.y + left.h - 22, left.w - 16, 18)
 	-- 蓄力条固定 144×12，便于后续用同尺寸贴图替换字符占位绘制。
 	local slider_w, slider_h, slider_gap = 144, 12, 3
@@ -2218,8 +2406,8 @@ local function craft_geometry(panel_rect, content, craft)
 	local bag_right = right
 	if craft and craft.all_items then
 		local tag_defs = CraftProfile.audit_filter_tag_defs()
-		local off = get_tag_col_offset()
-		local tag_w = get_tag_col_width()
+		local off = BP.get_tag_col_offset()
+		local tag_w = BP.get_tag_col_width()
 		local screen = gui.GetScreenSize()
 		local screen_w = screen and screen.X or 480
 		local tag_x = right.x + right.w + off.X
@@ -2254,17 +2442,17 @@ local function craft_geometry(panel_rect, content, craft)
 	local bag_inner = Mouse_UI.make_rect(bag_right.x, bag_right.y + 15, bag_right.w, bag_right.h - 28)
 	local prev_rect = Mouse_UI.make_rect(bag_right.x + 2, bag_right.y + bag_right.h - 12, 26, 11)
 	local next_rect = Mouse_UI.make_rect(bag_right.x + bag_right.w - 28, bag_right.y + bag_right.h - 12, 26, 11)
-	local cost_size = get_cost_slot_size()
-	local spacing = get_cost_slot_spacing()
+	local cost_size = BP.get_cost_slot_size()
+	local spacing = BP.get_cost_slot_spacing()
 	local row_gap = item.cost_slot_row_gap or 2
 	-- 成本小槽在道具图标下方；过多时自动换行；底座槽始终显示
-	local display_n = cost_display_count(craft)
+	local display_n = BP.cost_display_count(craft)
 	local cost_pos, cost_rect = nil, nil
 	local cost_cols, cost_rows = 1, 0
 	if display_n > 0 then
-		cost_cols = cost_cols_for_width(left.w - 8)
-		cost_rows = cost_row_count(display_n, cost_cols)
-		cost_pos = Vector(target_pos.X, target_pos.Y + get_cost_y_offset())
+		cost_cols = BP.cost_cols_for_width(left.w - 8)
+		cost_rows = BP.cost_row_count(display_n, cost_cols)
+		cost_pos = Vector(target_pos.X, target_pos.Y + BP.get_cost_y_offset())
 		local cols_top = math.min(display_n, cost_cols)
 		local block_w = (cols_top - 1) * spacing + cost_size
 		local block_h = (cost_rows - 1) * (cost_size + row_gap) + cost_size
@@ -2275,7 +2463,7 @@ local function craft_geometry(panel_rect, content, craft)
 			block_h
 		)
 	end
-	return {
+	local geom = {
 		left = left,
 		right = right,
 		bag_right = bag_right,
@@ -2300,9 +2488,15 @@ local function craft_geometry(panel_rect, content, craft)
 		cost_rows = cost_rows,
 		cost_display_n = display_n,
 	}
+	if craft and craft.mirror_slot_enabled then
+		local mirror_pos = Vector(target_pos.X, target_pos.Y + (item.mirror_slot_oy or 54))
+		geom.mirror_pos = mirror_pos
+		geom.mirror_rect = Mouse_UI.make_rect_centered(mirror_pos, item.slot_size, item.slot_size)
+	end
+	return geom
 end
 
-local function rebuild_bag_tokens(panel, bag_rect, player)
+function BP.rebuild_bag_tokens(panel, bag_rect, player)
 	local craft = panel.craft
 	if not craft then return end
 	-- 面板打开期间时间冻结，背包不会在外部变化；只在翻页/放回/切目录时重建。
@@ -2313,7 +2507,7 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 	for _, tok in ipairs(craft.tokens) do
 		local dragging = panel.drag and panel.drag.token_id == tok.id
 		local carrying = panel.pad_carry and panel.pad_carry.token_id == tok.id
-		local busy = tok.slot or tok.cost or dragging or carrying or tok.anim
+		local busy = tok.slot or tok.cost or tok.mirror_slot or dragging or carrying or tok.anim
 			or (tok.vel and tok.vel:Length() > item.inertia_stop)
 			or not tok.from_bag
 			or tok.lost_ghost -- 失去幽灵留在背包页，禁止被库存重建冲掉
@@ -2323,11 +2517,11 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 		end
 	end
 	local bag_ids
-	local tut_ids = get_tutorial().bag_collectibles()
+	local tut_ids = BP.get_tutorial().bag_collectibles()
 	if tut_ids ~= nil then
 		bag_ids, craft.bag_page, craft.bag_pages, craft.bag_total = tut_ids, 0, 1, #tut_ids
 	elseif craft.all_items then
-		craft._catalog = craft._catalog or collect_all_catalog_items()
+		craft._catalog = craft._catalog or BP.collect_all_catalog_items()
 		local src = craft._catalog
 		-- 标签筛选：状态组∩类别组（见 CraftProfile.collectible_matches_audit_tags）
 		local tag_enabled = CraftProfile.normalize_audit_tag_enabled(craft.tag_enabled)
@@ -2339,15 +2533,15 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 			end
 		end
 		src = tagged
-		bag_ids, craft.bag_page, craft.bag_pages, craft.bag_total = page_slice(src, craft.bag_page, item.bag_page_size)
+		bag_ids, craft.bag_page, craft.bag_pages, craft.bag_total = BP.page_slice(src, craft.bag_page, item.bag_page_size)
 	else
-		local full = collect_bag_items(player, craft.edit_uid, slot_reserve_from_craft(craft))
-		bag_ids, craft.bag_page, craft.bag_pages, craft.bag_total = page_slice(full, craft.bag_page, item.bag_page_size)
+		local full = BP.collect_bag_items(player, craft.edit_uid, BP.slot_reserve_from_craft(craft))
+		bag_ids, craft.bag_page, craft.bag_pages, craft.bag_total = BP.page_slice(full, craft.bag_page, item.bag_page_size)
 	end
-	local positions = bag_layout_positions(bag_rect, #bag_ids)
+	local positions = BP.bag_layout_positions(bag_rect, #bag_ids)
 	for i, entry in ipairs(bag_ids) do
-		local col = bag_entry_collectible(entry)
-		local is_proto = bag_entry_is_proto(entry)
+		local col = BP.bag_entry_collectible(entry)
+		local is_proto = BP.bag_entry_is_proto(entry)
 		local proto_uid = is_proto and entry.prototype_uid or nil
 		local tid
 		if is_proto then
@@ -2355,69 +2549,95 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 		else
 			tid = (craft.all_items and "all_" or "bag_")..tostring(craft.bag_page).."_"..i.."_"..tostring(col)
 		end
+		local function settle_bag_home(kept_tok, dest)
+			if not kept_tok or not dest then return end
+			if not (kept_tok.from_bag and not kept_tok.slot and not kept_tok.cost) then return end
+			kept_tok.home = dest
+			if kept_tok.anim then
+				local anim_dest = kept_tok.anim.to
+				if not anim_dest or (anim_dest - dest):Length() > 1 then
+					BP.begin_snap_anim(kept_tok, dest)
+				end
+			elseif not (panel.drag and panel.drag.token_id == kept_tok.id)
+				and not (panel.pad_carry and panel.pad_carry.token_id == kept_tok.id)
+				and (not kept_tok.vel or kept_tok.vel:Length() < 0.2)
+			then
+				if (kept_tok.pos - dest):Length() > 18 then
+					BP.begin_snap_anim(kept_tok, dest)
+				elseif (kept_tok.pos - dest):Length() > 1 then
+					kept_tok.pos = dest
+				end
+			end
+		end
 		if kept_map[tid] then
 			-- 拖拽/惯性/回位中的实体要保留，但它的背包 home 仍必须跟随
 			-- 本次重建的规范网格。旧逻辑直接跳过，会让从背包取出再放回的
 			-- token 保留 bag_area_anchor 的“列表下方”坐标，永远不回第一空位。
-			local kept_tok = kept_map[tid]
-			local dest = positions[i]
-			if kept_tok and kept_tok.from_bag and not kept_tok.slot and not kept_tok.cost and dest then
-				kept_tok.home = dest
-				if kept_tok.anim then
-					local anim_dest = kept_tok.anim.to
-					if not anim_dest or (anim_dest - dest):Length() > 1 then
-						begin_snap_anim(kept_tok, dest)
-					end
-				elseif not (panel.drag and panel.drag.token_id == kept_tok.id)
-					and not (panel.pad_carry and panel.pad_carry.token_id == kept_tok.id)
-					and (not kept_tok.vel or kept_tok.vel:Length() < 0.2)
-				then
-					if (kept_tok.pos - dest):Length() > 18 then
-						begin_snap_anim(kept_tok, dest)
-					elseif (kept_tok.pos - dest):Length() > 1 then
-						kept_tok.pos = dest
-					end
-				end
-			end
+			settle_bag_home(kept_map[tid], positions[i])
 		else
-			local old = craft.token_map and craft.token_map[tid]
-			if old and kept_map[old.id] then old = nil end
-			local tok = old or {
-				id = tid,
-				collectible = col,
-				pos = positions[i],
-				vel = Vector(0, 0),
-				slot = nil,
-				from_bag = true,
-				sprite = load_col_sprite(col),
-			}
-			tok.id = tid
-			tok.collectible = col
-			-- 放置时打标：目录=audit，背包真实=real，原型=prototype；槽内已放 token 不走重建
-			if is_proto then
-				tok.source = "prototype"
-			elseif tut_ids or craft.all_items then
-				tok.source = "audit"
-			else
-				tok.source = "real"
-			end
-			tok.prototype_uid = proto_uid
-			tok.is_prototype = is_proto or false
-			tok.impl = CraftProfile.has_impl(col)
-			tok.missing_stat = CraftProfile.missing_stat_delta(col)
-			tok.gate_kind = CraftProfile.effect_gate_kind(col)
-			tok.home = positions[i]
-			if not old then
-				tok.pos = positions[i]
-			elseif not tok.anim and (not tok.vel or tok.vel:Length() < 0.2) then
-				if (tok.pos - positions[i]):Length() > 18 then
-					begin_snap_anim(tok, positions[i])
-				elseif (tok.pos - positions[i]):Length() > 1 then
-					tok.pos = positions[i]
+			-- 底座/槽位归还：孤儿仍在 kept（anim/vel），库存又会列出同 id → 必须认领，禁止再刷一份
+			local orphan = (not tut_ids and not craft.all_items)
+				and BP.claim_orphan_bag_token(kept, kept_map, col, is_proto, proto_uid)
+			if orphan then
+				kept_map[orphan.id] = nil
+				orphan.id = tid
+				orphan.collectible = col
+				if is_proto then
+					orphan.source = "prototype"
+				else
+					orphan.source = "real"
 				end
+				orphan.prototype_uid = proto_uid
+				orphan.is_prototype = is_proto or false
+				orphan.is_mirror = false
+				orphan.mirror_copy = nil
+				orphan.from_bag = true
+				orphan.impl = CraftProfile.has_impl(col)
+				orphan.missing_stat = CraftProfile.missing_stat_delta(col)
+				orphan.gate_kind = CraftProfile.effect_gate_kind(col)
+				kept_map[tid] = orphan
+				settle_bag_home(orphan, positions[i])
+			else
+				local old = craft.token_map and craft.token_map[tid]
+				if old and kept_map[old.id] then old = nil end
+				local tok = old or {
+					id = tid,
+					collectible = col,
+					pos = positions[i],
+					vel = Vector(0, 0),
+					slot = nil,
+					from_bag = true,
+					sprite = BP.load_col_sprite(col),
+				}
+				tok.id = tid
+				tok.collectible = col
+				-- 放置时打标：目录=audit，背包真实=real，原型=prototype
+				if is_proto then
+					tok.source = "prototype"
+				elseif tut_ids or craft.all_items then
+					tok.source = "audit"
+				else
+					tok.source = "real"
+				end
+				tok.prototype_uid = proto_uid
+				tok.is_prototype = is_proto or false
+				tok.is_mirror = false
+				tok.impl = CraftProfile.has_impl(col)
+				tok.missing_stat = CraftProfile.missing_stat_delta(col)
+				tok.gate_kind = CraftProfile.effect_gate_kind(col)
+				tok.home = positions[i]
+				if not old then
+					tok.pos = positions[i]
+				elseif not tok.anim and (not tok.vel or tok.vel:Length() < 0.2) then
+					if (tok.pos - positions[i]):Length() > 18 then
+						BP.begin_snap_anim(tok, positions[i])
+					elseif (tok.pos - positions[i]):Length() > 1 then
+						tok.pos = positions[i]
+					end
+				end
+				kept[#kept + 1] = tok
+				kept_map[tid] = tok
 			end
-			kept[#kept + 1] = tok
-			kept_map[tid] = tok
 		end
 	end
 	craft.tokens = kept
@@ -2428,12 +2648,12 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 		if tok.lost_ghost and tok.from_bag and not tok.slot and not tok.cost then
 			ghost_i = ghost_i + 1
 			local idx = #bag_ids + ghost_i
-			local positions_all = bag_layout_positions(bag_rect, idx)
+			local positions_all = BP.bag_layout_positions(bag_rect, idx)
 			local dest = positions_all[idx]
 			tok.home = dest
 			if not tok.anim and (not tok.vel or tok.vel:Length() < 0.2) then
 				if (tok.pos - dest):Length() > 18 then
-					begin_snap_anim(tok, dest)
+					BP.begin_snap_anim(tok, dest)
 				else
 					tok.pos = dest
 				end
@@ -2444,7 +2664,7 @@ local function rebuild_bag_tokens(panel, bag_rect, player)
 	craft._preview_sig = nil
 end
 
-local function remove_from_cost(craft, tok)
+function BP.remove_from_cost(craft, tok)
 	if not craft or not tok then return end
 	tok.cost = nil
 	local ids = craft.cost_ids or {}
@@ -2453,22 +2673,27 @@ local function remove_from_cost(craft, tok)
 	end
 end
 
-local function clear_token_slot(craft, tok)
+function BP.clear_token_slot(craft, tok)
+	if tok.mirror_slot then
+		if craft.mirror_token_id == tok.id then craft.mirror_token_id = nil end
+		tok.mirror_slot = nil
+		tok.is_mirror = nil
+	end
 	if tok.slot then
 		local slot = craft.slots[tok.slot]
 		if slot and slot.token == tok.id then slot.token = nil end
 		tok.slot = nil
 	end
 	if tok.cost then
-		remove_from_cost(craft, tok)
+		BP.remove_from_cost(craft, tok)
 		-- 取出底座：记住品质并保留槽位，不立刻收起
 		if craft then craft.base_quality = nil end
-		sync_show_quality(craft)
+		BP.sync_show_quality(craft)
 	end
 end
 
 --- 保证每个材料槽最多一个 token；以 slot.token 为准，清掉多余占用者
-local function reconcile_slot_occupancy(craft)
+function BP.reconcile_slot_occupancy(craft)
 	if not craft or not craft.slots then return end
 	-- 先按 slot.token 建权威占用
 	local owner = {}
@@ -2493,14 +2718,14 @@ local function reconcile_slot_occupancy(craft)
 				if not (item.panel and item.panel.drag and item.panel.drag.token_id == tok.id)
 					and not (item.panel and item.panel.pad_carry and item.panel.pad_carry.token_id == tok.id)
 					and not tok.anim then
-					local dest = bag_area_anchor(tok)
+					local dest = BP.bag_area_anchor(tok)
 					tok.home = dest
 					tok.from_bag = true
 					if tok.lost or tok.lost_ghost then
 						tok.lost_ghost = true
 						tok.lost = true
 					end
-					begin_snap_anim(tok, dest)
+					BP.begin_snap_anim(tok, dest)
 				end
 			end
 		end
@@ -2517,7 +2742,7 @@ end
 
 --- 审计全道具：放入槽位/成本后断开背包身份，背包可再刷出同款以便叠层
 --- 非审计：禁止改 from_bag——否则取出后既保留孤儿 token，又按库存补货同 id
-local function detach_bag_identity(craft, tok)
+function BP.detach_bag_identity(craft, tok)
 	if not craft or not tok then return end
 	if not craft.all_items then return end
 	local looks_bag = tok.from_bag or (type(tok.id) == "string" and tok.id:sub(1, 4) == "all_")
@@ -2543,15 +2768,15 @@ local function detach_bag_identity(craft, tok)
 	craft.token_map[new_id] = tok
 end
 
-local function cost_stack_pos(craft, geom, index)
+function BP.cost_stack_pos(craft, geom, index)
 	local base = geom and geom.cost_pos or Vector(0, 0)
-	local total = (geom and geom.cost_display_n) or cost_display_count(craft)
+	local total = (geom and geom.cost_display_n) or BP.cost_display_count(craft)
 	local n = math.max(1, total)
 	local i = math.max(1, index or #(craft.cost_ids or {}))
-	local size = (geom and geom.cost_size) or get_cost_slot_size()
-	local spacing = (geom and geom.cost_spacing) or get_cost_slot_spacing()
+	local size = (geom and geom.cost_size) or BP.get_cost_slot_size()
+	local spacing = (geom and geom.cost_spacing) or BP.get_cost_slot_spacing()
 	local row_gap = (geom and geom.cost_row_gap) or (item.cost_slot_row_gap or 2)
-	local cols = (geom and geom.cost_cols) or cost_cols_for_width(160)
+	local cols = (geom and geom.cost_cols) or BP.cost_cols_for_width(160)
 	cols = math.max(1, cols)
 	local row = math.floor((i - 1) / cols)
 	local col = (i - 1) % cols
@@ -2562,25 +2787,30 @@ local function cost_stack_pos(craft, geom, index)
 	return base + Vector(ox, oy)
 end
 
-local function assign_token_cost(craft, tok, geom)
+function BP.assign_token_cost(craft, tok, geom)
 	if not craft or not tok then return end
 	if craft.hide_cost then
-		if tok.home then begin_snap_anim(tok, tok.home) end
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
 		return
 	end
-	if get_tutorial().is_locking() and not get_tutorial().allows_cost_assign(tok) then
-		if tok.home then begin_snap_anim(tok, tok.home) end
+	if BP.get_tutorial().is_locking() and not BP.get_tutorial().allows_cost_assign(tok) then
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
 		return
 	end
-	-- 原型不能支付成本槽
+	-- 原型与镜像不能支付成本槽
 	if tok.source == "prototype" or tok.is_prototype then
-		clear_token_slot(craft, tok)
-		if tok.home then begin_snap_anim(tok, tok.home) end
+		BP.clear_token_slot(craft, tok)
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.55, 1.1, false, 0, 2)
 		return
 	end
-	detach_bag_identity(craft, tok)
-	clear_token_slot(craft, tok)
+	if tok.mirror_slot or tok.source == "mirror" then
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.55, 1.1, false, 0, 2)
+		return
+	end
+	BP.detach_bag_identity(craft, tok)
+	BP.clear_token_slot(craft, tok)
 	-- 底座槽只保留一件：旧底座滑回背包（取出不改槽数；换入才适配）
 	craft.cost_ids = craft.cost_ids or {}
 	for i = #craft.cost_ids, 1, -1 do
@@ -2591,34 +2821,34 @@ local function assign_token_cost(craft, tok, geom)
 			if other then
 				other.cost = nil
 				other.from_bag = true
-				local dest = bag_area_anchor(other)
+				local dest = BP.bag_area_anchor(other)
 				other.home = dest
 				if other.lost or other.lost_ghost then
 					other.lost_ghost = true
 					other.lost = true
 				end
-				begin_snap_anim(other, dest)
+				BP.begin_snap_anim(other, dest)
 			end
 		end
 	end
 	tok.cost = true
-	tok.visual_scale = get_cost_token_scale()
+	tok.visual_scale = BP.get_cost_token_scale()
 	craft.cost_ids[#craft.cost_ids + 1] = tok.id
-	local dest = cost_stack_pos(craft, geom, #craft.cost_ids)
-	begin_snap_anim(tok, dest)
+	local dest = BP.cost_stack_pos(craft, geom, #craft.cost_ids)
+	BP.begin_snap_anim(tok, dest)
 	local q = CraftProfile.collectible_quality(tok.collectible)
 	craft.base_quality = q
 	craft.remembered_quality = q
 	apply_module_slots_for_base(craft, geom, {adapt = true})
-	sync_show_quality(craft)
+	BP.sync_show_quality(craft)
 	craft._bag_dirty = true
 end
 
 --- 将占用者挪到其他材料槽，或滑回背包区（不瞬移、不删掉）
-local function relocate_displaced_token(craft, other, from_slot_index, exclude_slot)
+function BP.relocate_displaced_token(craft, other, from_slot_index, exclude_slot)
 	if not craft or not other then return end
 	other.cost = nil
-	remove_from_cost(craft, other)
+	BP.remove_from_cost(craft, other)
 	other.slot = nil
 
 	-- 1) 来自另一材料槽：互换回原槽
@@ -2630,40 +2860,40 @@ local function relocate_displaced_token(craft, other, from_slot_index, exclude_s
 			if blocker then
 				prev_slot.token = nil
 				blocker.slot = nil
-				local bdest = bag_area_anchor(blocker)
+				local bdest = BP.bag_area_anchor(blocker)
 				blocker.home = bdest
-				begin_snap_anim(blocker, bdest)
+				BP.begin_snap_anim(blocker, bdest)
 			end
 		end
 		prev_slot.token = other.id
 		other.slot = from_slot_index
 		other.visual_scale = 1
 		local dest = prev_slot._rect and Mouse_UI.rect_center(prev_slot._rect) or other.pos
-		begin_snap_anim(other, dest)
+		BP.begin_snap_anim(other, dest)
 		return
 	end
 
 	-- 2) 来自背包/成本/空闲：优先挪到其他空材料槽
-	local empty_i = find_empty_ingredient_slot(craft, exclude_slot)
+	local empty_i = BP.find_empty_ingredient_slot(craft, exclude_slot)
 	if empty_i then
 		local es = craft.slots[empty_i]
 		es.token = other.id
 		other.slot = empty_i
 		other.visual_scale = 1
 		local dest = es._rect and Mouse_UI.rect_center(es._rect) or other.pos
-		begin_snap_anim(other, dest)
+		BP.begin_snap_anim(other, dest)
 		return
 	end
 
 	-- 3) 无空槽：滑入背包区域，保留实体（失去道具记为幽灵，避免重建时消失）
-	local dest = bag_area_anchor(other)
+	local dest = BP.bag_area_anchor(other)
 	other.home = dest
 	other.from_bag = true
 	if other.lost or other.lost_ghost then
 		other.lost_ghost = true
 		other.lost = true
 	end
-	begin_snap_anim(other, dest)
+	BP.begin_snap_anim(other, dest)
 end
 
 apply_module_slots_for_base = function(craft, geom, opts)
@@ -2691,7 +2921,7 @@ apply_module_slots_for_base = function(craft, geom, opts)
 	end
 	local avail_w = 160
 	if geom and geom.left then avail_w = geom.left.w - 8 end
-	local layout = make_slot_layout(new_n, cost_display_count(craft), avail_w)
+	local layout = BP.make_slot_layout(new_n, BP.cost_display_count(craft), avail_w)
 	local slots = {}
 	for i = 1, new_n do
 		local prev = old_slots[i]
@@ -2713,21 +2943,120 @@ apply_module_slots_for_base = function(craft, geom, opts)
 	craft.slots = slots
 	craft.slot_count = new_n
 	for _, tok in ipairs(displaced) do
-		relocate_displaced_token(craft, tok, nil, nil)
+		BP.relocate_displaced_token(craft, tok, nil, nil)
 	end
 end
 
-local function assign_token_slot(craft, tok, slot_index)
-	local slot = craft.slots[slot_index]
-	if not slot or not tok then return end
-	if get_tutorial().is_locking() and not get_tutorial().allows_slot_assign(tok) then
-		if tok.home then begin_snap_anim(tok, tok.home) end
+function BP.can_assign_mirror(craft, tok)
+	if not craft or not tok or not tok.collectible then return false end
+	if not craft.mirror_slot_enabled then return false end
+	if tok.cost then return false end
+	if craft.all_items or tok.source == "audit" then return false end
+	if tok.source == "prototype" or tok.is_prototype then return false end
+	if not CraftProfile.has_impl(tok.collectible) then return false end
+	return true
+end
+
+function BP.mirror_slot_center(geom)
+	if geom and geom.mirror_pos then return geom.mirror_pos end
+	return nil
+end
+
+function BP.dismiss_mirror_token(craft, tok)
+	if not craft or not tok then return end
+	if craft.mirror_token_id == tok.id then craft.mirror_token_id = nil end
+	if BP.is_mirror_only_token(tok) then
+		BP.remove_token_entity(craft, tok)
 		return
 	end
-	detach_bag_identity(craft, tok)
+	BP.clear_token_slot(craft, tok)
+	tok.source = craft.all_items and "audit" or "real"
+	tok.is_mirror = nil
+	if not craft.all_items then
+		tok.from_bag = true
+		local dest = tok.home or BP.bag_area_anchor(tok)
+		tok.home = dest
+		BP.begin_snap_anim(tok, dest)
+	end
+	craft._bag_dirty = true
+end
+
+function BP.spawn_mirror_copy(craft, col, geom, ref_tok)
+	local tid = "mirror_"..tostring(col).."_"..tostring(Isaac.GetFrameCount()).."_"..tostring(math.random(10000))
+	local dest = BP.mirror_slot_center(geom) or Vector(0, 0)
+	local mtok = {
+		id = tid,
+		collectible = col,
+		source = "mirror",
+		is_mirror = true,
+		mirror_slot = true,
+		mirror_copy = true,
+		from_bag = false,
+		pos = dest,
+		vel = Vector(0, 0),
+		sprite = BP.load_col_sprite(col),
+		impl = ref_tok and ref_tok.impl or CraftProfile.has_impl(col),
+		missing_stat = ref_tok and ref_tok.missing_stat or CraftProfile.missing_stat_delta(col),
+		gate_kind = ref_tok and ref_tok.gate_kind or CraftProfile.effect_gate_kind(col),
+		visual_scale = 1,
+		lit = ref_tok and ref_tok.lit,
+	}
+	craft.tokens[#craft.tokens + 1] = mtok
+	craft.token_map[tid] = mtok
+	craft.mirror_token_id = tid
+	BP.begin_snap_anim(mtok, dest)
+	return mtok
+end
+
+function BP.assign_mirror_token(craft, tok, geom)
+	if not BP.can_assign_mirror(craft, tok) then
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
+		return false
+	end
+	if craft.mirror_token_id and craft.mirror_token_id ~= tok.id then
+		local prev = craft.token_map[craft.mirror_token_id]
+		if prev then BP.dismiss_mirror_token(craft, prev) end
+	end
+	local col = tok.collectible
+	if tok.from_bag then
+		BP.spawn_mirror_copy(craft, col, geom, tok)
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
+		craft._bag_dirty = true
+		return true
+	end
+	if tok.mirror_copy then
+		tok.mirror_slot = true
+		tok.source = "mirror"
+		tok.is_mirror = true
+		craft.mirror_token_id = tok.id
+		BP.begin_snap_anim(tok, BP.mirror_slot_center(geom) or tok.pos)
+		return true
+	end
+	BP.clear_token_slot(craft, tok)
+	tok.source = "mirror"
+	tok.is_mirror = true
+	tok.mirror_slot = true
+	tok.slot = nil
+	tok.cost = nil
+	tok.from_bag = false
+	tok.visual_scale = 1
+	craft.mirror_token_id = tok.id
+	BP.begin_snap_anim(tok, BP.mirror_slot_center(geom) or tok.pos)
+	craft._bag_dirty = true
+	return true
+end
+
+function BP.assign_token_slot(craft, tok, slot_index)
+	local slot = craft.slots[slot_index]
+	if not slot or not tok then return end
+	if BP.get_tutorial().is_locking() and not BP.get_tutorial().allows_slot_assign(tok) then
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
+		return
+	end
+	BP.detach_bag_identity(craft, tok)
 	if tok.slot == slot_index and slot.token == tok.id then
 		local dest = slot._rect and Mouse_UI.rect_center(slot._rect) or tok.pos
-		begin_snap_anim(tok, dest)
+		BP.begin_snap_anim(tok, dest)
 		return
 	end
 
@@ -2738,13 +3067,18 @@ local function assign_token_slot(craft, tok, slot_index)
 	end
 
 	-- 先从原槽卸下当前 token（勿在写入互换结果后再 clear，否则会抹掉刚放回的占用）
-	clear_token_slot(craft, tok)
+	BP.clear_token_slot(craft, tok)
+	if tok.source == "mirror" or tok.is_mirror then
+		tok.source = craft.all_items and "audit" or "real"
+		tok.is_mirror = nil
+		tok.mirror_copy = nil
+	end
 
 	if other then
 		-- 目标槽腾出 B，再按来源决定：互换 / 挪空槽 / 滑回背包区
 		if slot.token == other.id then slot.token = nil end
 		other.slot = nil
-		relocate_displaced_token(craft, other, prev_index, slot_index)
+		BP.relocate_displaced_token(craft, other, prev_index, slot_index)
 	end
 
 	slot.token = tok.id
@@ -2752,12 +3086,12 @@ local function assign_token_slot(craft, tok, slot_index)
 	tok.cost = nil
 	tok.visual_scale = 1
 	local dest = slot._rect and Mouse_UI.rect_center(slot._rect) or tok.pos
-	begin_snap_anim(tok, dest)
-	reconcile_slot_occupancy(craft)
+	BP.begin_snap_anim(tok, dest)
+	BP.reconcile_slot_occupancy(craft)
 	craft._bag_dirty = true
 end
 
-local function find_snap_slot(craft, tok)
+function BP.find_snap_slot(craft, tok)
 	local best, best_d = nil, nil
 	local limit = item.snap_dist or 34
 	for i, slot in ipairs(craft.slots) do
@@ -2773,7 +3107,7 @@ local function find_snap_slot(craft, tok)
 	return best, best_d
 end
 
-local function find_snap_cost(craft, tok, geom)
+function BP.find_snap_cost(craft, tok, geom)
 	if not geom or not geom.cost_rect then return false, nil, false end
 	local r = geom.cost_rect
 	local c = Mouse_UI.rect_center(r)
@@ -2785,7 +3119,20 @@ local function find_snap_cost(craft, tok, geom)
 	return false, d, false
 end
 
-local function read_ingredients(craft)
+function BP.read_mirror_module(craft)
+	if not craft or not craft.mirror_token_id then return nil end
+	local tok = craft.token_map[craft.mirror_token_id]
+	if tok and tok.collectible then
+		return {id = tok.collectible, source = "mirror"}
+	end
+	return nil
+end
+
+function BP.profile_ingredients(craft)
+	return CraftProfile.ingredients_with_mirror(BP.read_ingredients(craft), BP.read_mirror_module(craft))
+end
+
+function BP.read_ingredients(craft)
 	local ingredients = {}
 	for i, slot in ipairs(craft.slots) do
 		if slot.token then
@@ -2813,7 +3160,7 @@ local function read_ingredients(craft)
 	return ingredients
 end
 
-local function read_cost_items(craft)
+function BP.read_cost_items(craft)
 	local list = {}
 	for _, tid in ipairs(craft.cost_ids or {}) do
 		local tok = craft.token_map[tid]
@@ -2828,17 +3175,17 @@ local function read_cost_items(craft)
 	return list
 end
 
-local function craft_preview_name(craft, player)
+function BP.craft_preview_name(craft, player)
 	if not craft then return "" end
-	local zh = lang_is_zh()
+	local zh = BP.lang_is_zh()
 	local serial = 1
 	if craft.edit_uid then
 		local rec = item.find_craft(player, craft.edit_uid)
 		serial = (rec and tonumber(rec.serial)) or 1
 	else
-		serial = next_serial_for_target(player, craft.target)
+		serial = BP.next_serial_for_target(player, craft.target)
 	end
-	local src = naming_ingredients(read_ingredients(craft), read_cost_items(craft))
+	local src = BP.naming_ingredients(BP.read_ingredients(craft), BP.read_cost_items(craft))
 	return CraftProfile.build_display_name(craft.target, serial, src, zh)
 end
 
@@ -2848,7 +3195,7 @@ filter_draft_items = function(player, ingredients, cost_items, exclude_uid, all_
 	ingredients = ingredients or {}
 	cost_items = cost_items or {}
 	local audit_fb = all_items == true
-	local ing, cost = {}, {}
+	local ing, cost, mm = {}, {}, nil
 	local keys = {}
 	for i, _ in pairs(ingredients) do
 		local idx = tonumber(i) or i
@@ -2872,6 +3219,10 @@ filter_draft_items = function(player, ingredients, cost_items, exclude_uid, all_
 			if id and id ~= 0 then
 				ing[idx] = { id = id, source = "audit" }
 			end
+		elseif src == "mirror" then
+			if id and id ~= 0 and not mm then
+				mm = {id = id, source = "mirror"}
+			end
 		else
 			if id and id ~= 0 then
 				ing[idx] = id
@@ -2889,15 +3240,15 @@ filter_draft_items = function(player, ingredients, cost_items, exclude_uid, all_
 			end
 		end
 	end
-	return ing, cost
+	return ing, cost, mm
 end
 
-local function read_bag_ghosts(craft)
+function BP.read_bag_ghosts(craft)
 	local list = {}
 	if not craft then return list end
 	for _, tok in ipairs(craft.tokens or {}) do
 		if tok and tok.collectible and tok.collectible ~= 0
-			and not tok.slot and not tok.cost
+			and not tok.slot and not tok.cost and not tok.mirror_slot
 			and (tok.lost_ghost or tok.lost)
 			and not (tok.source == "prototype" or tok.is_prototype)
 		then
@@ -2908,16 +3259,17 @@ local function read_bag_ghosts(craft)
 end
 
 save_craft_draft = function(panel)
-	if not panel or not panel.craft or not player_exists_safe(panel.player) then return end
+	if not panel or not panel.craft or not BP.player_exists_safe(panel.player) then return end
 	local craft = panel.craft
-	local ingredients = read_ingredients(craft)
-	local cost_items = read_cost_items(craft)
-	local bag_ghosts = read_bag_ghosts(craft)
+	local ingredients = BP.read_ingredients(craft)
+	local cost_items = BP.read_cost_items(craft)
+	local mirror_module = BP.read_mirror_module(craft)
+	local bag_ghosts = BP.read_bag_ghosts(craft)
 	local filled = 0
 	for _, _ in pairs(ingredients) do filled = filled + 1 end
-	local key = draft_key(craft.target, craft.edit_uid)
-	local drafts = get_drafts(panel.player)
-	if filled <= 0 and #cost_items <= 0 and #bag_ghosts <= 0 then
+	local key = BP.draft_key(craft.target, craft.edit_uid)
+	local drafts = BP.get_drafts(panel.player)
+	if filled <= 0 and #cost_items <= 0 and #bag_ghosts <= 0 and not mirror_module then
 		drafts[key] = nil
 		return
 	end
@@ -2929,6 +3281,7 @@ save_craft_draft = function(panel)
 		target = craft.target,
 		edit_uid = craft.edit_uid,
 		ingredients = ing_save,
+		mirror_module = mirror_module,
 		cost_items = cost_items,
 		bag_ghosts = bag_ghosts,
 		slot_count = craft.slot_count,
@@ -2938,7 +3291,7 @@ save_craft_draft = function(panel)
 		all_items = craft.all_items == true,
 		hide_gray = craft.hide_gray == true,
 		audit_filter = craft.audit_filter or "all",
-		main_charge_ratio = clamp_charge_ratio(craft.main_charge_ratio),
+		main_charge_ratio = BP.clamp_charge_ratio(craft.main_charge_ratio),
 	}
 end
 
@@ -2978,10 +3331,15 @@ refresh_craft_token_lost = function(player, craft)
 			local ok = prec and prec.id == tok.collectible
 			tok.lost = not ok
 			tok.lost_ghost = (not ok) or nil
+		elseif tok.source == "mirror" or tok.is_mirror then
+			local id = tok.collectible
+			local ok = BP.player_has_mirror_birthright(player) and id and (player:GetCollectibleNum(id, true) or 0) > 0
+			tok.lost = not ok
+			tok.lost_ghost = (not ok) or nil
 		elseif tok.lost_ghost and tok.from_bag and not tok.slot and not tok.cost then
 			-- 背包里的失去幽灵：不占库存，保持标红
 			tok.lost = true
-		elseif tok.from_bag and not tok.slot and not tok.cost then
+		elseif tok.from_bag and not tok.slot and not tok.cost and not tok.mirror_slot then
 			-- 真实背包库存
 			tok.lost = false
 			tok.lost_ghost = nil
@@ -2997,7 +3355,7 @@ refresh_craft_token_lost = function(player, craft)
 	end
 end
 
-local function ingredients_fit_allocation(player, ingredients, exclude_uid, cost_items)
+function BP.ingredients_fit_allocation(player, ingredients, exclude_uid, cost_items, mirror_module)
 	local need_real = {}
 	local need_proto = {}
 	for _, entry in pairs(ingredients or {}) do
@@ -3006,15 +3364,24 @@ local function ingredients_fit_allocation(player, ingredients, exclude_uid, cost
 			need_proto[entry.prototype_uid] = CraftProfile.ingredient_id(entry)
 		elseif src == "real" then
 			local id = CraftProfile.ingredient_id(entry)
-			if id and id ~= 0 then need_real[id] = (need_real[id] or 0) + 1 end
+			if id and id ~= 0 then
+				need_real[id] = (need_real[id] or 0) + 1
+			end
 		end
-		-- audit：不占配额
+		-- audit / mirror（旧材料槽）不占配额
 	end
 	for _, entry in ipairs(cost_items or {}) do
+		if CraftProfile.is_mirror_entry(entry) then return false end
 		if CraftProfile.ingredient_source(entry, false) == "real" then
 			local id = CraftProfile.ingredient_id(entry)
 			if id and id ~= 0 then need_real[id] = (need_real[id] or 0) + 1 end
 		end
+	end
+	if mirror_module then
+		if not BP.player_has_mirror_birthright(player) then return false end
+		local id = CraftProfile.ingredient_id(mirror_module)
+		if not id or id == 0 or not CraftProfile.has_impl(id) then return false end
+		if (player:GetCollectibleNum(id, true) or 0) <= 0 then return false end
 	end
 	local used = item.count_allocated(player, exclude_uid)
 	for id, n in pairs(need_real) do
@@ -3031,15 +3398,14 @@ local function ingredients_fit_allocation(player, ingredients, exclude_uid, cost
 	return true
 end
 
-local function rebind_air_flight_profile(player, uid, profile)
+function BP.rebind_air_flight_profile(player, uid, profile)
 	local Craft_Familiar_holder = require("Qing_Remaster_scripts.mimics.Craft_Familiar_holder")
 	local hit = false
 	for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, enums.Familiars.QingsAirs, -1, false, false)) do
 		local p = auxi.check_spawner_player(fam)
 		if p and auxi.check_for_the_same(p, player) then
-			local d = fam:GetData()
-			if d[item.own_key.."craft_uid"] == uid then
-				d[item.own_key.."craft_profile"] = profile
+			if CraftIdentity.get_uid(fam) == uid then
+				CraftIdentity.set_profile(fam, profile)
 				-- 背包确认后立刻按新配方释放/认领宝宝并刷新复活 MeusNil
 				if Craft_Familiar_holder.sync_air_flight then
 					Craft_Familiar_holder.sync_air_flight(fam, player, profile)
@@ -3055,7 +3421,7 @@ end
 --- real 材料失去后不得补发临时宝宝（否则会冒出假玛姬等）——由 collect 只扫 audit/prototype 保证。
 --- 制造复活源例外：永不进玩家 innate；跟随源用真实体/MeusNil。
 --- audit/prototype 份数与玩家真实持有无关：有真道具也照常 imitate，不得因 HasCollectible 整表清零。
-local function is_audit_simulate_item(id)
+function BP.is_audit_simulate_item(id)
 	id = tonumber(id)
 	if not id or id == 0 then return false end
 	if CraftProfile.CRAFT_REVIVE_ID_SET and CraftProfile.CRAFT_REVIVE_ID_SET[id] then
@@ -3085,12 +3451,12 @@ function item.collect_audit_simulate_counts(player)
 						local id = CraftProfile.ingredient_id(entry)
 						if not prec or prec.id ~= id then
 							-- 原型 UID 丢失：不 imitate
-						elseif is_audit_simulate_item(id) then
+						elseif BP.is_audit_simulate_item(id) then
 							counts[id] = (counts[id] or 0) + 1
 						end
 					else
 						local id = CraftProfile.ingredient_id(entry)
-						if is_audit_simulate_item(id) then
+						if BP.is_audit_simulate_item(id) then
 							counts[id] = (counts[id] or 0) + 1
 						end
 					end
@@ -3101,7 +3467,7 @@ function item.collect_audit_simulate_counts(player)
 	return counts
 end
 
-local function refresh_audit_simulates(player)
+function BP.refresh_audit_simulates(player)
 	if not player then return end
 	Imitate_item_holder.Evaluate_Imitate_Items(player)
 	player:AddCacheFlags(
@@ -3111,10 +3477,10 @@ local function refresh_audit_simulates(player)
 	)
 	player:EvaluateItems()
 end
-item.refresh_audit_simulates = refresh_audit_simulates
+item.refresh_audit_simulates = BP.refresh_audit_simulates
 
 --- 库存删除：首次点「删」进入确认，再点一次才真正删除
-local function try_confirm_delete_stock(panel, craft_uid)
+function BP.try_confirm_delete_stock(panel, craft_uid)
 	if not panel or not panel.player or craft_uid == nil then return end
 	if panel.delete_confirm_uid ~= craft_uid then
 		panel.delete_confirm_uid = craft_uid
@@ -3123,18 +3489,18 @@ local function try_confirm_delete_stock(panel, craft_uid)
 	end
 	panel.delete_confirm_uid = nil
 	if item.delete_craft(panel.player, craft_uid) then
-		refresh_audit_simulates(panel.player)
+		BP.refresh_audit_simulates(panel.player)
 		panel.nav_graph = nil
 		panel.focus_id = "tab_"..tostring(panel.tab or 2)
 		panel.nav_group = "tabs"
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_THUMBSDOWN, 0.85, 1, false, 0, 2)
-		pcall(function() get_tutorial().on_craft_deleted(panel.player, craft_uid) end)
+		pcall(function() BP.get_tutorial().on_craft_deleted(panel.player, craft_uid) end)
 	else
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1, false, 0, 2)
 	end
 end
 
-local function form_queue_insert_index(ui, mouse, drag_uid)
+function BP.form_queue_insert_index(ui, mouse, drag_uid)
 	local cards = (ui and ui.form_queue_cards) or {}
 	local xs = {}
 	for _, c in ipairs(cards) do
@@ -3152,15 +3518,16 @@ local function form_queue_insert_index(ui, mouse, drag_uid)
 	return idx
 end
 
-local function finish_form_drag(panel, ui)
+function BP.finish_form_drag(panel, ui)
 	local drag = panel.drag
 	panel.drag = nil
+	panel.form_press = nil
 	if not drag or drag.kind ~= "form_card" or not panel.player then return end
 	ui = ui or panel.ui
 	local mouse = Mouse_UI.mouse
-	local BW = get_bandwidth()
+	local BW = BP.get_bandwidth()
 	if ui and ui.form_queue_rect and Mouse_UI.point_in_rect(mouse, ui.form_queue_rect) then
-		local idx = form_queue_insert_index(ui, mouse, drag.uid)
+		local idx = BP.form_queue_insert_index(ui, mouse, drag.uid)
 		if not BW.place_as_active(panel.player, drag.uid, idx) then
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1.1, false, 0, 2)
 		else
@@ -3177,9 +3544,9 @@ local function finish_form_drag(panel, ui)
 	panel.nav_graph = nil
 end
 
-local function handle_formation_id(panel, id)
+function BP.handle_formation_id(panel, id)
 	if not panel or not id or not panel.player then return false end
-	local BW = get_bandwidth()
+	local BW = BP.get_bandwidth()
 	if id == "form_prev" then
 		panel.form_bench_page = math.max(0, (panel.form_bench_page or 0) - 1)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.35, 1, false, 0, 2)
@@ -3243,16 +3610,17 @@ local function handle_formation_id(panel, id)
 	return false
 end
 
-local function confirm_craft(panel)
+function BP.confirm_craft(panel)
 	local craft = panel.craft
 	local player = panel.player
 	if not craft or not player then return end
-	if get_tutorial().is_locking() and not get_tutorial().allow_confirm(craft) then
+	if BP.get_tutorial().is_locking() and not BP.get_tutorial().allow_confirm(craft) then
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1, false, 0, 2)
 		return
 	end
-	local ingredients = read_ingredients(craft)
-	local cost_items = read_cost_items(craft)
+	local ingredients = BP.read_ingredients(craft)
+	local cost_items = BP.read_cost_items(craft)
+	local mirror_module = BP.read_mirror_module(craft)
 	-- 材料槽可选：允许空配方（基础面板）。里小青首件 required_cost=0 时无任何必填槽。
 	-- 整机 audit：存在任一 audit 材料；纯审计才豁免成本与配额
 	local has_audit = CraftProfile.craft_has_any_audit(ingredients, cost_items, false)
@@ -3272,7 +3640,7 @@ local function confirm_craft(panel)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1, false, 0, 2)
 		return
 	end
-	if not pure_audit and not ingredients_fit_allocation(player, ingredients, craft.edit_uid, cost_items) then
+	if not pure_audit and not BP.ingredients_fit_allocation(player, ingredients, craft.edit_uid, cost_items, mirror_module) then
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1, false, 0, 2)
 		return
 	end
@@ -3283,7 +3651,7 @@ local function confirm_craft(panel)
 		craft.remembered_quality = SPWQ_FIRST_AIR_QUALITY
 	end
 	-- 成本道具不进入战斗档案；确认时写入含动态种子的档案快照（运行时仍会按玩家重算）
-	local profile = CraftProfile.build_profile(ingredients, {
+	local profile = CraftProfile.build_profile(BP.profile_ingredients(craft), {
 		player = player,
 		rec = craft.edit_uid and item.find_craft(player, craft.edit_uid) or craft,
 		commit_state = true,
@@ -3297,15 +3665,16 @@ local function confirm_craft(panel)
 		main_charge_ratio = main_ratio,
 	})
 	local store = item.get_craft_store(player)
-	local root = ensure_save()
+	local root = BP.ensure_save()
 
 	if craft.edit_uid then
 		local rec = item.find_craft(player, craft.edit_uid)
 		if not rec then return end
 		local was_broken = rec.broken == true
 		rec.ingredients = ingredients
+		rec.mirror_module = mirror_module
 		rec.cost_items = cost_items
-		rec.required_cost = craft.required_cost or locked_required_cost_from_rec(rec)
+		rec.required_cost = craft.required_cost or BP.locked_required_cost_from_rec(rec)
 		rec.base_quality = craft.remembered_quality or craft.base_quality or CraftProfile.quality_from_cost_items(cost_items)
 		rec.remembered_quality = rec.base_quality
 		rec.main_charge_ratio = main_ratio
@@ -3318,22 +3687,22 @@ local function confirm_craft(panel)
 		if has_audit then
 			rec.hide_gray = craft.hide_gray == true
 			rec.audit_filter = craft.audit_filter or "all"
-			get_audit_ui_prefs(player).hide_gray = rec.hide_gray
-			get_audit_ui_prefs(player).audit_filter = rec.audit_filter
+			BP.get_audit_ui_prefs(player).hide_gray = rec.hide_gray
+			BP.get_audit_ui_prefs(player).audit_filter = rec.audit_filter
 		end
-		rec.serial = tonumber(rec.serial) or next_serial_for_target(player, rec.target, rec.uid)
-		refresh_rec_display_name(rec, player)
+		rec.serial = tonumber(rec.serial) or BP.next_serial_for_target(player, rec.target, rec.uid)
+		BP.refresh_rec_display_name(rec, player)
 		-- 先 integrity / imitate，再 rebind+sync，避免缺料时仍按旧 broken_missing 捕捉
 		item.refresh_craft_integrity(player)
 		if was_broken and rec.broken ~= true then
 			CraftProfile.craft_revive_on_repaired(rec, profile)
 		end
-		refresh_audit_simulates(player)
-		rebind_air_flight_profile(player, rec.uid, profile)
-		pcall(function() get_bandwidth().on_craft_changed(player, rec.uid) end)
+		BP.refresh_audit_simulates(player)
+		BP.rebind_air_flight_profile(player, rec.uid, profile)
+		pcall(function() BP.get_bandwidth().on_craft_changed(player, rec.uid) end)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 1, 1, false, 0, 2)
-		leave_craft_view(panel, {clear_draft = true})
-		checkpoint_run_save("craft_edit")
+		BP.leave_craft_view(panel, {clear_draft = true})
+		BP.checkpoint_run_save("craft_edit")
 		return
 	end
 
@@ -3343,6 +3712,7 @@ local function confirm_craft(panel)
 		uid = uid,
 		target = craft.target,
 		ingredients = ingredients,
+		mirror_module = mirror_module,
 		cost_items = cost_items,
 		required_cost = craft.required_cost or need_cost,
 		base_quality = craft.remembered_quality or craft.base_quality or CraftProfile.quality_from_cost_items(cost_items),
@@ -3352,22 +3722,22 @@ local function confirm_craft(panel)
 		experimental = craft.experimental,
 		eye_phase = craft.eye_phase or 0,
 		audit = has_audit,
-		serial = next_serial_for_target(player, craft.target),
+		serial = BP.next_serial_for_target(player, craft.target),
 	}
 	if has_audit then
 		rec.hide_gray = craft.hide_gray == true
 		rec.audit_filter = craft.audit_filter or "all"
-		get_audit_ui_prefs(player).hide_gray = rec.hide_gray
-		get_audit_ui_prefs(player).audit_filter = rec.audit_filter
+		BP.get_audit_ui_prefs(player).hide_gray = rec.hide_gray
+		BP.get_audit_ui_prefs(player).audit_filter = rec.audit_filter
 	end
-	refresh_rec_display_name(rec, player)
-	if get_tutorial().is_active() then
-		get_tutorial().on_craft_confirmed(rec)
+	BP.refresh_rec_display_name(rec, player)
+	if BP.get_tutorial().is_active() then
+		BP.get_tutorial().on_craft_confirmed(rec)
 	end
 	table.insert(store, rec)
-	clear_craft_draft(player, craft.target, nil)
-	checkpoint_run_save("craft_add")
-	pcall(function() get_bandwidth().on_craft_added(player, uid) end)
+	BP.clear_craft_draft(player, craft.target, nil)
+	BP.checkpoint_run_save("craft_add")
+	pcall(function() BP.get_bandwidth().on_craft_added(player, uid) end)
 	panel.craft = nil -- 避免 close_panel 再把已确认内容存成草稿
 
 	local gained = craft.target
@@ -3377,14 +3747,14 @@ local function confirm_craft(panel)
 	item.refresh_craft_integrity(player)
 
 	-- 审计材料：挂 imitate（仅 source=audit 的宝宝类）
-	refresh_audit_simulates(player)
+	BP.refresh_audit_simulates(player)
 
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_THUMBSUP, 1, 1, false, 0, 2)
-	close_panel()
+	BP.close_panel()
 	-- Pickup 会自动放下；LiftItem 需再播 HideItem，否则一直举着
 	if gained and gained > 0 then
 		player:AnimateCollectible(gained, "Pickup", "PlayerPickupSparkle")
-		local shown = lang_is_zh() and rec.display_name or rec.display_name_en
+		local shown = BP.lang_is_zh() and rec.display_name or rec.display_name_en
 		if shown and shown ~= "" then
 			local config = Isaac.GetItemConfig():GetCollectible(gained)
 			local translated = item_displaying_holder.check_description(
@@ -3402,15 +3772,15 @@ local function confirm_craft(panel)
 	end
 end
 
-local function cancel_edit(panel)
+function BP.cancel_edit(panel)
 	-- 退出时暂存草稿，下次进入自动填回
-	leave_craft_view(panel)
+	BP.leave_craft_view(panel)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.5, 1, false, 0, 2)
 end
 
-local function remove_token_entity(craft, tok)
+function BP.remove_token_entity(craft, tok)
 	if not craft or not tok then return end
-	clear_token_slot(craft, tok)
+	BP.clear_token_slot(craft, tok)
 	craft.token_map[tok.id] = nil
 	for i = #craft.tokens, 1, -1 do
 		if craft.tokens[i] == tok or craft.tokens[i].id == tok.id then
@@ -3420,7 +3790,7 @@ local function remove_token_entity(craft, tok)
 end
 
 -- ---------- 拖放 ----------
-local function finish_drag(panel, content_right, geom)
+function BP.finish_drag(panel, content_right, geom)
 	local drag = panel.drag
 	if not drag or not panel.craft then return end
 	local craft = panel.craft
@@ -3437,12 +3807,23 @@ local function finish_drag(panel, content_right, geom)
 			break
 		end
 	end
-	local snap_i, slot_d = find_snap_slot(craft, tok)
-	local cost_ok, cost_d, in_cost = find_snap_cost(craft, tok, geom)
+	local snap_i, slot_d = BP.find_snap_slot(craft, tok)
+	local cost_ok, cost_d, in_cost = BP.find_snap_cost(craft, tok, geom)
+	local in_mirror = false
+	if geom and geom.mirror_rect and BP.can_assign_mirror(craft, tok) then
+		in_mirror = Mouse_UI.point_in_rect(tok.pos, geom.mirror_rect) == true
+		if not in_mirror and geom.mirror_pos then
+			local d = (tok.pos - geom.mirror_pos):Length()
+			if d <= (item.snap_dist or 34) then in_mirror = true end
+		end
+	end
 	local use_cost = false
 	local use_slot = nil
+	local use_mirror = false
 	-- 底座槽几乎贴着椭圆底部的模块槽；松手时必须先认框，再比距离，否则模块永远吸不进底座。
-	if in_slot then
+	if in_mirror then
+		use_mirror = true
+	elseif in_slot then
 		use_slot = in_slot
 	elseif in_cost then
 		use_cost = true
@@ -3457,16 +3838,24 @@ local function finish_drag(panel, content_right, geom)
 	elseif snap_i then
 		use_slot = snap_i
 	end
-	if use_slot then
-		assign_token_slot(craft, tok, use_slot)
+	if use_mirror then
+		BP.assign_mirror_token(craft, tok, geom)
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.7, 1.05, false, 0, 2)
+	elseif use_slot then
+		BP.assign_token_slot(craft, tok, use_slot)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.7, 1.05, false, 0, 2)
 	elseif use_cost then
-		assign_token_cost(craft, tok, geom)
+		BP.assign_token_cost(craft, tok, geom)
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.65, 0.95, false, 0, 2)
 	else
-		clear_token_slot(craft, tok)
+		BP.clear_token_slot(craft, tok)
+		if BP.is_mirror_only_token(tok) then
+			BP.remove_token_entity(craft, tok)
+			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.4, 1, false, 0, 2)
+			return
+		end
 		if craft.all_items and not tok.from_bag and type(tok.id) == "string" and tok.id:sub(1, 5) == "inst_" then
-			remove_token_entity(craft, tok)
+			BP.remove_token_entity(craft, tok)
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.4, 1, false, 0, 2)
 			return
 		end
@@ -3481,7 +3870,7 @@ local function finish_drag(panel, content_right, geom)
 			-- 本来就来自背包的 token 先回原网格；_bag_dirty 重建会再将
 			-- home 校正为当前排序下的第一空位。只有无背包身份的被挤出件
 			-- 才使用列表下方的临时锚点。
-			local dest = old_bag_home or bag_area_anchor(tok)
+			local dest = old_bag_home or BP.bag_area_anchor(tok)
 			tok.home = dest
 		end
 		local vel = tok.vel
@@ -3490,17 +3879,17 @@ local function finish_drag(panel, content_right, geom)
 		tok.vel = vel * 0.65
 		if tok.from_bag and tok.home then
 			if tok.vel:Length() < 2.5 then
-				begin_snap_anim(tok, tok.home)
+				BP.begin_snap_anim(tok, tok.home)
 			end
 		end
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.4, 1, false, 0, 2)
 	end
 end
 
-local function tick_tokens(panel, panel_rect, bag_rect, geom)
+function BP.tick_tokens(panel, panel_rect, bag_rect, geom)
 	local craft = panel.craft
 	if not craft then return end
-	reconcile_slot_occupancy(craft)
+	BP.reconcile_slot_occupancy(craft)
 	local cost_pos = geom and geom.cost_pos
 	local cost_center = cost_pos
 	if geom and geom.cost_rect then
@@ -3510,52 +3899,57 @@ local function tick_tokens(panel, panel_rect, bag_rect, geom)
 	if geom and geom.cost_rect then
 		attract = math.max(attract, math.max(geom.cost_rect.w, geom.cost_rect.h) * 0.55)
 	end
-	local cost_scale = get_cost_token_scale()
+	local cost_scale = BP.get_cost_token_scale()
 	for _, tok in ipairs(craft.tokens) do
 		local near_cost = cost_center and (tok.pos - cost_center):Length() <= attract
-		-- 材料槽内保持正常尺寸；仅成本占用或靠近成本带的游离 token 缩小
-		local want_scale = 1
-		if tok.cost then
-			want_scale = cost_scale
-		elseif not tok.slot and near_cost then
-			want_scale = cost_scale
+		-- 材料/镜像槽内保持正常尺寸；仅成本占用或靠近成本带的游离 token 缩小
+		if tok.slot or tok.mirror_slot then
+			tok.visual_scale = 1
+		elseif tok.cost then
+			tok.visual_scale = (tok.visual_scale or 1) * 0.75 + cost_scale * 0.25
+		elseif near_cost then
+			tok.visual_scale = (tok.visual_scale or 1) * 0.75 + cost_scale * 0.25
+		else
+			tok.visual_scale = (tok.visual_scale or 1) * 0.75 + 1 * 0.25
 		end
-		tok.visual_scale = (tok.visual_scale or 1) * 0.75 + want_scale * 0.25
 
 		if panel.drag and panel.drag.token_id == tok.id then
 			-- drag handled elsewhere
-		elseif tick_token_anim(tok) then
+		elseif BP.tick_token_anim(tok) then
 			-- animating
 		elseif tok.slot and craft.slots[tok.slot] and craft.slots[tok.slot]._rect then
 			tok.pos = Mouse_UI.rect_center(craft.slots[tok.slot]._rect)
+			tok.vel = Vector(0, 0)
+		elseif tok.mirror_slot and geom and geom.mirror_pos then
+			tok.pos = geom.mirror_pos
 			tok.vel = Vector(0, 0)
 		elseif tok.cost and cost_pos then
 			local idx = 1
 			for i, tid in ipairs(craft.cost_ids or {}) do
 				if tid == tok.id then idx = i break end
 			end
-			tok.pos = cost_stack_pos(craft, geom, idx)
+			tok.pos = BP.cost_stack_pos(craft, geom, idx)
 			tok.vel = Vector(0, 0)
 		elseif not tok.slot and not tok.cost and cost_center and near_cost
 			and not (tok.source == "prototype" or tok.is_prototype)
 			and not (panel.pad_carry and panel.pad_carry.token_id == tok.id)
 			and not (tok.from_bag and bag_rect and Mouse_UI.point_in_rect(tok.pos, bag_rect)
 				and not (geom and geom.cost_rect and Mouse_UI.point_in_rect(tok.pos, geom.cost_rect)))
-			and (not get_tutorial().is_locking() or get_tutorial().allows_cost_assign(tok)) then
+			and (not BP.get_tutorial().is_locking() or BP.get_tutorial().allows_cost_assign(tok)) then
 			local pull = (cost_center - tok.pos) * 0.18
 			tok.vel = (tok.vel + pull) * 0.85
 			tok.pos = tok.pos + tok.vel
 			if (tok.pos - cost_center):Length() <= item.snap_dist * 0.65 then
-				assign_token_cost(craft, tok, geom)
+				BP.assign_token_cost(craft, tok, geom)
 			end
 		elseif tok.vel:Length() > item.inertia_stop then
 			tok.pos = tok.pos + tok.vel
 			tok.vel = tok.vel * item.inertia_friction
-			tok.pos = clamp_to_rect(tok.pos, panel_rect)
+			tok.pos = BP.clamp_to_rect(tok.pos, panel_rect)
 			if tok.vel:Length() <= item.inertia_stop then
 				tok.vel = Vector(0, 0)
 				if tok.from_bag and tok.home then
-					begin_snap_anim(tok, tok.home)
+					BP.begin_snap_anim(tok, tok.home)
 				end
 			end
 		else
@@ -3566,11 +3960,11 @@ end
 
 
 -- ---------- UI 构建 ----------
-local function draw_region_outline(rect, color, force)
+function BP.draw_region_outline(rect, color, force)
 	if not force and not item.debug_draw_regions then return end
 	if not rect then return end
-	color = tint_kcolor(color or KColor(0.4, 0.9, 0.6, 0.8))
-	local off = get_dot_offset()
+	color = BP.tint_kcolor(color or KColor(0.4, 0.9, 0.6, 0.8))
+	local off = BP.get_dot_offset()
 	local step = 8
 	for x = 0, rect.w, step do
 		gui.draw_ch(Vector(rect.x + x + off.X, rect.y + off.Y), ".", 1, 1, color, true)
@@ -3582,7 +3976,7 @@ local function draw_region_outline(rect, color, force)
 	end
 end
 
-local function build_list_ui(panel, panel_rect, content)
+function BP.build_list_ui(panel, panel_rect, content)
 	local entries = {}
 	local tab = item.tabs[panel.tab]
 	local y0 = content.y + 4
@@ -3590,7 +3984,7 @@ local function build_list_ui(panel, panel_rect, content)
 	panel._form_bench_pages = 1
 	if tab.id == "formation" then
 		-- 编队页只读一次带宽快照；broken 由仓库/确认路径更新。
-		local BW = get_bandwidth()
+		local BW = BP.get_bandwidth()
 		local snap = BW.get_snapshot(panel.player)
 		panel._bw_summary = {
 			used_units = snap.used_units,
@@ -3613,8 +4007,8 @@ local function build_list_ui(panel, panel_rect, content)
 		for _, uid in ipairs(order) do
 			local rec = snap.rec_by_uid and snap.rec_by_uid[tostring(uid)]
 			if rec then
-				if not rec.display_name then refresh_rec_display_name(rec, panel.player) end
-				if get_tutorial().should_show_rec(rec) then
+				if not rec.display_name then BP.refresh_rec_display_name(rec, panel.player) end
+				if BP.get_tutorial().should_show_rec(rec) then
 					if snap.effective_active[tostring(rec.uid)] == true then
 						actives[#actives + 1] = rec
 					else
@@ -3641,7 +4035,7 @@ local function build_list_ui(panel, panel_rect, content)
 					kind = "form_card",
 					zone = "queue",
 					rec = rec,
-					label = rec_label(rec),
+					label = BP.rec_label(rec),
 					active = true,
 					active_index = i,
 				}
@@ -3681,7 +4075,7 @@ local function build_list_ui(panel, panel_rect, content)
 					kind = "form_card",
 					zone = "bench",
 					rec = rec,
-					label = rec_label(rec),
+					label = BP.rec_label(rec),
 					active = active == true,
 				}
 				layouts[#layouts + 1] = {entry = e, rect = rect}
@@ -3699,21 +4093,21 @@ local function build_list_ui(panel, panel_rect, content)
 				uid = "build_opt_"..i,
 				kind = "build_target",
 				target = info.id,
-				label = target_label(info, panel.player),
+				label = BP.target_label(info, panel.player),
 				info = info,
 			}
 		end
 	elseif tab.id == "inventory" then
 		local del_w = 30
 		for _, rec in ipairs(item.get_crafted_list(panel.player)) do
-			if rec and rec.uid and get_tutorial().should_show_rec(rec) then
-				if not rec.display_name then refresh_rec_display_name(rec, panel.player) end
+			if rec and rec.uid and BP.get_tutorial().should_show_rec(rec) then
+				if not rec.display_name then BP.refresh_rec_display_name(rec, panel.player) end
 				entries[#entries + 1] = {
 					uid = "stock_"..rec.uid,
 					del_uid = "stock_del_"..rec.uid,
 					kind = "stock",
 					rec = rec,
-					label = rec_label(rec),
+					label = BP.rec_label(rec),
 					broken = rec.broken == true,
 				}
 			end
@@ -3750,7 +4144,7 @@ local function build_list_ui(panel, panel_rect, content)
 	return layouts
 end
 
-local function build_and_register_ui(panel)
+function BP.build_and_register_ui(panel)
 	local screen = gui.GetScreenSize()
 	local panel_rect = item.get_panel_rect()
 	local tab_rects = item.get_tab_rects(panel_rect)
@@ -3761,8 +4155,8 @@ local function build_and_register_ui(panel)
 
 	local function reg(id, rect, opts)
 		opts = opts or {}
-		if get_tutorial().is_locking() then
-			local allow = get_tutorial().allows(id) == true
+		if BP.get_tutorial().is_locking() then
+			local allow = BP.get_tutorial().allows(id) == true
 			opts.enabled = allow
 			if not allow then opts.draggable = false end
 		end
@@ -3775,7 +4169,7 @@ local function build_and_register_ui(panel)
 		if tok then
 			tok.pos = Mouse_UI.mouse - panel.drag.grab_offset
 			tok.vel = Mouse_UI.mouse_delta * 0.85
-			tok.pos = clamp_to_rect(tok.pos, panel_rect)
+			tok.pos = BP.clamp_to_rect(tok.pos, panel_rect)
 		end
 	elseif panel.drag and panel.drag.kind == "form_card" then
 		panel.drag.pos = Mouse_UI.mouse - panel.drag.grab_offset
@@ -3800,11 +4194,11 @@ local function build_and_register_ui(panel)
 	local in_craft = (panel.view == "craft" or panel.view == "edit") and panel.craft
 
 	if in_craft then
-		local g = craft_geometry(panel_rect, content, panel.craft)
+		local g = BP.craft_geometry(panel_rect, content, panel.craft)
 		ui.craft_geom = g
 		-- 按当前成本块高度刷新材料槽，保证成本行始终被占住
-		refresh_slot_offsets(panel.craft, g.left.w - 8)
-		rebuild_bag_tokens(panel, g.bag_inner, panel.player)
+		BP.refresh_slot_offsets(panel.craft, g.left.w - 8)
+		BP.rebuild_bag_tokens(panel, g.bag_inner, panel.player)
 		-- 按当前槽位解析主武器，刷新条件亮起（炸弹→博士/史诗；剖腹产副武器→678）
 		do
 			local parts = {}
@@ -3838,14 +4232,14 @@ local function build_and_register_ui(panel)
 				item.slot_size, item.slot_size
 			)
 		end
-		tick_tokens(panel, panel_rect, g.bag_inner, g)
+		BP.tick_tokens(panel, panel_rect, g.bag_inner, g)
 
 		reg("btn_back", g.back_rect, {z = item.z_button, block = true})
 		reg("btn_confirm", g.confirm_rect, {z = item.z_button, block = true})
 		if g.quality_rect then
 			reg("btn_quality", g.quality_rect, {z = item.z_button, block = true})
 		end
-		if not (panel.craft and panel.craft.tutorial_bag) then
+		if not (panel.craft and panel.craft.tutorial_bag) and BP.all_items_mode_allowed() then
 			reg("btn_mode", g.mode_rect, {z = item.z_button, block = true})
 		end
 		reg("btn_prev", g.prev_rect, {z = item.z_button, block = true})
@@ -3857,7 +4251,7 @@ local function build_and_register_ui(panel)
 				reg("btn_tag_"..key, rect, {z = item.z_button, block = true})
 			end
 		end
-		local charge_list = list_charge_sliders(panel.craft)
+		local charge_list = BP.list_charge_sliders(panel.craft)
 		ui.charge_sliders = charge_list
 		for i, info in ipairs(charge_list) do
 			local rect = g.charge_slider_rects and g.charge_slider_rects[i]
@@ -3871,16 +4265,19 @@ local function build_and_register_ui(panel)
 		if g.cost_rect then
 			reg("cost_slot", g.cost_rect, {z = item.z_slot, block = true, drop_target = true})
 		end
+		if g.mirror_rect then
+			reg("mirror_slot", g.mirror_rect, {z = item.z_slot, block = true, drop_target = true})
+		end
 		for i, slot in ipairs(panel.craft.slots) do
 			reg("cslot_"..i, slot._rect, {z = item.z_slot, block = true, drop_target = true})
 		end
 		for _, tok in ipairs(panel.craft.tokens) do
 			local z = item.z_token
 			if panel.drag and panel.drag.token_id == tok.id then z = item.z_token + 5 end
-			reg(tok.id, token_rect(tok), {z = z, block = true, draggable = true})
+			reg(tok.id, BP.token_rect(tok), {z = z, block = true, draggable = true})
 		end
 	else
-		ui.layouts = build_list_ui(panel, panel_rect, content)
+		ui.layouts = BP.build_list_ui(panel, panel_rect, content)
 		ui.form_queue_rect = panel._form_queue_rect
 		ui.form_bench_rect = panel._form_bench_rect
 		ui.form_queue_cards = panel._form_queue_cards
@@ -3904,7 +4301,7 @@ local function build_and_register_ui(panel)
 		end
 	end
 
-	ui.tut = get_tutorial().prepare_overlay(panel, panel_rect)
+	ui.tut = BP.get_tutorial().prepare_overlay(panel, panel_rect)
 	if ui.tut then
 		for _, b in ipairs(ui.tut.buttons or {}) do
 			local r = b.rect
@@ -3937,6 +4334,7 @@ local function build_and_register_ui(panel)
 		for i = 1, #panel.craft.slots do
 			ui.states["cslot_"..i] = Mouse_UI.get_state("cslot_"..i)
 		end
+		ui.states.mirror_slot = Mouse_UI.get_state("mirror_slot")
 		for _, tok in ipairs(panel.craft.tokens) do
 			ui.states[tok.id] = Mouse_UI.get_state(tok.id)
 		end
@@ -3957,19 +4355,19 @@ local function build_and_register_ui(panel)
 end
 
 -- ---------- 分组四向导航（tabs 与内容分离；边缘前进回第一项）----------
-local function nav_add(list, id, x, y, meta)
+function BP.nav_add(list, id, x, y, meta)
 	if not id then return end
 	list[#list + 1] = {id = id, x = x, y = y, meta = meta or {}}
 end
 
-local function index_of_id(list, id)
+function BP.index_of_id(list, id)
 	for i, n in ipairs(list) do
 		if n.id == id then return i end
 	end
 	return nil
 end
 
-local function sort_reading(list)
+function BP.sort_reading(list)
 	table.sort(list, function(a, b)
 		if math.abs(a.y - b.y) > 10 then return a.y < b.y end
 		return a.x < b.x
@@ -3977,7 +4375,7 @@ local function sort_reading(list)
 end
 
 --- 组内前进方向无目标时回到第一项；后退方向无目标时回到最后一项（不反向挪到邻轴）
-local function pick_forward_or_edge(list, from, dirx, diry)
+function BP.pick_forward_or_edge(list, from, dirx, diry)
 	local best_id, best = nil, math.huge
 	for _, to in ipairs(list) do
 		if to.id ~= from.id then
@@ -3999,11 +4397,11 @@ local function pick_forward_or_edge(list, from, dirx, diry)
 	return list[#list].id
 end
 
-local function rebuild_nav_groups(panel, ui)
+function BP.rebuild_nav_groups(panel, ui)
 	local tabs = {}
 	for i = 1, #item.tabs do
 		local r = ui.tab_rects[i]
-		if r then nav_add(tabs, "tab_"..i, r.x + r.w * 0.5, r.y + r.h * 0.5) end
+		if r then BP.nav_add(tabs, "tab_"..i, r.x + r.w * 0.5, r.y + r.h * 0.5) end
 	end
 
 	local body = {}
@@ -4017,89 +4415,95 @@ local function rebuild_nav_groups(panel, ui)
 			for i, slot in ipairs(craft.slots) do
 				if slot._rect then
 					local c = Mouse_UI.rect_center(slot._rect)
-					nav_add(body, "cslot_"..i, c.X, c.Y, {slot = true})
+					BP.nav_add(body, "cslot_"..i, c.X, c.Y, {slot = true})
 				end
 			end
 			if g.cost_rect then
-				nav_add(body, "cost_slot", g.cost_pos.X, g.cost_pos.Y, {cost = true})
+				BP.nav_add(body, "cost_slot", g.cost_pos.X, g.cost_pos.Y, {cost = true})
+			end
+			if g.mirror_rect then
+				BP.nav_add(body, "mirror_slot", g.mirror_pos.X, g.mirror_pos.Y, {slot = true, mirror = true})
 			end
 			for _, tok in ipairs(craft.tokens) do
 				if tok.from_bag and tok.id ~= panel.pad_carry.token_id then
 					local p = tok.home or tok.pos
-					if p then nav_add(body, "dropbag_"..tok.id, p.X, p.Y, {bag = true}) end
+					if p then BP.nav_add(body, "dropbag_"..tok.id, p.X, p.Y, {bag = true}) end
 				end
 			end
 			local has_bag = false
 			for _, n in ipairs(body) do if n.meta.bag then has_bag = true break end end
 			if not has_bag and g.bag_inner then
-				nav_add(body, "bag_return", g.bag_inner.x + g.bag_inner.w * 0.5, g.bag_inner.y + g.bag_inner.h * 0.5, {bag = true})
+				BP.nav_add(body, "bag_return", g.bag_inner.x + g.bag_inner.w * 0.5, g.bag_inner.y + g.bag_inner.h * 0.5, {bag = true})
 			end
-			nav_add(body, "btn_back", g.back_rect.x + g.back_rect.w * 0.5, g.back_rect.y + g.back_rect.h * 0.5)
+			BP.nav_add(body, "btn_back", g.back_rect.x + g.back_rect.w * 0.5, g.back_rect.y + g.back_rect.h * 0.5)
 		else
 			if g.quality_rect then
-				nav_add(body, "btn_quality", g.quality_rect.x + g.quality_rect.w * 0.5, g.quality_rect.y + g.quality_rect.h * 0.5)
+				BP.nav_add(body, "btn_quality", g.quality_rect.x + g.quality_rect.w * 0.5, g.quality_rect.y + g.quality_rect.h * 0.5)
 			end
-			if not craft.tutorial_bag then
-				nav_add(body, "btn_mode", g.mode_rect.x + g.mode_rect.w * 0.5, g.mode_rect.y + g.mode_rect.h * 0.5)
+			if not craft.tutorial_bag and BP.all_items_mode_allowed() then
+				BP.nav_add(body, "btn_mode", g.mode_rect.x + g.mode_rect.w * 0.5, g.mode_rect.y + g.mode_rect.h * 0.5)
 			end
 			if g.tag_col then
-				nav_add(body, "btn_tag_all", g.tag_col.all_rect.x + g.tag_col.all_rect.w * 0.5, g.tag_col.all_rect.y + g.tag_col.all_rect.h * 0.5)
-				nav_add(body, "btn_tag_invert", g.tag_col.invert_rect.x + g.tag_col.invert_rect.w * 0.5, g.tag_col.invert_rect.y + g.tag_col.invert_rect.h * 0.5)
+				BP.nav_add(body, "btn_tag_all", g.tag_col.all_rect.x + g.tag_col.all_rect.w * 0.5, g.tag_col.all_rect.y + g.tag_col.all_rect.h * 0.5)
+				BP.nav_add(body, "btn_tag_invert", g.tag_col.invert_rect.x + g.tag_col.invert_rect.w * 0.5, g.tag_col.invert_rect.y + g.tag_col.invert_rect.h * 0.5)
 				for _, def in ipairs(g.tag_col.defs or {}) do
 					local r = g.tag_col.tag_rects and g.tag_col.tag_rects[def.key]
 					if r then
-						nav_add(body, "btn_tag_"..def.key, r.x + r.w * 0.5, r.y + r.h * 0.5)
+						BP.nav_add(body, "btn_tag_"..def.key, r.x + r.w * 0.5, r.y + r.h * 0.5)
 					end
 				end
 			end
-			nav_add(body, "btn_prev", g.prev_rect.x + g.prev_rect.w * 0.5, g.prev_rect.y + g.prev_rect.h * 0.5)
-			nav_add(body, "btn_next", g.next_rect.x + g.next_rect.w * 0.5, g.next_rect.y + g.next_rect.h * 0.5)
+			BP.nav_add(body, "btn_prev", g.prev_rect.x + g.prev_rect.w * 0.5, g.prev_rect.y + g.prev_rect.h * 0.5)
+			BP.nav_add(body, "btn_next", g.next_rect.x + g.next_rect.w * 0.5, g.next_rect.y + g.next_rect.h * 0.5)
 			if g.cost_rect then
-				nav_add(body, "cost_slot", g.cost_pos.X, g.cost_pos.Y, {cost = true})
+				BP.nav_add(body, "cost_slot", g.cost_pos.X, g.cost_pos.Y, {cost = true})
+			end
+			if g.mirror_rect then
+				BP.nav_add(body, "mirror_slot", g.mirror_pos.X, g.mirror_pos.Y, {slot = true, mirror = true})
 			end
 			for i, slot in ipairs(craft.slots) do
 				if slot._rect and slot.token then
 					local c = Mouse_UI.rect_center(slot._rect)
-					nav_add(body, "cslot_"..i, c.X, c.Y, {slot = true})
+					BP.nav_add(body, "cslot_"..i, c.X, c.Y, {slot = true})
 				end
 			end
 			for _, tok in ipairs(craft.tokens) do
 				if tok.from_bag and not tok.slot then
 					local p = tok.pos or tok.home
-					if p then nav_add(body, tok.id, p.X, p.Y, {token = true}) end
+					if p then BP.nav_add(body, tok.id, p.X, p.Y, {token = true}) end
 				end
 			end
-			nav_add(body, "btn_confirm", g.confirm_rect.x + g.confirm_rect.w * 0.5, g.confirm_rect.y + g.confirm_rect.h * 0.5)
-			nav_add(body, "btn_back", g.back_rect.x + g.back_rect.w * 0.5, g.back_rect.y + g.back_rect.h * 0.5)
+			BP.nav_add(body, "btn_confirm", g.confirm_rect.x + g.confirm_rect.w * 0.5, g.confirm_rect.y + g.confirm_rect.h * 0.5)
+			BP.nav_add(body, "btn_back", g.back_rect.x + g.back_rect.w * 0.5, g.back_rect.y + g.back_rect.h * 0.5)
 		end
 	else
 		for _, lay in ipairs(ui.layouts or {}) do
 			local r = lay.rect
 			if r and lay.entry and lay.entry.kind ~= "todo" then
-				nav_add(body, lay.entry.uid, r.x + 40, r.y + r.h * 0.5, {list = true})
+				BP.nav_add(body, lay.entry.uid, r.x + 40, r.y + r.h * 0.5, {list = true})
 				if lay.del_rect and lay.entry.del_uid then
 					local dr = lay.del_rect
-					nav_add(body, lay.entry.del_uid, dr.x + dr.w * 0.5, dr.y + dr.h * 0.5, {list_del = true})
+					BP.nav_add(body, lay.entry.del_uid, dr.x + dr.w * 0.5, dr.y + dr.h * 0.5, {list_del = true})
 				end
 			end
 		end
 	end
 
-	sort_reading(tabs)
-	sort_reading(body)
+	BP.sort_reading(tabs)
+	BP.sort_reading(body)
 
 	if ui.tut then
 		for _, b in ipairs(ui.tut.buttons or {}) do
 			local r = b.rect
-			if r then nav_add(body, b.id, r.x + r.w * 0.5, r.y + r.h * 0.5) end
+			if r then BP.nav_add(body, b.id, r.x + r.w * 0.5, r.y + r.h * 0.5) end
 		end
-		sort_reading(body)
+		BP.sort_reading(body)
 	end
-	if get_tutorial().is_locking() then
+	if BP.get_tutorial().is_locking() then
 		local function keep_allowed(list)
 			local out = {}
 			for _, n in ipairs(list) do
-				if get_tutorial().allows(n.id) then out[#out + 1] = n end
+				if BP.get_tutorial().allows(n.id) then out[#out + 1] = n end
 			end
 			return out
 		end
@@ -4137,18 +4541,18 @@ local function rebuild_nav_groups(panel, ui)
 			cur = groups.carry
 		end
 	end
-	if cur and #cur > 0 and not index_of_id(cur, panel.focus_id) then
+	if cur and #cur > 0 and not BP.index_of_id(cur, panel.focus_id) then
 		panel.focus_id = cur[1].id
 	end
 	return groups
 end
 
-local function rebuild_focus_graph(panel, ui)
-	return rebuild_nav_groups(panel, ui)
+function BP.rebuild_focus_graph(panel, ui)
+	return BP.rebuild_nav_groups(panel, ui)
 end
 
-local function is_top_row_of(list, id)
-	local idx = index_of_id(list, id)
+function BP.is_top_row_of(list, id)
+	local idx = BP.index_of_id(list, id)
 	if not idx then return true end
 	local y0 = list[idx].y
 	for i = 1, #list do
@@ -4157,13 +4561,13 @@ local function is_top_row_of(list, id)
 	return true
 end
 
-local function move_focus(panel, dir)
+function BP.move_focus(panel, dir)
 	local groups = panel._nav_groups
 	if not groups then return false end
 	local gname = panel.nav_group or "tabs"
 	local list = groups[gname]
 	if not list or #list == 0 then return false end
-	local idx = index_of_id(list, panel.focus_id) or 1
+	local idx = BP.index_of_id(list, panel.focus_id) or 1
 	local from = list[idx]
 
 	-- 组切换：tabs ↔ body
@@ -4172,7 +4576,7 @@ local function move_focus(panel, dir)
 			panel.body_focus_mem = panel.body_focus_mem
 			panel.nav_group = "body"
 			local mem = panel.body_focus_mem
-			if mem and index_of_id(groups.body, mem) then
+			if mem and BP.index_of_id(groups.body, mem) then
 				panel.focus_id = mem
 			else
 				panel.focus_id = groups.body[1].id
@@ -4198,11 +4602,11 @@ local function move_focus(panel, dir)
 	end
 
 	if (gname == "body" or gname == "carry") then
-		if gname == "body" and dir == "up" and is_top_row_of(list, from.id) and groups.tabs and #groups.tabs > 0 then
+		if gname == "body" and dir == "up" and BP.is_top_row_of(list, from.id) and groups.tabs and #groups.tabs > 0 then
 			panel.body_focus_mem = panel.focus_id
 			panel.nav_group = "tabs"
 			panel.focus_id = "tab_"..tostring(panel.tab or 1)
-			if not index_of_id(groups.tabs, panel.focus_id) then
+			if not BP.index_of_id(groups.tabs, panel.focus_id) then
 				panel.focus_id = groups.tabs[1].id
 			end
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.25, 1.1, false, 0, 2)
@@ -4210,7 +4614,7 @@ local function move_focus(panel, dir)
 		end
 		local dirx = (dir == "right" and 1) or (dir == "left" and -1) or 0
 		local diry = (dir == "down" and 1) or (dir == "up" and -1) or 0
-		local nxt = pick_forward_or_edge(list, from, dirx, diry)
+		local nxt = BP.pick_forward_or_edge(list, from, dirx, diry)
 		if not nxt or nxt == panel.focus_id then return false end
 		panel.focus_id = nxt
 		if gname == "body" then panel.body_focus_mem = nxt end
@@ -4220,7 +4624,7 @@ local function move_focus(panel, dir)
 	return false
 end
 
-local function get_held_nav_dir(ctrlid)
+function BP.get_held_nav_dir(ctrlid)
 	local function down(a) return Input.IsActionPressed(a, ctrlid) end
 	-- 同时按下时优先最近一次：按左/右/上/下固定优先级
 	if down(ButtonAction.ACTION_LEFT) or down(ButtonAction.ACTION_MENULEFT) then return "left" end
@@ -4230,7 +4634,7 @@ local function get_held_nav_dir(ctrlid)
 	return nil
 end
 
-local function clear_bag_tokens_keep_busy(craft, panel)
+function BP.clear_bag_tokens_keep_busy(craft, panel)
 	local kept, kept_map = {}, {}
 	for _, tok in ipairs(craft.tokens) do
 		if tok.slot or tok.cost or (panel.drag and panel.drag.token_id == tok.id)
@@ -4244,16 +4648,20 @@ local function clear_bag_tokens_keep_busy(craft, panel)
 	craft._bag_dirty = true
 end
 
-local function toggle_all_items_mode(panel)
+function BP.toggle_all_items_mode(panel)
 	local craft = panel.craft
-	if not craft or craft.tutorial_bag then return end
+	if not craft or craft.tutorial_bag then return false end
+	if not BP.all_items_mode_allowed() then
+		craft.all_items = false
+		return false
+	end
 	craft.all_items = not craft.all_items
 	craft.bag_page = 0
 	craft._catalog = nil
 	craft._catalog_impl = nil
 	craft._catalog_missing_stat = nil
 	if craft.all_items then
-		local prefs = get_audit_ui_prefs(panel.player)
+		local prefs = BP.get_audit_ui_prefs(panel.player)
 		craft.audit_filter = "all"
 		craft.hide_gray = false
 		craft.tag_enabled = CraftProfile.normalize_audit_tag_enabled(
@@ -4263,60 +4671,61 @@ local function toggle_all_items_mode(panel)
 		prefs.audit_filter = "all"
 		prefs.hide_gray = false
 	end
-	clear_bag_tokens_keep_busy(craft, panel)
+	BP.clear_bag_tokens_keep_busy(craft, panel)
 	panel.nav_graph = nil
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.55, 1, false, 0, 2)
+	return true
 end
 
-local function persist_craft_tag_prefs(panel, craft)
-	local prefs = get_audit_ui_prefs(panel.player)
+function BP.persist_craft_tag_prefs(panel, craft)
+	local prefs = BP.get_audit_ui_prefs(panel.player)
 	prefs.tag_enabled = CraftProfile.normalize_audit_tag_enabled(craft.tag_enabled)
 	craft.tag_enabled = prefs.tag_enabled
 	prefs.audit_filter = "all"
 	prefs.hide_gray = false
 end
 
-local function refresh_after_tag_change(panel, craft)
+function BP.refresh_after_tag_change(panel, craft)
 	craft.bag_page = 0
-	clear_bag_tokens_keep_busy(craft, panel)
+	BP.clear_bag_tokens_keep_busy(craft, panel)
 	panel.nav_graph = nil
-	persist_craft_tag_prefs(panel, craft)
+	BP.persist_craft_tag_prefs(panel, craft)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.4, 1, false, 0, 2)
 end
 
-local function toggle_audit_tag(panel, key)
+function BP.toggle_audit_tag(panel, key)
 	local craft = panel.craft
 	if not craft or not craft.all_items or not key then return end
 	craft.tag_enabled = CraftProfile.normalize_audit_tag_enabled(craft.tag_enabled)
 	craft.tag_enabled[key] = not (craft.tag_enabled[key] == true)
-	refresh_after_tag_change(panel, craft)
+	BP.refresh_after_tag_change(panel, craft)
 end
 
-local function enable_all_audit_tags(panel)
+function BP.enable_all_audit_tags(panel)
 	local craft = panel.craft
 	if not craft or not craft.all_items then return end
 	craft.tag_enabled = CraftProfile.default_audit_tag_enabled()
-	refresh_after_tag_change(panel, craft)
+	BP.refresh_after_tag_change(panel, craft)
 end
 
-local function invert_audit_tags(panel)
+function BP.invert_audit_tags(panel)
 	local craft = panel.craft
 	if not craft or not craft.all_items then return end
 	craft.tag_enabled = CraftProfile.normalize_audit_tag_enabled(craft.tag_enabled)
 	for _, def in ipairs(CraftProfile.audit_filter_tag_defs()) do
 		craft.tag_enabled[def.key] = not (craft.tag_enabled[def.key] == true)
 	end
-	refresh_after_tag_change(panel, craft)
+	BP.refresh_after_tag_change(panel, craft)
 end
 
-local function cancel_pad_carry(panel)
+function BP.cancel_pad_carry(panel)
 	local craft = panel.craft
 	if not craft or not panel.pad_carry then return end
 	local tok = craft.token_map[panel.pad_carry.token_id]
 	panel.pad_carry = nil
 	if tok then
-		clear_token_slot(craft, tok)
-		if tok.home then begin_snap_anim(tok, tok.home) end
+		BP.clear_token_slot(craft, tok)
+		if tok.home then BP.begin_snap_anim(tok, tok.home) end
 	end
 	panel.nav_group = "body"
 	panel.focus_id = tok and tok.id or "btn_confirm"
@@ -4324,7 +4733,7 @@ local function cancel_pad_carry(panel)
 end
 
 -- 副手 = 口袋主动；此时面板内 Q ≡ Ctrl 退出（否则只拦 Q，防误用卡牌）
-local function blueprint_is_pocket_active(player)
+function BP.blueprint_is_pocket_active(player)
 	if not player then return false end
 	if player:GetActiveItem(ActiveSlot.SLOT_POCKET) == item.entity then return true end
 	if ActiveSlot.SLOT_POCKET2 and player:GetActiveItem(ActiveSlot.SLOT_POCKET2) == item.entity then return true end
@@ -4339,7 +4748,7 @@ local pillcard = {
 	cache_held = false,
 }
 
-local function refresh_pillcard_cache(ctrlid)
+function BP.refresh_pillcard_cache(ctrlid)
 	ctrlid = ctrlid or 0
 	local frame = Game():GetFrameCount()
 	if pillcard.cache_frame == frame then return end
@@ -4352,24 +4761,24 @@ local function refresh_pillcard_cache(ctrlid)
 	pillcard.probe = false
 end
 
-local function pocket_q_exit_triggered(player, ctrlid)
-	if not blueprint_is_pocket_active(player) then return false end
-	refresh_pillcard_cache(ctrlid)
+function BP.pocket_q_exit_triggered(player, ctrlid)
+	if not BP.blueprint_is_pocket_active(player) then return false end
+	BP.refresh_pillcard_cache(ctrlid)
 	if pillcard.cache_trig then return true end
 	if Keyboard and Input.IsButtonTriggered(Keyboard.KEY_Q, 0) then return true end
 	return false
 end
 
-local function pocket_q_exit_held(player, ctrlid)
-	if not blueprint_is_pocket_active(player) then return false end
-	refresh_pillcard_cache(ctrlid)
+function BP.pocket_q_exit_held(player, ctrlid)
+	if not BP.blueprint_is_pocket_active(player) then return false end
+	BP.refresh_pillcard_cache(ctrlid)
 	if pillcard.cache_held then return true end
 	if Keyboard and Input.IsButtonPressed(Keyboard.KEY_Q, 0) then return true end
 	return false
 end
 
 --- ESC / CTRL(DROP) / MENUBACK /（口袋副手时）Q：逐级退出（搬运→制造页→关面板）
-local function exit_key_triggered(ctrlid, player)
+function BP.exit_key_triggered(ctrlid, player)
 	ctrlid = ctrlid or 0
 	if Input.IsActionTriggered(ButtonAction.ACTION_DROP, ctrlid) then return true end
 	if Input.IsActionTriggered(ButtonAction.ACTION_MENUBACK, ctrlid) then return true end
@@ -4378,11 +4787,11 @@ local function exit_key_triggered(ctrlid, player)
 		if Input.IsButtonTriggered(Keyboard.KEY_LEFT_CONTROL, 0) then return true end
 		if Input.IsButtonTriggered(Keyboard.KEY_RIGHT_CONTROL, 0) then return true end
 	end
-	if player and pocket_q_exit_triggered(player, ctrlid) then return true end
+	if player and BP.pocket_q_exit_triggered(player, ctrlid) then return true end
 	return false
 end
 
-local function exit_key_held(ctrlid, player)
+function BP.exit_key_held(ctrlid, player)
 	ctrlid = ctrlid or 0
 	if Input.IsActionPressed(ButtonAction.ACTION_DROP, ctrlid) then return true end
 	if Input.IsActionPressed(ButtonAction.ACTION_MENUBACK, ctrlid) then return true end
@@ -4391,13 +4800,13 @@ local function exit_key_held(ctrlid, player)
 		if Input.IsButtonPressed(Keyboard.KEY_LEFT_CONTROL, 0) then return true end
 		if Input.IsButtonPressed(Keyboard.KEY_RIGHT_CONTROL, 0) then return true end
 	end
-	if player and pocket_q_exit_held(player, ctrlid) then return true end
+	if player and BP.pocket_q_exit_held(player, ctrlid) then return true end
 	return false
 end
 
-local function panel_keys_held(ctrlid, player)
+function BP.panel_keys_held(ctrlid, player)
 	ctrlid = ctrlid or 0
-	if exit_key_held(ctrlid, player) then return true end
+	if BP.exit_key_held(ctrlid, player) then return true end
 	if Input.IsActionPressed(ButtonAction.ACTION_ITEM, ctrlid) then return true end
 	if Input.IsActionPressed(ButtonAction.ACTION_MENUCONFIRM, ctrlid) then return true end
 	if Input.IsActionPressed(ButtonAction.ACTION_LEFT, ctrlid)
@@ -4414,27 +4823,27 @@ local function panel_keys_held(ctrlid, player)
 	return false
 end
 
-local function pause_menu_open()
-	return REPENTOGON and Game().IsPauseMenuOpen and Game():IsPauseMenuOpen()
+function BP.pause_menu_open()
+	return auxi.is_pause_menu_open()
 end
 
 --- 对齐逢魔：面板开着且未进暂停时拦截输入（含 ent==nil 的菜单查询）
-local function blueprint_input_active()
+function BP.blueprint_input_active()
 	scrub_stale_panel()
-	if not panel_is_alive() then return false end
-	if pause_menu_open() then return false end
+	if not BP.panel_is_alive() then return false end
+	if BP.pause_menu_open() then return false end
 	return true
 end
 
-local function disarm_until_release(panel)
+function BP.disarm_until_release(panel)
 	if not panel then return end
 	panel.input_armed = false
 	panel.wait_drop_release = true
 end
 
-local function try_panel_exit(panel)
-	if not panel or input_locked(panel) then return false end
-	local tut = get_tutorial()
+function BP.try_panel_exit(panel)
+	if not panel or BP.input_locked(panel) then return false end
+	local tut = BP.get_tutorial()
 	local advanced = tut.note_close_attempt and tut.note_close_attempt(panel.player) == true
 	if tut.blocks_close(panel.player) then
 		if advanced then
@@ -4442,26 +4851,26 @@ local function try_panel_exit(panel)
 		else
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.45, 1.2, false, 0, 2)
 		end
-		lock_actions(panel)
+		BP.lock_actions(panel)
 		return true
 	end
 	if panel.pad_carry then
-		cancel_pad_carry(panel)
-		lock_actions(panel)
+		BP.cancel_pad_carry(panel)
+		BP.lock_actions(panel)
 		return true
 	end
 	if panel.craft then
-		if panel.view == "edit" then cancel_edit(panel) else leave_craft_view(panel) end
-		lock_actions(panel)
+		if panel.view == "edit" then BP.cancel_edit(panel) else BP.leave_craft_view(panel) end
+		BP.lock_actions(panel)
 		return true
 	end
-	close_panel()
+	BP.close_panel()
 	return true
 end
 
-local function start_pad_carry(panel, tok)
+function BP.start_pad_carry(panel, tok)
 	if not tok then return end
-	clear_token_slot(panel.craft, tok)
+	BP.clear_token_slot(panel.craft, tok)
 	panel.pad_carry = {token_id = tok.id}
 	panel.drag = nil
 	tok.anim = nil
@@ -4471,20 +4880,20 @@ local function start_pad_carry(panel, tok)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.45, 1, false, 0, 2)
 end
 
-local function activate_focus(panel, ui)
+function BP.activate_focus(panel, ui)
 	local id = panel.focus_id
 	if not id then return end
 	if id == "tut_yes" then
-		get_tutorial().accept(panel.player)
-		lock_actions(panel)
+		BP.get_tutorial().accept(panel.player)
+		BP.lock_actions(panel)
 		return
 	end
 	if id == "tut_no" then
-		get_tutorial().decline(panel.player)
-		lock_actions(panel)
+		BP.get_tutorial().decline(panel.player)
+		BP.lock_actions(panel)
 		return
 	end
-	if get_tutorial().is_locking() and not get_tutorial().allows(id) then
+	if BP.get_tutorial().is_locking() and not BP.get_tutorial().allows(id) then
 		return
 	end
 	local craft = panel.craft
@@ -4496,35 +4905,44 @@ local function activate_focus(panel, ui)
 			return
 		end
 		if id == "btn_back" then
-			cancel_pad_carry(panel)
-			lock_actions(panel)
+			BP.cancel_pad_carry(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id:sub(1, 6) == "cslot_" then
 			local idx = tonumber(id:sub(7))
 			if idx then
-				assign_token_slot(craft, tok, idx)
+				BP.assign_token_slot(craft, tok, idx)
 				panel.pad_carry = nil
 				panel.nav_group = "body"
 				panel.focus_id = id
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.7, 1.05, false, 0, 2)
-				lock_actions(panel)
+				BP.lock_actions(panel)
 			end
 			return
 		end
 		if id == "cost_slot" then
-			assign_token_cost(craft, tok, ui and ui.craft_geom)
+			BP.assign_token_cost(craft, tok, ui and ui.craft_geom)
 			panel.pad_carry = nil
 			panel.nav_group = "body"
 			panel.focus_id = "cost_slot"
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.65, 0.95, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
+			return
+		end
+		if id == "mirror_slot" then
+			BP.assign_mirror_token(craft, tok, ui and ui.craft_geom)
+			panel.pad_carry = nil
+			panel.nav_group = "body"
+			panel.focus_id = "mirror_slot"
+			sound_tracker.PlayStackedSound(SoundEffect.SOUND_BUTTON_PRESS, 0.7, 1.05, false, 0, 2)
+			BP.lock_actions(panel)
 			return
 		end
 		if id:sub(1, 8) == "dropbag_" or id == "bag_return" then
-			clear_token_slot(craft, tok)
+			BP.clear_token_slot(craft, tok)
 			if craft.all_items and type(tok.id) == "string" and tok.id:sub(1, 5) == "inst_" then
-				remove_token_entity(craft, tok)
+				BP.remove_token_entity(craft, tok)
 			else
 				if not craft.all_items then
 					tok.from_bag = true
@@ -4533,15 +4951,15 @@ local function activate_focus(panel, ui)
 						tok.lost = true
 					end
 				end
-				local dest = tok.home or bag_area_anchor(tok)
+				local dest = tok.home or BP.bag_area_anchor(tok)
 				tok.home = dest
-				begin_snap_anim(tok, dest)
+				BP.begin_snap_anim(tok, dest)
 			end
 			panel.pad_carry = nil
 			panel.nav_group = "body"
 			panel.focus_id = (id:sub(1, 8) == "dropbag_") and id:sub(9) or "btn_confirm"
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_DARK, 0.4, 1, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		return
@@ -4561,77 +4979,77 @@ local function activate_focus(panel, ui)
 					panel.focus_id = body[1].id
 					panel.body_focus_mem = body[1].id
 					sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.35, 1, false, 0, 2)
-					lock_actions(panel)
+					BP.lock_actions(panel)
 					return
 				end
 			end
-			set_tab(panel, idx)
-			lock_actions(panel)
+			BP.set_tab(panel, idx)
+			BP.lock_actions(panel)
 		end
 		return
 	end
 
 	if craft then
 		if id == "btn_back" then
-			if panel.view == "edit" then cancel_edit(panel) else leave_craft_view(panel) end
-			lock_actions(panel)
+			if panel.view == "edit" then BP.cancel_edit(panel) else BP.leave_craft_view(panel) end
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "btn_confirm" then
-			confirm_craft(panel)
-			lock_actions(panel)
+			BP.confirm_craft(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "btn_quality" then
-			toggle_show_quality(panel)
-			lock_actions(panel)
+			BP.toggle_show_quality(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "btn_mode" then
-			toggle_all_items_mode(panel)
-			lock_actions(panel)
+			BP.toggle_all_items_mode(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "btn_tag_all" then
-			enable_all_audit_tags(panel)
-			lock_actions(panel)
+			BP.enable_all_audit_tags(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "btn_tag_invert" then
-			invert_audit_tags(panel)
-			lock_actions(panel)
+			BP.invert_audit_tags(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if type(id) == "string" and id:sub(1, 8) == "btn_tag_" then
 			local key = id:sub(9)
 			if key ~= "all" and key ~= "invert" then
-				toggle_audit_tag(panel, key)
-				lock_actions(panel)
+				BP.toggle_audit_tag(panel, key)
+				BP.lock_actions(panel)
 			end
 			return
 		end
 		if id == "btn_prev" then
 			craft.bag_page = math.max(0, (craft.bag_page or 0) - 1)
-			clear_bag_tokens_keep_busy(craft, panel)
+			BP.clear_bag_tokens_keep_busy(craft, panel)
 			panel.nav_graph = nil
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.35, 1, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "btn_next" then
 			local pages = craft.bag_pages or 1
 			craft.bag_page = math.min(pages - 1, (craft.bag_page or 0) + 1)
-			clear_bag_tokens_keep_busy(craft, panel)
+			BP.clear_bag_tokens_keep_busy(craft, panel)
 			panel.nav_graph = nil
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.35, 1, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if id == "cost_slot" then
 			local ids = craft.cost_ids or {}
 			local tid = ids[#ids]
 			local ctok = tid and craft.token_map[tid]
-			if ctok then start_pad_carry(panel, ctok) lock_actions(panel) end
+			if ctok then BP.start_pad_carry(panel, ctok) BP.lock_actions(panel) end
 			return
 		end
 		if id:sub(1, 6) == "cslot_" then
@@ -4639,21 +5057,21 @@ local function activate_focus(panel, ui)
 			local slot = idx and craft.slots[idx]
 			if slot and slot.token then
 				local tok = craft.token_map[slot.token]
-				if tok then start_pad_carry(panel, tok) lock_actions(panel) end
+				if tok then BP.start_pad_carry(panel, tok) BP.lock_actions(panel) end
 			end
 			return
 		end
 		local tok = craft.token_map[id]
 		if tok then
-			start_pad_carry(panel, tok)
-			lock_actions(panel)
+			BP.start_pad_carry(panel, tok)
+			BP.lock_actions(panel)
 			return
 		end
 		return
 	end
 
-	if handle_formation_id(panel, id) then
-		lock_actions(panel)
+	if BP.handle_formation_id(panel, id) then
+		BP.lock_actions(panel)
 		return
 	end
 
@@ -4662,26 +5080,26 @@ local function activate_focus(panel, ui)
 			local e = lay.entry
 			panel.delete_confirm_uid = nil
 			if e.kind == "build_target" then
-				open_craft_view(panel, e.target, nil)
+				BP.open_craft_view(panel, e.target, nil)
 			elseif e.kind == "stock" then
-				open_craft_view(panel, e.rec.target, e.rec.uid)
+				BP.open_craft_view(panel, e.rec.target, e.rec.uid)
 			end
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if lay.entry and lay.entry.del_uid == id and lay.entry.kind == "stock" then
-			try_confirm_delete_stock(panel, lay.entry.rec.uid)
-			lock_actions(panel)
+			BP.try_confirm_delete_stock(panel, lay.entry.rec.uid)
+			BP.lock_actions(panel)
 			return
 		end
 	end
 end
 
-local function handle_pad_actions(panel, ui)
+function BP.handle_pad_actions(panel, ui)
 	local player = panel.player
 	if not player then return end
 	local ctrlid = player.ControllerIndex
-	rebuild_focus_graph(panel, ui)
+	BP.rebuild_focus_graph(panel, ui)
 
 	-- 搬运中：道具跟随焦点
 	if panel.pad_carry and panel.craft then
@@ -4699,33 +5117,33 @@ local function handle_pad_actions(panel, ui)
 
 	-- 长按连发（仿输入法：首次立即，等待 initial，再按 interval 连发）
 	local frame = Game():GetFrameCount()
-	local held = get_held_nav_dir(ctrlid)
+	local held = BP.get_held_nav_dir(ctrlid)
 	local hold = panel.nav_hold
 	if held then
 		if not hold or hold.dir ~= held then
 			panel.nav_hold = {dir = held, next_fire = frame + item.nav_repeat_initial}
-			move_focus(panel, held)
+			BP.move_focus(panel, held)
 		elseif frame >= (hold.next_fire or 0) then
-			move_focus(panel, held)
+			BP.move_focus(panel, held)
 			hold.next_fire = frame + item.nav_repeat_interval
 		end
 	else
 		panel.nav_hold = nil
 	end
 
-	if input_locked(panel) then return end
+	if BP.input_locked(panel) then return end
 
 	local function trig(a)
 		return Input.IsActionTriggered(a, ctrlid)
 	end
 	if trig(ButtonAction.ACTION_MENUCONFIRM) or trig(ButtonAction.ACTION_ITEM) then
-		activate_focus(panel, ui)
+		BP.activate_focus(panel, ui)
 		return
 	end
 	-- 退出键统一在 update_panel_input（ESC/CTRL/DROP/MENUBACK），避免同帧双退
 end
 
-local function capture_mouse_wheel(panel, source)
+function BP.capture_mouse_wheel(panel, source)
 	if not panel or not Input.GetMouseWheel then return end
 	local ok, wheel = pcall(function() return Input.GetMouseWheel() end)
 	if not ok or not wheel then
@@ -4738,8 +5156,8 @@ local function capture_mouse_wheel(panel, source)
 	end
 end
 
-local function try_mouse_wheel_page(panel, ui)
-	if get_tutorial().is_locking() then return end
+function BP.try_mouse_wheel_page(panel, ui)
+	if BP.get_tutorial().is_locking() then return end
 	if not panel.craft or not ui or not ui.craft_geom then return end
 	-- 渲染帧率可高于 update；禁止用 Game frame 去重，否则会吞同一 update 帧内的滚轮脉冲。
 	local serial = panel.wheel_render_serial or 0
@@ -4810,14 +5228,14 @@ local function try_mouse_wheel_page(panel, ui)
 	end
 
 	panel.craft.bag_page = page
-	clear_bag_tokens_keep_busy(panel.craft, panel)
+	BP.clear_bag_tokens_keep_busy(panel.craft, panel)
 	panel.ui = nil -- 同帧强制 rebuild，避免「滚了但页未刷新」
 	panel.nav_graph = nil
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.3, 1, false, 0, 2)
 end
 
-local function try_mouse_wheel_formation(panel, ui)
-	if get_tutorial().is_locking() then return end
+function BP.try_mouse_wheel_formation(panel, ui)
+	if BP.get_tutorial().is_locking() then return end
 	if not panel or panel.craft then return end
 	local tab = item.tabs[panel.tab]
 	if not tab or tab.id ~= "formation" then return end
@@ -4843,9 +5261,11 @@ local function try_mouse_wheel_formation(panel, ui)
 	end
 end
 
-local function handle_mouse_actions(panel, ui)
+function BP.handle_mouse_actions(panel, ui)
 	-- 滚轮由 render_panel 每帧集中读取；悬停/点击仍需鼠标权限。
 	if not Mouse_UI.mouse_allowed(panel.player) then return end
+
+	BP.enforce_all_items_gate(panel)
 
 	-- 鼠标悬停同步焦点与导航组
 	local hovered = Mouse_UI.get_hovered_id()
@@ -4864,14 +5284,56 @@ local function handle_mouse_actions(panel, ui)
 	if panel.drag then
 		if panel.drag.kind == "form_card" then
 			if Mouse_UI.was_released(0) then
-				finish_form_drag(panel, ui)
-				lock_actions(panel)
+				BP.finish_form_drag(panel, ui)
+				BP.lock_actions(panel)
 			end
 			return
 		end
 		if Mouse_UI.was_released(0) or Mouse_UI.is_released(panel.drag.token_id) then
-			finish_drag(panel, ui.craft_geom and ui.craft_geom.right, ui.craft_geom)
-			lock_actions(panel)
+			BP.finish_drag(panel, ui.craft_geom and ui.craft_geom.right, ui.craft_geom)
+			BP.lock_actions(panel)
+		end
+		return
+	end
+
+	-- 编队卡：mousedown 进入 pending；移动超阈值才升级为 drag；松手未超阈 = 单击进仓库编辑
+	if panel.form_press then
+		local press = panel.form_press
+		if Mouse_UI.was_released(0) then
+			panel.form_press = nil
+			local rec = press.rec
+			if rec and rec.target and rec.uid then
+				local inv = BP.find_tab_index("inventory")
+				if inv then
+					panel.tab = inv
+					panel.focus_id = "tab_"..inv
+					panel.nav_group = "tabs"
+				end
+				BP.open_craft_view(panel, rec.target, rec.uid)
+				BP.lock_actions(panel)
+			end
+			return
+		end
+		if not Mouse_UI.is_down(0) then
+			panel.form_press = nil
+			return
+		end
+		local start = press.start_pos or Mouse_UI.mouse
+		local delta = (Mouse_UI.mouse - start):Length()
+		if delta >= (item.form_click_drag_px or 5) then
+			panel.form_press = nil
+			panel.drag = {
+				kind = "form_card",
+				uid = press.uid,
+				from = press.from,
+				grab_offset = press.grab_offset,
+				pos = Mouse_UI.mouse - press.grab_offset,
+				w = press.w,
+				h = press.h,
+				rec = press.rec,
+				active = press.active,
+			}
+			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.45, 1, false, 0, 2)
 		end
 		return
 	end
@@ -4892,16 +5354,16 @@ local function handle_mouse_actions(panel, ui)
 		end
 	end
 
-	if input_locked(panel) then return end
+	if BP.input_locked(panel) then return end
 
 	if Mouse_UI.is_pressed("tut_yes") then
-		get_tutorial().accept(panel.player)
-		lock_actions(panel)
+		BP.get_tutorial().accept(panel.player)
+		BP.lock_actions(panel)
 		return
 	end
 	if Mouse_UI.is_pressed("tut_no") then
-		get_tutorial().decline(panel.player)
-		lock_actions(panel)
+		BP.get_tutorial().decline(panel.player)
+		BP.lock_actions(panel)
 		return
 	end
 
@@ -4909,7 +5371,7 @@ local function handle_mouse_actions(panel, ui)
 		for _, tok in ipairs(panel.craft.tokens) do
 			if Mouse_UI.is_pressed(tok.id) then
 				panel.pad_carry = nil
-				clear_token_slot(panel.craft, tok)
+				BP.clear_token_slot(panel.craft, tok)
 				panel.drag = {
 					token_id = tok.id,
 					grab_offset = Mouse_UI.mouse - tok.pos,
@@ -4918,70 +5380,70 @@ local function handle_mouse_actions(panel, ui)
 				tok.vel = Vector(0, 0)
 				panel.focus_id = tok.id
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.45, 1, false, 0, 2)
-				lock_actions(panel)
+				BP.lock_actions(panel)
 				return
 			end
 		end
 		if Mouse_UI.is_pressed("btn_back") then
-			if panel.view == "edit" then cancel_edit(panel) else leave_craft_view(panel) end
-			lock_actions(panel)
+			if panel.view == "edit" then BP.cancel_edit(panel) else BP.leave_craft_view(panel) end
+			BP.lock_actions(panel)
 			return
 		end
 		if Mouse_UI.is_pressed("btn_confirm") then
-			confirm_craft(panel)
-			lock_actions(panel)
+			BP.confirm_craft(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if Mouse_UI.is_pressed("btn_quality") then
-			toggle_show_quality(panel)
-			lock_actions(panel)
+			BP.toggle_show_quality(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if Mouse_UI.is_pressed("btn_mode") then
-			toggle_all_items_mode(panel)
-			lock_actions(panel)
+			BP.toggle_all_items_mode(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if Mouse_UI.is_pressed("btn_tag_all") then
-			enable_all_audit_tags(panel)
-			lock_actions(panel)
+			BP.enable_all_audit_tags(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if Mouse_UI.is_pressed("btn_tag_invert") then
-			invert_audit_tags(panel)
-			lock_actions(panel)
+			BP.invert_audit_tags(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if panel.ui and panel.ui.craft_geom and panel.ui.craft_geom.tag_col then
 			for _, def in ipairs(panel.ui.craft_geom.tag_col.defs or {}) do
 				if Mouse_UI.is_pressed("btn_tag_"..def.key) then
-					toggle_audit_tag(panel, def.key)
-					lock_actions(panel)
+					BP.toggle_audit_tag(panel, def.key)
+					BP.lock_actions(panel)
 					return
 				end
 			end
 		end
 		if Mouse_UI.is_pressed("btn_prev") then
 			panel.craft.bag_page = math.max(0, (panel.craft.bag_page or 0) - 1)
-			clear_bag_tokens_keep_busy(panel.craft, panel)
+			BP.clear_bag_tokens_keep_busy(panel.craft, panel)
 			panel.nav_graph = nil
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.35, 1, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if Mouse_UI.is_pressed("btn_next") then
 			local pages = panel.craft.bag_pages or 1
 			panel.craft.bag_page = math.min(pages - 1, (panel.craft.bag_page or 0) + 1)
-			clear_bag_tokens_keep_busy(panel.craft, panel)
+			BP.clear_bag_tokens_keep_busy(panel.craft, panel)
 			panel.nav_graph = nil
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.35, 1, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 	end
 
 	if Mouse_UI.was_clicked(1) or Mouse_UI.is_pressed("modal_dim") then
-		local tut = get_tutorial()
+		local tut = BP.get_tutorial()
 		local advanced = tut.note_close_attempt and tut.note_close_attempt(panel.player) == true
 		if tut.blocks_close(panel.player) then
 			if advanced then
@@ -4989,27 +5451,27 @@ local function handle_mouse_actions(panel, ui)
 			else
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.45, 1.2, false, 0, 2)
 			end
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if panel.pad_carry then
-			cancel_pad_carry(panel)
-			lock_actions(panel)
+			BP.cancel_pad_carry(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if panel.craft then
-			if panel.view == "edit" then cancel_edit(panel) else leave_craft_view(panel) end
+			if panel.view == "edit" then BP.cancel_edit(panel) else BP.leave_craft_view(panel) end
 		else
-			close_panel()
+			BP.close_panel()
 		end
-		lock_actions(panel)
+		BP.lock_actions(panel)
 		return
 	end
 
 	for i = 1, #item.tabs do
 		if Mouse_UI.is_pressed("tab_"..i) then
-			set_tab(panel, i)
-			lock_actions(panel)
+			BP.set_tab(panel, i)
+			BP.lock_actions(panel)
 			return
 		end
 	end
@@ -5017,22 +5479,24 @@ local function handle_mouse_actions(panel, ui)
 	for _, lay in ipairs(ui.layouts) do
 		local e = lay.entry
 		if e and e.kind == "form_page" and Mouse_UI.is_pressed(e.uid) then
-			handle_formation_id(panel, e.uid)
-			lock_actions(panel)
+			BP.handle_formation_id(panel, e.uid)
+			BP.lock_actions(panel)
 			return
 		end
 		if e and e.kind == "form_dock" and Mouse_UI.is_pressed(e.uid) then
 			if panel.form_carry then
-				handle_formation_id(panel, "form_queue")
-				lock_actions(panel)
+				BP.handle_formation_id(panel, "form_queue")
+				BP.lock_actions(panel)
 			end
 			return
 		end
 		if e and e.kind == "form_card" and Mouse_UI.is_pressed(e.uid) and e.rec then
 			panel.form_carry = nil
-			panel.drag = {
-				kind = "form_card",
+			panel.form_press = {
 				uid = e.rec.uid,
+				entry_uid = e.uid,
+				start_pos = Vector(Mouse_UI.mouse.X, Mouse_UI.mouse.Y),
+				start_frame = Game():GetFrameCount(),
 				from = e.zone,
 				grab_offset = Mouse_UI.mouse - Vector(lay.rect.x, lay.rect.y),
 				pos = Vector(lay.rect.x, lay.rect.y),
@@ -5041,23 +5505,22 @@ local function handle_mouse_actions(panel, ui)
 				rec = e.rec,
 				active = e.active,
 			}
-			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.45, 1, false, 0, 2)
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 		if e and e.del_uid and Mouse_UI.is_pressed(e.del_uid) then
-			try_confirm_delete_stock(panel, e.rec.uid)
-			lock_actions(panel)
+			BP.try_confirm_delete_stock(panel, e.rec.uid)
+			BP.lock_actions(panel)
 			return
 		end
 		if e and Mouse_UI.is_pressed(e.uid) then
 			panel.delete_confirm_uid = nil
 			if e.kind == "build_target" then
-				open_craft_view(panel, e.target, nil)
+				BP.open_craft_view(panel, e.target, nil)
 			elseif e.kind == "stock" then
-				open_craft_view(panel, e.rec.target, e.rec.uid)
+				BP.open_craft_view(panel, e.rec.target, e.rec.uid)
 			end
-			lock_actions(panel)
+			BP.lock_actions(panel)
 			return
 		end
 	end
@@ -5066,24 +5529,24 @@ end
 -- ---------- 渲染 ----------
 -- 渲染闭包单独成函数，避免本文件顶层 local 超过 Lua 200 上限。
 item.render_panel, item.update_panel_input = (function()
-local function render_tabs(ui, panel)
+function BP.render_tabs(ui, panel)
 	for i, tab in ipairs(item.tabs) do
 		local rect = ui.tab_rects[i]
 		local st = ui.states["tab_"..i]
 		local tid = "tab_"..i
 		local on = panel.tab == i
-		local focused = focus_equals(panel, tid)
+		local focused = BP.focus_equals(panel, tid)
 		local color = on and KColor(1, 0.92, 0.45, 1)
 			or ((focused or (st and st.hovered)) and KColor(0.9, 1, 1, 1) or KColor(0.65, 0.75, 0.85, 1))
-		color = tut_dim_id(tid, color)
-		if focused or (get_tutorial().is_locking() and get_tutorial().allows(tid)) then
-			draw_region_outline(rect, KColor(1, 0.85, 0.35, 1), true)
+		color = BP.tut_dim_id(tid, color)
+		if focused or (BP.get_tutorial().is_locking() and BP.get_tutorial().allows(tid)) then
+			BP.draw_region_outline(rect, KColor(1, 0.85, 0.35, 1), true)
 		end
-		draw_text_in_rect(rect, tab_label(tab), color)
+		BP.draw_text_in_rect(rect, BP.tab_label(tab), color)
 	end
 end
 
-local function form_card_sprite_color(active, broken)
+function BP.form_card_sprite_color(active, broken)
 	local c
 	if broken then
 		c = Color(1, 0.32, 0.32, 1)
@@ -5095,179 +5558,249 @@ local function form_card_sprite_color(active, broken)
 	return c
 end
 
-local function draw_form_col_icon(col_id, pos, scale, col)
-	local spr = load_col_sprite(col_id)
+function BP.form_mirror_sprite_color()
+	local col = Color(0.72, 0.9, 1.0, 0.95, 0, 0, 0)
+	if col.SetColorize then
+		col:SetColorize(0.15, 0.45, 1.1, 1)
+	end
+	return col
+end
+
+--- 环绕件：普通模块 + 镜像（同圈同尺寸；镜像仅配色不同）
+function BP.form_orbit_parts(rec)
+	local base_id, mods, mirror_id = BP.rec_loadout_ids(rec)
+	local parts = {}
+	for _, id in ipairs(mods or {}) do
+		parts[#parts + 1] = {id = id, mirror = false}
+	end
+	if mirror_id then
+		parts[#parts + 1] = {id = mirror_id, mirror = true}
+	end
+	return base_id, parts
+end
+
+--- 仓库行：底座 → 模块 → 镜像，同尺寸横向排开
+function BP.stock_loadout_parts(rec)
+	local base_id, mods, mirror_id = BP.rec_loadout_ids(rec)
+	local parts = {}
+	if base_id then
+		parts[#parts + 1] = {id = base_id, kind = "base"}
+	end
+	for _, id in ipairs(mods or {}) do
+		parts[#parts + 1] = {id = id, kind = "mod"}
+	end
+	if mirror_id then
+		parts[#parts + 1] = {id = mirror_id, kind = "mirror"}
+	end
+	return parts
+end
+
+function BP.draw_form_col_icon(col_id, pos, scale, col)
+	local spr = BP.load_col_sprite(col_id)
 	if not spr then return end
 	spr.Scale = Vector(scale, scale)
 	spr.Color = col
 	spr:Render(pos, Vector.Zero, Vector.Zero)
-	spr.Color = Color(1, 1, 1, 1)
+	BP.clear_sprite_color(spr)
 	spr.Scale = Vector(1, 1)
 end
 
-local function draw_form_craft_card(rect, rec, active, focused)
+function BP.draw_stock_loadout_strip(origin, rec)
+	if not origin or not rec then return 0 end
+	local parts = BP.stock_loadout_parts(rec)
+	if #parts < 1 then return 0 end
+	local scale = item.stock_loadout_icon_scale or 0.42
+	local step = item.stock_loadout_icon_step or 12
+	local mod_col = Color(1, 1, 1, 1)
+	local mirror_col = BP.form_mirror_sprite_color()
+	local base_col = BP.cost_token_color()
+	for i, p in ipairs(parts) do
+		local col = mod_col
+		if p.kind == "base" then
+			col = base_col
+		elseif p.kind == "mirror" then
+			col = mirror_col
+		end
+		BP.draw_form_col_icon(p.id, Vector(origin.X + (i - 1) * step, origin.Y), scale, col)
+	end
+	return #parts * step
+end
+
+function BP.draw_form_craft_card(rect, rec, active, focused)
 	if not rect or not rec then return end
 	local broken = rec.broken == true
 	local outline = focused and KColor(1, 0.95, 0.45, 1)
 		or (active and KColor(0.95, 0.9, 0.55, 0.95) or KColor(0.4, 0.42, 0.5, 0.65))
-	draw_region_outline(rect, outline, true)
+	BP.draw_region_outline(rect, outline, true)
 	local name_h = 12
 	local name_rect = Mouse_UI.make_rect(rect.x + 2, rect.y + 1, rect.w - 4, name_h)
 	local tcol = active and KColor(1, 0.96, 0.72, 1) or KColor(0.78, 0.8, 0.86, 1)
 	if broken then tcol = KColor(1, 0.4, 0.38, 1) end
-	draw_text_in_rect(name_rect, rec_label(rec), tcol)
-	local craft_col = form_card_sprite_color(active, broken)
+	BP.draw_text_in_rect(name_rect, BP.rec_label(rec), tcol)
+	local craft_col = BP.form_card_sprite_color(active, broken)
 	local item_col = Color(1, 1, 1, 1)
-	local base_id, mods = rec_loadout_ids(rec)
+	local mirror_col = BP.form_mirror_sprite_color()
+	local base_id, orbit = BP.form_orbit_parts(rec)
 	local area = Mouse_UI.make_rect(rect.x + 4, rect.y + name_h + 2, rect.w - 8, rect.h - name_h - 6)
 	local cx = area.x + area.w * 0.5
 	local cy = area.y + area.h * 0.5
 	local body_scale = math.min(1.05, math.min(area.w, area.h) * 0.42 / 32)
 	if body_scale < 0.7 then body_scale = 0.7 end
 	if rec.target then
-		draw_form_col_icon(rec.target, Vector(cx, cy), body_scale, craft_col)
+		BP.draw_form_col_icon(rec.target, Vector(cx, cy), body_scale, craft_col)
 	end
-	local n = #mods
 	local radius = math.min(area.w, area.h) * 0.34
 	if radius < 16 then radius = 16 end
 	local item_scale = math.min(0.95, (radius * 0.85) / 32)
 	if item_scale < 0.62 then item_scale = 0.62 end
 	if base_id then
-		draw_form_col_icon(base_id, Vector(cx, cy + math.max(10, radius * 0.42)), item_scale * 0.5, cost_token_color())
+		local base_oy = math.max(10, radius * 0.42)
+		BP.draw_form_col_icon(base_id, Vector(cx, cy + base_oy), item_scale * 0.5, BP.cost_token_color())
 	end
+	local n = #orbit
 	if n < 1 then return end
+	local spin = (Game():GetFrameCount() * (item.form_orbit_spin_deg or 0.55)) % 360
 	for i = 1, n do
-		local ang = -90 + (i - 1) * (360 / n)
+		local ang = spin - 90 + (i - 1) * (360 / n)
 		local rad = ang * math.pi / 180
 		local px = cx + math.cos(rad) * radius
 		local py = cy + math.sin(rad) * radius
-		draw_form_col_icon(mods[i], Vector(px, py), item_scale, item_col)
+		local col = orbit[i].mirror and mirror_col or item_col
+		BP.draw_form_col_icon(orbit[i].id, Vector(px, py), item_scale, col)
 	end
 end
 
-local function render_list(ui, panel)
+function BP.render_list(ui, panel)
 	if panel._bw_bar_rect then
 		local sum = panel._bw_summary or {used_slots = 0, capacity_slots = 3}
 		local used = tonumber(sum.used_slots) or 0
 		local cap = math.max(0.001, tonumber(sum.capacity_slots) or 3)
 		local ratio = math.max(0, math.min(1, used / cap))
 		local bar = panel._bw_bar_rect
-		draw_region_outline(bar, KColor(0.55, 0.7, 0.85, 0.7), true)
+		BP.draw_region_outline(bar, KColor(0.55, 0.7, 0.85, 0.7), true)
 		local fill_w = math.max(0, (bar.w - 4) * ratio)
 		if fill_w > 1 then
 			local fill = Mouse_UI.make_rect(bar.x + 2, bar.y + 2, fill_w, bar.h - 4)
-			draw_region_outline(fill, KColor(0.45, 0.85, 1, 0.95), true)
+			BP.draw_region_outline(fill, KColor(0.45, 0.85, 1, 0.95), true)
 		end
-		local txt = lang_is_zh()
+		local txt = BP.lang_is_zh()
 			and string.format("控制带宽：%.0f / %.0f", used, cap)
 			or string.format("Bandwidth: %.0f / %.0f", used, cap)
-		draw_text_in_rect(bar, txt, KColor(0.95, 0.97, 1, 1))
+		BP.draw_text_in_rect(bar, txt, KColor(0.95, 0.97, 1, 1))
 	end
 	if ui.form_queue_rect then
-		draw_region_outline(ui.form_queue_rect, KColor(0.45, 0.55, 0.7, 0.45), true)
+		BP.draw_region_outline(ui.form_queue_rect, KColor(0.45, 0.55, 0.7, 0.45), true)
 	end
 	if ui.form_bench_rect then
-		draw_region_outline(ui.form_bench_rect, KColor(0.4, 0.45, 0.55, 0.4), true)
+		BP.draw_region_outline(ui.form_bench_rect, KColor(0.4, 0.45, 0.55, 0.4), true)
 	end
 	if #ui.layouts == 0 then
-		local msg = lang_is_zh() and "（空）" or "(Empty)"
-		draw_text_in_rect(ui.content, msg, KColor(0.7, 0.7, 0.75, 1), {align = "left", pad_x = 8})
+		local msg = BP.lang_is_zh() and "（空）" or "(Empty)"
+		BP.draw_text_in_rect(ui.content, msg, KColor(0.7, 0.7, 0.75, 1), {align = "left", pad_x = 8})
 		return
 	end
 	local drag = panel.drag
 	for _, lay in ipairs(ui.layouts) do
 		local st = ui.states[lay.entry.uid]
-		local focused = focus_equals(panel, lay.entry.uid)
+		local focused = BP.focus_equals(panel, lay.entry.uid)
 		local color = (focused or (st and st.hovered)) and KColor(1, 0.95, 0.55, 1) or KColor(0.8, 0.85, 0.95, 1)
 		local e = lay.entry
 		local dragging_this = drag and drag.kind == "form_card" and e.rec and drag.uid == e.rec.uid
 		if e.kind == "form_card" then
 			if not dragging_this then
 				local hot = focused or (st and st.hovered) or (panel.form_carry and panel.form_carry.uid == e.rec.uid)
-				draw_form_craft_card(lay.rect, e.rec, e.active, hot)
-				if get_tutorial().is_locking() and get_tutorial().allows(e.uid) then
-					draw_region_outline(lay.rect, KColor(1, 0.9, 0.35, 1), true)
+				BP.draw_form_craft_card(lay.rect, e.rec, e.active, hot)
+				if BP.get_tutorial().is_locking() and BP.get_tutorial().allows(e.uid) then
+					BP.draw_region_outline(lay.rect, KColor(1, 0.9, 0.35, 1), true)
 				end
 			end
 		elseif e.kind == "form_dock" then
-			draw_region_outline(lay.rect, (focused or (st and st.hovered)) and KColor(0.85, 0.9, 1, 0.7) or KColor(0.35, 0.4, 0.5, 0.45), true)
+			BP.draw_region_outline(lay.rect, (focused or (st and st.hovered)) and KColor(0.85, 0.9, 1, 0.7) or KColor(0.35, 0.4, 0.5, 0.45), true)
 		elseif e.kind == "form_page" then
 			local txt = (e.uid == "form_prev") and "<" or ">"
-			draw_region_outline(lay.rect, (focused or (st and st.hovered)) and KColor(1, 0.85, 0.35, 1) or KColor(0.5, 0.6, 0.7, 0.5), true)
-			draw_text_in_rect(lay.rect, txt, color)
+			BP.draw_region_outline(lay.rect, (focused or (st and st.hovered)) and KColor(1, 0.85, 0.35, 1) or KColor(0.5, 0.6, 0.7, 0.5), true)
+			BP.draw_text_in_rect(lay.rect, txt, color)
 		else
-			draw_region_outline(lay.rect, (focused or (st and st.hovered)) and KColor(1, 1, 1, 0.9) or KColor(0.5, 0.6, 0.7, 0.5), true)
+			BP.draw_region_outline(lay.rect, (focused or (st and st.hovered)) and KColor(1, 1, 1, 0.9) or KColor(0.5, 0.6, 0.7, 0.5), true)
 		if e.info and e.info.gfx then
 			if not e._spr then
-				e._spr = load_col_sprite(e.target)
+				e._spr = BP.load_col_sprite(e.target)
 			end
 			e._spr.Scale = Vector(0.85, 0.85)
-			e._spr.Color = tint_color(1, 1, 1, 1)
+			e._spr.Color = BP.tint_color(1, 1, 1, 1)
 			e._spr:Render(Vector(lay.rect.x + 18, lay.rect.y + lay.rect.h * 0.5), Vector(0, 0), Vector(0, 0))
 			e._spr.Color = Color(1, 1, 1, 1)
 			local text_rect = Mouse_UI.make_rect(lay.rect.x + 34, lay.rect.y, lay.rect.w - 38, lay.rect.h)
-			draw_text_in_rect(text_rect, e.label, color, {align = "left", pad_x = 2})
+			BP.draw_text_in_rect(text_rect, e.label, color, {align = "left", pad_x = 2})
 		elseif e.kind == "stock" then
-			local info = get_target_info(e.rec.target)
+			local info = BP.get_target_info(e.rec.target)
 			local broken = e.broken or (e.rec and e.rec.broken)
-			local icon_tint = broken and tint_color(1, 0.25, 0.25, 1) or tint_color(1, 1, 1, 1)
+			local icon_tint = broken and BP.tint_color(1, 0.25, 0.25, 1) or BP.tint_color(1, 1, 1, 1)
 			if info then
-				if not e._spr then e._spr = load_col_sprite(e.rec.target) end
+				if not e._spr then e._spr = BP.load_col_sprite(e.rec.target) end
 				e._spr.Scale = Vector(0.85, 0.85)
 				e._spr.Color = icon_tint
 				e._spr:Render(Vector(lay.rect.x + 18, lay.rect.y + lay.rect.h * 0.5), Vector(0, 0), Vector(0, 0))
-				e._spr.Color = Color(1, 1, 1, 1)
+				BP.clear_sprite_color(e._spr)
 			end
+			local strip_origin = Vector(lay.rect.x + 34, lay.rect.y + lay.rect.h * 0.5)
+			local strip_w = BP.draw_stock_loadout_strip(strip_origin, e.rec)
 			local del_w = (lay.del_rect and lay.del_rect.w) or 30
-			local text_rect = Mouse_UI.make_rect(lay.rect.x + 34, lay.rect.y, lay.rect.w - 38 - del_w - 4, lay.rect.h)
+			local text_x = lay.rect.x + 34 + strip_w + (strip_w > 0 and 4 or 0)
+			local text_rect = Mouse_UI.make_rect(
+				text_x,
+				lay.rect.y,
+				math.max(24, lay.rect.x + lay.rect.w - text_x - del_w - 8),
+				lay.rect.h
+			)
 			local tcol = broken and KColor(1, 0.35, 0.35, 1)
 				or ((focused or (st and st.hovered)) and KColor(1, 0.95, 0.55, 1) or KColor(0.8, 0.85, 0.95, 1))
-			tcol = tut_dim_id(e.uid, tcol)
-			if get_tutorial().is_locking() and get_tutorial().allows(e.uid) then
-				draw_region_outline(lay.rect, KColor(1, 0.9, 0.35, 1), true)
+			tcol = BP.tut_dim_id(e.uid, tcol)
+			if BP.get_tutorial().is_locking() and BP.get_tutorial().allows(e.uid) then
+				BP.draw_region_outline(lay.rect, KColor(1, 0.9, 0.35, 1), true)
 			end
 			if broken then
-				draw_region_outline(lay.rect, KColor(1, 0.3, 0.3, 0.85), true)
+				BP.draw_region_outline(lay.rect, KColor(1, 0.3, 0.3, 0.85), true)
 			end
-			draw_text_in_rect(text_rect, e.label, tcol, {align = "left", pad_x = 2})
+			BP.draw_text_in_rect(text_rect, e.label, tcol, {align = "left", pad_x = 2})
 			if lay.del_rect and e.del_uid then
 				local dst = ui.states[e.del_uid]
-				local del_focused = focus_equals(panel, e.del_uid)
+				local del_focused = BP.focus_equals(panel, e.del_uid)
 				local armed = panel.delete_confirm_uid == e.rec.uid
 				local dcol = armed and KColor(1, 0.35, 0.3, 1)
 					or ((del_focused or (dst and dst.hovered)) and KColor(1, 0.7, 0.55, 1) or KColor(0.95, 0.55, 0.5, 0.95))
-				dcol = tut_dim_id(e.del_uid, dcol)
-				if get_tutorial().is_locking() and get_tutorial().allows(e.del_uid) then
-					draw_region_outline(lay.del_rect, KColor(1, 0.45, 0.35, 1), true)
+				dcol = BP.tut_dim_id(e.del_uid, dcol)
+				if BP.get_tutorial().is_locking() and BP.get_tutorial().allows(e.del_uid) then
+					BP.draw_region_outline(lay.del_rect, KColor(1, 0.45, 0.35, 1), true)
 				else
-					draw_region_outline(lay.del_rect, (del_focused or armed) and KColor(1, 0.45, 0.35, 1) or KColor(0.7, 0.35, 0.35, 0.7), true)
+					BP.draw_region_outline(lay.del_rect, (del_focused or armed) and KColor(1, 0.45, 0.35, 1) or KColor(0.7, 0.35, 0.35, 0.7), true)
 				end
 				local dtxt = armed
-					and (lang_is_zh() and "确认?" or "OK?")
-					or (lang_is_zh() and "删" or "Del")
-				draw_text_in_rect(lay.del_rect, dtxt, dcol)
+					and (BP.lang_is_zh() and "确认?" or "OK?")
+					or (BP.lang_is_zh() and "删" or "Del")
+				BP.draw_text_in_rect(lay.del_rect, dtxt, dcol)
 			end
 		else
-			draw_text_in_rect(lay.rect, e.label, color, {align = "left", pad_x = 8})
+			BP.draw_text_in_rect(lay.rect, e.label, color, {align = "left", pad_x = 8})
 		end
 		end
 	end
 	if drag and drag.kind == "form_card" and drag.rec and drag.pos then
 		local r = Mouse_UI.make_rect(drag.pos.X, drag.pos.Y, drag.w or 72, drag.h or 80)
-		draw_form_craft_card(r, drag.rec, true, true)
+		BP.draw_form_craft_card(r, drag.rec, true, true)
 	end
 end
 
-local function render_craft(ui, panel)
+function BP.render_craft(ui, panel)
 	local g = ui.craft_geom
 	local craft = panel.craft
 	local player = panel.player
-	local zh = lang_is_zh()
+	local zh = BP.lang_is_zh()
 
 	-- 背包左边：道具品质显示。默认关，底座空时自动开。
 	if g.quality_rect then
 		local qst = ui.states.btn_quality
-		local q_focused = focus_equals(panel, "btn_quality")
+		local q_focused = BP.focus_equals(panel, "btn_quality")
 		local q_on = craft.show_quality == true
 		local q_txt = zh and (q_on and "品质开" or "品质关") or (q_on and "Q.On" or "Q.Off")
 		local qc
@@ -5278,41 +5811,41 @@ local function render_craft(ui, panel)
 		else
 			qc = KColor(0.55, 0.58, 0.62, 1)
 		end
-		if q_focused then draw_region_outline(g.quality_rect, KColor(1, 0.85, 0.35, 1), true) end
-		draw_text_in_rect(g.quality_rect, q_txt, qc)
+		if q_focused then BP.draw_region_outline(g.quality_rect, KColor(1, 0.85, 0.35, 1), true) end
+		BP.draw_text_in_rect(g.quality_rect, q_txt, qc)
 	end
 	-- 背包 / 全道具切换；全道具下用右侧标签列筛选（有效/无效/未实装 + 类别）
-	if not craft.tutorial_bag then
+	if craft.tutorial_bag then
+		BP.draw_text_in_rect(g.mode_rect, zh and "教学背包" or "LESSON", KColor(0.7, 0.82, 0.9, 1))
+	elseif BP.all_items_mode_allowed() then
 		local mst = ui.states.btn_mode
-		local mode_focused = focus_equals(panel, "btn_mode")
+		local mode_focused = BP.focus_equals(panel, "btn_mode")
 		local mode_txt = craft.all_items
 			and (zh and "全道具" or "ALL")
 			or (zh and "背包" or "BAG")
 		local mc = (mode_focused or (mst and mst.hovered)) and KColor(1, 0.95, 0.5, 1)
 			or (craft.all_items and KColor(1, 0.75, 0.45, 1) or KColor(0.7, 0.9, 0.8, 1))
-		if mode_focused then draw_region_outline(g.mode_rect, KColor(1, 0.85, 0.35, 1), true) end
-		draw_text_in_rect(g.mode_rect, mode_txt, mc)
-	else
-		draw_text_in_rect(g.mode_rect, zh and "教学背包" or "LESSON", KColor(0.7, 0.82, 0.9, 1))
+		if mode_focused then BP.draw_region_outline(g.mode_rect, KColor(1, 0.85, 0.35, 1), true) end
+		BP.draw_text_in_rect(g.mode_rect, mode_txt, mc)
 	end
 	if g.tag_col then
 		local enabled = craft.tag_enabled or CraftProfile.default_audit_tag_enabled()
 		local all_st = ui.states.btn_tag_all
-		local all_focused = focus_equals(panel, "btn_tag_all")
+		local all_focused = BP.focus_equals(panel, "btn_tag_all")
 		local all_c = (all_focused or (all_st and all_st.hovered)) and KColor(1, 0.95, 0.5, 1) or KColor(0.85, 0.9, 1, 1)
-		if all_focused then draw_region_outline(g.tag_col.all_rect, KColor(1, 0.85, 0.35, 1), true) end
-		draw_text_in_rect(g.tag_col.all_rect, zh and "全开" or "All", all_c)
+		if all_focused then BP.draw_region_outline(g.tag_col.all_rect, KColor(1, 0.85, 0.35, 1), true) end
+		BP.draw_text_in_rect(g.tag_col.all_rect, zh and "全开" or "All", all_c)
 		local inv_st = ui.states.btn_tag_invert
-		local inv_focused = focus_equals(panel, "btn_tag_invert")
+		local inv_focused = BP.focus_equals(panel, "btn_tag_invert")
 		local inv_c = (inv_focused or (inv_st and inv_st.hovered)) and KColor(1, 0.95, 0.5, 1) or KColor(0.85, 0.9, 1, 1)
-		if inv_focused then draw_region_outline(g.tag_col.invert_rect, KColor(1, 0.85, 0.35, 1), true) end
-		draw_text_in_rect(g.tag_col.invert_rect, zh and "反转" or "Inv", inv_c)
+		if inv_focused then BP.draw_region_outline(g.tag_col.invert_rect, KColor(1, 0.85, 0.35, 1), true) end
+		BP.draw_text_in_rect(g.tag_col.invert_rect, zh and "反转" or "Inv", inv_c)
 		for _, def in ipairs(g.tag_col.defs or {}) do
 			local rect = g.tag_col.tag_rects and g.tag_col.tag_rects[def.key]
 			if rect then
 				local bid = "btn_tag_"..def.key
 				local st = ui.states[bid]
-				local focused = focus_equals(panel, bid)
+				local focused = BP.focus_equals(panel, bid)
 				local on = enabled[def.key] == true
 				local label = zh and def.zh or def.en
 				local tc
@@ -5329,34 +5862,34 @@ local function render_craft(ui, panel)
 				else
 					tc = KColor(0.7, 0.95, 0.85, 1)
 				end
-				if focused then draw_region_outline(rect, KColor(1, 0.85, 0.35, 1), true) end
-				draw_text_in_rect(rect, label, tc, {align = "left", pad_x = 2})
+				if focused then BP.draw_region_outline(rect, KColor(1, 0.85, 0.35, 1), true) end
+				BP.draw_text_in_rect(rect, label, tc, {align = "left", pad_x = 2})
 			end
 		end
 	end
 	if panel.pad_carry then
 		local tip = Mouse_UI.make_rect(g.left.x, g.left.y + 12, g.left.w, 12)
-		draw_text_in_rect(tip, zh and "搬运中:选槽位/背包放置" or "Carrying: slot/bag", KColor(1, 0.8, 0.4, 1), {align = "left", pad_x = 4})
+		BP.draw_text_in_rect(tip, zh and "搬运中:选槽位/背包放置" or "Carrying: slot/bag", KColor(1, 0.8, 0.4, 1), {align = "left", pad_x = 4})
 	end
 
 	-- 目标
 	if not craft._target_spr then
-		craft._target_spr = load_col_sprite(craft.target)
+		craft._target_spr = BP.load_col_sprite(craft.target)
 	end
 	craft._target_spr.Scale = Vector(0.95, 0.95)
-	craft._target_spr.Color = tint_color(1, 1, 1, 1)
+	craft._target_spr.Color = BP.tint_color(1, 1, 1, 1)
 	craft._target_spr:Render(g.target_pos, Vector(0, 0), Vector(0, 0))
 	craft._target_spr.Color = Color(1, 1, 1, 1)
 	local title_rect = Mouse_UI.make_rect(g.left.x, g.left.y, g.left.w, 14)
-	local title_txt = craft_preview_name(craft, panel.player)
-	if not title_txt or title_txt == "" then title_txt = target_label(craft.info, panel.player) end
+	local title_txt = BP.craft_preview_name(craft, panel.player)
+	if not title_txt or title_txt == "" then title_txt = BP.target_label(craft.info, panel.player) end
 	local title_broken = false
 	if craft.edit_uid and panel.player then
 		local erec = item.find_craft(panel.player, craft.edit_uid)
 		title_broken = erec and erec.broken == true
 		if title_broken then title_txt = "!" .. title_txt end
 	end
-	draw_text_in_rect(title_rect, title_txt, title_broken and KColor(1, 0.35, 0.35, 1) or KColor(1, 0.95, 0.7, 1))
+	BP.draw_text_in_rect(title_rect, title_txt, title_broken and KColor(1, 0.35, 0.35, 1) or KColor(1, 0.95, 0.7, 1))
 
 	-- 成本小槽（可多行；空槽画问号；不显示成本文字）
 	if g.cost_rect and (g.cost_display_n or 0) > 0 then
@@ -5370,25 +5903,25 @@ local function render_craft(ui, panel)
 			end
 		end
 		local pure_audit = CraftProfile.craft_is_pure_audit(
-			read_ingredients(craft), read_cost_items(craft), false
+			BP.read_ingredients(craft), BP.read_cost_items(craft), false
 		)
 		local ok = pure_audit or real_cost_n >= need
 		local ccol = ok and KColor(0.55, 0.9, 0.65, 0.95) or KColor(1, 0.55, 0.45, 0.95)
-		local focus_cost = focus_equals(panel, "cost_slot")
-		local display_n = g.cost_display_n or cost_display_count(craft)
-		local cell = g.cost_size or get_cost_slot_size()
-		local qmark = ensure_cost_qmark_sprite()
-		local qscale = get_cost_token_scale()
-		local qoff = get_cost_qmark_offset()
+		local focus_cost = BP.focus_equals(panel, "cost_slot")
+		local display_n = g.cost_display_n or BP.cost_display_count(craft)
+		local cell = g.cost_size or BP.get_cost_slot_size()
+		local qmark = BP.ensure_cost_qmark_sprite()
+		local qscale = BP.get_cost_token_scale()
+		local qoff = BP.get_cost_qmark_offset()
 		for i = 1, display_n do
-			local p = cost_stack_pos(craft, g, i)
+			local p = BP.cost_stack_pos(craft, g, i)
 			local cell_rect = Mouse_UI.make_rect_centered(p, cell, cell)
 			local filled = i <= have
 			local outline = focus_cost and KColor(1, 0.9, 0.35, 1)
 				or (filled and KColor(0.55, 0.9, 0.65, 0.85) or ccol)
 			-- 已放入道具时不画槽框，避免边框压在图标上；聚焦成本行时仍高亮
 			if not filled or focus_cost then
-				draw_region_outline(cell_rect, outline, true)
+				BP.draw_region_outline(cell_rect, outline, true)
 			end
 			if not filled then
 				qmark.Scale = Vector(qscale, qscale)
@@ -5405,7 +5938,7 @@ local function render_craft(ui, panel)
 	for i, slot in ipairs(craft.slots) do
 		local st = ui.states["cslot_"..i]
 		local sid = "cslot_"..i
-		local focused = focus_equals(panel, sid)
+		local focused = BP.focus_equals(panel, sid)
 		local near = focused
 		if panel.drag then
 			local tok = craft.token_map[panel.drag.token_id]
@@ -5419,14 +5952,39 @@ local function render_craft(ui, panel)
 			or ((st and st.hovered) and KColor(1, 1, 1, 0.9) or KColor(0.55, 0.7, 0.95, 0.85))
 		-- 空槽常显框；满槽仅在靠近/聚焦/悬停时高亮，否则不画边框
 		if not filled or near or focused or (st and st.hovered) then
-			draw_region_outline(slot._rect, outline, true)
+			BP.draw_region_outline(slot._rect, outline, true)
 		end
 		if not filled and not (panel.pad_carry and focused) then
-			draw_text_in_rect(slot._rect, "+", KColor(0.5, 0.6, 0.75, 0.7))
+			BP.draw_text_in_rect(slot._rect, "+", KColor(0.5, 0.6, 0.75, 0.7))
 		end
 		if slot._rect then
 			lowest_y = math.max(lowest_y, slot._rect.y + slot._rect.h)
 		end
+	end
+	if g.mirror_rect then
+		local mst = ui.states.mirror_slot
+		local mfilled = craft.mirror_token_id ~= nil
+		local mfocused = BP.focus_equals(panel, "mirror_slot")
+		local mnear = mfocused
+		if panel.drag then
+			local dtok = craft.token_map[panel.drag.token_id]
+			if dtok and BP.can_assign_mirror(craft, dtok)
+				and (dtok.pos - g.mirror_pos):Length() <= item.snap_dist
+			then
+				mnear = true
+			end
+		end
+		if panel.pad_carry and mfocused then mnear = true end
+		local moutline = mnear and KColor(0.55, 0.85, 1, 1)
+			or ((mst and mst.hovered) and KColor(0.65, 0.8, 1, 0.95) or KColor(0.45, 0.62, 0.95, 0.55))
+		if not mfilled or mnear or mfocused or (mst and mst.hovered) then
+			BP.draw_region_outline(g.mirror_rect, moutline, true)
+		end
+		if not mfilled and not (panel.pad_carry and mfocused) then
+			local mlabel = zh and "镜" or "M"
+			BP.draw_text_in_rect(g.mirror_rect, mlabel, KColor(0.45, 0.62, 0.95, 0.75))
+		end
+		lowest_y = math.max(lowest_y, g.mirror_rect.y + g.mirror_rect.h)
 	end
 	if g.cost_rect then
 		lowest_y = math.max(lowest_y, g.cost_rect.y + g.cost_rect.h)
@@ -5434,7 +5992,7 @@ local function render_craft(ui, panel)
 
 	-- 实时档案审计：紧贴上方最低槽位/成本块下方（含所属玩家动态项）
 	-- 红豆汤等持续状态预览只读；谷底石头在预览时立即比较并记录峰值。
-	local live = CraftProfile.build_profile(read_ingredients(craft), {
+	local live = CraftProfile.build_profile(BP.profile_ingredients(craft), {
 		player = player,
 		rec = craft.edit_uid and item.find_craft(player, craft.edit_uid) or craft,
 		commit_state = false,
@@ -5446,13 +6004,13 @@ local function render_craft(ui, panel)
 		main_charge_ratio = craft.main_charge_ratio,
 	})
 	local lines = CraftProfile.audit_lines(live, zh, player)
-	local charge_list = ui.charge_sliders or list_charge_sliders(craft)
+	local charge_list = ui.charge_sliders or BP.list_charge_sliders(craft)
 	local n_charge = #charge_list
 	local slider_top = g.confirm_rect.y - 12
 	if n_charge > 0 and g.charge_slider_rects and g.charge_slider_rects[n_charge] then
 		slider_top = g.charge_slider_rects[n_charge].y - 2
 	end
-	local audit_top = lowest_y + get_audit_text_y()
+	local audit_top = lowest_y + BP.get_audit_text_y()
 	local visible_count = math.max(0, math.floor((slider_top - audit_top) / 10) + 1)
 	local audit_max = math.max(0, #lines - visible_count)
 	local audit_scroll = math.max(0, math.min(audit_max, tonumber(craft.audit_scroll) or 0))
@@ -5466,17 +6024,17 @@ local function render_craft(ui, panel)
 	)
 	local ay = audit_top
 	for i = audit_scroll + 1, math.min(#lines, audit_scroll + visible_count) do
-		gui.draw_ch(Vector(g.left.x + 4, ay), lines[i], 1, 1, tint_kcolor(KColor(0.78, 0.88, 0.95, 1)), true)
+		gui.draw_ch(Vector(g.left.x + 4, ay), lines[i], 1, 1, BP.tint_kcolor(KColor(0.78, 0.88, 0.95, 1)), true)
 		ay = ay + 10
 	end
 	-- 只有确实存在隐藏行时提示可滚动，避免常驻装饰干扰数值。
 	if audit_max > 0 then
 		local hint_x = g.left.x + g.left.w - 8
 		if audit_scroll > 0 then
-			gui.draw_ch(Vector(hint_x, audit_top), "▲", 1, 1, tint_kcolor(KColor(0.7, 0.85, 1, 0.85)), true)
+			gui.draw_ch(Vector(hint_x, audit_top), "▲", 1, 1, BP.tint_kcolor(KColor(0.7, 0.85, 1, 0.85)), true)
 		end
 		if audit_scroll < audit_max then
-			gui.draw_ch(Vector(hint_x, slider_top), "▼", 1, 1, tint_kcolor(KColor(0.7, 0.85, 1, 0.85)), true)
+			gui.draw_ch(Vector(hint_x, slider_top), "▼", 1, 1, BP.tint_kcolor(KColor(0.7, 0.85, 1, 0.85)), true)
 		end
 	end
 
@@ -5486,30 +6044,30 @@ local function render_craft(ui, panel)
 		if rect then
 			local r = CraftProfile.clamp_charge_ratio(craft[info.key], info.max_ratio)
 			local st = ui.states[info.id]
-			local focused = focus_equals(panel, info.id)
+			local focused = BP.focus_equals(panel, info.id)
 			local active = st and st.active
 			local fill_col = (info.colors and info.colors[info.color_key]) or KColor(0.8, 0.65, 0.95, 0.95)
 			local progress = math.max(0, math.min(1, r / math.max(1, info.max_ratio or 1)))
 			local frame = math.max(0, math.min(99, math.floor(progress * 99 + 0.5)))
-			local slider = ensure_charge_slider_sprite()
+			local slider = BP.ensure_charge_slider_sprite()
 			slider:SetFrame("Idle", frame)
 			local pos = Vector(rect.x + rect.w * 0.5, rect.y + rect.h * 0.5)
 			-- back/front 均为白色素材；front 单独染色，main 保留黑边，ball 保留原色。
-			slider.Color = slider_layer_color(KColor(1, 1, 1, 0.72))
+			slider.Color = BP.slider_layer_color(KColor(1, 1, 1, 0.72))
 			slider:RenderLayer(1, pos)
-			slider.Color = slider_layer_color(fill_col)
+			slider.Color = BP.slider_layer_color(fill_col)
 			slider:RenderLayer(3, pos)
-			slider.Color = slider_layer_color(KColor(1, 1, 1, 1))
+			slider.Color = BP.slider_layer_color(KColor(1, 1, 1, 1))
 			slider:RenderLayer(0, pos)
 			slider:RenderLayer(2, pos)
 			if focused or active or (st and st.hovered) then
 				-- 聚焦反馈只加轻微暖色，不改帧和图层几何。
-				slider.Color = slider_layer_color(KColor(1, 0.9, 0.55, 0.28))
+				slider.Color = BP.slider_layer_color(KColor(1, 0.9, 0.55, 0.28))
 				slider:RenderLayer(0, pos)
 			end
 			local pct = math.floor(r * 100 + 0.5)
 			local label = (zh and info.zh or info.en) .. " " .. pct .. "%"
-			draw_text_in_rect(
+			BP.draw_text_in_rect(
 				Mouse_UI.make_rect(rect.x, rect.y - 1, rect.w, rect.h),
 				label,
 				KColor(1, 0.92, 0.75, 1),
@@ -5525,41 +6083,41 @@ local function render_craft(ui, panel)
 		and (zh and "更改" or "Apply")
 		or (zh and (craft.all_items and "审计制造" or "确认制造") or (craft.all_items and "Audit Craft" or "Craft"))
 	local back_txt = "< "..(zh and "返回" or "Back")
-	local c_focus = focus_equals(panel, "btn_confirm")
-	local b_focus = focus_equals(panel, "btn_back")
+	local c_focus = BP.focus_equals(panel, "btn_confirm")
+	local b_focus = BP.focus_equals(panel, "btn_back")
 	local cc = (c_focus or (cst and cst.hovered)) and KColor(1, 0.95, 0.5, 1) or KColor(0.85, 0.9, 1, 1)
 	local bc = (b_focus or (bst and bst.hovered)) and KColor(1, 0.95, 0.5, 1) or KColor(0.75, 0.8, 0.9, 1)
-	cc = tut_dim_id("btn_confirm", cc)
-	bc = tut_dim_id("btn_back", bc)
-	if get_tutorial().is_locking() and get_tutorial().allows("btn_confirm") then
-		draw_region_outline(g.confirm_rect, KColor(1, 0.9, 0.4, 1), true)
+	cc = BP.tut_dim_id("btn_confirm", cc)
+	bc = BP.tut_dim_id("btn_back", bc)
+	if BP.get_tutorial().is_locking() and BP.get_tutorial().allows("btn_confirm") then
+		BP.draw_region_outline(g.confirm_rect, KColor(1, 0.9, 0.4, 1), true)
 	else
-		draw_region_outline(g.confirm_rect, (c_focus or (cst and cst.hovered)) and KColor(1, 0.9, 0.4, 1) or KColor(0.5, 0.65, 0.9, 0.7), true)
+		BP.draw_region_outline(g.confirm_rect, (c_focus or (cst and cst.hovered)) and KColor(1, 0.9, 0.4, 1) or KColor(0.5, 0.65, 0.9, 0.7), true)
 	end
-	if b_focus then draw_region_outline(g.back_rect, KColor(1, 0.85, 0.35, 1), true) end
-	draw_text_in_rect(g.confirm_rect, confirm_txt, cc)
-	draw_text_in_rect(g.back_rect, back_txt, bc)
+	if b_focus then BP.draw_region_outline(g.back_rect, KColor(1, 0.85, 0.35, 1), true) end
+	BP.draw_text_in_rect(g.confirm_rect, confirm_txt, cc)
+	BP.draw_text_in_rect(g.back_rect, back_txt, bc)
 
 	local page = (craft.bag_page or 0) + 1
 	local pages = craft.bag_pages or 1
 	local pst = ui.states.btn_prev
 	local nst = ui.states.btn_next
-	local p_focus = focus_equals(panel, "btn_prev")
-	local n_focus = focus_equals(panel, "btn_next")
-	if p_focus then draw_region_outline(g.prev_rect, KColor(1, 0.85, 0.35, 1), true) end
-	if n_focus then draw_region_outline(g.next_rect, KColor(1, 0.85, 0.35, 1), true) end
-	draw_text_in_rect(g.prev_rect, "<", (p_focus or (pst and pst.hovered)) and KColor(1, 1, 0.6, 1) or KColor(0.75, 0.8, 0.9, 1))
-	draw_text_in_rect(g.next_rect, ">", (n_focus or (nst and nst.hovered)) and KColor(1, 1, 0.6, 1) or KColor(0.75, 0.8, 0.9, 1))
+	local p_focus = BP.focus_equals(panel, "btn_prev")
+	local n_focus = BP.focus_equals(panel, "btn_next")
+	if p_focus then BP.draw_region_outline(g.prev_rect, KColor(1, 0.85, 0.35, 1), true) end
+	if n_focus then BP.draw_region_outline(g.next_rect, KColor(1, 0.85, 0.35, 1), true) end
+	BP.draw_text_in_rect(g.prev_rect, "<", (p_focus or (pst and pst.hovered)) and KColor(1, 1, 0.6, 1) or KColor(0.75, 0.8, 0.9, 1))
+	BP.draw_text_in_rect(g.next_rect, ">", (n_focus or (nst and nst.hovered)) and KColor(1, 1, 0.6, 1) or KColor(0.75, 0.8, 0.9, 1))
 	local page_rect = Mouse_UI.make_rect(g.prev_rect.x + g.prev_rect.w, g.prev_rect.y, g.next_rect.x - (g.prev_rect.x + g.prev_rect.w), g.prev_rect.h)
-	draw_text_in_rect(page_rect, tostring(page).."/"..tostring(pages), KColor(0.65, 0.75, 0.85, 1))
+	BP.draw_text_in_rect(page_rect, tostring(page).."/"..tostring(pages), KColor(0.65, 0.75, 0.85, 1))
 
 	-- tokens（已实装偏绿，未实装偏灰，失去标红）；焦点/搬运高亮
 	for _, tok in ipairs(craft.tokens) do
 		local st = ui.states[tok.id]
-		local spr = tok.sprite or load_col_sprite(tok.collectible)
+		local spr = tok.sprite or BP.load_col_sprite(tok.collectible)
 		tok.sprite = spr
 		local carrying = panel.pad_carry and panel.pad_carry.token_id == tok.id
-		local focused = focus_equals(panel, tok.id) or (panel.pad_carry and focus_equals(panel, "dropbag_"..tok.id))
+		local focused = BP.focus_equals(panel, tok.id) or (panel.pad_carry and BP.focus_equals(panel, "dropbag_"..tok.id))
 		local scale = 1
 		if (panel.drag and panel.drag.token_id == tok.id) or carrying then scale = 1.14
 		elseif focused or (st and st.hovered) then scale = 1.08 end
@@ -5579,129 +6137,151 @@ local function render_craft(ui, panel)
 		local lost = tok.lost == true or tok.lost_ghost == true
 		if tok.cost then
 			-- 成本仅用于支付，绝不生效；其视觉优先级高于 lost/prototype/impl 等状态。
-			spr.Color = cost_token_color()
+			spr.Color = BP.cost_token_color()
 		elseif lost then
 			-- 失去（背包/材料槽）：优先标红
-			spr.Color = tint_color(1.0, 0.28, 0.28, 1)
+			spr.Color = BP.tint_color(1.0, 0.28, 0.28, 1)
 		elseif tok.is_prototype or tok.source == "prototype" then
-			spr.Color = tint_color(0.7, 0.9, 1.0, 1)
+			spr.Color = BP.tint_color(0.7, 0.9, 1.0, 1)
+		elseif tok.is_mirror or tok.source == "mirror" then
+			BP.apply_mirror_token_visual(spr, tok.collectible)
 		elseif missing_stat then
-			spr.Color = tint_color(1.0, 0.82, 0.35, 1)
+			spr.Color = BP.tint_color(1.0, 0.82, 0.35, 1)
 		elseif gated_off then
 			-- 已实装但当前配方不满足武器条件（如无博士/史诗的炸弹道具）
-			spr.Color = tint_color(0.42, 0.4, 0.38, 0.72)
+			spr.Color = BP.tint_color(0.42, 0.4, 0.38, 0.72)
 		elseif form_syn and not impl then
 			-- 套装材料亮起（书套/猫套等），无独立接线也偏绿
-			spr.Color = tint_color(0.8, 0.95, 1.0, 1)
+			spr.Color = BP.tint_color(0.8, 0.95, 1.0, 1)
 		elseif impl or lit then
-			spr.Color = tint_color(0.85, 1.0, 0.85, 1)
+			spr.Color = BP.tint_color(0.85, 1.0, 0.85, 1)
 		else
-			spr.Color = tint_color(0.45, 0.42, 0.42, 0.85)
+			spr.Color = BP.tint_color(0.45, 0.42, 0.42, 0.85)
 		end
-		if get_tutorial().is_locking() then
-			local seated = tok.slot or tok.cost
-			if not get_tutorial().allows_token(tok) and not seated then
-				spr.Color = tint_color(0.32, 0.32, 0.36, 0.38)
-			elseif get_tutorial().allows_token(tok) and not seated then
-				draw_region_outline(Mouse_UI.make_rect_centered(tok.pos, item.slot_size, item.slot_size), KColor(1, 0.9, 0.35, 1), true)
+		if BP.get_tutorial().is_locking() then
+			local seated = tok.slot or tok.cost or tok.mirror_slot
+			if not BP.get_tutorial().allows_token(tok) and not seated then
+				spr.Color = BP.tint_color(0.32, 0.32, 0.36, 0.38)
+			elseif BP.get_tutorial().allows_token(tok) and not seated then
+				BP.draw_region_outline(Mouse_UI.make_rect_centered(tok.pos, item.slot_size, item.slot_size), KColor(1, 0.9, 0.35, 1), true)
 			end
 		end
 		-- 与材料槽共用完全相同的边界尺寸；避免 32px 点阵步进越过边缘，看起来比 34px 槽框更大。
 		local token_outline_rect = Mouse_UI.make_rect_centered(tok.pos, item.slot_size, item.slot_size)
 		-- 成本 token 已由上方的小槽负责聚焦反馈；不能再套用正常 token 的大框。
 		if not tok.cost and (focused or carrying) then
-			draw_region_outline(token_outline_rect, KColor(1, 0.9, 0.35, 1), true)
+			BP.draw_region_outline(token_outline_rect, KColor(1, 0.9, 0.35, 1), true)
 		end
 		if not tok.cost and lost then
-			draw_region_outline(token_outline_rect, KColor(1, 0.3, 0.3, 0.9), true)
-		elseif not tok.cost and show_source_marks() and (tok.is_prototype or tok.source == "prototype") then
-			draw_region_outline(token_outline_rect, KColor(0.35, 0.85, 1, 0.95), true)
-		elseif not tok.cost and show_source_marks() and tok.source == "audit" then
-			draw_region_outline(token_outline_rect, KColor(1, 0.75, 0.4, 0.85), true)
+			BP.draw_region_outline(token_outline_rect, KColor(1, 0.3, 0.3, 0.9), true)
+		elseif not tok.cost and BP.show_source_marks() and (tok.is_prototype or tok.source == "prototype") then
+			BP.draw_region_outline(token_outline_rect, KColor(0.35, 0.85, 1, 0.95), true)
+		elseif not tok.cost and BP.show_source_marks() and (tok.is_mirror or tok.source == "mirror") then
+			BP.draw_region_outline(token_outline_rect, KColor(0.35, 0.55, 1, 0.9), true)
+		elseif not tok.cost and BP.show_source_marks() and tok.source == "audit" then
+			BP.draw_region_outline(token_outline_rect, KColor(1, 0.75, 0.4, 0.85), true)
 		end
 		spr:Render(tok.pos, Vector(0, 0), Vector(0, 0))
-		clear_sprite_color(spr)
-		if craft.show_quality then
-			render_token_quality_icon(tok)
+		if tok.is_mirror or tok.source == "mirror" then
+			BP.clear_mirror_token_visual(spr)
+		else
+			BP.clear_sprite_color(spr)
 		end
-		local show_src = show_source_marks()
-		local mark = lost and "!"
-			or (show_src and (tok.is_prototype or tok.source == "prototype") and (zh and "原" or "P")
-			or (show_src and tok.source == "audit" and (zh and "审" or "A")
-			or (missing_stat and "△"
-			or (gated_off and (zh and "◎" or "o")
-			or (form_syn and not impl and (zh and "套" or "F")
-			or ((impl or lit) and (zh and "●" or "*") or (zh and "○" or ".")))))))
-		local mk = lost and KColor(1, 0.35, 0.35, 1)
-			or ((show_src and (tok.is_prototype or tok.source == "prototype")) and KColor(0.35, 0.85, 1, 1)
-			or ((show_src and tok.source == "audit") and KColor(1, 0.75, 0.4, 1)
-			or (missing_stat and KColor(1, 0.82, 0.2, 1)
-			or (gated_off and KColor(0.7, 0.65, 0.55, 1)
-			or (form_syn and not impl and KColor(0.45, 0.85, 1, 1)
-			or ((impl or lit) and KColor(0.35, 0.95, 0.45, 1) or KColor(0.75, 0.35, 0.35, 0.95)))))))
+		if craft.show_quality then
+			BP.render_token_quality_icon(tok)
+		end
+		local show_src = BP.show_source_marks()
+		local mark = zh and "○" or "."
+		local mk = KColor(0.75, 0.35, 0.35, 0.95)
+		if lost then
+			mark = "!"
+			mk = KColor(1, 0.35, 0.35, 1)
+		elseif show_src and (tok.is_mirror or tok.source == "mirror") then
+			mark = zh and "镜" or "M"
+			mk = KColor(0.35, 0.55, 1, 1)
+		elseif show_src and (tok.is_prototype or tok.source == "prototype") then
+			mark = zh and "原" or "P"
+			mk = KColor(0.35, 0.85, 1, 1)
+		elseif show_src and tok.source == "audit" then
+			mark = zh and "审" or "A"
+			mk = KColor(1, 0.75, 0.4, 1)
+		elseif missing_stat then
+			mark = "△"
+			mk = KColor(1, 0.82, 0.2, 1)
+		elseif gated_off then
+			mark = zh and "◎" or "o"
+			mk = KColor(0.7, 0.65, 0.55, 1)
+		elseif form_syn and not impl then
+			mark = zh and "套" or "F"
+			mk = KColor(0.45, 0.85, 1, 1)
+		elseif impl or lit then
+			mark = zh and "●" or "*"
+			mk = KColor(0.35, 0.95, 0.45, 1)
+		end
 		-- 成本槽只传达“灰色=不生效”，不叠加背包/材料状态标记。教学背包也不打这些记号。
-		if not tok.cost and mark and mark ~= "" and not get_tutorial().bag_collectibles() then
-			gui.draw_ch(tok.pos + Vector(8, -14), mark, 1, 1, tint_kcolor(mk), true)
+		if not tok.cost and mark and mark ~= "" and not BP.get_tutorial().bag_collectibles() then
+			gui.draw_ch(tok.pos + Vector(8, -14), mark, 1, 1, BP.tint_kcolor(mk), true)
 		end
 	end
 end
 
-local function render_tutorial_overlay(ui, panel)
+function BP.render_tutorial_overlay(ui, panel)
 	local tut = ui and ui.tut
 	if not tut then return end
 	local hint = tut.hint
 	if tut.box then
-		draw_region_outline(tut.box, KColor(1, 0.9, 0.45, 1), true)
+		BP.draw_region_outline(tut.box, KColor(1, 0.9, 0.45, 1), true)
 		if hint and hint ~= "" then
 			local y = tut.box.y + 8
 			for line in string.gmatch(hint.."\n", "([^\n]*)\n") do
 				if line ~= "" then
-					draw_text_in_rect(Mouse_UI.make_rect(tut.box.x + 8, y, tut.box.w - 16, 12), line, KColor(1, 0.95, 0.75, 1))
+					BP.draw_text_in_rect(Mouse_UI.make_rect(tut.box.x + 8, y, tut.box.w - 16, 12), line, KColor(1, 0.95, 0.75, 1))
 					y = y + 13
 				end
 			end
 		end
 	elseif hint and hint ~= "" then
 		-- 贴屏幕底部，避开页签、暂停选项和顶部拾取字幕
-		get_tutorial().draw_bottom_hint(hint, KColor(1, 0.95, 0.75, 1))
+		BP.get_tutorial().draw_bottom_hint(hint, KColor(1, 0.95, 0.75, 1))
 	end
 	for _, b in ipairs(tut.buttons or {}) do
 		local st = ui.states[b.id]
-		local hot = (st and st.hovered) or focus_equals(panel, b.id)
-		draw_region_outline(b.rect, hot and KColor(1, 0.92, 0.4, 1) or KColor(0.7, 0.8, 0.95, 0.85), true)
-		draw_text_in_rect(b.rect, b.label, hot and KColor(1, 0.95, 0.55, 1) or KColor(0.9, 0.93, 1, 1))
+		local hot = (st and st.hovered) or BP.focus_equals(panel, b.id)
+		BP.draw_region_outline(b.rect, hot and KColor(1, 0.92, 0.4, 1) or KColor(0.7, 0.8, 0.95, 0.85), true)
+		BP.draw_text_in_rect(b.rect, b.label, hot and KColor(1, 0.95, 0.55, 1) or KColor(0.9, 0.93, 1, 1))
 	end
 end
 
-local function render_panel()
+function BP.render_panel()
 	scrub_stale_panel()
 	local panel = item.panel
 	if not panel then return end
-	if not panel_is_alive() then
-		close_panel()
+	if not BP.panel_is_alive() then
+		BP.close_panel()
 		return
 	end
+	BP.enforce_all_items_gate(panel)
 
 	-- 切屏等进暂停：不强制关菜单；标记 was_paused，回来后松手再响应（对齐逢魔）
-	if pause_menu_open() then
+	if BP.pause_menu_open() then
 		panel.was_paused = true
 		return
 	end
 
 	item._draw_alpha = item.get_panel_alpha()
-	pcall(function() get_tutorial().observe_panel(panel) end)
+	pcall(function() BP.get_tutorial().observe_panel(panel) end)
 	if not item.panel then item._draw_alpha = nil return end
 	local can_read_wheel = not panel.was_paused and not Game():IsPaused()
-	local ui = build_and_register_ui(panel)
+	local ui = BP.build_and_register_ui(panel)
 	-- 滚轮只改背包页 / 编队备选条；不需要等待升起动画或键盘 input_armed。
 	if can_read_wheel then
 		if panel.craft and ui.craft_geom then
-			try_mouse_wheel_page(panel, ui)
+			BP.try_mouse_wheel_page(panel, ui)
 		else
-			try_mouse_wheel_formation(panel, ui)
+			BP.try_mouse_wheel_formation(panel, ui)
 		end
 		if not item.panel then item._draw_alpha = nil return end
-		ui = panel.ui or build_and_register_ui(panel)
+		ui = panel.ui or BP.build_and_register_ui(panel)
 	end
 	local can_interact = panel.input_armed
 		and item.panel_rise_finished()
@@ -5709,71 +6289,71 @@ local function render_panel()
 		and not Game():IsPaused()
 		and not panel.was_paused
 	if can_interact then
-		handle_mouse_actions(panel, ui)
+		BP.handle_mouse_actions(panel, ui)
 		if not item.panel then item._draw_alpha = nil return end
-		ui = panel.ui or build_and_register_ui(panel)
-		handle_pad_actions(panel, ui)
+		ui = panel.ui or BP.build_and_register_ui(panel)
+		BP.handle_pad_actions(panel, ui)
 		if not item.panel then item._draw_alpha = nil return end
 		ui = panel.ui or ui
 	end
 
 	local panel_rect = ui.panel_rect
-	local bg = ensure_bg_sprite()
-	local a = panel_alpha()
+	local bg = BP.ensure_bg_sprite()
+	local a = BP.panel_alpha()
 	bg.Color = Color(1, 1, 1, a)
-	local bg_off = get_bg_offset()
+	local bg_off = BP.get_bg_offset()
 	bg:Render(panel_rect.center + bg_off, Vector(0, 0), Vector(0, 0))
 	bg.Color = Color(1, 1, 1, 1)
-	render_tabs(ui, panel)
+	BP.render_tabs(ui, panel)
 
 	local tab = item.tabs[panel.tab]
 	local in_craft = (tab.id == "build" or tab.id == "inventory") and panel.craft and ui.craft_geom
 	if in_craft then
-		render_craft(ui, panel)
+		BP.render_craft(ui, panel)
 	else
-		render_list(ui, panel)
+		BP.render_list(ui, panel)
 	end
-	render_tutorial_overlay(ui, panel)
+	BP.render_tutorial_overlay(ui, panel)
 
 	if item.debug_draw_regions then
-		gui.draw_ch(Vector(8, 8), "hover="..tostring(ui.hovered or "-"), 1, 1, tint_kcolor(KColor(1, 1, 1, 0.7)), true)
+		gui.draw_ch(Vector(8, 8), "hover="..tostring(ui.hovered or "-"), 1, 1, BP.tint_kcolor(KColor(1, 1, 1, 0.7)), true)
 	end
 	item._draw_alpha = nil
 end
 
-local function update_panel_input(player)
+function BP.update_panel_input(player)
 	scrub_stale_panel()
 	local panel = item.panel
-	if not same_panel_player(player) then return end
+	if not BP.same_panel_player(player) then return end
 	if Game():GetFrameCount() <= panel.opened_frame then return end
 	local ctrlid = player.ControllerIndex
 
 	-- 暂停被关掉后：按着的 ESC/确认/方向等一律不计入，松手前保持 was_paused 防连触
 	if panel.was_paused then
-		disarm_until_release(panel)
-		if pause_menu_open() or panel_keys_held(ctrlid, player) then return end
+		BP.disarm_until_release(panel)
+		if BP.pause_menu_open() or BP.panel_keys_held(ctrlid, player) then return end
 		panel.was_paused = false
 		panel.input_armed = true
 		panel.wait_drop_release = false
 		return
 	end
-	if pause_menu_open() or Game():IsPaused() then return end
+	if BP.pause_menu_open() or Game():IsPaused() then return end
 
 	if not panel.input_armed then
-		if not panel_keys_held(ctrlid, player) then panel.input_armed = true end
+		if not BP.panel_keys_held(ctrlid, player) then panel.input_armed = true end
 		return
 	end
 
 	if panel.wait_drop_release then
-		if not exit_key_held(ctrlid, player) then
+		if not BP.exit_key_held(ctrlid, player) then
 			panel.wait_drop_release = false
 		end
-	elseif exit_key_triggered(ctrlid, player) then
-		try_panel_exit(panel)
+	elseif BP.exit_key_triggered(ctrlid, player) then
+		BP.try_panel_exit(panel)
 	end
 end
 
-return render_panel, update_panel_input
+return BP.render_panel, BP.update_panel_input
 end)()
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_USE_ITEM, params = item.entity,
@@ -5790,14 +6370,14 @@ Function = function(_, _, rng, player, use_flags, active_slot)
 	end
 	-- 先清失效面板（重启后残留），再判断是否本人已打开
 	scrub_stale_panel()
-	if same_panel_player(player) then
+	if BP.same_panel_player(player) then
 		-- 已开启：再次使用 = 关闭
-		close_panel()
+		BP.close_panel()
 		return {Discharge = false, ShowAnim = false}
 	end
 	if item.panel then
 		-- 其他人占用或异常占用：关掉再开
-		close_panel()
+		BP.close_panel()
 	end
 	if Game():GetFrameCount() <= (item.suppress_open_until or -1) then
 		-- 刚关掉的抑制帧内允许立刻重开（toggle 除外已在上面处理）
@@ -5810,7 +6390,7 @@ Function = function(_, _, rng, player, use_flags, active_slot)
 		end
 		return {Discharge = false, ShowAnim = false}
 	end
-	open_panel(player)
+	BP.open_panel(player)
 	return {Discharge = false, ShowAnim = false}
 end,
 })
@@ -5819,10 +6399,10 @@ end,
 -- PILLCARD 始终拦截（防误用卡牌）；副手时退出键另用缓存探测真值
 table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {CallBack = ModCallbacks.MC_INPUT_ACTION, params = nil, priority = -1000,
 Function = function(_, ent, hook, button)
-	if not blueprint_input_active() then return end
+	if not BP.blueprint_input_active() then return end
 	if ent == nil then return end
 	local player = ent:ToPlayer()
-	if not player or not same_panel_player(player) then return end
+	if not player or not BP.same_panel_player(player) then return end
 	if button == ButtonAction.ACTION_PILLCARD and pillcard.probe then
 		return -- 放行探测调用，拿到硬件真值
 	end
@@ -5881,19 +6461,19 @@ Function = function(_, player)
 		elseif not item.panel
 			and player:HasCollectible(item.entity)
 			and player:IsHoldingItem()
-			and not pause_menu_open()
+			and not BP.pause_menu_open()
 		then
 			item.suppress_open_until = -1
 			item.pending_reopen_until = nil
-			open_panel(player)
+			BP.open_panel(player)
 			return
 		end
 	end
 
-	if not same_panel_player(player) then return end
+	if not BP.same_panel_player(player) then return end
 	-- 暂停菜单打开时不要继续 time_stop：从暂停重开会把 Attribute 强表 claim 带进新局，
 	-- userdata 复用后准星等新实体会被 Position/FREEZE 钉死（玩家在 unstopable 里仍能转头）。
-	if pause_menu_open() then
+	if BP.pause_menu_open() then
 		if item.panel then item.panel.was_paused = true end
 		return
 	end
@@ -5919,7 +6499,7 @@ Function = function(_)
 		local AH = require("Qing_Remaster_scripts.others.Attribute_holder")
 		if AH.drop_all then AH.drop_all() end
 	end)
-	restore_eid_after_blueprint()
+	BP.restore_eid_after_blueprint()
 end,
 })
 
@@ -5931,13 +6511,13 @@ Function = function(_)
 	end
 	item.pending_reopen_until = nil
 	item.suppress_open_until = -1
-	clear_blueprint_selection(nil)
+	BP.clear_blueprint_selection(nil)
 	pcall(function() auxi.time_free(item.own_key) end)
 	pcall(function()
 		local AH = require("Qing_Remaster_scripts.others.Attribute_holder")
 		if AH.drop_all then AH.drop_all() end
 	end)
-	restore_eid_after_blueprint()
+	BP.restore_eid_after_blueprint()
 	item._room_epoch = 0
 	item._integrity_epoch_seen = {}
 	for i = 0, Game():GetNumPlayers() - 1 do
@@ -5959,7 +6539,7 @@ Function = function(_)
 	-- 仍举着时由 POST_PLAYER_UPDATE 用新 player 自动 open_panel
 	item.pending_reopen_until = was_open and (Game():GetFrameCount() + 8) or nil
 	pcall(function() auxi.time_free(item.own_key) end)
-	restore_eid_after_blueprint()
+	BP.restore_eid_after_blueprint()
 end,
 })
 
@@ -5978,14 +6558,14 @@ table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
 			if not tab or tab.id ~= "formation" then return end
 		end
 		panel.wheel_render_serial = (panel.wheel_render_serial or 0) + 1
-		capture_mouse_wheel(panel, "post_render_priority#"..tostring(panel.wheel_render_serial))
+		BP.capture_mouse_wheel(panel, "post_render_priority#"..tostring(panel.wheel_render_serial))
 	end,
 })
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_RENDER, params = nil,
 Function = function(_)
 	scrub_stale_panel()
-	if item.panel then hide_eid_for_blueprint() end
+	if item.panel then BP.hide_eid_for_blueprint() end
 	item.render_panel()
 end,
 })
@@ -5996,7 +6576,7 @@ if ModCallbacks.MC_POST_ADD_COLLECTIBLE then
 		params = nil,
 		Function = function(_, _type, _charge, _first, _slot, _var, player)
 			if player then item.refresh_craft_integrity(player) end
-			if item.panel and item.panel.craft and same_panel_player(player) then
+			if item.panel and item.panel.craft and BP.same_panel_player(player) then
 				item.panel.craft._bag_dirty = true
 			end
 		end,
@@ -6008,7 +6588,7 @@ if ModCallbacks.MC_POST_TRIGGER_COLLECTIBLE_REMOVED then
 		params = nil,
 		Function = function(_, player, _type)
 			if player then item.refresh_craft_integrity(player) end
-			if item.panel and item.panel.craft and same_panel_player(player) then
+			if item.panel and item.panel.craft and BP.same_panel_player(player) then
 				item.panel.craft._bag_dirty = true
 			end
 		end,

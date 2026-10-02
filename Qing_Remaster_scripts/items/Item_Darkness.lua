@@ -48,6 +48,19 @@ local function debug_print(text)
 	end
 end
 
+-- Only convert standard red-heart characters to SOUL.
+-- HealthType.RED and HealthType.DEFAULT are the same value (0).
+-- Regular Bethany is excluded because soul hearts feed her active charges.
+-- Tainted Bethany is NOT excluded; Lost/Keeper/Bone/etc. stay via HealthType whitelist.
+local function should_convert_health_type(player, currentHealthType)
+	if not player then return false end
+	if player:GetPlayerType() == PlayerType.PLAYER_BETHANY then
+		return false
+	end
+	local red = (HealthType and HealthType.RED) or 0
+	return currentHealthType == red
+end
+
 local function get_black_heart_count(player)
 	local mask = player:GetBlackHearts()
 	if mask <= 0 then return 0 end
@@ -310,14 +323,9 @@ Function = function()
 				d[item.own_key.."blacken_counter"] = 0
 			end
 			if not REPENTOGON then
-				local q = player:GetMaxHearts()
-				local pltp = player:GetPlayerType()
-				if pltp == 14 or pltp == 18 or pltp == 33 then
-					if q > 2 then
-						player:AddMaxHearts(-q + 2,true)
-						player:AddBlackHearts(q - 2)
-					end
-				else
+				-- Legacy only: no HealthType callback. Skip regular Bethany; do not invent HealthType heuristics.
+				if player:GetPlayerType() ~= PlayerType.PLAYER_BETHANY then
+					local q = player:GetMaxHearts()
 					if q > 0 then
 						player:AddMaxHearts(-q,true)
 						player:AddBlackHearts(q)
@@ -366,6 +374,7 @@ if REPENTOGON and ModCallbacks.MC_POST_PLAYERHUD_RENDER_HEARTS then
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYERHUD_RENDER_HEARTS, params = nil,
 Function = function(_,offset,heartsSprite,position,spriteScale,player)
 	if player == nil or not auxi.has_have_coll(player,item.entity) then return end
+	if not auxi.can_render_health_hud() then return end
 	local progress = player:GetData()[item.own_key.."blacken_counter"] or 0
 	if progress <= 0 then return end
 	local alpha = math.min(0.9,math.max(0.18,progress / item.blacken_kill_goal))
@@ -402,7 +411,10 @@ end
 if REPENTOGON and ModCallbacks.MC_PLAYER_GET_HEALTH_TYPE then
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PLAYER_GET_HEALTH_TYPE, params = nil,
 Function = function(_,player,currentHealthType,defaultHealthType)
-	if auxi.has_have_coll(player,item.entity) then
+	if not auxi.has_have_coll(player,item.entity) then
+		return
+	end
+	if should_convert_health_type(player, currentHealthType) then
 		return (HealthType and HealthType.SOUL) or 1
 	end
 end,

@@ -15,7 +15,7 @@ local item = {
 	post_ToCall = {},
 	myToCall = {},
 	own_key = "Thoth_cd_All_",
-	-- 默认出现率：1=保留托特卡；0=映射回原版。旧全局 morph_rate 语义为「替换掉托特卡」概率。
+	-- 默认出现率：1=保留托特卡；0=映射回原版。
 	default_appear_rate = 1,
 	announcer = {
 		[Cards.Round_trip_Rail_Ticket] = {id = enums.SoundEffect.Railway_Ticket,delay = 15,},
@@ -63,32 +63,12 @@ local function appear_rates_bag()
 	return opts.CardAppearRates
 end
 
-local function migrate_legacy_global_morph()
-	save.PermanentData = save.PermanentData or {}
-	local legacy_key = item.own_key.."val1"
-	local legacy = save.PermanentData[legacy_key]
-	if legacy == nil then return end
-	local morph = tonumber(legacy)
-	save.PermanentData[legacy_key] = nil
-	if morph == nil then return end
-	local bag = appear_rates_bag()
-	if not bag then return end
-	local appear = math.max(0, math.min(1, 1 - morph))
-	for _, card_id in pairs(Cards) do
-		if type(card_id) == "number" and auxi.is_thoth_card(card_id) then
-			local key = tostring(card_id)
-			if bag[key] == nil then bag[key] = appear end
-		end
-	end
-	if save.SaveModData then pcall(save.SaveModData, "card_appear_migrate") end
-end
-
 function item.list_configurable_cards()
+	local card_registry = require("Qing_Remaster_scripts.cards.card_registry")
 	local list = {}
-	for name, card_id in pairs(Cards) do
-		if type(card_id) == "number" and auxi.is_thoth_card(card_id) then
-			list[#list + 1] = {name = name, id = card_id}
-		end
+	for _, card_id in ipairs(card_registry.get_thoth_cards()) do
+		local meta = card_registry.get(card_id)
+		list[#list + 1] = {name = (meta and meta.key) or tostring(card_id), id = card_id}
 	end
 	table.sort(list, function(a, b)
 		if a.id == b.id then return tostring(a.name) < tostring(b.name) end
@@ -98,7 +78,6 @@ function item.list_configurable_cards()
 end
 
 function item.get_card_appear_rate(card_id)
-	migrate_legacy_global_morph()
 	card_id = tonumber(card_id)
 	if not card_id then return item.default_appear_rate end
 	local bag = appear_rates_bag()

@@ -12,8 +12,15 @@ local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_hol
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local input_holder = require("Qing_Remaster_scripts.others.Input_holder")
 local ModConfig = require("Qing_Remaster_scripts.others.Mod_Config_Menu_holder")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
+local gen_audit = require("Qing_Remaster_scripts.others.Generation_audit_holder")
 
-local function can_afford_visible_price(player,price)
+local LIVE_AUDIT_OWNER = "LiveBroadcast"
+local cause_event
+
+-- Display-only：直播文案「是否买得起」预估，非 authoritative acquisition。
+-- collision ≠ acquisition；勿用本函数判定「这次碰撞是否真的拿走」。
+local function can_afford_displayed_price(player, price)
 	if not player or price == nil or price == 0 or price == (PickupPrice and PickupPrice.PRICE_FREE or -1000) then return true end
 	if price > 0 then return player:GetNumCoins() >= price end
 	if price == -1 or price == -2 or price == -4 or price == -9 then
@@ -61,6 +68,13 @@ local item = {
 	post_myToCall = {},
 	entity = enums.Items.Live_Broadcast,
 	own_key = "Item_Live_Broad_",
+	-- Consumer Regression 只读；禁止业务分支读这些字段
+	debug_cr = {
+		generation_seen = 0,
+		generation_triggered = 0,
+		generation_skipped_seen = 0,
+		last_generation_id = nil,
+	},
 	color_offset = {
 		[1] = Color(1,1,1,1),
 		[2] = Color(0.4,1,0.8,1),
@@ -504,6 +518,113 @@ local function has_player_with_live(player)
 	if ModConfig.ModConfigSettings.Auto_Live then return true end
 end
 
+--- 直播 epoch 内第一次遇见该 pedestal generation 时播报（延迟 1 帧，等 Unique marker）。
+local function schedule_live_generation_audit(ent, player, source_hint)
+	if not ent or not player then return end
+	if not gen_audit.is_active(LIVE_AUDIT_OWNER) then return end
+	-- 已摸过（含主动换下）不当作「第一次遇见」
+	if ent.Touched then return end
+	local id = ent.SubType or 0
+	if id <= 0 then return end
+	local col = Isaac.GetItemConfig():GetCollectible(id)
+	if not (col and not col:HasTags(1 << 15) and auxi.GetDimension() ~= 2) then return end
+	local qual = col.Quality
+	delay_buffer.addeffe(function(_params)
+		if auxi.check_all_exists(ent) ~= true then return end
+		if not gen_audit.is_active(LIVE_AUDIT_OWNER) then return end
+		if ent.Touched then return end
+		local gen = unique_holder.resolve_generation(ent)
+		local gid = gen and gen.id
+		if not gid then return end
+		local src = source_hint or (gen and gen.source) or "UNKNOWN"
+		if not gen_audit.check_and_mark(LIVE_AUDIT_OWNER, gid, { source = src }) then
+			item.debug_cr.generation_skipped_seen = (item.debug_cr.generation_skipped_seen or 0) + 1
+			item.debug_cr.last_generation_id = gid
+			return
+		end
+		item.debug_cr.generation_seen = (item.debug_cr.generation_seen or 0) + 1
+		item.debug_cr.last_generation_id = gid
+		local blind = auxi.isBlindPickup(ent)
+		if blind or ent.Touched then
+			return
+		end
+		item.debug_cr.generation_triggered = (item.debug_cr.generation_triggered or 0) + 1
+		if qual >= 4 then
+			local info = item_displaying_holder.check_description("UnItem",id,auxi.check_name_data(col.Name),auxi.check_name_data(col.Description),player)
+			cause_event(1,nil,{typename = "item",itemname = info.Name or "",itemDesc = info.Description or "",})
+		end
+		if id == CollectibleType.COLLECTIBLE_RED_KEY then cause_event(5,math.random(10) + 4) end
+		if item.record_items[id] and item.record_items[id].word then cause_event(14,8,{name = item.record_items[id].word}) end
+		record_holder.try_hold(ent,{check = function(et)
+			if et.SubType ~= id then
+				if et.SubType <= 0 then
+					return true,"Lost"
+				else
+					return true,"Turn"
+				end
+			end
+			return false,nil
+		end,Function = function(tp,et)
+			for i = 1,1 do
+				if et.FrameCount <= 0 then break end
+				if tp == "Turn" then
+					if auxi.have_player_queue_collectible(id) then break end
+				elseif tp == "Remove" then
+					if et:IsShopItem() then
+						if auxi.have_player_queue_collectible(id) then break end
+					end
+				elseif tp == "Lost" then
+					break
+				end
+				local info = item_displaying_holder.check_description("UnItem",id,auxi.check_name_data(col.Name),auxi.check_name_data(col.Description),player)
+				local target_zh,target_en = get_collectible_reference(player,et,blind,info.Name)
+				local price = et.Price
+				local is_shop_item = et:IsShopItem()
+				local unaffordable = is_shop_item and not can_afford_displayed_price(player, price)
+				cause_event(10,nil,{
+					typename = "item",
+					itemname = blind and "" or (info.Name or ""),
+					itemDesc = blind and "" or (info.Description or ""),
+					target_zh = target_zh,
+					target_en = target_en,
+					id = id,
+					ent = et,
+					blind = blind,
+					is_active = col.Type == ItemType.ITEM_ACTIVE,
+					has_active = player:GetActiveItem(ActiveSlot.SLOT_PRIMARY) > 0,
+					is_option = et.OptionsPickupIndex ~= 0,
+					unaffordable = unaffordable,
+					payment_kind = price > 0 and "coin" or "heart",
+					has_donation_machine = unaffordable and price > 0 and has_working_donation_machine(),
+				})
+			end
+		end,})
+	end,{},1)
+end
+
+local function begin_live_broadcast_epoch(player)
+	-- 已在播时不得因 collectible counter 重同步再次 begin_epoch（会清 seen、抬 epoch）。
+	-- 失去后再获得：end_epoch 已 active=false，这里会开新 epoch。
+	if not gen_audit.is_active(LIVE_AUDIT_OWNER) then
+		gen_audit.begin_epoch(LIVE_AUDIT_OWNER)
+	end
+	if not player then return end
+	local ok, list = pcall(function()
+		return Isaac.FindByType(EntityType.ENTITY_PICKUP, PickupVariant.PICKUP_COLLECTIBLE, -1, false, false)
+	end)
+	if not (ok and type(list) == "table") then return end
+	for _, ent in ipairs(list) do
+		local p = ent:ToPickup() or ent
+		schedule_live_generation_audit(p, player, "epoch_scan")
+	end
+end
+
+local function end_live_broadcast_epoch()
+	if gen_audit.is_active(LIVE_AUDIT_OWNER) then
+		gen_audit.end_epoch(LIVE_AUDIT_OWNER)
+	end
+end
+
 if true then
 	item.live_sprite = Sprite()
 	item.live_sprite:Load("gfx/mimics/Live_Broadcast/Live_sign.anm2",true)
@@ -645,7 +766,7 @@ local function hit_heat_burst(cnt1,cnt2)
 	save.elses.Live_add_offset = (save.elses.Live_add_offset or 0) + cnt2
 end
 
-local function cause_event(tp,weigh,params)
+cause_event = function(tp,weigh,params)
 	--print("Cause "..tp)
 	params = params or {}
 	weigh = weigh or math.random(12)
@@ -784,7 +905,10 @@ Function = function(_,continue)
 		save.elses.Live_popularity_counter = math.min(100,(save.elses.Live_popularity_counter or 0)/100)				--模式1
 	end
 	local player = get_player_with_live()
-	if player then cause_event(7) end
+	if player then
+		begin_live_broadcast_epoch(player)
+		cause_event(7)
+	end
 	save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
 end,
 })
@@ -882,86 +1006,29 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKU
 Function = function(_,ent)
 	local player = get_player_with_live()
 	if player then
-		local id = ent.SubType
-		if id > 0 then
-			local col = Isaac.GetItemConfig():GetCollectible(id)
-			if (col and not col:HasTags(1<<15) and auxi.GetDimension() ~= 2) then
-				local qual = col.Quality
-				local d = ent:GetData()
-				local succ = d.first_appear2
-				if succ then
-					delay_buffer.addeffe(function(params)
-						if auxi.check_all_exists(ent) ~= true then return end
-						local blind = auxi.isBlindPickup(ent)
-						if blind or ent.Touched then
-						else
-							if qual >= 4 then
-								local info = item_displaying_holder.check_description("UnItem",id,auxi.check_name_data(col.Name),auxi.check_name_data(col.Description),player)
-								cause_event(1,nil,{typename = "item",itemname = info.Name or "",itemDesc = info.Description or "",})
-							end
-							if id == CollectibleType.COLLECTIBLE_RED_KEY then cause_event(5,math.random(10) + 4) end
-							if item.record_items[id] and item.record_items[id].word then cause_event(14,8,{name = item.record_items[id].word}) end
-						end
-						record_holder.try_hold(ent,{check = function(et) 
-							if et.SubType ~= id then
-								if et.SubType <= 0 then
-									return true,"Lost"
-								else
-									return true,"Turn"
-								end
-							end
-							return false,nil
-						end,Function = function(tp,et)
-							for i = 1,1 do 
-								if et.FrameCount <= 0 then break end
-								if tp == "Turn" then
-									if auxi.have_player_queue_collectible(id) then break end
-								elseif tp == "Remove" then
-									if et:IsShopItem() then
-										if auxi.have_player_queue_collectible(id) then break end
-									end
-								elseif tp == "Lost" then
-									break
-								end
-								local info = item_displaying_holder.check_description("UnItem",id,auxi.check_name_data(col.Name),auxi.check_name_data(col.Description),player)
-								local target_zh,target_en = get_collectible_reference(player,et,blind,info.Name)
-								local price = et.Price
-								local is_shop_item = et:IsShopItem()
-								local unaffordable = is_shop_item and not can_afford_visible_price(player,price)
-								cause_event(10,nil,{
-									typename = "item",
-									itemname = blind and "" or (info.Name or ""),
-									itemDesc = blind and "" or (info.Description or ""),
-									target_zh = target_zh,
-									target_en = target_en,
-									id = id,
-									ent = et,
-									blind = blind,
-									is_active = col.Type == ItemType.ITEM_ACTIVE,
-									has_active = player:GetActiveItem(ActiveSlot.SLOT_PRIMARY) > 0,
-									is_option = et.OptionsPickupIndex ~= 0,
-									unaffordable = unaffordable,
-									payment_kind = price > 0 and "coin" or "heart",
-									has_donation_machine = unaffordable and price > 0 and has_working_donation_machine(),
-								})
-							end
-						end,})
-					end,{},1)
-				end
-			end
-		end
+		schedule_live_generation_audit(ent, player, nil)
 	end
 end,
 })
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = item.entity,
-Function = function(_,player,collid,count)
+Function = function(_,player,collid,diff,curNum)
 	item.live_player_cache_frame = nil
 	item.live_player_cache = nil
-	if count > 0 and player:GetCollectibleNum(item.entity,true) == count then
+	-- collectible_holder：(_, player, id, diff, curNum)；以 GetCollectibleNum 为准，避免 curNum 瞬时 0 导致 begin 后立刻 end
+	local num = player:GetCollectibleNum(item.entity, true)
+	local d = tonumber(diff) or 0
+	local prev = num - d
+	if d > 0 and num > 0 and prev <= 0 then
+		begin_live_broadcast_epoch(player)
+		cause_event(7)
+	elseif d > 0 and num > 0 and not gen_audit.is_active(LIVE_AUDIT_OWNER) then
+		-- 持有直播但 epoch 未激活（异常 end / 加载）：补开播，不因已 active 重复抬 epoch
+		begin_live_broadcast_epoch(player)
 		cause_event(7)
 	end
-	if player:GetCollectibleNum(item.entity,true) == 0 then
+	if num == 0 then
+		end_live_broadcast_epoch()
 		cause_event(8)
 	end
 end,
@@ -1259,5 +1326,27 @@ end,
 --投喂火箭可以生成一个发射出去的火箭炸弹？
 --投喂打call可以提升弹幕量？
 --点播内容是固定格式的，要求包括：1.给某一个道具 2.失去某个道具 还可以有更多？
+
+function item.reset_debug_cr()
+	item.debug_cr.generation_seen = 0
+	item.debug_cr.generation_triggered = 0
+	item.debug_cr.generation_skipped_seen = 0
+	item.debug_cr.last_generation_id = nil
+end
+
+--- Lab / debug：补一次 generation audit schedule（不抬 epoch）
+function item.debug_schedule_generation_audit(ent, player, source_hint)
+	player = player or get_player_with_live()
+	schedule_live_generation_audit(ent, player, source_hint or "lab_kick")
+end
+
+function item.get_debug_cr()
+	return {
+		generation_seen = item.debug_cr.generation_seen or 0,
+		generation_triggered = item.debug_cr.generation_triggered or 0,
+		generation_skipped_seen = item.debug_cr.generation_skipped_seen or 0,
+		last_generation_id = item.debug_cr.last_generation_id,
+	}
+end
 
 return item

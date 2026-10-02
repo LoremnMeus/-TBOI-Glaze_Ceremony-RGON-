@@ -1188,7 +1188,7 @@ table.insert(item.ToCall,{CallBack = ModCallbacks.MC_POST_RENDER,params = nil,
 Function = function(_)
 	local panel = item.panel
 	if not panel then return end
-	if REPENTOGON and Game():IsPauseMenuOpen() then return end
+	if auxi.is_pause_menu_open() then return end
 	if not panel.player or not panel.player:Exists() then close_panel() return end
 
 	local screen = gui.GetScreenSize()

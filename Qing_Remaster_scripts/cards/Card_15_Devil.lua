@@ -29,7 +29,7 @@ end,
 function item.transport_to_devil_room(player)
 	local desc = Game():GetLevel():GetRoomByIdx(-1) 
 	if desc.Data == nil then Game():GetLevel():InitializeDevilAngelRoom(false,true) end
-	Room_holder.Trans_to(-1, Direction.NO_DIRECTION, RoomTransitionAnim.TELEPORT, player)
+	Room_holder.Trans_to(-1, Direction.NO_DIRECTION, RoomTransitionAnim.PIXELATION, player)
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_PLAYER_KILL, params = nil,

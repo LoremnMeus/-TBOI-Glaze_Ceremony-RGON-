@@ -98,6 +98,46 @@
 			<entity type="33" variant="0" subtype="0" weight="1.0"/>
 		</spawn>
 	</room>
+	<room variant="23740" name="Stone_Antechamber" type="1" subtype="0" shape="1" width="13" height="7" difficulty="1" weight="0.0">
+		<door exists="False" x="-1" y="3"/>
+		<door exists="True" x="6" y="-1"/>
+		<door exists="True" x="6" y="7"/>
+		<door exists="False" x="13" y="3"/>
+		<spawn x="6" y="1">
+			<entity type="999" variant="2458" subtype="3" weight="1.0"/>
+		</spawn>
+		<spawn x="6" y="3">
+			<entity type="999" variant="2458" subtype="4" weight="1.0"/>
+		</spawn>
+		<spawn x="6" y="5">
+			<entity type="999" variant="2458" subtype="1" weight="1.0"/>
+		</spawn>
+		<spawn x="6" y="6">
+			<entity type="999" variant="2458" subtype="2" weight="1.0"/>
+		</spawn>
+	</room>
+	<room variant="23610" name="Phase_Lab" type="1" subtype="0" shape="8" width="26" height="14" difficulty="1" weight="0.0">
+		<door exists="False" x="-1" y="3"/>
+		<door exists="False" x="-1" y="10"/>
+		<door exists="False" x="6" y="-1"/>
+		<door exists="True" x="6" y="14"/>
+		<door exists="False" x="19" y="-1"/>
+		<door exists="False" x="19" y="14"/>
+		<door exists="False" x="26" y="3"/>
+		<door exists="False" x="26" y="10"/>
+		<spawn x="13" y="7">
+			<entity type="999" variant="2459" subtype="1" weight="1.0"/>
+		</spawn>
+		<spawn x="4" y="11">
+			<entity type="999" variant="2459" subtype="3" weight="1.0"/>
+		</spawn>
+		<spawn x="22" y="11">
+			<entity type="999" variant="2459" subtype="4" weight="1.0"/>
+		</spawn>
+		<spawn x="13" y="12">
+			<entity type="999" variant="2459" subtype="2" weight="1.0"/>
+		</spawn>
+	</room>
 	<room variant="23752" name="Chess_Board (copy)" type="1" subtype="0" shape="4" width="13" height="14" difficulty="1" weight="0.0">
 		<door exists="False" x="-1" y="3"/>
 		<door exists="False" x="-1" y="10"/>

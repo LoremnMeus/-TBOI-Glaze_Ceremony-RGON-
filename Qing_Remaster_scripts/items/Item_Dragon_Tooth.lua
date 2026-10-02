@@ -22,10 +22,25 @@ local item = {
 	},
 }
 
+local function get_counter_state()
+	local key = item.own_key .. "counter"
+	local state = save.elses[key]
+	if type(state) ~= "table" then
+		state = {}
+		save.elses[key] = state
+	end
+	if type(state.roomlist) ~= "table" then
+		state.roomlist = {}
+	end
+	return state
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then else save.elses[item.own_key.."counter"] = {} end
-	save.elses[item.own_key.."counter"] = save.elses[item.own_key.."counter"] or {}
+	if not continue then
+		save.elses[item.own_key.."counter"] = {}
+	end
+	get_counter_state()
 end,
 })
 
@@ -35,7 +50,8 @@ Function = function(_,player,cacheFlag)
 	local d = player:GetData()
 	if auxi.has_have_coll(player,item.entity) then
 		if cacheFlag == CacheFlag.CACHE_DAMAGE then
-			player.Damage = player.Damage * 1.5 + (save.elses[item.own_key.."counter"].counter or 0)
+			local state = get_counter_state()
+			player.Damage = player.Damage * 1.5 + (state.counter or 0)
 		end
 	end
 end,
@@ -44,16 +60,16 @@ end,
 function item.should_trigger()
 	if auxi.have_player_has_collectible(item.entity) then
 		local cnt = auxi.get_player_have_collectible_num(item.entity)
-		if (save.elses[item.own_key.."counter"].counter or 0) < cnt then return true end
+		local state = get_counter_state()
+		if (state.counter or 0) < cnt then return true end
 	else return false end
 end
 
 function item.is_dragon_room()
 	local level = Game():GetLevel()
 	local desc = level:GetCurrentRoomDesc()
-	save.elses[item.own_key.."counter"] = save.elses[item.own_key.."counter"] or {}
-	save.elses[item.own_key.."counter"].roomlist = save.elses[item.own_key.."counter"].roomlist or {}
-	for u,v in pairs(save.elses[item.own_key.."counter"].roomlist) do
+	local state = get_counter_state()
+	for u,v in pairs(state.roomlist) do
 		if desc.ListIndex == v.id then return true end
 	end
 	return false
@@ -62,15 +78,15 @@ end
 function item.add_room()
 	local level = Game():GetLevel()
 	local desc = level:GetCurrentRoomDesc()
-	save.elses[item.own_key.."counter"].roomlist = save.elses[item.own_key.."counter"].roomlist or {}
-	table.insert(save.elses[item.own_key.."counter"].roomlist,{id = desc.ListIndex,})
-	save.elses[item.own_key.."counter"].counter = (save.elses[item.own_key.."counter"].counter or 0) + 1
+	local state = get_counter_state()
+	table.insert(state.roomlist,{id = desc.ListIndex,})
+	state.counter = (state.counter or 0) + 1
 	for playerNum = 1, Game():GetNumPlayers() do local player = Game():GetPlayer(playerNum - 1) player:AddCacheFlags(CacheFlag.CACHE_DAMAGE) player:GetData().should_evaluate_on_update_once = true end
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
-	save.elses[item.own_key.."counter"].roomlist = {}
+	get_counter_state().roomlist = {}
 end,
 })
 

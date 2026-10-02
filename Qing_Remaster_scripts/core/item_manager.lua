@@ -24,7 +24,7 @@ function Item_manager.Init(mod)
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_The_Watcher"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Blaststone"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Brimstream"))
-	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Glaze_Cap"))
+	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Glaze_Mushroom"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Pageant_Cross_dresser"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Little_Duck"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Glaze_Item"))
@@ -136,6 +136,8 @@ function Item_manager.Init(mod)
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Abiogenesis"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Regenesis"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Ember"))
+	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Perhaps_Chosen"))
+	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Zero_Presence"))
 
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Tecro"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Anna"))
@@ -143,13 +145,7 @@ function Item_manager.Init(mod)
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Marri"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Autio"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Lu"))
-	--钝化点数（D773）。Zeis D 系 XML 已停用；Lua 留在 items/Zeiz/，重做时再接：
-	-- Item_D_D4, Item_D_Heart, Item_D_Key, Item_D_Bomb, Item_D_RazorBlade, Item_D_Cross,
-	-- Item_D_Lusty, Item_D_Flame, Item_D_Rag, Item_D_Trinity, Item_D_Soul,
-	-- Item_D_Sacrificalaltar, Item_D_Coin, Item_D_Pointyrib, Item_Book_of_Dull, Item_D_Pack
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Zeiz.Item_Dull_items"))
-	--table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Zeiz.Item_D_D4"))
-	--table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Zeiz.Item_D_Heart"))
 	--Item_manager.MakeItems()
 end
 

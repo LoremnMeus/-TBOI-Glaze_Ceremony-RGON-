@@ -4,6 +4,8 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 
+local get_effect_state
+
 local item = {
 	myToCall = {},
 	ToCall = {},
@@ -130,9 +132,9 @@ local item = {
 		end,particles = true,alt = true,sound = SoundEffect.SOUND_MUSHROOM_POOF_2,trails = {
 			{work = function(ent,iinfo,info,item) Game():Fart(ent.Position,64,ent,1,0) end,weigh = 1933,},
 			{work = function(ent,iinfo,info,item) local q = Isaac.Spawn(5,70,0,ent.Position,Vector(0,0),ent) end,weigh = 967,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][3] == nil then local q = Isaac.Spawn(5,350,32,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][5] == nil then local q = Isaac.Spawn(5,100,12,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][7] == nil then local q = Isaac.Spawn(5,100,71,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[3] == nil then local q = Isaac.Spawn(5,350,32,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[5] == nil then local q = Isaac.Spawn(5,100,12,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[7] == nil then local q = Isaac.Spawn(5,100,71,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
 			{work = function(ent,iinfo,info,item) local desc = Game():GetLevel():GetCurrentRoomDesc() if desc and desc.Data.Type == RoomType.ROOM_SECRET then local q = Isaac.Spawn(5,100,582,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 1,},
 			{weigh = 6839,},
 		},},
@@ -143,8 +145,8 @@ local item = {
 			{work = function(ent,iinfo,info,item) local q = Isaac.Spawn(27,0,0,ent.Position,Vector(0,0),ent) end,weigh = 1933,},
 			{work = function(ent,iinfo,info,item) local q = Isaac.Spawn(5,300,0,ent.Position,Vector(0,0),ent) end,weigh = 967,},
 			{work = function(ent,iinfo,info,item) local q = Isaac.Spawn(5,10,6,ent.Position,Vector(0,0),ent) end,weigh = 250,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][11] == nil then local q = Isaac.Spawn(5,100,265,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][8] == nil then local q = Isaac.Spawn(5,100,163,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[11] == nil then local q = Isaac.Spawn(5,100,265,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[8] == nil then local q = Isaac.Spawn(5,100,163,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
 			{weigh = 6840,},
 		},},
 		[4] = {on_death = function(ent,info,item)
@@ -155,9 +157,9 @@ local item = {
 		--l local q = Isaac.Spawn(9,0,0,Vector(200,200),Vector(0,10),nil):ToProjectile() q.Height = -26.4952
 			{work = function(ent,iinfo,info,item) local dir = math.random(360) for i = 1,6 do local q = Isaac.Spawn(9,0,0,ent.Position,10 * auxi.MakeVector(dir + i * 360/6),nil):ToProjectile() q.Height = -26.4952 end local q = Isaac.Spawn(1000,22,0,ent.Position,Vector(0,0),nil) end,weigh = 1932,},
 			{work = function(ent,iinfo,info,item) local q = Isaac.Spawn(5,10,auxi.random_in_table({1,2,}),ent.Position,Vector(0,0),ent) end,weigh = 968,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][4] == nil then local q = Isaac.Spawn(5,350,33,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][10] == nil then local q = Isaac.Spawn(5,100,254,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][9] == nil then local q = Isaac.Spawn(5,100,218,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[4] == nil then local q = Isaac.Spawn(5,350,33,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[10] == nil then local q = Isaac.Spawn(5,100,254,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[9] == nil then local q = Isaac.Spawn(5,100,218,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
 			{weigh = 6840,},
 		},},
 		[5] = {on_death = function(ent,info,item)
@@ -170,8 +172,8 @@ local item = {
 		--l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") local q = EntityNPC.ThrowSpider(Vector(200,200), nil, Vector(200,200) + auxi.MakeVector(math.random(360)) * math.random(8,35), false, -100) q:ToNPC():Morph(810,0,0,-1) print(q.Velocity) --q.Velocity = auxi.MakeVector(math.random(360)) * math.random(8,35) / 10
 			{work = function(ent,iinfo,info,item) local mul = math.random(2) local tp = auxi.random_in_table({814,810,},ent:GetDropRNG()) for i = 1,mul do local q = EntityNPC.ThrowSpider(ent.Position,nil,ent.Position + auxi.MakeVector(math.random(360)) * math.random(8,35), false, -(math.random(40) + 40)) q:ToNPC():Morph(tp,0,0,-1) end end,weigh = 1933,},
 			{work = function(ent,iinfo,info,item) local mul = math.random(2) for i = 1,mul do local q = Isaac.Spawn(5,20,0,ent.Position,auxi.MakeVector(math.random(360)) * math.random(1000)/1000 * 3,ent) end end,weigh = 967,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][1] == nil then local q = Isaac.Spawn(5,350,1,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][12] == nil then local q = Isaac.Spawn(5,100,270,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[1] == nil then local q = Isaac.Spawn(5,350,1,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[12] == nil then local q = Isaac.Spawn(5,100,270,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
 			{weigh = 6845,},
 		},},
 		[6] = {on_death = function(ent,info,item)
@@ -180,8 +182,8 @@ local item = {
 		end,particles = true,alt = true,sound = SoundEffect.SOUND_POT_BREAK,trails = {
 			{work = function(ent,iinfo,info,item) local mul = math.random(2) local q = Isaac.Spawn(870,0,0,ent.Position,Vector(0,0),nil):ToNPC() local cnt = 0 while(q.State ~= 4 and cnt < 20) do q:Update() cnt = cnt + 1 end end,weigh = 1932,},
 			{work = function(ent,iinfo,info,item) local mul = math.random(2) for i = 1,mul do local q = Isaac.Spawn(5,20,0,ent.Position,auxi.MakeVector(math.random(360)) * math.random(1000)/1000 * 3,ent) end end,weigh = 968,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][2] == nil then local q = Isaac.Spawn(5,350,24,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
-			{work = function(ent,iinfo,info,item) if save.elses[item.own_key.."effect"][6] == nil then local q = Isaac.Spawn(5,100,36,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[2] == nil then local q = Isaac.Spawn(5,350,24,ent.Position,Vector(0,0),ent) end end,weigh = 250,},
+			{work = function(ent,iinfo,info,item) local effect = get_effect_state() if effect[6] == nil then local q = Isaac.Spawn(5,100,36,Game():GetRoom():FindFreeTilePosition(ent.Position,10),Vector(0,0),ent) q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE) end end,weigh = 5,},
 			{weigh = 6845,},
 		},},
 	},
@@ -202,6 +204,16 @@ local item = {
 		[270] = 12,
 	},
 }
+
+-- effect may be absent after Hourglass / rewind wholesale restore.
+function get_effect_state()
+	local key = item.own_key .. "effect"
+	if type(save.elses[key]) ~= "table" then
+		save.elses[key] = {}
+	end
+	return save.elses[key]
+end
+
 
 function item.get_morph_dir()
 	--[[
@@ -296,23 +308,23 @@ Function = function(_,continue)
 	else
 		save.elses[item.own_key.."effect"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	local effect = get_effect_state()
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = 350,
 Function = function(_,ent)
 	local id = auxi.check_if_any(item.trinket_record[ent.SubType],ent)
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	if id then save.elses[item.own_key.."effect"][id] = true end
+	local effect = get_effect_state()
+	if id then effect[id] = true end
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = 100,
 Function = function(_,ent)
 	local id = auxi.check_if_any(item.item_record[ent.SubType],ent)
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	if id then save.elses[item.own_key.."effect"][id] = true end
+	local effect = get_effect_state()
+	if id then effect[id] = true end
 end,
 })
 

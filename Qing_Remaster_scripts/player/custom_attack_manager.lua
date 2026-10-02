@@ -211,33 +211,61 @@ function manager.IsVanillaShootSuppressed(player)
 	return state and state.vanillaShootSuppressed == true
 end
 
-function manager.SetVanillaShootSuppressed(player,state,suppressed,reason)
+-- 合并模式压制 + 外部 RequestShootBlock 源，统一写 SetCanShoot / should_not_attack。
+function manager.ApplyShootSuppression(player, state, reason)
 	if player == nil or state == nil then return end
-	suppressed = suppressed == true
-	local changed = state.vanillaShootSuppressed ~= suppressed
-	state.vanillaShootSuppressed = suppressed
+	local external = state.externalShootBlocks
+	local want = state.modeShootSuppressed == true
+		or (type(external) == "table" and next(external) ~= nil)
+	local changed = state.vanillaShootSuppressed ~= want
+	state.vanillaShootSuppressed = want
 	local data = player:GetData()
-	if suppressed and changed then
+	if want and changed then
 		state.previousShouldNotAttack = data.should_not_attack
 	end
-	if suppressed then
+	if want then
 		data.should_not_attack = true
 	end
 	if REPENTOGON and player.SetCanShoot then
-		player:SetCanShoot(not suppressed)
-		if (not suppressed) and player.UpdateCanShoot then
+		player:SetCanShoot(not want)
+		if (not want) and player.UpdateCanShoot then
 			player:UpdateCanShoot()
 		end
 	else
-		auxi.setCanShoot(player,not suppressed)
+		auxi.setCanShoot(player, not want)
 	end
-	if not suppressed and changed then
+	if not want and changed then
 		data.should_not_attack = state.previousShouldNotAttack
 		state.previousShouldNotAttack = nil
 	end
 	if changed then
-		manager.DebugLog("SetCanShoot",tostring(not suppressed),reason or "")
+		manager.DebugLog("SetCanShoot", tostring(not want), reason or "")
 	end
+end
+
+function manager.SetVanillaShootSuppressed(player, state, suppressed, reason)
+	if player == nil or state == nil then return end
+	state.modeShootSuppressed = suppressed == true
+	manager.ApplyShootSuppression(player, state, reason)
+end
+
+-- 临时禁止攻击（恐惧等）：多源可并存；不影响移动 / 炸弹 / 主动 / 卡牌。
+function manager.RequestShootBlock(player, source)
+	if player == nil or source == nil then return end
+	local state = manager.GetState(player)
+	state.externalShootBlocks = state.externalShootBlocks or {}
+	if state.externalShootBlocks[source] then return end
+	state.externalShootBlocks[source] = true
+	manager.ApplyShootSuppression(player, state, tostring(source))
+end
+
+function manager.ReleaseShootBlock(player, source)
+	if player == nil or source == nil then return end
+	local state = manager.GetState(player)
+	if not state or type(state.externalShootBlocks) ~= "table" then return end
+	if not state.externalShootBlocks[source] then return end
+	state.externalShootBlocks[source] = nil
+	manager.ApplyShootSuppression(player, state, tostring(source))
 end
 
 function manager.CleanupSpawned(state)
@@ -363,7 +391,9 @@ function manager.CleanupPlayer(player,reason)
 			safe_call(layer.exit,player,state,reason)
 		end
 	end
-	manager.SetVanillaShootSuppressed(player,state,false,reason or "cleanup")
+	-- 外部 RequestShootBlock（如伪恐惧）跨房保留；只清模式侧压制。
+	state.modeShootSuppressed = false
+	manager.ApplyShootSuppression(player, state, reason or "cleanup")
 	manager.CleanupSpawned(state)
 	state.activeMode = nil
 	state.previousMode = nil

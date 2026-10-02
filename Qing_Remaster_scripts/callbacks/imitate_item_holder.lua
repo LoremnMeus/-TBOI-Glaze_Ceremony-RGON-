@@ -14,7 +14,9 @@ local item = {
 	position = Vector(2000,2000),
 	own_key = "Imi_item_",
 	rgon_group_key = "Qing_Remaster_Imitate_Item",
+	rgon_trinket_group_key = "Qing_Remaster_Imitate_Trinket",
 	rgon_applied = {},
+	rgon_trinket_applied = {},
 	reuser = {
 		[CollectibleType.COLLECTIBLE_SACRIFICIAL_ALTAR] = {should_re_evaluate = true,},
 		--[CollectibleType.COLLECTIBLE_GLOWING_HOUR_GLASS] = {},
@@ -30,6 +32,21 @@ Assemble_holder.register_on(item.own_key,item,{force = true,})
 --煲仔饭在使用前移除所有魂火，使用后再生成即可
 --创世纪？
 --l local n_entity = Isaac.GetRoomEntities() for u,v in pairs(n_entity) do if v.Type == 3 and v.Variant == 237 then print(v.InitSeed) end end
+--
+-- Imitate Item lifecycle contract:
+--
+-- Consumers own only their semantic desired state.
+-- Consumers expose that state through MC_EVALUATE_IMITATE_ITEM.
+--
+-- Consumers may call Evaluate_Imitate_Items(player)
+-- only when their desired state changes during normal gameplay.
+--
+-- Continue / New Room / Rewind reconciliation belongs here.
+-- recorder / meta are derived cache, not authoritative source:
+-- business state → MC_EVALUATE_IMITATE_ITEM → recorder/meta → RGON innate sync.
+--
+-- Consumers must not rebuild innate/fake items themselves on lifecycle events.
+-- If a lifecycle path fails, fix imitate_item_holder instead of patching consumers.
 function item.rgon_backend_enabled()
 	local cfg = save.ModConfigSettings
 	if type(cfg) == "table" and type(cfg.QingRemasterOptions) == "table" and type(cfg.QingRemasterOptions.Compatibility) == "table" then
@@ -42,6 +59,12 @@ function item.can_use_rgon_backend(player)
 	return item.rgon_backend_enabled() and REPENTOGON and player and player.AddInnateCollectible ~= nil and player.RemoveInnateCollectible ~= nil
 end
 
+function item.can_use_rgon_trinket_backend(player)
+	return item.rgon_backend_enabled() and REPENTOGON and player
+		and player.AddInnateTrinket ~= nil
+		and player.GetInnateTrinketGroup ~= nil
+end
+
 function item.get_player_index(player)
 	if player and player:GetData() then return player:GetData().__Index end
 	return nil
@@ -52,6 +75,11 @@ function item.ensure_rgon_record(idx)
 	return item.rgon_applied[idx]
 end
 
+function item.ensure_rgon_trinket_record(idx)
+	item.rgon_trinket_applied[idx] = item.rgon_trinket_applied[idx] or {}
+	return item.rgon_trinket_applied[idx]
+end
+
 function item.recorder_key()
 	return item.own_key.."r_recorder"
 end
@@ -60,10 +88,24 @@ function item.meta_key()
 	return item.own_key.."r_meta"
 end
 
+function item.trinket_recorder_key()
+	return item.own_key.."t_recorder"
+end
+
+function item.trinket_meta_key()
+	return item.own_key.."t_meta"
+end
+
 function item.ensure_meta_bag(idx)
 	save.elses[item.meta_key()] = save.elses[item.meta_key()] or {}
 	save.elses[item.meta_key()][idx] = save.elses[item.meta_key()][idx] or {}
 	return save.elses[item.meta_key()][idx]
+end
+
+function item.ensure_trinket_meta_bag(idx)
+	save.elses[item.trinket_meta_key()] = save.elses[item.trinket_meta_key()] or {}
+	save.elses[item.trinket_meta_key()][idx] = save.elses[item.trinket_meta_key()][idx] or {}
+	return save.elses[item.trinket_meta_key()][idx]
 end
 
 function item.get_meta_entry(idx,collid)
@@ -72,6 +114,14 @@ function item.get_meta_entry(idx,collid)
 	local player_meta = bag[idx]
 	if not player_meta then return nil end
 	return player_meta[collid] or player_meta[tostring(collid)]
+end
+
+function item.get_trinket_meta_entry(idx,tid)
+	local bag = save.elses[item.trinket_meta_key()]
+	if not bag or not idx then return nil end
+	local player_meta = bag[idx]
+	if not player_meta then return nil end
+	return player_meta[tid] or player_meta[tostring(tid)]
 end
 
 -- 解析 evaluate / add 条目：number 或 {count, display?, costume?}
@@ -151,9 +201,20 @@ function item.write_player_evaluate(idx,counts,meta,only_id)
 	save.elses[item.recorder_key()][idx] = save.elses[item.recorder_key()][idx] or {}
 	local recorder = save.elses[item.recorder_key()][idx]
 	local meta_bag = item.ensure_meta_bag(idx)
+	item._write_evaluate_into(recorder, meta_bag, counts, meta, only_id)
+end
+
+function item.write_player_trinket_evaluate(idx,counts,meta,only_id)
+	save.elses[item.trinket_recorder_key()] = save.elses[item.trinket_recorder_key()] or {}
+	save.elses[item.trinket_recorder_key()][idx] = save.elses[item.trinket_recorder_key()][idx] or {}
+	local recorder = save.elses[item.trinket_recorder_key()][idx]
+	local meta_bag = item.ensure_trinket_meta_bag(idx)
+	item._write_evaluate_into(recorder, meta_bag, counts, meta, only_id)
+end
+
+function item._write_evaluate_into(recorder, meta_bag, counts, meta, only_id)
 	if only_id then
 		local nid = tonumber(only_id)
-		-- 清掉同 id 的字符串别名
 		for id,_ in pairs(recorder) do
 			if tonumber(id) == nid then recorder[id] = nil end
 		end
@@ -173,7 +234,6 @@ function item.write_player_evaluate(idx,counts,meta,only_id)
 	for id,count in pairs(collapsed) do
 		recorder[id] = count
 	end
-	-- 全量刷新该玩家 meta（同样折叠键）
 	for id,_ in pairs(meta_bag) do
 		meta_bag[id] = nil
 	end
@@ -217,6 +277,16 @@ function item.resolve_add_costume(player,collid,opts)
 		end
 	end
 	return shown
+end
+
+-- 模拟饰品默认无 costume（场上 Proxy 已是表现）；仅 meta / opts 显式开启
+function item.resolve_trinket_costume(player,tid,opts)
+	opts = opts or {}
+	if opts.costume ~= nil then return opts.costume == true end
+	local idx = item.get_player_index(player)
+	local m = item.get_trinket_meta_entry(idx,tid)
+	if m and m.costume ~= nil then return m.costume == true end
+	return false
 end
 
 --- 以引擎侧 Group 实况为准，把 innate 精确同步到 desired（大退/沙漏后 rgon_applied 会失真）
@@ -277,6 +347,103 @@ function item.sync_rgon_fake_items(player,infos)
 		item.rgon_applied[idx] = {}
 	end
 	return ok
+end
+
+--- Trinket channel：与 collectible 相同「Group 实况 + SetInnate*Count」模式
+function item.sync_rgon_fake_trinkets(player,infos)
+	if not item.can_use_rgon_trinket_backend(player) then return false end
+	local idx = item.get_player_index(player)
+	if not idx then return false end
+	local desired = collapse_count_map(infos)
+	local group_key = item.rgon_trinket_group_key
+	local ok = pcall(function()
+		if player.GetInnateTrinketGroup and player.SetInnateTrinketCount then
+			local current = player:GetInnateTrinketGroup(group_key) or {}
+			local seen = {}
+			for tid,_ in pairs(current) do
+				local id = tonumber(tid)
+				if id then
+					seen[id] = true
+					local want = desired[id] or 0
+					local costume = want > 0 and item.resolve_trinket_costume(player,id) or false
+					player:SetInnateTrinketCount(id,want,group_key,costume)
+				end
+			end
+			for id,want in pairs(desired) do
+				if not seen[id] and want > 0 then
+					player:SetInnateTrinketCount(id,want,group_key,item.resolve_trinket_costume(player,id))
+				end
+			end
+		else
+			if player.GetInnateTrinketGroup then
+				local current = player:GetInnateTrinketGroup(group_key) or {}
+				for tid,count in pairs(current) do
+					local id = tonumber(tid)
+					local amount = tonumber(count) or 0
+					if id and amount > 0 then
+						player:RemoveInnateTrinket(id,amount,group_key)
+					end
+				end
+			else
+				local applied = item.rgon_trinket_applied[idx] or {}
+				for tid,count in pairs(applied) do
+					local id = tonumber(tid)
+					local amount = tonumber(count) or 0
+					if id and amount > 0 then
+						player:RemoveInnateTrinket(id,amount,group_key)
+					end
+				end
+			end
+			for id,want in pairs(desired) do
+				if want > 0 then
+					player:AddInnateTrinket(id,want,group_key,-1,item.resolve_trinket_costume(player,id))
+				end
+			end
+		end
+	end)
+	if ok then
+		item.rgon_trinket_applied[idx] = desired
+	else
+		item.rgon_trinket_applied[idx] = {}
+	end
+	return ok
+end
+
+local TEMP_TRINKET_TAG = item.own_key .. "temp_trinket_list"
+
+function item.clear_temp_trinket_effects(player)
+	if not player then return end
+	local d = player:GetData()
+	local list = d[TEMP_TRINKET_TAG]
+	if not list then return end
+	local effects = player:GetEffects()
+	if effects and effects.RemoveTrinketEffect then
+		for _, tid in ipairs(list) do
+			effects:RemoveTrinketEffect(tid)
+		end
+	end
+	d[TEMP_TRINKET_TAG] = nil
+end
+
+--- 无 RGON innate 时：TemporaryEffects 精确同步 desired
+function item.sync_temp_trinket_effects(player,infos)
+	if not player then return false end
+	item.clear_temp_trinket_effects(player)
+	local effects = player:GetEffects()
+	if not effects or not effects.AddTrinketEffect then
+		return false
+	end
+	local desired = collapse_count_map(infos)
+	local list = {}
+	for tid, count in pairs(desired) do
+		local n = math.max(0, tonumber(count) or 0)
+		for _ = 1, n do
+			effects:AddTrinketEffect(tid, false)
+			list[#list + 1] = tid
+		end
+	end
+	player:GetData()[TEMP_TRINKET_TAG] = list
+	return true
 end
 
 function item.remove_rgon_applied(player)
@@ -516,13 +683,80 @@ function item.Evaluate_Imitate_Items(players,val)
 	end
 end
 
+function item.re_assign_fake_trinkets()
+	save.elses[item.trinket_recorder_key()] = save.elses[item.trinket_recorder_key()] or {}
+	for playerNum = 1, Game():GetNumPlayers() do
+		local player = Game():GetPlayer(playerNum - 1)
+		local idx = player:GetData().__Index
+		if idx then
+			local desired = collapse_count_map(save.elses[item.trinket_recorder_key()][idx])
+			if item.can_use_rgon_trinket_backend(player) then
+				item.sync_rgon_fake_trinkets(player, desired)
+			else
+				item.sync_temp_trinket_effects(player, desired)
+			end
+		end
+	end
+end
+
+function item.Evaluate_Imitate_Trinkets(players,val)
+	if players == nil then players = {} for playerNum = 1, Game():GetNumPlayers() do table.insert(players,#players + 1,Game():GetPlayer(playerNum - 1)) end end
+	if type(players) ~= "table" then players = {players} end
+	save.elses[item.trinket_recorder_key()] = save.elses[item.trinket_recorder_key()] or {}
+	save.elses[item.trinket_meta_key()] = save.elses[item.trinket_meta_key()] or {}
+	for _,player in pairs(players) do
+		if auxi.check_all_exists(player) and player:ToPlayer() then
+			local d = player:GetData()
+			local idx = d.__Index
+			save.elses[item.trinket_recorder_key()][idx] = save.elses[item.trinket_recorder_key()][idx] or {}
+			if val then
+				local ret = callback_manager.work_with_result("MC_EVALUATE_IMITATE_TRINKET",function(funct,params,value) if params == nil or params == val then return funct(nil,player,val,value) end end,{[val] = 0,})
+				local counts,meta = item.normalize_evaluate_result(ret)
+				item.write_player_trinket_evaluate(idx,counts,meta,val)
+			else
+				local ret = callback_manager.work_with_result("MC_EVALUATE_IMITATE_TRINKET",function(funct,params,value) return funct(nil,player,nil,value) end,{})
+				local counts,meta = item.normalize_evaluate_result(ret)
+				item.write_player_trinket_evaluate(idx,counts,meta)
+			end
+		end
+	end
+	item.re_assign_fake_trinkets()
+	for playerNum = 1, Game():GetNumPlayers() do
+		local player = Game():GetPlayer(playerNum - 1)
+		player:AddCacheFlags(CacheFlag.CACHE_ALL)
+		player:GetData().should_evaluate_on_update_once = true
+	end
+end
+
+--- holder 生命周期全量刷新（Continue / New Room / Rewind）
+function item.Evaluate_Imitate_All(players)
+	item.Evaluate_Imitate_Items(players)
+	item.Evaluate_Imitate_Trinkets(players)
+end
+
+--- 延迟全量 reconcile；Continue / New Room / Rewind 共用，避免三处各自长逻辑。
+function item.request_full_reconcile(delay)
+	delay_buffer.addeffe(function()
+		item.Evaluate_Imitate_All()
+	end, {}, delay or 1)
+end
+
 table.insert(item.post_ToCall,#item.post_ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	delay_buffer.addeffe(function(params)
-		item.Evaluate_Imitate_Items()
-	end,{},1)
+	item.request_full_reconcile(1)
 end,
 })
+
+if ModCallbacks.MC_POST_PLAYER_NEW_ROOM_TEMP_EFFECTS then
+	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_NEW_ROOM_TEMP_EFFECTS, params = nil,
+	Function = function(_,player)
+		-- TemporaryEffects fallback 换房会被清；RGON SetCount 幂等
+		if player then
+			item.Evaluate_Imitate_Trinkets(player)
+		end
+	end,
+	})
+end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_ALL_COLLECTIBLE, params = nil,
 Function = function(_,player)
@@ -539,13 +773,13 @@ Function = function(_,player,data)
 	end,{},1)
 end,
 })
--- 大退/沙漏：elses 已回滚，但引擎 innate Group 与内存 rgon_applied 可能不一致；延迟按 recorder 精确 sync
+-- 大退/沙漏：elses 已回滚，但引擎 innate Group 与内存 rgon_*_applied 可能不一致；
+-- 延迟重新 evaluate 各 consumer 业务 state，再重建 recorder/meta 与 innate。
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_REWIND, params = nil,
 Function = function(_,tp)
 	item.rgon_applied = {}
-	delay_buffer.addeffe(function(params)
-		item.Evaluate_Imitate_Items()
-	end,{},1)
+	item.rgon_trinket_applied = {}
+	item.request_full_reconcile(1)
 end,
 })
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_USE_ITEM, params = nil,
@@ -573,14 +807,29 @@ end,
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
 	item.rgon_applied = {}
+	item.rgon_trinket_applied = {}
 	if continue then
 		save.elses[item.recorder_key()] = save.elses[item.recorder_key()] or {}
 		save.elses[item.meta_key()] = save.elses[item.meta_key()] or {}
+		save.elses[item.trinket_recorder_key()] = save.elses[item.trinket_recorder_key()] or {}
+		save.elses[item.trinket_meta_key()] = save.elses[item.trinket_meta_key()] or {}
 	else
 		save.elses[item.recorder_key()] = {}
 		save.elses[item.meta_key()] = {}
+		save.elses[item.trinket_recorder_key()] = {}
+		save.elses[item.trinket_meta_key()] = {}
 	end
 end,
+})
+
+-- Continue：业务 state（consumer）已由存档恢复；延迟全量 evaluate 重建 derived recorder/meta 与 innate。
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_GAME_STARTED,
+	params = nil,
+	Function = function(_, continue)
+		if not continue then return end
+		item.request_full_reconcile(1)
+	end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EXECUTE_CMD, params = nil,

@@ -66,6 +66,7 @@
 	<achievement name="QingRemaster_Item_D_NAN" text="Unlocked: D NAN" gfx="achievement_dnan.png" steam_name="" steam_description="" steam_icon="" />
 	<achievement name="QingRemaster_Item_Risemara" text="Unlocked: Risemara" gfx="achievement_risemara.png" steam_name="" steam_description="" steam_icon="" />
 	<achievement name="QingRemaster_Item_Chiastolite" text="Unlocked: Chiastolite" gfx="achievement_Chiastolite.png" steam_name="" steam_description="" steam_icon="" />
+	<achievement name="QingRemaster_Item_Calamity" text="Unlocked: Calamity" gfx="achievement_sin_worlds.png" steam_name="" steam_description="" steam_icon="" />
 	<achievement name="QingRemaster_Item_Book_of_6_sin" text="Unlocked: Book of 6 sin" gfx="achievement_Book_of_6_sin.png" steam_name="" steam_description="" steam_icon="" />
 	<achievement name="QingRemaster_Card_Qing_s_Soul" text="Unlocked: Qing's Soul" gfx="achievement_Soul_of_WQ.png" steam_name="" steam_description="" steam_icon="" />
 	<achievement name="QingRemaster_Pickup_Glaze_Bomb" text="Unlocked: Glaze bomb" gfx="achievement_Glaze_Bomb.png" steam_name="" steam_description="" steam_icon="" />

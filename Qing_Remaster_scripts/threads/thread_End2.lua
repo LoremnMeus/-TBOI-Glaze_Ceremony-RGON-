@@ -14,26 +14,27 @@ local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_dis
 local grid_door = require("Qing_Remaster_scripts.grids.grid_doors")
 local End2_displayer = require("Qing_Remaster_scripts.threads.thread_End2_2")
 
+local function chapter1_runtime_allowed()
+	local ok, scope = pcall(require, "Qing_Remaster_scripts.core.release_scope")
+	if not ok or not scope or not scope.allows_story_chapter then
+		return true
+	end
+	return scope.allows_story_chapter("chapter1") == true
+end
+
 local item = {
 	pre_ToCall = {},
 	ToCall = {},
 	myToCall = {},
 	post_ToCall = {},
 	own_key = "Thread_End2_",
-	target = {
-		enums.Items.A_Shard_Of_Lava,
-		enums.Items.A_Shard_Of_Coin,
-		enums.Items.A_Shard_Of_Glaze,
-		enums.Items.A_Shard_Of_Meat,
-		enums.Items.A_Shard_Of_Rock,
-		--enums.Items.A_Shard_Of_Blood,
-	},
+	-- Legacy physical Shard targets retired. Alchemy readiness is Story token based.
+	target = {},
 	Element_info = {
 		[1] = {color = Color(0,0,0,0,0.3,0.1,0),vel = -1.2,sound = SoundEffect.SOUND_FLASHBACK,},
 		[2] = {color = Color(0,0,0,0,1,0.85,0),vel = 1,sound = SoundEffect.SOUND_CASH_REGISTER,},
 		[3] = {color = Color(0,0,0,0,0,0.4,0.6),vel = -0.75,sound = SoundEffect.SOUND_MIRROR_ENTER,},
-		[4] = {color = Color(0,0,0,0,0.8,0.2,0),vel = -0.5,sound = SoundEffect.SOUND_VAMP_DOUBLE,},
-		[5] = {color = Color(0,0,0,0,0.4,0,1),vel = -0.3,sound = SoundEffect.SOUND_BALL_AND_CHAIN_HIT,},
+		[4] = {color = Color(0,0,0,0,0.4,0,1),vel = -0.3,sound = SoundEffect.SOUND_BALL_AND_CHAIN_HIT,},
 	},
 	light_info = {
 		{frame = 0,val = 0,},
@@ -246,17 +247,19 @@ local item = {
 		},
 	},
 }
---1.收集5个炼金道具后，生成法阵。
+--1.收集炼金素材 token 后，生成法阵。
 --2.在法阵上放上炼金道具，打开“他界“通道。
---3.开启小青Boss战。
---4.开启琉璃王子Boss战。
---5.开启结局2。
+--3.开启小青 Boss 战（道中 / midboss）。
+--4.真相揭露（story revelation）。
+--5.开启琉璃王子 Boss 战（第一章终盘）。
 --l local thread_End2 = require("Qing_Remaster_scripts.threads.thread_End2") thread_End2.goto_realms()
-function item.has_alchemy() 
-	for u,v in pairs(item.target) do
-		if auxi.have_player_has_collectible(v,true) == nil then return false end
+function item.has_alchemy()
+	local ok, story_state = pcall(require, "Qing_Remaster_scripts.story.story_state")
+	if ok and story_state and story_state.has_required_materials then
+		return story_state.has_required_materials() == true
 	end
-	return true
+	-- No collectible fallback: dormant Shards must not gate alchemy.
+	return false
 end
 
 local function clear_stats()
@@ -264,7 +267,14 @@ local function clear_stats()
 end
 
 function item.goto_realms()
+	if not chapter1_runtime_allowed() then
+		return false
+	end
 	save.elses.realms_level = 2 --if Game():GetLevel():GetStage() ~= 9 then save.elses.realms_level = save.elses.realms_level + 1 end
+	local ok, story_state = pcall(require, "Qing_Remaster_scripts.story.story_state")
+	if ok and story_state and story_state.on_enter_realms then
+		story_state.on_enter_realms()
+	end
 	Game():GetLevel():SetStage(9,0)
 	Isaac.ExecuteCommand("reseed")
 	Screen_Filter.add_filter(30,3)
@@ -295,6 +305,9 @@ end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
+	if not chapter1_runtime_allowed() then
+		save.elses.realms_level = 0
+	end
 	if continue then
 	else
 		save.elses[item.own_key.."effect"] = {}
@@ -306,6 +319,11 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
+	if not chapter1_runtime_allowed() then
+		save.elses.realms_level = 0
+		save.elses[item.own_key.."curse"] = nil
+		return
+	end
 	clear_stats()
 	save.elses[item.own_key.."curse"] = nil
 	if (save.elses.realms_level or 0) > 0 then
@@ -363,6 +381,10 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,priority = -20,
 Function = function(_)
+	if not chapter1_runtime_allowed() then
+		save.elses.realms_level = 0
+		return
+	end
 	local level = Game():GetLevel()
 	local curse = level:GetCurses()
 	if item.is_realms() or item.is_realms_room() then
@@ -440,7 +462,7 @@ Function = function(_,ent,offset)
 			s0.Color = s.Color
 			s0:Render(rpos,Vector(0,0),Vector(0,0))
 			d[item.own_key.."effect"].s0 = s0
-			for i = 5,1,-1 do
+			for i = #item.target,1,-1 do
 				local info = item.Element_info[i]
 				local si = d[item.own_key.."effect"]["sprite_"..tostring(i)] if si == nil then si = Sprite() si:Load("gfx/thread/End2/Crystal.anm2",true) si:Play("Ele"..tostring(i),true) end
 				d[item.own_key.."effect"].vel = d[item.own_key.."effect"].vel or (auxi.random_1() * 0.5 + 0.75)
@@ -493,22 +515,15 @@ Function = function(_,ent)
 			end
 		else
 			if auxi.inner_count(ent:GetData(),item.own_key.."Hand",{Update = true,}) then
-				local succ = true
-				for i = 1,5 do
-					if save.elses[item.own_key.."effect"]["handed_"..tostring(i)] ~= true then
-						succ = false
-						local player = auxi.have_player_has_collectible(item.target[i],true)
-						if player and (player.Position - ent.Position):Length() < player.Size + 80 then 
-							d[item.own_key.."effect"].Player = player
-							player:GetData()[item.own_key.."Hand"] = {id = item.target[i],linker = ent,i = i,}
-							break
-						end
-					end
-				end
-				if succ then
+				-- Legacy collectible Shard hand-in retired (item.target empty / dormant).
+				-- Circle completion is Story-token alchemy only (materials + phase_anchor;
+				-- Catalyst is prologue-owned and checked via story.has_required_materials).
+				-- Never treat empty target as "all handed in".
+				if item.has_alchemy() and not save.elses[item.own_key.."effect"].Begin_2 then
 					save.elses[item.own_key.."effect"].Begin_2 = true
 					s:Play("DisAppear",true)
-					local q = d[item.own_key.."effect"].Crystal	q:GetData()[item.own_key.."explode"] = {} 
+					local q = d[item.own_key.."effect"].Crystal
+					if q then q:GetData()[item.own_key.."explode"] = {} end
 					d[item.own_key.."effect"] = nil
 				end
 			end
@@ -519,6 +534,17 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
+	-- Legacy Shard lift/hand-in disabled while item.target is empty (dormant collectibles).
+	if #item.target == 0 then
+		local d = player:GetData()
+		if d[item.own_key.."Hand"] then
+			if d[item.own_key.."Hand"].Available and d[item.own_key.."Hand"].id then
+				player:AnimateCollectible(d[item.own_key.."Hand"].id,"HideItem","PlayerPickup")
+			end
+			d[item.own_key.."Hand"] = nil
+		end
+		return
+	end
 	local d = player:GetData() local s = player:GetSprite()
 	for i = 1,1 do if d[item.own_key.."Hand"] then
 		if auxi.check_all_exists(d[item.own_key.."Hand"].linker) then else if d[item.own_key.."Hand"].Available then player:AnimateCollectible(d[item.own_key.."Hand"].id,"HideItem","PlayerPickup") end d[item.own_key.."Hand"] = nil break end
@@ -534,6 +560,8 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_NPC_COLLISION, params = 960,
 Function = function(_,ent,col,low)
+	-- No collectible hand-in while legacy Shard targets are dormant.
+	if #item.target == 0 then return end
 	if ent.Variant == enums.Entities.ElementCrystal and col:ToPlayer() then
 		local player = col:ToPlayer()
 		local d = ent:GetData() local d2 = player:GetData()
@@ -605,6 +633,10 @@ Function = function(_,cmd,params)
 		end
 		if args[1] and args[2] then
 			if args[1] == "goto" and args[2] == "realms" then
+				if not chapter1_runtime_allowed() then
+					print("Chapter 1 is not in this release scope")
+					return
+				end
 				item.goto_realms() 
 				print("Success")
 			end

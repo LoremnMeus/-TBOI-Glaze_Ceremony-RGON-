@@ -34,7 +34,7 @@ Function = function(_,player,collid,cnt,touched)
 	if not touched then
 		local room = Game():GetRoom()
 		local rng = player:GetCollectibleRNG(item.entity)
-		local cnt = 4 + rng:RandomInt(4)
+		local cnt = 4 + rng:RandomInt(5) -- 4–8（含两端）
 		for i = 1,cnt do
 			local info = auxi.random_glaze_pickup({rng = rng,Glaze_heart = 200,Glaze_battery = 1,Glaze_coin = 50,Glaze_chest = 10,})
 			local q = Isaac.Spawn(5,info.Variant,info.SubType,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),nil)

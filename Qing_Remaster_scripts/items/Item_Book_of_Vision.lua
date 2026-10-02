@@ -116,7 +116,8 @@ Function = function(_,player,changetype,count)
 				elseif changetype == "bone_heart" then
 					player:AddBoneHearts(count * cnt)
 				end
-				if auxi.should_do_belial(player) and #changetype > 5 and string.sub(changetype,#changetype - 5,#changetype) == "_heart" then
+				-- 仅「获得」心类资源时送黑心；负变化翻倍本身已是代价，不再额外送金黑心
+				if count > 0 and auxi.should_do_belial(player) and #changetype > 5 and string.sub(changetype,#changetype - 5,#changetype) == "_heart" then
 					player:AddBlackHearts(1)
 				end
 				item.duplicate_filter[changetype] = Game():GetFrameCount() + 5

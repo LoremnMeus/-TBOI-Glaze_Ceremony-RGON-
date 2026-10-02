@@ -285,7 +285,8 @@ function item.random_pos(val)
 	return tbl
 end
 
-function item.start(ent)
+function item.start(ent, opts)
+	opts = opts or {}
 	local music = MusicManager()
 	if (music:GetCurrentMusicID() ~= enums.Music.Origin_1) then
 		music:Play(enums.Music.Origin_1,0)
@@ -296,6 +297,17 @@ function item.start(ent)
 		ent = Isaac.Spawn(996,item.entity,0,Game():GetRoom():GetCenterPos(),Vector(0,0),nil)
 	else
 		for i = 1,#tgs do tgs[i]:Remove() end
+	end
+	local story_owned = opts.story_owned == true
+	save.elses[item.own_key.."story_owned"] = story_owned or nil
+	if auxi.check_all_exists(ent) then
+		ent:GetData().qing_story_owned = story_owned
+	end
+	if story_owned then
+		local ok, adapter = pcall(require, "Qing_Remaster_scripts.bosses.qing.qing_story_adapter")
+		if ok and adapter and adapter.on_start then
+			adapter.on_start({story_owned = true, story_test = opts.story_test == true})
+		end
 	end
 	return ent
 end
@@ -955,6 +967,13 @@ Function = function(_,ent)
 						qself:Remove()
 						grid_doors.force_door_anim("Open")
 						save.elses[item.own_key.."finished"] = true
+						local story_owned = save.elses[item.own_key.."story_owned"] == true
+							or (qself:GetData().qing_story_owned == true)
+						local ok, adapter = pcall(require, "Qing_Remaster_scripts.bosses.qing.qing_story_adapter")
+						if ok and adapter and adapter.on_defeat then
+							adapter.on_defeat({story_owned = story_owned})
+						end
+						save.elses[item.own_key.."story_owned"] = nil
 					end
 				end
 				ent:Remove()

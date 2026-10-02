@@ -21,7 +21,28 @@ local item = {
 		{frame = 60 * 30,delta = 1,rate = 0.3,r2 = 0.6,},
 		{frame = 3 * 60 * 30,delta = 2,rate = 0.8,r2 = 1,},
 	},
+	active_enemies = {},
 }
+
+local function take_available_enemy(rng)
+	local candidates = {}
+	for hash,enemy in pairs(item.active_enemies) do
+		if auxi.check_all_exists(enemy) ~= true or enemy:IsDead() then
+			item.active_enemies[hash] = nil
+		elseif auxi.check_all_exists(enemy:GetData()[item.own_key.."effect"]) ~= true then
+			table.insert(candidates,enemy)
+		end
+	end
+	return auxi.random_in_table(candidates,rng)
+end
+
+local function find_player(player_idx)
+	for i = 0,Game():GetNumPlayers() - 1 do
+		local player = Game():GetPlayer(i)
+		if player:GetData().__Index == player_idx then return player end
+	end
+	return Game():GetPlayer(0)
+end
 
 local Eclipse_effect = Sprite()
 Eclipse_effect:Load("gfx/cards/cd19r_Ecl_sun.anm2",true)
@@ -47,12 +68,12 @@ Function = function(_)
 	if save.elses[item.own_key.."effect"] then
 		save.elses[item.own_key.."effect"].Counter = save.elses[item.own_key.."effect"].Counter - 1
 		save.elses[item.own_key.."InitCounter"] = (save.elses[item.own_key.."InitCounter"] or 0) + 1
-		local player = Game():GetPlayer(0)
+		local player = find_player(save.elses[item.own_key.."effect"].player_idx)
 		local rng = player:GetCardRNG(item.entity)
 		if Game():GetFrameCount() % 5 == 3 then
 			local rate = auxi.check_lerp(save.elses[item.own_key.."InitCounter"],item.posinfo).rate
 			if rng:RandomFloat() < rate then
-				local tg = auxi.random_in_table(auxi.getenemies(nil,function(ent) if auxi.check_all_exists(ent:GetData()[item.own_key.."effect"]) ~= true then return true end end),rng)
+				local tg = take_available_enemy(rng)
 				local pos = Game():GetRoom():GetRandomPosition(0)
 				if tg then pos = tg.Position end
 				local q = Isaac.Spawn(1000,19,2,pos,Vector(0,0),player):ToEffect()
@@ -67,7 +88,9 @@ Function = function(_)
 			end
 			--print(ui.myRenderPositionToWorld(Vector(0,0)))
 		end
-		local q = Isaac.Spawn(1000,66,0,Vector(ui.myRenderPositionToWorld(ui.GetScreenSize() * rng:RandomFloat()).X,rng:RandomFloat() * 60 - ui.myRenderPositionToWorld(Vector(0,0)).Y),Vector(0,10) + auxi.RoundVector(rng,5),nil)
+		if Game():GetFrameCount() % 3 == 0 then
+			Isaac.Spawn(1000,66,0,Vector(ui.myRenderPositionToWorld(ui.GetScreenSize() * rng:RandomFloat()).X,rng:RandomFloat() * 60 - ui.myRenderPositionToWorld(Vector(0,0)).Y),Vector(0,10) + auxi.RoundVector(rng,5),nil)
+		end
 		if Game():GetFrameCount() % 10 == 3 then
 			local info = auxi.check_lerp(save.elses[item.own_key.."InitCounter"],item.posinfo)
 			if rng:RandomFloat() < info.r2 * info.rate then 
@@ -77,7 +100,10 @@ Function = function(_)
 				Game():MakeShockwave(player.Position,0.035,0.025,10) 
 			end
 		end
-		if save.elses[item.own_key.."effect"].Counter <= 0 then save.elses[item.own_key.."effect"] = nil end
+		if save.elses[item.own_key.."effect"].Counter <= 0 then
+			save.elses[item.own_key.."effect"] = nil
+			item.active_enemies = {}
+		end
 	end
 end,
 })
@@ -93,15 +119,29 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
+	item.active_enemies = {}
 	if continue then
 	else
 	end
 end,
 })
 
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NPC_INIT, params = nil,
+Function = function(_,ent)
+	if auxi.isenemies(ent) then item.active_enemies[GetPtrHash(ent)] = ent end
+end,
+})
+
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_ROOM, params = nil,
+Function = function(_)
+	item.active_enemies = {}
+end,
+})
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
 	save.elses[item.own_key.."effect"] = nil
+	item.active_enemies = {}
 end,
 })
 
@@ -117,7 +157,7 @@ Function = function(_,cardtype,player,useFlags)
 	else
 		if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then save.elses[item.own_key.."Tarot"] = true
 		else save.elses[item.own_key.."Tarot"] = nil end
-		save.elses[item.own_key.."effect"] = {Counter = 3 * 60 * 30,}
+		save.elses[item.own_key.."effect"] = {Counter = 3 * 60 * 30,player_idx = idx,}
 		save.elses[item.own_key.."InitCounter"] = save.elses[item.own_key.."InitCounter"] or 0
 	end
 end,

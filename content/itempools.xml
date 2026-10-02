@@ -11,7 +11,6 @@
 		<Item DecreaseBy="1" Name="Giant Punch" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Glaze Mushroom" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Little Duck" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Field" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="My Emblem" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="D773" RemoveOn="0.1" Weight="1" />
@@ -75,7 +74,6 @@
 		<Item DecreaseBy="1" Name="Multiknife" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Death Sentence" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Charon's Sign" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="Golden Slot" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Baby Tecro" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Baby Anna" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Baby Zeis" RemoveOn="0.1" Weight="1" />
@@ -84,15 +82,15 @@
 		<Item DecreaseBy="1" Name="Baby Lu" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Abiogenesis" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.5" Name="Remaster!" RemoveOn="0.1" Weight="0.5" />
 		<Item DecreaseBy="1" Name="Super Bombs" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Blue Print" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Perhaps Chosen" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Zero Presence" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Remaster!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="shop">
 		<Item DecreaseBy="0.5" Name="Memory" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="1" Name="Black Map" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="More Options??!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Mental Hypnosis" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Live Broadcast" RemoveOn="0.1" Weight="1" />
@@ -119,16 +117,18 @@
 		<Item DecreaseBy="1" Name="Bloody Map" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Golden Slot" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Qing's Faceted Market Diamond" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Perhaps Chosen" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Zero Presence" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="boss">
 		<Item DecreaseBy="0.5" Name="Glaze Mushroom" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="1" Name="Pageant Cross-dresser" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Tiramisu" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Glaze Mirror" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Hunger Burger" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Procrastination" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Cup Cat" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Zero Presence" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="devil">
 		<Item DecreaseBy="1" Name="Darkness" RemoveOn="0.1" Weight="1" />
@@ -140,7 +140,6 @@
 		<Item DecreaseBy="1" Name="Book of The Law" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Nazca" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Heart Change" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Drama of sorrow and joy" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Tzolkin" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Chiastolite" RemoveOn="0.1" Weight="1" />
@@ -158,7 +157,6 @@
 		<Item DecreaseBy="1" Name="Apocalypse" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Book of Future" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Book of Vision" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Cloundy" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Skiel" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Wisel" RemoveOn="0.1" Weight="1" />
@@ -179,14 +177,13 @@
 		<Item DecreaseBy="1" Name="Loneliness" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Sacred Mind Shield" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Abiogenesis" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="secret">
 		<Item DecreaseBy="1" Name="Death Sentence" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Fate's Draw" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Colorblindness" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Field" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Suture Needle" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="D773" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Book of Future" RemoveOn="0.1" Weight="1" />
@@ -213,7 +210,6 @@
 		<Item DecreaseBy="1" Name="Remaster!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="library">
-		<Item DecreaseBy="0.1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Book of Future" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Book of Thoth" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Book of The Law" RemoveOn="0.1" Weight="1" />
@@ -225,10 +221,8 @@
 		<Item DecreaseBy="1" Name="Abiogenesis" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="shellGame">
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="goldenChest">
-		<Item DecreaseBy="0.4" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Mental Hypnosis" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="My Best Friend" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Tiramisu" RemoveOn="0.1" Weight="1" />
@@ -239,16 +233,14 @@
 	<Pool Name="redChest">
 		<Item DecreaseBy="0.4" Name="Black Map" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Pareidolia" RemoveOn="0.025" Weight="0.25" />
-		<Item DecreaseBy="0.4" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Shadow Bottle" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Bloody Map" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="beggar">
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Tiramisu" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="demonBeggar">
 		<Item DecreaseBy="0.5" Name="Darkness" RemoveOn="0.05" Weight="0.5" />
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="0.5" Name="Chiastolite" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="0.5" Name="Dark Mysticism" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="0.5" Name="Dragon Tooth" RemoveOn="0.05" Weight="0.5" />
@@ -256,7 +248,6 @@
 	</Pool>
 	<Pool Name="curse">
 		<Item DecreaseBy="0.5" Name="The Watcher" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Devil's Heart" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Nazca" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Drama of sorrow and joy" RemoveOn="0.1" Weight="1" />
@@ -272,19 +263,16 @@
 		<Item DecreaseBy="1" Name="Abiogenesis" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="keyMaster">
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Core Brooch" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Reserved Judgment" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Black Map" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="batteryBum">
-		<Item DecreaseBy="0.5" Name="Tech 9" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Tech 14" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Cable Jar" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Subera Light" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="momsChest">
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Tears of Pearl" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Core Brooch" RemoveOn="0.1" Weight="1" />
 	</Pool>
@@ -304,7 +292,6 @@
 		<Item DecreaseBy="0.2" Name="Super Bombs" RemoveOn="0.02" Weight="0.2" />
 		<Item DecreaseBy="1" Name="Glaze Mushroom" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Little Duck" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Field" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="My Emblem" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="D773" RemoveOn="0.1" Weight="1" />
@@ -358,7 +345,6 @@
 	<Pool Name="greedBoss">
 		<Item DecreaseBy="1" Name="Glaze Mushroom" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Pageant Cross-dresser" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Tiramisu" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Glaze Mirror" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Hunger Burger" RemoveOn="0.1" Weight="1" />
@@ -377,7 +363,6 @@
 		<Item DecreaseBy="1" Name="Giant Punch" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Super Bombs" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="1" Name="Black Map" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Colorblindness" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Field" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Fate's Draw" RemoveOn="0.1" Weight="1" />
@@ -438,10 +423,11 @@
 		<Item DecreaseBy="1" Name="Regenesis" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Ember" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Blue Print" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Perhaps Chosen" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Zero Presence" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="greedCurse">
 		<Item DecreaseBy="0.5" Name="The Watcher" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Devil's Heart" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Nazca" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.25" Name="Pareidolia" RemoveOn="0.05" Weight="0.5" />
@@ -454,7 +440,6 @@
 		<Item DecreaseBy="1" Name="Assassin's Eye" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Blaststone" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Brimstream" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Devil's Heart" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Ingestion to Night" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Book of The Law" RemoveOn="0.1" Weight="1" />
@@ -477,7 +462,6 @@
 	<Pool Name="greedAngel">
 		<Item DecreaseBy="1" Name="Crown of the Glaze" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Memory" RemoveOn="0.05" Weight="0.5" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Apocalypse" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Book of Future" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Cloundy" RemoveOn="0.1" Weight="1" />
@@ -502,14 +486,12 @@
 		<Item DecreaseBy="1" Name="Evil Intervention" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="craneGame">
-		<Item DecreaseBy="0.1" Name="Tech 9" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.1" Name="Pageant Cross-dresser" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.1" Name="My Emblem" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Alchemy Pot" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Risemara" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Day Dreamer" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.1" Name="Paranoia" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Remaster!" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Tech 9" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="ultraSecret">
 		<Item DecreaseBy="0.4" Name="Darkness" RemoveOn="0.1" Weight="1" />
@@ -519,7 +501,6 @@
 		<Item DecreaseBy="0.4" Name="Air Flight" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Brimstream" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Blaststone" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.4" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Colorblindness" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Devil's Heart" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.4" Name="Book of The Law" RemoveOn="0.1" Weight="1" />
@@ -541,25 +522,22 @@
 		<Item DecreaseBy="1" Name="Baby Anna" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Bloody Map" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Book of Voice" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Sacred Mind Shield" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="bombBum">
 		<Item DecreaseBy="0.5" Name="Super Bombs" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="0.5" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="planetarium">
 		<Item DecreaseBy="1" Name="Pendulum Star" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Shangrila" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Dyson Star" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="oldChest">
-		<Item DecreaseBy="0.4" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="babyShop">
 		<Item DecreaseBy="1" Name="Air Flight" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Air Terror" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Brimstream" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Little Duck" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Apocalypse" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="My Emblem" RemoveOn="0.1" Weight="1" />
@@ -572,12 +550,9 @@
 		<Item DecreaseBy="1" Name="Baby Lu" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="woodenChest">
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
-		<Item DecreaseBy="1" Name="Tears of Pearl" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="The True Name" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="rottenBeggar">
-		<Item DecreaseBy="1" Name="It's a trick!!" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Fresh Death" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="The Suture Needle" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Acrotomophilia" RemoveOn="0.1" Weight="1" />

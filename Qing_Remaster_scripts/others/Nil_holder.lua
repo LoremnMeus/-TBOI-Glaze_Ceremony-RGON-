@@ -405,6 +405,7 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = 1000,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then return end
 	if ent.Variant ~= enums.Entities.ID_EFFECT_MeusNIL then return end
 	local d = ent:GetData()
 	local mode = item.resolve_mode(d)
@@ -412,10 +413,8 @@ Function = function(_,ent)
 	if h and h.remove then
 		h.remove(ent, d)
 	elseif d.is_revealee and d.revealee_end then
-		-- detect 可能尚未写入 nil_mode
-		delay_buffer.addeffe(function(params)
-			d.revealee_end(ent)
-		end,{},1)
+		-- Sync during REMOVE: do not defer removed Entity userdata to a later frame.
+		d.revealee_end(ent)
 	end
 end,
 })

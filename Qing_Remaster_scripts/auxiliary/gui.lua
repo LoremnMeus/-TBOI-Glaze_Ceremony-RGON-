@@ -1,66 +1,279 @@
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
+
+--- Canonical font / mod-resource path facility.
+--- Custom Font:Load paths must resolve through the live mod root (not hard-coded folder names).
 local item = {
 	f = nil,
 	f2 = nil,
-	font_loader = {
-		[1] = {
-			function(path) return path .. "mods/qing_2787338237/resources/font/eid9/eid9_9px.fnt" end,
-			function(path) return path .. "mods/Qing/resources/font/eid9/eid9_9px.fnt" end,
-			"../mods/qing_2787338237/resources/font/eid9/eid9_9px.fnt",
-			"../mods/Qing/resources/font/eid9/eid9_9px.fnt",
+	mod_root = nil,
+	font_load_report = {},
+}
+
+local FONT_CONFIG = {
+	latin = {
+		mod = {
 			"font/eid9/eid9_9px.fnt",
+		},
+		vanilla = {
 			"font/mplus_10r.fnt",
 		},
-		[2] = {
-			function(path) return path .. "mods/qing_2787338237/resources/font/eidcn/eid_default_cn.fnt" end,
-			function(path) return path .. "mods/Qing/resources/font/eidcn/eid_default_cn.fnt" end,
-			"../mods/qing_2787338237/resources/font/eidcn/eid_default_cn.fnt",
-			"../mods/Qing/resources/font/eidcn/eid_default_cn.fnt",
-			"font/eidcn/eid_default_cn.fnt",
+	},
+	cjk = {
+		mod = {
+			-- Copied from External Item Descriptions (keep EID page filenames).
+			"font/eidcn/eid_cn_default.fnt",
+		},
+		vanilla = {
+			"font/cjk/lanapixel.fnt",
 			"font/mplus_10r.fnt",
 		},
 	},
 }
 
-if item.f == nil then 
-	item.f = Font()
-	item.f2 = Font()
-	local _, err = pcall(require, "")
-	local basePathStart
-	local modPathEnd
-	local modPathStart
-	if REPENTOGON then
-		if _LUADEBUG then
-			_, modPathStart = string.find(err, "no file '", 1)
-			modPathEnd, _ = string.find(err, "mods", modPathStart)
-		else
-			_, basePathStart = string.find(err, "no file '", 1)
-			_, modPathStart = string.find(err, "no file '", basePathStart)
-			modPathEnd, _ = string.find(err, "mods", modPathStart)
+local function normalize_root(path)
+	path = tostring(path or ""):gsub("\\", "/")
+	path = path:gsub("/+", "/")
+	if path ~= "" and path:sub(-1) ~= "/" then
+		path = path .. "/"
+	end
+	return path
+end
+
+local function normalize_relative(relative_path)
+	return tostring(relative_path or "")
+		:gsub("\\", "/")
+		:gsub("^/+", "")
+end
+
+--- Resolve live mod root. Cache success only; never cache nil/false.
+function item.get_mod_root()
+	if item.mod_root then
+		return item.mod_root
+	end
+
+	-- 1. RGON: returns this mod's root directory directly.
+	if Isaac and Isaac.GetCurrentModPath then
+		local ok, path = pcall(function()
+			return Isaac.GetCurrentModPath()
+		end)
+		if ok and type(path) == "string" and path ~= "" then
+			item.mod_root = normalize_root(path)
+			return item.mod_root
 		end
-	else
-		if os then
-			_, modPathStart = string.find(err, "no file '", 1)
-			modPathEnd, _ = string.find(err, "mods", modPathStart)
-		else
-			_, basePathStart = string.find(err, "no file '", 1)
-			_, modPathStart = string.find(err, "no file '", basePathStart)
-			modPathEnd, _ = string.find(err, "mods", modPathStart)
+	end
+
+	-- 2. Legacy EID-style require("") path scrape (no hard-coded mod folder names).
+	local ok, err = pcall(require, "")
+	if not ok and type(err) == "string" then
+		local normalized = err:gsub("\\", "/")
+		local root = normalized:match("no file '([^']-/mods/[^/]+/)")
+		if not root then
+			-- Accept forms without trailing slash before ?.lua / ....
+			root = normalized:match("no file '([^']-/mods/[^/]+)/")
+			if root then
+				root = root .. "/"
+			end
+		end
+		if root then
+			item.mod_root = normalize_root(root)
+			return item.mod_root
 		end
 	end
-	local path = string.sub(err, modPathStart + 1, modPathEnd - 1)
-	path = string.gsub(path, "\\", "/")
-	path = string.gsub(path, "//", "/")
-	path = string.gsub(path, ":/", ":\\")
-	
-	for u,v in pairs(item.font_loader[1]) do
-		if not item.f:IsLoaded() then item.f:Load(auxi.check_if_any(v,path)) else end
+
+	return nil
+end
+
+function item.resolve_mod_resource(relative_path)
+	local root = item.get_mod_root()
+	if not root then
+		return nil
 	end
-	for u,v in pairs(item.font_loader[2]) do
-		if not item.f2:IsLoaded() then item.f2:Load(auxi.check_if_any(v,path)) end
+	return root .. "resources/" .. normalize_relative(relative_path)
+end
+
+--- Load a BMFont from this mod's resources/. Second Load arg "" matches EID GoG compatibility.
+--- Returns font or nil, plus a report table (never caches failed Font as success).
+function item.load_mod_font(relative_path, opts)
+	opts = opts or {}
+	relative_path = normalize_relative(relative_path)
+	local resolved = item.resolve_mod_resource(relative_path)
+	local report = {
+		source = "mod",
+		relative = relative_path,
+		resolved = resolved,
+		loaded = false,
+		call_ok = false,
+		error = nil,
+		reason = nil,
+		mod_root = item.mod_root,
+	}
+
+	if not resolved then
+		report.reason = "mod_root_unresolved"
+		return nil, report
 	end
+
+	local font = Font()
+	local ok, err = pcall(function()
+		font:Load(resolved, "")
+	end)
+	report.call_ok = ok == true
+	if not ok then
+		report.error = tostring(err)
+		report.reason = "load_pcall_failed"
+		return nil, report
+	end
+
+	local loaded = font.IsLoaded and font:IsLoaded() == true
+	report.loaded = loaded
+	if not loaded then
+		report.reason = "not_is_loaded"
+		return nil, report
+	end
+
+	if opts.missing_character ~= nil and font.SetMissingCharacter then
+		pcall(function()
+			font:SetMissingCharacter(opts.missing_character)
+		end)
+	end
+
+	return font, report
+end
+
+local function load_vanilla_font(relative_path, opts)
+	opts = opts or {}
+	relative_path = normalize_relative(relative_path)
+	local report = {
+		source = "vanilla",
+		relative = relative_path,
+		resolved = relative_path,
+		loaded = false,
+		call_ok = false,
+		error = nil,
+		reason = nil,
+		mod_root = item.mod_root,
+	}
+	local font = Font()
+	local ok, err = pcall(function()
+		font:Load(relative_path, "")
+	end)
+	report.call_ok = ok == true
+	if not ok then
+		report.error = tostring(err)
+		report.reason = "load_pcall_failed"
+		return nil, report
+	end
+	local loaded = font.IsLoaded and font:IsLoaded() == true
+	report.loaded = loaded
+	if not loaded then
+		report.reason = "not_is_loaded"
+		return nil, report
+	end
+	if opts.missing_character ~= nil and font.SetMissingCharacter then
+		pcall(function()
+			font:SetMissingCharacter(opts.missing_character)
+		end)
+	end
+	return font, report
+end
+
+local function load_font_slot(slot_name, config)
+	local attempts = {}
+	for _, rel in ipairs(config.mod or {}) do
+		local font, report = item.load_mod_font(rel)
+		attempts[#attempts + 1] = report
+		if font then
+			item.font_load_report[slot_name] = {
+				slot = slot_name,
+				loaded = true,
+				chosen = report,
+				attempts = attempts,
+				mod_root = item.get_mod_root(),
+			}
+			return font
+		end
+	end
+	for _, rel in ipairs(config.vanilla or {}) do
+		local font, report = load_vanilla_font(rel)
+		attempts[#attempts + 1] = report
+		if font then
+			item.font_load_report[slot_name] = {
+				slot = slot_name,
+				loaded = true,
+				chosen = report,
+				attempts = attempts,
+				mod_root = item.get_mod_root(),
+			}
+			return font
+		end
+	end
+	item.font_load_report[slot_name] = {
+		slot = slot_name,
+		loaded = false,
+		chosen = nil,
+		attempts = attempts,
+		mod_root = item.get_mod_root(),
+		reason = "all_candidates_failed",
+	}
+	return Font()
+end
+
+function item.get_font_load_report()
+	return {
+		mod_root = item.get_mod_root(),
+		slots = item.font_load_report,
+		f = item.font_load_report.f or item.font_load_report.latin,
+		f2 = item.font_load_report.f2 or item.font_load_report.cjk,
+	}
+end
+
+function item.format_font_load_report()
+	local report = item.get_font_load_report()
+	local lines = {
+		"Mod Root:",
+		tostring(report.mod_root or "(unresolved)"),
+		"",
+	}
+	local function append_slot(label, key)
+		local slot = item.font_load_report[key]
+		lines[#lines + 1] = label .. ":"
+		if not slot then
+			lines[#lines + 1] = "  (no report)"
+			lines[#lines + 1] = ""
+			return
+		end
+		local chosen = slot.chosen
+		if chosen then
+			lines[#lines + 1] = "  requested: " .. tostring(chosen.relative)
+			lines[#lines + 1] = "  resolved:  " .. tostring(chosen.resolved)
+			lines[#lines + 1] = "  source:    " .. tostring(chosen.source)
+			lines[#lines + 1] = "  loaded=" .. tostring(chosen.loaded)
+		else
+			lines[#lines + 1] = "  loaded=false"
+			lines[#lines + 1] = "  reason=" .. tostring(slot.reason or "?")
+			for i, attempt in ipairs(slot.attempts or {}) do
+				lines[#lines + 1] = string.format(
+					"  try[%d] %s %s loaded=%s (%s)",
+					i,
+					tostring(attempt.source),
+					tostring(attempt.resolved or attempt.relative),
+					tostring(attempt.loaded),
+					tostring(attempt.reason or "")
+				)
+			end
+		end
+		lines[#lines + 1] = ""
+	end
+	append_slot("f", "f")
+	append_slot("f2", "f2")
+	return table.concat(lines, "\n")
+end
+
+if item.f == nil then
+	item.f = load_font_slot("f", FONT_CONFIG.latin)
+	item.f2 = load_font_slot("f2", FONT_CONFIG.cjk)
 end
 
 item.GetScreenSize = auxi.GetScreenSize

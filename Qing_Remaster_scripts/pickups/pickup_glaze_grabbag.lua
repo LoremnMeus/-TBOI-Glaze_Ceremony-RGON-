@@ -6,6 +6,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 
 local item = {
 	pickup = enums.Pickups.Glaze_grabbag,
@@ -85,17 +86,22 @@ function item.try_collect(player,ent)
 			break
 		else
 			local tg = auxi.random_in_weighed_table(tbl,rng)
-			if tg.name == "Glaze_bomb" and auxi.has_poop_player() then tg.name = "Glaze_big_poop" end
-			local info = item.check_info[tg.name] or {}
+			-- 有便便角色时：炸弹转化结果改为琉璃便便，但仍按炸弹扣除库存。
+			local cost_name = tg.name
+			local spawn_name = tg.name
+			if tg.name == "Glaze_bomb" and auxi.has_poop_player() then
+				spawn_name = "Glaze_big_poop"
+			end
+			local info = item.check_info[cost_name] or {}
 			auxi.check_if_any(info.get,player,item)
-			local ttg = enums.Pickups[tg.name]
+			local ttg = enums.Pickups[spawn_name]
 			local q = Isaac.Spawn(5,ttg.Variant,ttg.SubType,ent.Position,auxi.RoundVector(rng,3),player):ToPickup()		--此法生成的不会被替换
 			auxi.special_morph(q,ttg)
 		end
 	end
 	player:GetData()[item.own_key.."Battery"] = nil
 	auxi.try_start_ambush()
-	glaze_crown.notify_pickup(player)
+	glaze_crown.notify_pickup(player, ent and ent.Position)
 	return true
 end
 
@@ -110,7 +116,10 @@ Function = function(_,ent, col, low)
 				ent.Velocity = Vector(0,0)
 				ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_SHELLGAME,1,1,false,0,2)
-				auxi.remove_others_option_pickup(ent)
+				option_index_holder.commit_selection(ent, player, {
+					skip_will_collect = true,
+					remove_siblings = true,
+				})
 				if ent:IsShopItem() then auxi.buy_a_pickup(ent,player)
 				else ent:GetSprite():Play("Collect",true) end
 				return true

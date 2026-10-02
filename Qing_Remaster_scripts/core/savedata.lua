@@ -164,12 +164,6 @@ local function pack_elses_for_save(elses)
 	return auxi.pack_for_save(tmp)
 end
 
-local function clear_legacy_unlock_roots(state)
-	for cat,_ in pairs(item.over_unlock_info) do
-		state[cat] = nil
-	end
-end
-
 function item.get_achievement_init(name,init)
 	local ret = {}
 	for i, v in pairs(item.Unlock_info[name]) do ret[i] = {} for uu,vv in pairs(v) do ret[i][uu] = init end end
@@ -198,16 +192,6 @@ end
 
 function item.ensure_board_special_records()
 	item.UnlockData.Others = item.UnlockData.Others or {}
-	-- 旧余烬布尔不能进 schema，迁到心如死灰格子
-	if item.UnlockData.Others.Ember == true then
-		local rec = item.UnlockData.Others.Feels_Like_Dead_Ashes
-		if type(rec) ~= "table" then
-			item.UnlockData.Others.Feels_Like_Dead_Ashes = {Unlock = true}
-		else
-			rec.Unlock = true
-		end
-		item.UnlockData.Others.Ember = nil
-	end
 	local function add(key)
 		if type(key) ~= "string" or key == "" then return end
 		local rec = item.UnlockData.Others[key]
@@ -246,27 +230,20 @@ function item.SaveModData(reason)
 	if item.RuntimeLoaded ~= true then
 		return false
 	end
-	-- 仍高频落盘（换层/退出等）；压缩的是体积，不是频率
-	clear_legacy_unlock_roots(SAVE_STATE)
-	SAVE_STATE.SAVE_VER = SAVE_FORMAT
-	SAVE_STATE.PROFILE = {
-		UNLOCKS = unlock_codec.pack(item.UnlockData, unlock_schema),
-		MODCONFIG = item.ModConfigSettings,
-		-- ConsistData 已并入 PermanentData；不再单独写 CONSIST_DATA
-		PERMANENT_DATA = auxi.pack_for_save(item.PermanentData),
-		ITEM_COLOR_CACHE = item.ItemColorCache,
+	-- Canonical layout only: PROFILE + RUN. Top-level category / ELSES mirrors are not written.
+	SAVE_STATE = {
+		SAVE_VER = SAVE_FORMAT,
+		PROFILE = {
+			UNLOCKS = unlock_codec.pack(item.UnlockData, unlock_schema),
+			MODCONFIG = item.ModConfigSettings,
+			PERMANENT_DATA = auxi.pack_for_save(item.PermanentData),
+			ITEM_COLOR_CACHE = item.ItemColorCache,
+		},
+		RUN = {
+			ELSES = pack_elses_for_save(item.elses),
+			PERSISTENT_PLAYER_DATA = sanitize_persistent_players_for_save(item.PERSISTENT_PLAYER_DATA),
+		},
 	}
-	SAVE_STATE.RUN = {
-		ELSES = pack_elses_for_save(item.elses),
-		PERSISTENT_PLAYER_DATA = sanitize_persistent_players_for_save(item.PERSISTENT_PLAYER_DATA),
-	}
-	-- 颜色缓存只放 PROFILE，勿再顶层镜像（旧档双份约翻倍）
-	SAVE_STATE.ITEM_COLOR_CACHE = nil
-	SAVE_STATE.ELSES = nil
-	SAVE_STATE.MODCONFIG = nil
-	SAVE_STATE.CONSIST_DATA = nil
-	SAVE_STATE.PERMANENT_DATA = nil
-	SAVE_STATE.PERSISTENT_PLAYER_DATA = nil
 	local payload = json.encode(SAVE_STATE)
 	modReference:SaveData(payload)
 	return true
@@ -282,14 +259,7 @@ function item.PeekItemColorCache()
 	local decoded
 	local succ = pcall(function() decoded = json.decode(dec) end)
 	if not succ or type(decoded) ~= "table" then return nil end
-	local blob = nil
-	if type(decoded.PROFILE) == "table" then
-		blob = decoded.PROFILE.ITEM_COLOR_CACHE
-	end
-	-- 兼容仅写过顶层镜像的过渡档
-	if type(blob) ~= "table" then
-		blob = decoded.ITEM_COLOR_CACHE
-	end
+	local blob = type(decoded.PROFILE) == "table" and decoded.PROFILE.ITEM_COLOR_CACHE or nil
 	if type(blob) == "table" then
 		item.ItemColorCache = blob
 		return item.ItemColorCache
@@ -312,13 +282,28 @@ function item.SaveItemColorCache(blob)
 	SAVE_STATE = SAVE_STATE or {}
 	SAVE_STATE.PROFILE = SAVE_STATE.PROFILE or {}
 	SAVE_STATE.PROFILE.ITEM_COLOR_CACHE = blob
-	SAVE_STATE.ITEM_COLOR_CACHE = nil
 	-- 若完整运行态已就绪，走常规 Save；否则只更新颜色缓存并写回
 	if item.RuntimeLoaded == true then
 		item.SaveModData()
 	else
 		modReference:SaveData(json.encode(SAVE_STATE))
 	end
+end
+
+local function initialize_current_save()
+	SAVE_STATE = {
+		SAVE_VER = SAVE_FORMAT,
+		PROFILE = {},
+		RUN = {},
+	}
+end
+
+--- Pre-release: only PROFILE+RUN with current SAVE_VER are accepted. Older layouts reset.
+local function is_canonical_save(state)
+	return type(state) == "table"
+		and type(state.PROFILE) == "table"
+		and type(state.RUN) == "table"
+		and state.SAVE_VER == SAVE_FORMAT
 end
 
 function item.LoadModData(continue)
@@ -328,51 +313,25 @@ function item.LoadModData(continue)
 		local succ = pcall(function() SAVE_STATE = json.decode(dec) end)
 		if not succ or type(SAVE_STATE) ~= "table" then
 			print("QING:: Error: Failed to load Mod data. They will be re-initialized again.")
-			SAVE_STATE = {}
+			initialize_current_save()
 		end
 	else
-		SAVE_STATE = {ELSES = {}, PERSISTENT_PLAYER_DATA = {}}
+		initialize_current_save()
+	end
+
+	if not is_canonical_save(SAVE_STATE) then
+		print("QING:: Save layout outdated or incomplete; re-initializing canonical PROFILE/RUN.")
+		initialize_current_save()
 	end
 
 	local profile = SAVE_STATE.PROFILE
 	local run = SAVE_STATE.RUN
-	local elses_blob
-	local consist_blob
-	local permanent_blob
-	local unlock_packed
-
-	if type(profile) == "table" and type(run) == "table" then
-		unlock_packed = profile.UNLOCKS
-		item.ModConfigSettings = profile.MODCONFIG
-		consist_blob = profile.CONSIST_DATA
-		permanent_blob = profile.PERMANENT_DATA
-		item.ItemColorCache = profile.ITEM_COLOR_CACHE or SAVE_STATE.ITEM_COLOR_CACHE
-		elses_blob = run.ELSES
-		item.PERSISTENT_PLAYER_DATA = run.PERSISTENT_PLAYER_DATA or {}
-	else
-		unlock_packed = nil
-		item.ModConfigSettings = SAVE_STATE.MODCONFIG
-		consist_blob = SAVE_STATE.CONSIST_DATA
-		permanent_blob = SAVE_STATE.PERMANENT_DATA
-		item.ItemColorCache = SAVE_STATE.ITEM_COLOR_CACHE
-		elses_blob = SAVE_STATE.ELSES
-		item.PERSISTENT_PLAYER_DATA = SAVE_STATE.PERSISTENT_PLAYER_DATA or {}
-	end
-
-	local elses = auxi.unpack_from_save(elses_blob) or {}
-	local permanent = auxi.unpack_from_save(permanent_blob) or {}
-	local consist = auxi.unpack_from_save(consist_blob) or {}
-	-- ConsistData → PermanentData 合并（旧档兼容；同名键以 Permanent 为准）
-	for key, value in pairs(consist) do
-		if permanent[key] == nil then
-			permanent[key] = value
-		end
-	end
-	local legacy_spectral_data = elses["Item_Spectralsword_data"]
-	if permanent["Item_Spectralsword_data"] == nil and legacy_spectral_data ~= nil then
-		permanent["Item_Spectralsword_data"] = auxi.deepCopy(legacy_spectral_data)
-	end
-	elses["Item_Spectralsword_data"] = nil
+	local unlock_packed = profile.UNLOCKS
+	item.ModConfigSettings = profile.MODCONFIG
+	item.ItemColorCache = profile.ITEM_COLOR_CACHE
+	local elses = auxi.unpack_from_save(run.ELSES) or {}
+	local permanent = auxi.unpack_from_save(profile.PERMANENT_DATA) or {}
+	item.PERSISTENT_PLAYER_DATA = run.PERSISTENT_PLAYER_DATA or {}
 
 	if continue ~= true then
 		local tbl = {}
@@ -384,7 +343,7 @@ function item.LoadModData(continue)
 	if type(unlock_packed) == "table" and type(unlock_packed.b) == "table" then
 		item.UnlockData = unlock_codec.unpack(unlock_packed, unlock_schema)
 	else
-		item.UnlockData = unlock_codec.from_legacy_save(SAVE_STATE, item.over_unlock_info)
+		item.UnlockData = item.make_all_data(false)
 	end
 	for cat,_ in pairs(item.over_unlock_info) do
 		item.UnlockData[cat] = item.UnlockData[cat] or {}
@@ -392,6 +351,7 @@ function item.LoadModData(continue)
 
 	item.elses = elses
 	item.PermanentData = permanent
+	-- Runtime API alias only (not a save field). Callers may still use save.ConsistData.
 	item.ConsistData = item.PermanentData
 	item.CompletionMarksV2 = item.PermanentData.CompletionMarksV2
 	item.CheckAchievementAll()
@@ -601,7 +561,13 @@ Function = function(_,player)
 end,
 })
 
---针对沙漏的修复
+-- Run-state timeline snapshots.
+-- save.elses is the authoritative rewindable run-state store:
+--   * lst  = previous room snapshot used by Glowing Hour Glass / RGON rewind
+--   * lst2 = fallback older snapshot where applicable
+-- Restoring a snapshot replaces item.elses wholesale, then POST_REWIND is fired
+-- so runtime/derived caches can rebuild themselves.
+-- Consumers MUST NOT manually restore business state already stored in save.elses.
 function item.collect_data()
 	--Isaac.DebugString("Data Collected")
 	if item.should_load then

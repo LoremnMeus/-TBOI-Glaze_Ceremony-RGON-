@@ -33,8 +33,12 @@ local manifest = {
 	title_logo = {
 		enabled = true,
 		anm2 = "gfx/ui/main menu/titlemenu_replace.anm2",
+		-- 独立彩虹叠层 Sprite（见 title_menu_logo_holder）；勿往主 anm2 加 Layer/注释
+		rainbow_anm2 = "gfx/ui/main menu/titlemenu_logo_rainbow.anm2",
 		en = "gfx/ui/main menu/logo_replace.png",
 		zh = "gfx/ui/lang/zh/title/logo_replace.png",
+		-- 中文 logo_replace.png 尚未放入 resources；勿置 true，否则会 Replace 成空白
+		zh_ready = false,
 		follow_menu_lang = true,
 		-- 可选手调；默认由 title_menu_logo_holder 按 vanilla/replace anm2 锚点差计算
 		-- render_offset = { x = -39, y = -15 },

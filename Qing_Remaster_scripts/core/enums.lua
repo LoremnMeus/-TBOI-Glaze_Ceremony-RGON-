@@ -150,6 +150,8 @@ enums.Items = {
 	The_Voice = Isaac.GetItemIdByName("The Voice"),
 	Regenesis = Isaac.GetItemIdByName("Regenesis"),
 	Ember = Isaac.GetItemIdByName("Ember"),
+	Perhaps_Chosen = Isaac.GetItemIdByName("Perhaps Chosen"),
+	Zero_Presence = Isaac.GetItemIdByName("Zero Presence"),
 	
 	Baby_Tecro = Isaac.GetItemIdByName("Baby Tecro"),
 	Baby_Anna = Isaac.GetItemIdByName("Baby Anna"),
@@ -218,6 +220,7 @@ enums.Callbacks = {		-- Old misspelled callback names were normalized during the
 	PRE_GET_TELEPORT = "PRE_GET_TELEPORT",
 	POST_CHANGE_BASIC = "POST_CHANGE_BASIC",
 	POST_CHANGE_ALL_BASIC = "POST_CHANGE_ALL_BASIC",
+	POST_PLAYER_LOSS = "POST_PLAYER_LOSS",
 	PRE_DESCRIPT_ITEM = "PRE_DESCRIPT_ITEM",
 	POST_DESCRIPT_ITEM = "POST_DESCRIPT_ITEM",
 	PRE_TELL_FORTUNE = "PRE_TELL_FORTUNE",
@@ -237,6 +240,7 @@ enums.Callbacks = {		-- Old misspelled callback names were normalized during the
 	POST_EVERY_ENTITY_INIT = "POST_EVERY_ENTITY_INIT",
 	POST_EVERY_ENTITY_UPDATE = "POST_EVERY_ENTITY_UPDATE",
 	MC_EVALUATE_IMITATE_ITEM = "MC_EVALUATE_IMITATE_ITEM",
+	MC_EVALUATE_IMITATE_TRINKET = "MC_EVALUATE_IMITATE_TRINKET",
 	POST_REASSIGN_IMITATE_ITEM = "POST_REASSIGN_IMITATE_ITEM",
 	PRE_CHECK_PRICE = "PRE_CHECK_PRICE",
 	PRE_PLAYER_KILL = "PRE_PLAYER_KILL",
@@ -255,11 +259,22 @@ enums.Callbacks = {		-- Old misspelled callback names were normalized during the
 	POST_SLOT_RENDER = "POST_SLOT_RENDER",
 	--POST_PICKUP_MORPH = "POST_PICKUP_MORPH",
 	POST_LASER_INIT_2_UPDATE = "POST_LASER_INIT_2_UPDATE",
-	POST_FIRE_TRIGGER = "POST_FIRE_TRIGGER",
-	POST_FIRE_TRIGGER_IN_FRAME = "POST_FIRE_TRIGGER_IN_FRAME",
+	POST_FIRE_TRIGGER = "POST_FIRE_TRIGGER", -- M8 retired (no generators); enum kept for old notes
+	POST_FIRE_TRIGGER_IN_FRAME = "POST_FIRE_TRIGGER_IN_FRAME", -- M8 retired
+	-- Attack Trigger Holder semantics (table event payload).
+	POST_ATTACK_ONCE = "POST_ATTACK_ONCE",
+	POST_ATTACK_MEMBER_BOUND = "POST_ATTACK_MEMBER_BOUND",
+	POST_ATTACK_MEMBER_UNBOUND = "POST_ATTACK_MEMBER_UNBOUND",
+	POST_ATTACK_DPS_SAMPLE = "POST_ATTACK_DPS_SAMPLE",
+	POST_ATTACK_DAMAGE = "POST_ATTACK_DAMAGE",
+	POST_ATTACK_END = "POST_ATTACK_END",
+	-- POST_ATTACK_HIT reserved; not emitted this round.
 	POST_TRIGGER_BOMB_EFFECT = "POST_TRIGGER_BOMB_EFFECT",
 	PRE_ADD_DULL_POINT = "PRE_ADD_DULL_POINT",
 	MC_EVALUATE_DULL_POINT = "MC_EVALUATE_DULL_POINT",
+	-- Pedestal Encounter Holder：普通道具机会 vs 死亡证明陈列（两条独立事件流）
+	POST_PEDESTAL_ENCOUNTER = "POST_PEDESTAL_ENCOUNTER",
+	POST_DEATH_CERTIFICATE_DISPLAY_ENCOUNTER = "POST_DEATH_CERTIFICATE_DISPLAY_ENCOUNTER",
 }
 
 enums.Slots = {
@@ -268,6 +283,7 @@ enums.Slots = {
 	Rift_beggar = {Type = 6,Variant = Isaac.GetEntityVariantByName("Rift Beggar"),},
 	Bloody_Messenger = {Type = 6,Variant = Isaac.GetEntityVariantByName("Bloody Messenger"),},
 	Qing_Diamond_Merchant = {Type = 6,Variant = Isaac.GetEntityVariantByName("Qing Diamond Merchant"),},
+	Bank_Branch = {Type = 6,Variant = Isaac.GetEntityVariantByName("Bank Branch"),},
 }
 
 enums.Cards = {
@@ -335,6 +351,8 @@ enums.Cards = {
 	Profound_r = Isaac.GetCardIdByName("The Profound r"),
 	Sting = Isaac.GetCardIdByName("The Sting"),
 	Sting_r = Isaac.GetCardIdByName("The Sting r"),
+	Oblivion = Isaac.GetCardIdByName("The Oblivion"),
+	Oblivion_r = Isaac.GetCardIdByName("The Oblivion r"),
 }
 
 enums.SoundEffect = {
@@ -378,6 +396,10 @@ enums.SoundEffect = {
 	dialog_type = Isaac.GetSoundIdByName("dialog_type"),
 	Qing_shoot = Isaac.GetSoundIdByName("Qing_shoot"),
 	Qing_rocket = Isaac.GetSoundIdByName("Qing_rocket"),
+	-- 深邃? 心跳：独立注册的原版 wav 副本（非 SoundEffect 321/322/323）
+	Qing_Heartbeat = Isaac.GetSoundIdByName("Qing Heartbeat"),
+	Qing_Heartbeat_Faster = Isaac.GetSoundIdByName("Qing Heartbeat Faster"),
+	Qing_Heartbeat_Fastest = Isaac.GetSoundIdByName("Qing Heartbeat Fastest"),
 }
 
 enums.Music = {
@@ -388,6 +410,7 @@ enums.Music = {
 
 enums.Costumes = {
 	SPWQinghair = Isaac.GetCostumeIdByPath("gfx/characters/SPWQingHair.anm2"),
+	QingHead = Isaac.GetCostumeIdByPath("gfx/characters/QingHead.anm2"),
 	Qingrobes = Isaac.GetCostumeIdByPath("gfx/characters/Qingrobes.anm2"),
 	Devil_s_Heart_Head = Isaac.GetCostumeIdByPath("gfx/characters/Devil_s_Heart_Head.anm2"),
 	D_s_H_2 = Isaac.GetCostumeIdByPath("gfx/characters/D_s_H_2.anm2"),
@@ -407,6 +430,7 @@ enums.Costumes = {
 	Anna2_body = Isaac.GetCostumeIdByPath("gfx/characters/Anna2_body.anm2"),
 	Anna_Horn = Isaac.GetCostumeIdByPath("gfx/characters/Anna_Horn.anm2"),
 	Autio_Hair = Isaac.GetCostumeIdByPath("gfx/characters/Autio_Hair.anm2"),
+	TianYi_Hair = Isaac.GetCostumeIdByPath("gfx/characters/TianYi_Hair.anm2"),
 	Zeistos_Head = Isaac.GetCostumeIdByPath("gfx/characters/Zeistos_Head.anm2"),
 	Delicate_Flower_Head = Isaac.GetCostumeIdByPath("gfx/characters/Delicate_Flower_Head.anm2"),
 	Tecrorun_body = Isaac.GetCostumeIdByPath("gfx/characters/Tecrorun_body.anm2"),
@@ -435,6 +459,7 @@ enums.Familiars = {
 	Baby_Autio = Isaac.GetEntityVariantByName("Baby Autio"),
 	Baby_Lu = Isaac.GetEntityVariantByName("Baby Lu"),
 	Abiogenesis = Isaac.GetEntityVariantByName("Abiogenesis"),
+	Regenesis = Isaac.GetEntityVariantByName("Regenesis Baby"),
 }
 
 enums.Enemies = {
@@ -476,6 +501,7 @@ enums.Entities = {
 	Blaststone = Isaac.GetEntityVariantByName("Blaststone"),
 	Brimstream = Isaac.GetEntityVariantByName("Brimstream"),
 	little_duck = Isaac.GetEntityVariantByName("littleduck"),
+	Gold_Rush_Rat = Isaac.GetEntityVariantByName("Gold Rush Rat"),
 	Tiandian = Isaac.GetEntityVariantByName("Tiandian"),
 	trans_field_door = Isaac.GetEntityVariantByName("trans field door"),
 	Harmony = Isaac.GetEntityVariantByName("Harmony"),
@@ -509,9 +535,20 @@ enums.Entities = {
 	ZeistosHelper = Isaac.GetEntityVariantByName("ZeistosHelper"),
 	ZeistosHelper2 = Isaac.GetEntityVariantByName("ZeistosHelper2"),
 	Hyper_Velocity_Track = Isaac.GetEntityVariantByName("Hyper Velocity Track"),
+	Art_Effect = Isaac.GetEntityVariantByName("Art Effect"),
+	Death_Field_Proxy = Isaac.GetEntityVariantByName("Death Field Proxy"),
+	Bank_Room_Marker = Isaac.GetEntityVariantByName("Bank Room Marker"),
+	Stone_Room_Marker = Isaac.GetEntityVariantByName("Stone Room Marker"),
+	Phase_Lab_Room_Marker = Isaac.GetEntityVariantByName("Phase Lab Room Marker"),
+	Phase_Lab_Fixture = Isaac.GetEntityVariantByName("Phase Lab Fixture"),
+	Runtime_Stitch_Linker = Isaac.GetEntityVariantByName("Runtime Stitch Linker"),
+	-- Alias (v1): old Friend name; remove after one release cycle.
+	Runtime_Stitch_Friend = Isaac.GetEntityVariantByName("Runtime Stitch Linker"),
 	Chasm_Hanger = Isaac.GetEntityVariantByName("Chasm Hanger"),
 	Cursed_Linker = Isaac.GetEntityVariantByName("Cursed Linker"),
 	S_Pentagram = Isaac.GetEntityVariantByName("S Pentagram"),
+	S_Pentagram_Reversed = Isaac.GetEntityVariantByName("S Pentagram Reversed"),
+	S_Sting_Reversed_Blood = Isaac.GetEntityVariantByName("S Sting Reversed Blood"),
 	AnnaMarks = Isaac.GetEntityVariantByName("AnnaMarks"),
 	AnnaHelper = Isaac.GetEntityVariantByName("AnnaHelper"),
 	Phantom = Isaac.GetEntityVariantByName("HelperPhantom"),
@@ -521,6 +558,7 @@ enums.Entities = {
 	ElementCrystal = Isaac.GetEntityVariantByName("ElementCrystal"),
 	Muscae_Helper = Isaac.GetEntityVariantByName("Muscae Helper"),
 	Glaze_Helper = Isaac.GetEntityVariantByName("Glaze Helper"),
+	AbiogenesisAvatar = Isaac.GetEntityVariantByName("Abiogenesis Avatar"),
 }
 
 enums.Pickups = {
@@ -544,7 +582,9 @@ enums.Pickups = {
 		s:Play("Appear",true)
 		return true,own_word
 	end,special_to_check = function(ent)
-		return ent:GetData()._Data and ent:GetData()._Data["Glaze_Coin"] and ent:GetData()._Data["Glaze_Coin"].is_glaze_coin == true
+		if not ent or not ent.GetData then return false end
+		local data = ent:GetData()
+		return data and data._Data and data._Data["Glaze_Coin"] and data._Data["Glaze_Coin"].is_glaze_coin == true
 	end,
 	},
 	Glaze_grabbag = {Variant = Isaac.GetEntityVariantByName("Glaze_grabbag"),SubType = 2353,wei = 30,heavy = 3,},

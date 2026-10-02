@@ -171,11 +171,18 @@ function runtime.get_audit_snapshot()
 			epoch = state and state.epoch or nil,
 		}
 	end
+	local story_snap = nil
+	local ok, story_state = pcall(require, "Qing_Remaster_scripts.story.story_state")
+	if ok and story_state and story_state.get_audit_snapshot then
+		local sok, snap = pcall(story_state.get_audit_snapshot)
+		if sok then story_snap = snap end
+	end
 	return {
 		schema_version = root.schema_version or runtime.SCHEMA_VERSION,
 		floor_epoch = root.floor_epoch or 0,
 		room = runtime.get_room_identity(),
 		entries = entries,
+		story = story_snap,
 	}
 end
 

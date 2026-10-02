@@ -4,6 +4,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
+local Player_Pseudo_Fear = require("Qing_Remaster_scripts.mimics.Player_Pseudo_Fear_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -14,6 +15,22 @@ local item = {
 	own_key = "Item_Dark_Mysticism_",
 }
 auxi.add_to_seija(item.entity)
+
+local function debug_root()
+	local root = save.ModConfigSettings
+	local options = root and root.QingRemasterOptions
+	return options and options.Debug
+end
+
+function item.force_seija()
+	local debug = debug_root()
+	return debug and debug.DarkMysticismForceSeija == true
+end
+
+function item.is_seija(player)
+	if item.force_seija() then return true end
+	return player and auxi.should_do_Seija(player) == true
+end
 
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = 1,priority = -10,
 Function = function(_,ent,amt,flag,source,cooldown)
@@ -36,8 +53,8 @@ Function = function(_,ent,amt,flag,source,cooldown)
 				local s = q:GetSprite()
 				auxi.load_item(item.entity,{sprite = s,})
 			end
-			if auxi.should_do_Seija(player) then
-				player:AddFear(EntityRef(player),3 * 60)
+			if item.is_seija(player) then
+				Player_Pseudo_Fear.apply(player)
 			end
 			return false
 		end

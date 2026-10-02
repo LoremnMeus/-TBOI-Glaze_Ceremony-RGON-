@@ -10,7 +10,8 @@ local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local selection_holder = require("Qing_Remaster_scripts.others.selection_holder")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
-local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder") 
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
+local thoth_use = require("Qing_Remaster_scripts.cards.thoth_use_semantics")
 
 local item = {
 	pre_ToCall = {},
@@ -61,10 +62,11 @@ Function = function(_)
 					consistance_holder.try_hold_over_entity(v,item.own_key)
 					d._Data[item.own_key]["effect"] = (d._Data[item.own_key]["effect"] or 0) - 1
 					if d._Data[item.own_key]["effect"] <= 0 then
-						unique_holder.Hold_for_missing(true)
-						local q = Isaac.Spawn(5,100,v.SubType,room:FindFreePickupSpawnPosition(v.Position,10,true),Vector(0,0),nil):ToPickup()
-						auxi.self_morph(q,{5,100,v.SubType,})
-						unique_holder.Hold_for_missing()
+						local q = unique_holder.with_missing(33, function()
+							local q = Isaac.Spawn(5,100,v.SubType,room:FindFreePickupSpawnPosition(v.Position,10,true),Vector(0,0),nil):ToPickup()
+							auxi.self_morph(q,{5,100,v.SubType,})
+							return q
+						end)
 						sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLACK_POOF,1,1,false,0,2)
 						local e1 = Isaac.Spawn(1000,16,2,q.Position,Vector(0,0),nil)
 						local e2 = Isaac.Spawn(1000,16,1,q.Position,Vector(0,0),nil)
@@ -98,9 +100,27 @@ Function = function(_,ent,hook,button)
 end,
 })
 
+local function make_selector_sprite(spritename)
+	local sprite = Sprite()
+	sprite:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true)
+	sprite:Play("Idle",true)
+	sprite:ReplaceSpritesheet(0,spritename)
+	sprite:LoadGraphics()
+	return sprite
+end
+
+local function clear_selector_cache(player)
+	local d = player:GetData()
+	d[item.own_key.."list"] = nil
+	d[item.own_key.."exclude_sprite"] = nil
+	d[item.own_key.."select_sprite"] = nil
+end
+
 local function makeitemlist(player)
 	local d = player:GetData()
 	d[item.own_key.."list"] = {}
+	d[item.own_key.."exclude_sprite"] = make_selector_sprite("gfx/ui/math/exclude_mark.png")
+	d[item.own_key.."select_sprite"] = make_selector_sprite("gfx/ui/math/catch_mark.png")
 	local config = Isaac:GetItemConfig()
 	local sz = config:GetCollectibles().Size
 	for i = 1,sz do
@@ -109,7 +129,7 @@ local function makeitemlist(player)
 			local num = player:GetCollectibleNum(i,true)
 			if num > 0 then
 				if i == enums.Items.It_s_a_trick then col = config:GetCollectible(save.elses.glazed_trick or 32) or config:GetCollectible(32) end
-				if num > 0 then table.insert(d[item.own_key.."list"],#d[item.own_key.."list"] + 1,{id = i,spritename = col.GfxFileName,}) end
+				if num > 0 then table.insert(d[item.own_key.."list"],#d[item.own_key.."list"] + 1,{id = i,spritename = col.GfxFileName,sprite = make_selector_sprite(col.GfxFileName),}) end
 			end
 		end
 	end
@@ -124,24 +144,16 @@ local function render_selector(player)
 	local mxn = math.ceil((#d[item.own_key.."list"] + 1)/column) * column
 	local spos = Isaac.WorldToScreen(player.Position) + item.start_pos - item.mov_pos * ((column - 1)/2) - item.mov_pos2 * (mxn/column)
 	for ii = 1,mxn do
-		local info = d[item.own_key.."list"][ii] or {id = 0,spritename = "gfx/ui/math/exclude_mark.png",}
-		if info.spritename then
-			local s = Sprite()
-			s:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true)
-			s:Play("Idle",true)
-			s:ReplaceSpritesheet(0,info.spritename)
-			s:LoadGraphics()
+		local info = d[item.own_key.."list"][ii] or {id = 0,sprite = d[item.own_key.."exclude_sprite"],}
+		if info.sprite then
+			local s = info.sprite
 			local iii = ii - 1
 			local i = iii % column
 			local j = math.floor(iii/column)
 			local tpos = spos + item.mov_pos * i + item.mov_pos2 * j
 			s:Render(tpos,Vector(0,0),Vector(0,0))
 			if iii == sl then
-				local s2 = Sprite()
-				s2:Load("gfx/mimics/Alchemy_Pot/alchemy_pot_item.anm2",true)
-				s2:Play("Idle",true)
-				s2:ReplaceSpritesheet(0,"gfx/ui/math/catch_mark.png")
-				s2:LoadGraphics()
+				local s2 = d[item.own_key.."select_sprite"]
 				s2:Render(tpos,Vector(0,0),Vector(0,0))
 			end
 		end
@@ -165,9 +177,16 @@ local function move(player,dir)
 		j = (j + raw - 1) % raw
 	end
 	d[item.own_key.."select"] = i + j * column
-	makeitemlist(player)
 	return 0
 end
+
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_ROOM, params = nil,
+Function = function(_)
+	for i = 0,Game():GetNumPlayers() - 1 do
+		clear_selector_cache(Game():GetPlayer(i))
+	end
+end,
+})
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
 Function = function(_,player,collid,count)
@@ -201,6 +220,8 @@ Function = function(_,player)
 						player:AnimateCard(item.entity,"HideItem")
 						d[item.own_key.."effect"] = nil
 						selection_holder.remove_select(player,item.own_key)
+						clear_selector_cache(player)
+						thoth_use.abort(player, item.entity, "selection_cancelled")
 						local q = Isaac.Spawn(5,300,item.entity,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
 						q:Morph(5,300,item.entity,true,true,true)
 						local s2 = q:GetSprite()
@@ -237,6 +258,7 @@ Function = function(_,player)
 						selection_holder.remove_select(player,item.own_key)
 						if d[item.own_key.."list"] == nil then makeitemlist(player) end
 						local colinfo = d[item.own_key.."list"][(d[item.own_key.."select"] or 0) + 1] or {id = 0,spritename = "gfx/ui/math/exclude_mark.png",}
+						clear_selector_cache(player)
 						if colinfo and colinfo.id ~= 0 then
 							local colid = colinfo.id
 							sound_tracker.PlayStackedSound(285,1,1,false,0,2)
@@ -263,10 +285,15 @@ Function = function(_,player)
 										d2._Data[item.own_key]["effect"] = 2
 										consistance_holder.try_hold_entity(q,item.own_key,{keep_level = true,})
 									end
+									-- 核心效果已生效：成功使用命运
+									thoth_use.commit(player, item.entity, "selected_collectible")
+								else
+									thoth_use.abort(player, item.entity, "effect_failed")
 								end
 							end,{},15)
 						else
 							player:AnimateCard(item.entity,"HideItem")
+							thoth_use.abort(player, item.entity, "empty_target")
 							local q = Isaac.Spawn(5,300,item.entity,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
 							q:Morph(5,300,item.entity,true,true,true)
 							local s2 = q:GetSprite()

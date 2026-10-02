@@ -4,6 +4,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -11,6 +12,47 @@ local item = {
 	myToCall = {},
 	own_key = "Bomb_holder_",
 }
+
+local function child_fire_opts(params, bomb, reason, damage_multiplier)
+	params = params or {}
+	if params.attack_ctx then
+		return {
+			mode = params.attack_ctx.mode or "inherit",
+			attack = params.attack_ctx.attack,
+			attack_id = params.attack_ctx.attack_id,
+			emitter = params.attack_ctx.emitter or bomb,
+			role = params.attack_ctx.role or "derived",
+			reason = params.attack_ctx.reason or reason,
+			damage_multiplier = params.attack_ctx.damage_multiplier or damage_multiplier,
+			Source = params.attack_ctx.Source,
+		}
+	end
+	local attack = params.attack
+	if not attack and bomb then
+		attack = select(1, attack_holder.GetAttackForMember(bomb))
+	end
+	if attack then
+		return {
+			mode = "inherit",
+			attack = attack,
+			emitter = bomb,
+			role = "derived",
+			reason = reason,
+			damage_multiplier = damage_multiplier,
+		}
+	end
+	if params.expected_attack then
+		attack_holder.warn_missing_parent_once(
+			reason or "bomb_child",
+			"[AttackHolder] Bomb child emitted without parent Attack; fallback to untracked."
+		)
+	end
+	return {
+		mode = "untracked",
+		reason = reason,
+		damage_multiplier = damage_multiplier,
+	}
+end
 
 --炸弹有很多需要修复的地方
 function item.prevent_damage(ent,val)		--暂时只做角色的免疫
@@ -45,6 +87,33 @@ function item.attach_craft_aux(bomb, profile, player, opts)
 	d[item.own_key.."craft"] = craft
 	CraftProfile.apply_bomb_item_effects(bomb, profile)
 
+	-- M4: persist Attack for explode children; bind bomb when caller already has Attack.
+	craft.attack = opts.attack
+	craft.attack_ctx = opts.attack_ctx
+	craft.expected_attack = opts.expected_attack == true
+	if opts.attack and opts.attack.active and not opts.attack.ending then
+		attack_holder.BindMember(opts.attack, bomb, {
+			allow_sealed = true,
+			role = (opts.attack_ctx and opts.attack_ctx.role) or "derived",
+			reason = (opts.attack_ctx and opts.attack_ctx.reason) or "bomb_craft_aux",
+			position = bomb.Position,
+		})
+	elseif opts.attack_ctx and opts.attack_ctx.attack then
+		local a = opts.attack_ctx.attack
+		if a and a.active and not a.ending then
+			craft.attack = a
+			attack_holder.BindMember(a, bomb, {
+				allow_sealed = true,
+				role = opts.attack_ctx.role or "derived",
+				reason = opts.attack_ctx.reason or "bomb_craft_aux",
+				position = bomb.Position,
+			})
+		end
+	end
+	if not craft.attack then
+		craft.attack = select(1, attack_holder.GetAttackForMember(bomb))
+	end
+
 	-- size_mul 已是完整弹体尺寸（含豆浆 scale）；再套一次炸弹体型保险
 	if size_mul and size_mul ~= 1 then
 		CraftProfile.apply_bomb_scale(bomb, size_mul)
@@ -58,17 +127,25 @@ function item.attach_craft_aux(bomb, profile, player, opts)
 			radius = 40 * size_mul,
 			dmg = (craft.dmg or 3.5) * 0.35,
 			pos_offset = bomb.PositionOffset,
+			attack = opts.attack,
+			attack_ctx = opts.attack_ctx,
+			emitter = bomb,
+			expected_attack = opts.expected_attack == true,
 		})
 		craft.techx_ent = q2
 	end
 	if craft.tech_follow and player then
-		local q2 = player:FireTechLaser(bomb.Position, 1, Vector(1, 0), false, false, nil, 0.4)
-		q2.DisableFollowParent = true
-		local ld = q2:GetData()
-		ld.followParent = bomb
-		ld.craft_clear_if_dead = bomb
-		q2:SetTimeout(9999)
-		craft.tech_ent = q2
+		local fire_opts = child_fire_opts(opts, bomb, "bomb_craft_tech_follow", 0.4)
+		fire_opts.offset_id = 1
+		local q2 = attack_holder.FireTechLaser(player, bomb.Position, Vector(1, 0), fire_opts)
+		if q2 then
+			q2.DisableFollowParent = true
+			local ld = q2:GetData()
+			ld.followParent = bomb
+			ld.craft_clear_if_dead = bomb
+			q2:SetTimeout(9999)
+			craft.tech_ent = q2
+		end
 	end
 end
 
@@ -84,16 +161,18 @@ local function clear_craft_lasers(craft)
 	craft.tech_ent = nil
 end
 
-local function trigger_brim_burst(pos, player, dmg)
+local function trigger_brim_burst(pos, player, dmg, opts, bomb)
 	if not player then return end
 	local q2 = auxi.fire_nil(pos, Vector(0, 0), {cooldown = 45})
 	local cnt = 6
 	local rnd = math.random(36000) / 100
 	for i = 0, cnt - 1 do
-		local q1 = player:FireBrimstone(auxi.MakeVector(360 / cnt * i + rnd))
-		q1.Parent = q2
-		q1.Position = q2.Position
-		q1.CollisionDamage = dmg * 0.6
+		local q1 = attack_holder.FireBrimstone(player, auxi.MakeVector(360 / cnt * i + rnd), child_fire_opts(opts, bomb, "bomb_brim_burst", 1))
+		if q1 then
+			q1.Parent = q2
+			q1.Position = q2.Position
+			q1.CollisionDamage = dmg * 0.6
+		end
 	end
 end
 
@@ -159,9 +238,14 @@ Function = function(_,ent)
 	end
 
 	local function trigger_craft_explode_fx()
+		local explode_opts = {
+			attack = craft.attack,
+			attack_ctx = craft.attack_ctx,
+			expected_attack = craft.expected_attack == true or craft.attack ~= nil,
+		}
 		if craft.brim_burst and not craft.brim_done then
 			craft.brim_done = true
-			trigger_brim_burst(ent.Position, craft.player, craft.dmg or 3.5)
+			trigger_brim_burst(ent.Position, craft.player, craft.dmg or 3.5, explode_opts, ent)
 		end
 		if craft.haemo and not craft.haemo_done then
 			craft.haemo_done = true
@@ -179,6 +263,23 @@ Function = function(_,ent)
 			)
 		end
 		clear_craft_lasers(craft)
+		-- Seal bomb Attack after explode FX so End can follow unbound members.
+		local attack = craft.attack or select(1, attack_holder.GetAttackForMember(ent))
+		if attack and attack.open_for_members then
+			attack_holder.grouping.seal_attack_and_clear(attack)
+		end
+		if attack then
+			local _, binding = attack_holder.GetAttackForMember(ent)
+			attack_holder.remember_for_damage(ent, attack, binding and binding.generation)
+			if craft.player then
+				attack_holder.remember_player_blast(
+					craft.player,
+					attack,
+					binding and binding.generation,
+					ent.Position
+				)
+			end
+		end
 	end
 
 	-- 炸弹消失：清跟随激光；若刚爆炸则触发硫磺爆 / 血泪

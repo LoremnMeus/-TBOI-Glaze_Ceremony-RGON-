@@ -3,13 +3,12 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
-local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local grid_door = require("Qing_Remaster_scripts.grids.grid_doors")
-local card_01_wizard = require("Qing_Remaster_scripts.cards.Card_01_Wizard")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
+local special_dest = require("Qing_Remaster_scripts.others.Special_Destination_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -44,24 +43,6 @@ local item = {
 	secret_doors = {
 		["gfx/grid/door_08_holeinwall _darkroom.anm2"] = true,
 		["gfx/grid/Door_08_HoleInWall.anm2"] = true,
-	},
-	special_doors = {
-		[1] = {id = -7,tp = 105,},
-		[2] = {id = -5,tp = 17,},
-	},
-	other_doors = {
-		[1] = {id = -1,special = function() 
-			local desc = Game():GetLevel():GetRoomByIdx(-1) 
-			if desc.Data == nil then Game():GetLevel():InitializeDevilAngelRoom(false,false) end
-		end,tp = function() 
-			local desc = Game():GetLevel():GetRoomByIdx(-1)
-			return desc.Data.Type
-		end,},
-		[2] = {id = -2,tp = 3,},
-		[3] = {id = -4,tp = 16,},
-		[5] = {id = -6,tp = 22,},
-		[7] = {id = -13,tp = 16,},
-		[8] = {id = -18,tp = 15,},
 	},
 	--l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") local s = Sprite() s:Load("gfx/grid/door_01_normaldoor.anm2",true) s:Play("Opened",true) auxi.PrintKColor(s:GetTexel(Vector(0,0),Vector(0,0),1))
 	--l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") local q = auxi.fire_nil(Vector(160,120),Vector(0,0),{cooldown = 6 * 30,}) q:AddEntityFlags(EntityFlag.FLAG_RENDER_WALL | EntityFlag.FLAG_RENDER_FLOOR | EntityFlag.FLAG_NO_REMOVE_ON_TEX_RENDER) local s = q:GetSprite() s.Offset = Vector(0,15) s:Load("gfx/grid/door_01_normaldoor.anm2",true) for i = 0,4 do s:ReplaceSpritesheet(i,"gfx/grid/door_27_drownedcaves.png") end s:LoadGraphics() s:Play("Opened",true) auxi.PrintKColor(s:GetTexel(Vector(0,0),Vector(0,0),1))
@@ -348,12 +329,14 @@ Function = function(_)
 				local s = door:GetSprite()
 				if s:IsFinished("Hidden") then
 				elseif item.secret_doors[s:GetFilename()] then
-					s:Play("Close",true) 
-					s:SetLastFrame()
+					if s:GetAnimation() ~= "Close" then
+						s:Play("Close",true)
+						s:SetLastFrame()
+					end
 				else 
-					s:Play("Closed",true)
+					if s:GetAnimation() ~= "Closed" then s:Play("Closed",true) end
 				end
-				door.CollisionClass = GridCollisionClass.COLLISION_WALL
+				if door.CollisionClass ~= GridCollisionClass.COLLISION_WALL then door.CollisionClass = GridCollisionClass.COLLISION_WALL end
 			end
 		end
 	end
@@ -375,7 +358,7 @@ function item.open_doors(player,params)
 	local size = room:GetGridSize()
 	local dir_j = room:GetGridWidth()
 	local dirs = {[0] = {delta = 1,dir = 0,},[1] = {delta = dir_j,dir = 1,},[2] = {delta = -1,dir = 2,},[3] = {delta = -dir_j,dir = 3,},}
-	local succ_tbl = {}
+	local normal_slots = {}
 	local thre = params.thre or 950
 	for i = 0,size - 1 do
 		local gent = room:GetGridEntity(i)
@@ -392,39 +375,48 @@ function item.open_doors(player,params)
 				end
 			end
 			if dirinfo then
-				succ_tbl[i] = {dir = dirinfo.dir,id = i,}
+				normal_slots[i] = {dir = dirinfo.dir,id = i,}
 			end
 		end
 	end
-	local cnt = 0
-	if not ((level:IsAscent() or auxi.get_level_door_info() == 9)) then
-		local mxn = 2
-		if auxi.get_level_door_info() == 5 then mxn = 1 end
-		for u,v in pairs(succ_tbl) do
+
+	local wide_slots = {}
+	local ctx = special_dest.build_context()
+	if not (ctx.is_ascent or ctx.is_home) then
+		for id,v in pairs(normal_slots) do
 			local near_dirs = {dirs[(v.dir + 3) % 4],dirs[(v.dir + 1) % 4]}
-			local should_work = true
-			for uu,vv in pairs(near_dirs) do
-				if (succ_tbl[vv.delta + u] or {}).dir ~= v.dir then should_work = false break end
-			end
-			if should_work then
-				if rng:RandomInt(1000) > thre then 
-					for uu,vv in pairs(near_dirs) do
-						succ_tbl[vv.delta + u] = nil
-					end
-					v.special_door = true
-					cnt = cnt + 1
-					if cnt >= mxn then break end
+			local side_a = near_dirs[1].delta + id
+			local side_b = near_dirs[2].delta + id
+			local ok = true
+			for _,side in ipairs({side_a, side_b}) do
+				local neigh = normal_slots[side]
+				if not neigh or neigh.dir ~= v.dir then
+					ok = false
+					break
 				end
 			end
+			if ok then
+				wide_slots[#wide_slots + 1] = {id = id, dir = v.dir, sides = {side_a, side_b},}
+			end
 		end
 	end
-	if params.special then 
+
+	if params.special then
 		for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 			local pos = room:GetDoorSlotPosition(slot)
 			local iidx = room:GetGridIndex(pos)
-			succ_tbl[iidx] = nil
+			normal_slots[iidx] = nil
 		end
+		local filtered = {}
+		for i = 1, #wide_slots do
+			local cand = wide_slots[i]
+			if normal_slots[cand.id] and normal_slots[cand.sides[1]] and normal_slots[cand.sides[2]] then
+				filtered[#filtered + 1] = cand
+			end
+		end
+		wide_slots = filtered
 	end
+
 	local room_tbl = {}
 	local dimen = auxi.GetDimension()
 	for i = 1, rooms.Size do
@@ -437,47 +429,117 @@ function item.open_doors(player,params)
 			end
 		end
 	end
-	for u,v in pairs(item.other_doors) do
-		if math.random(1000) > thre then
-			if v.special then v.special() end
-			table.insert(room_tbl,#room_tbl + 1,{id = nil,tp = auxi.check_if_any(v.tp,nil),gidx = v.id,})
+	for _, def in ipairs(special_dest.get_available({emperor_other = true}, ctx)) do
+		if rng:RandomInt(1000) + 1 > thre then
+			local info = special_dest.to_door_info(def)
+			if info then
+				table.insert(room_tbl,#room_tbl + 1,info)
+			end
 		end
 	end
-	local special_tbl = auxi.randomTable({1,2,},rng)
+
+	local function wide_free(cand)
+		return normal_slots[cand.id] and normal_slots[cand.sides[1]] and normal_slots[cand.sides[2]]
+	end
+
+	local function take_normal_slot()
+		local list = {}
+		for _,slot in pairs(normal_slots) do
+			list[#list + 1] = slot
+		end
+		if #list <= 0 then
+			return nil
+		end
+		local slot = auxi.random_in_table(list, rng)
+		if slot then
+			normal_slots[slot.id] = nil
+		end
+		return slot
+	end
+
+	local function spawn_dest_door(slot, dest, footprint)
+		local door_info = special_dest.to_door_info(dest)
+		if not door_info or not slot then
+			return
+		end
+		local type_info = item.door_type_infos[door_info.tp] or item.door_type_infos[1]
+		if footprint == "wide" then
+			grid_door.try_spawn_grid_door(room,nil,slot.id,{check_and_leave = function(doorinfo,player)
+				Room_holder.Trans_to(door_info.gidx,Direction.NO_DIRECTION,RoomTransitionAnim.WALK,player)
+				special_dest.setup_return_for_room_index(door_info.gidx)
+			end,should_update = true,loadname = type_info.door_name,playname = "Opened",dir = slot.dir,})
+		else
+			local dmgself = auxi.check_if_any(type_info.dmgself,nil)
+			grid_door.try_spawn_grid_door(room,nil,slot.id,{check_and_leave = function(doorinfo,player)
+				if dmgself and player.CanFly == false then player:TakeDamage(1,DamageFlag.DAMAGE_CURSED_DOOR | DamageFlag.DAMAGE_NO_PENALTIES,EntityRef(player),30) end
+				Room_holder.Trans_to(door_info.gidx,Direction.NO_DIRECTION,RoomTransitionAnim.WALK,player)
+				special_dest.setup_return_for_room_index(door_info.gidx)
+			end,should_update = true,loadname = auxi.check_if_any(type_info.door_name,type_info),playname = "Opened",dir = slot.dir,on_render = true,spritename = auxi.check_if_any(type_info.load_name,type_info),mov = type_info.offset,scale = Vector(0.8,0.8),inner = 10,})
+		end
+	end
+
+	local max_rare = 2
+	if ctx.is_hush then max_rare = 1 end
+	local rare_done = 0
+	if #wide_slots > 0 then
+		wide_slots = auxi.randomTable(wide_slots, rng)
+	end
+	for i = 1, #wide_slots do
+		if rare_done >= max_rare then
+			break
+		end
+		local cand = wide_slots[i]
+		if rng:RandomInt(1000) > thre then
+			local dest = special_dest.pick_weighted("rare", rng, ctx)
+			if dest then
+				local footprint = dest.door_footprint or "normal"
+				local placed = false
+				if footprint == "wide" then
+					local use = wide_free(cand) and cand or nil
+					if not use then
+						for j = 1, #wide_slots do
+							if wide_free(wide_slots[j]) then
+								use = wide_slots[j]
+								break
+							end
+						end
+					end
+					if use then
+						spawn_dest_door(use, dest, "wide")
+						normal_slots[use.id] = nil
+						normal_slots[use.sides[1]] = nil
+						normal_slots[use.sides[2]] = nil
+						placed = true
+					end
+				else
+					local slot = take_normal_slot()
+					if slot then
+						spawn_dest_door(slot, dest, "normal")
+						placed = true
+					end
+				end
+				if placed then
+					rare_done = rare_done + 1
+				end
+			end
+		end
+	end
+
+	local succ_tbl = normal_slots
 	if params.special then succ_tbl = auxi.randomOverTable(succ_tbl,rng) end
 	--l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") auxi.PrintTable(auxi.randomOverTable({[3] = 1,[5] = 3,})) auxi.PrintTable(auxi.randomTable({1,2,3,}))
 	for u,v in pairs(succ_tbl) do
-		if v.special_door then
-			local door_info = item.special_doors[special_tbl[1]]
-			table.remove(special_tbl,1)
-			if auxi.get_level_door_info() == 5 then door_info = item.special_doors[1] end
+		local rnd = auxi.random_in_table(room_tbl,rng)
+		if rnd then
+			local door_info = item.door_type_infos[rnd.tp] or item.door_type_infos[1]
+			local dmgself = auxi.check_if_any(door_info.dmgself,nil)
 			grid_door.try_spawn_grid_door(room,nil,v.id,{check_and_leave = function(doorinfo,player)
-				Room_holder.Trans_to(door_info.id,Direction.NO_DIRECTION,RoomTransitionAnim.WALK,player)
-			end,should_update = true,loadname = item.door_type_infos[door_info.tp].door_name,playname = "Opened",dir = v.dir,})
-		else
-			local rnd = auxi.random_in_table(room_tbl,rng)
-			if rnd then
-				local door_info = item.door_type_infos[rnd.tp] or item.door_type_infos[1]
-				local dmgself = auxi.check_if_any(door_info.dmgself,nil)
-				grid_door.try_spawn_grid_door(room,nil,v.id,{check_and_leave = function(doorinfo,player)
-					if dmgself and player.CanFly == false then player:TakeDamage(1,DamageFlag.DAMAGE_CURSED_DOOR | DamageFlag.DAMAGE_NO_PENALTIES,EntityRef(player),30) end
-					Room_holder.Trans_to(rnd.gidx,Direction.NO_DIRECTION,RoomTransitionAnim.WALK,player)
-					if rnd.gidx == -6 then
-						delay_buffer.addeffe(function(params)
-							card_01_wizard.spawn_a_fool_port(Vector(320,280))
-						end,{},1)
-					elseif rnd.gidx == -7 then
-						delay_buffer.addeffe(function(params)
-							local room = Game():GetRoom()
-							if room:IsClear() then
-								card_01_wizard.spawn_a_fool_port(room:GetCenterPos())
-							end
-						end,{},1)
-					end
-				end,should_update = true,loadname = auxi.check_if_any(door_info.door_name,door_info),playname = "Opened",dir = v.dir,on_render = true,spritename = auxi.check_if_any(door_info.load_name,door_info),mov = door_info.offset,scale = Vector(0.8,0.8),inner = 10,})
-			end
+				if dmgself and player.CanFly == false then player:TakeDamage(1,DamageFlag.DAMAGE_CURSED_DOOR | DamageFlag.DAMAGE_NO_PENALTIES,EntityRef(player),30) end
+				Room_holder.Trans_to(rnd.gidx,Direction.NO_DIRECTION,RoomTransitionAnim.WALK,player)
+				special_dest.setup_return_for_room_index(rnd.gidx)
+			end,should_update = true,loadname = auxi.check_if_any(door_info.door_name,door_info),playname = "Opened",dir = v.dir,on_render = true,spritename = auxi.check_if_any(door_info.load_name,door_info),mov = door_info.offset,scale = Vector(0.8,0.8),inner = 10,})
 		end
-		if params.special then 
+		if params.special then
 			params.special = (params.special or 0) - 1
 			if params.special <= 0 then return end
 		end

@@ -52,15 +52,13 @@ Function = function(_,ent)
 	if ent.Variant == item.duck then
 		local s = ent:GetSprite()
 		local d = ent:GetData()
-		if d.is_meus_helper ~= true then
-			if d.Should_Move and d.Should_Move == true then
-			else
-				if ent.Velocity:Length() > 0.05 then
-					ent.Velocity = Vector(0,0)
-				end
+		if d.Should_Move and d.Should_Move == true then
+		else
+			if ent.Velocity:Length() > 0.05 then
+				ent.Velocity = Vector(0,0)
 			end
-			add_flip(ent)
 		end
+		add_flip(ent)
 	end
 end,
 })
@@ -77,7 +75,16 @@ Function = function(_,ent)
 		d.Should_Move = true
 		s:Play("Idle",true)
 		d.flipped = math.random(2)
-		ent:AddEntityFlags(EntityFlag.FLAG_NO_STATUS_EFFECTS)
+		ent:AddEntityFlags(
+			EntityFlag.FLAG_NO_REWARD
+			| EntityFlag.FLAG_NO_STATUS_EFFECTS
+			| EntityFlag.FLAG_NO_BLOOD_SPLASH
+			| EntityFlag.FLAG_HIDE_HP_BAR
+		)
+		ent.CollisionDamage = 0
+		if ent.CanShutDoors ~= nil then
+			ent.CanShutDoors = false
+		end
 		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_ALL
 	end
 end,
@@ -91,28 +98,26 @@ Function = function(_,ent)
 		local d = ent:GetData()
 		local room = Game():GetRoom()
 		local player = Game():GetPlayer(0)
-		if d.is_meus_helper ~= true then
-			if ent.SpawnerEntity and ent.SpawnerEntity.Type == 1 then player = ent.SpawnerEntity:ToPlayer() end
-			if ent:HasEntityFlags(EntityFlag.FLAG_MIDAS_FREEZE) then
-				ent:ClearEntityFlags(EntityFlag.FLAG_MIDAS_FREEZE)
-			end
-			if s:IsEventTriggered("Quark") and (math.random(1000) < 300 or ent:HasEntityFlags(EntityFlag.FLAG_POISON) or ent:HasEntityFlags(EntityFlag.FLAG_CHARM) or ent:HasEntityFlags(EntityFlag.FLAG_FEAR) or ent:HasEntityFlags(EntityFlag.FLAG_BURN)) then
-				sound_tracker.PlayStackedSound(510,1,1,false,0,2)
-				if d.duck_counter == nil then d.duck_counter = 0 end
-				d.duck_counter = d.duck_counter + 1
-				sound_tracker.PlayStackedSound(510,1,0.8 + d.duck_counter/10,false,0,2)
-				if d.duck_counter >= 7 then
-					local rnd = math.random(4) + 8
-					for i = 1,rnd do
-						local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity * 1.5 + auxi.MakeVector(360/rnd * i) * 8,player)
-						q.CollisionDamage = player.Damage * 1.5 + 5
-						q:SetColor(player.TearColor,-1,99,true,false)
-					end
-					ent:Kill()
-				else
-					s:ReplaceSpritesheet(0,"gfx/tears/little_duck_tear_"..tostring(d.duck_counter)..".png")
-					s:LoadGraphics()
+		if ent.SpawnerEntity and ent.SpawnerEntity.Type == 1 then player = ent.SpawnerEntity:ToPlayer() end
+		if ent:HasEntityFlags(EntityFlag.FLAG_MIDAS_FREEZE) then
+			ent:ClearEntityFlags(EntityFlag.FLAG_MIDAS_FREEZE)
+		end
+		if s:IsEventTriggered("Quark") and (math.random(1000) < 300 or ent:HasEntityFlags(EntityFlag.FLAG_POISON) or ent:HasEntityFlags(EntityFlag.FLAG_CHARM) or ent:HasEntityFlags(EntityFlag.FLAG_FEAR) or ent:HasEntityFlags(EntityFlag.FLAG_BURN)) then
+			sound_tracker.PlayStackedSound(510,1,1,false,0,2)
+			if d.duck_counter == nil then d.duck_counter = 0 end
+			d.duck_counter = d.duck_counter + 1
+			sound_tracker.PlayStackedSound(510,1,0.8 + d.duck_counter/10,false,0,2)
+			if d.duck_counter >= 7 then
+				local rnd = math.random(4) + 8
+				for i = 1,rnd do
+					local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity * 1.5 + auxi.MakeVector(360/rnd * i) * 8,player)
+					q.CollisionDamage = player.Damage * 1.5 + 5
+					q:SetColor(player.TearColor,-1,99,true,false)
 				end
+				ent:Kill()
+			else
+				s:ReplaceSpritesheet(0,"gfx/tears/little_duck_tear_"..tostring(d.duck_counter)..".png")
+				s:LoadGraphics()
 			end
 		end
 	end
@@ -126,28 +131,26 @@ Function = function(_,ent,amt,flag,source,cooldown)
 		local d = ent:GetData()
 		local room = Game():GetRoom()
 		local player = Game():GetPlayer(0)
-		if d.is_meus_helper ~= true then
-			if ent.SpawnerEntity and ent.SpawnerEntity.Type == 1 then player = ent.SpawnerEntity:ToPlayer() end
-			if true then
-			--if col.Type == 2 or col.Type == 7 or col.Type == 8 or col.Type == 4 or col.Type == 9 then
-				if d.duck_counter == nil then d.duck_counter = 0 end
-				d.duck_counter = d.duck_counter + 1
-				sound_tracker.PlayStackedSound(510,1,0.8 + d.duck_counter/10,false,0,2)
-				if d.duck_counter >= 7 then
-					local rnd = math.random(4) + 8
-					for i = 1,rnd do
-						local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity * 1.5 + auxi.MakeVector(360/rnd * i) * 8,player)
-						q.CollisionDamage = player.Damage * 1.5 + 5
-						q:SetColor(player.TearColor,-1,99,true,false)
-					end
-					ent:Kill()
-				else
-					s:ReplaceSpritesheet(0,"gfx/tears/little_duck_tear_"..tostring(d.duck_counter)..".png")
-					s:LoadGraphics()
+		if ent.SpawnerEntity and ent.SpawnerEntity.Type == 1 then player = ent.SpawnerEntity:ToPlayer() end
+		if true then
+		--if col.Type == 2 or col.Type == 7 or col.Type == 8 or col.Type == 4 or col.Type == 9 then
+			if d.duck_counter == nil then d.duck_counter = 0 end
+			d.duck_counter = d.duck_counter + 1
+			sound_tracker.PlayStackedSound(510,1,0.8 + d.duck_counter/10,false,0,2)
+			if d.duck_counter >= 7 then
+				local rnd = math.random(4) + 8
+				for i = 1,rnd do
+					local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity * 1.5 + auxi.MakeVector(360/rnd * i) * 8,player)
+					q.CollisionDamage = player.Damage * 1.5 + 5
+					q:SetColor(player.TearColor,-1,99,true,false)
 				end
+				ent:Kill()
+			else
+				s:ReplaceSpritesheet(0,"gfx/tears/little_duck_tear_"..tostring(d.duck_counter)..".png")
+				s:LoadGraphics()
 			end
-			return false
 		end
+		return false
 	end
 end,
 })
@@ -167,24 +170,22 @@ Function = function(_,ent,col,low)
 		local d = ent:GetData()
 		local room = Game():GetRoom()
 		local player = Game():GetPlayer(0)
-		if d.is_meus_helper ~= true then
-			if ent.SpawnerEntity and ent.SpawnerEntity.Type == 1 then player = ent.SpawnerEntity:ToPlayer() end
-			if col.Type == 9 then
-				if d.duck_counter == nil then d.duck_counter = 0 end
-				d.duck_counter = d.duck_counter + 1
-				sound_tracker.PlayStackedSound(510,1,0.8 + d.duck_counter/10,false,0,2)
-				if d.duck_counter >= 7 then
-					local rnd = math.random(4) + 8
-					for i = 1,rnd do
-						local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity * 1.5 + auxi.MakeVector(360/rnd * i) * 8,player)
-						q.CollisionDamage = player.Damage * 1.5 + 5
-						q:SetColor(player.TearColor,-1,99,true,false)
-					end
-					ent:Kill()
-				else
-					s:ReplaceSpritesheet(0,"gfx/tears/little_duck_tear_"..tostring(d.duck_counter)..".png")
-					s:LoadGraphics()
+		if ent.SpawnerEntity and ent.SpawnerEntity.Type == 1 then player = ent.SpawnerEntity:ToPlayer() end
+		if col.Type == 9 then
+			if d.duck_counter == nil then d.duck_counter = 0 end
+			d.duck_counter = d.duck_counter + 1
+			sound_tracker.PlayStackedSound(510,1,0.8 + d.duck_counter/10,false,0,2)
+			if d.duck_counter >= 7 then
+				local rnd = math.random(4) + 8
+				for i = 1,rnd do
+					local q = Isaac.Spawn(2,0,0,ent.Position,ent.Velocity * 1.5 + auxi.MakeVector(360/rnd * i) * 8,player)
+					q.CollisionDamage = player.Damage * 1.5 + 5
+					q:SetColor(player.TearColor,-1,99,true,false)
 				end
+				ent:Kill()
+			else
+				s:ReplaceSpritesheet(0,"gfx/tears/little_duck_tear_"..tostring(d.duck_counter)..".png")
+				s:LoadGraphics()
 			end
 		end
 	end

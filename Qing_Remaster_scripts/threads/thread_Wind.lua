@@ -5,11 +5,12 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local grid_door = require("Qing_Remaster_scripts.grids.grid_doors")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
-local wind = require("Qing_Remaster_scripts.enemies.Zennith.Enemy_wind")
-local Zennith = require("Qing_Remaster_scripts.enemies.Zennith.Zennith")
+local wind = require("Qing_Remaster_scripts.bosses.Zennith.Enemy_wind")
+local Zennith = require("Qing_Remaster_scripts.bosses.Zennith.Zennith")
 local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
-local Dialog_holder = require("Qing_Remaster_scripts.others.Dialog_holder") 
+local Dialog_holder = require("Qing_Remaster_scripts.others.Dialog_holder")
+local gate = require("Qing_Remaster_scripts.story.story_runtime_gate")
 
 local item = {
 	ToCall = {},
@@ -67,7 +68,7 @@ Function = function(_,Rng,spwnpos)
 	local desc = level:GetCurrentRoomDesc()
 	local stage = Game():GetLevel():GetStage()
 	local stageType = level:GetStageType()
-	if Unlocker.should_any_be_done("Thread","Wind",nil,"Boss_allow") and auxi.get_alchemy_count() >= 1 and 
+	if gate.is_material_event_enabled("chapter1.wind") and
 	room:GetType() == RoomType.ROOM_BOSS and desc.SafeGridIndex > 0 and item.can_spawn() and save.elses[item.own_key.."spawn"] ~= true then
 		local language = Options.Language
 		local str = (item.word_list[language] or item.word_list["en"])[1][1]
@@ -146,7 +147,7 @@ end
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
 	save.elses[item.own_key.."spawn"] = nil
-	if Unlocker.should_any_be_done("Thread","Wind",nil,"Boss_allow") then
+	if gate.is_chapter1_available() and Unlocker.should_any_be_done("Thread","Wind",nil,"Boss_allow") then
 		for i = 0,150 do
 			save.elses["Zennith_room_conter_"..i] = nil
 			save.elses["Zennith_room_dir_"..i] = nil
@@ -164,7 +165,7 @@ Function = function(_)
 	local desc = level:GetCurrentRoomDesc()
 	local stage = Game():GetLevel():GetStage()
 	local stageType = level:GetStageType()
-	if save.UnlockData.Others.Ending1.Unlock == true then
+	if gate.is_chapter1_available() then
 		if item.can_spawn() and desc.SafeGridIndex > 0 and save.elses[item.own_key.."spawn"] == true then
 			local sgid = desc.SafeGridIndex
 			if save.elses["Zennith_room_conter_"..sgid] ~= nil then
@@ -194,4 +195,96 @@ end,
 
 --l print(Game():GetLevel():GetCurrentRoomDesc().Data.Variant)
 --l local room = Game():GetRoom();local size = room:GetGridSize();for i = 0,size - 1 do local gent = room:GetGridEntity(i);if (gent) then if gent:GetType() == GridEntityType.GRID_PRESSURE_PLATE and gent:GetVariant() == 9 then gent:Destroy(true); end end end
+
+local function wind_clear_map()
+	for i = 0, 150 do
+		save.elses["Zennith_room_conter_" .. i] = nil
+		save.elses["Zennith_room_dir_" .. i] = nil
+	end
+	save.elses["Zennith_room"] = nil
+	save.elses[item.own_key .. "spawn"] = nil
+end
+
+item.story_test = {
+	snapshot = function(_ctx)
+		local snap = {
+			spawn = save.elses[item.own_key .. "spawn"],
+			zennith_room = save.elses["Zennith_room"],
+			counters = {},
+			dirs = {},
+		}
+		for i = 0, 150 do
+			if save.elses["Zennith_room_conter_" .. i] ~= nil then
+				snap.counters[i] = save.elses["Zennith_room_conter_" .. i]
+			end
+			if save.elses["Zennith_room_dir_" .. i] ~= nil then
+				snap.dirs[i] = save.elses["Zennith_room_dir_" .. i]
+			end
+		end
+		return snap
+	end,
+	restore = function(snap, _ctx)
+		wind_clear_map()
+		if type(snap) ~= "table" then return end
+		save.elses[item.own_key .. "spawn"] = snap.spawn
+		save.elses["Zennith_room"] = snap.zennith_room
+		for i, v in pairs(snap.counters or {}) do
+			save.elses["Zennith_room_conter_" .. i] = v
+		end
+		for i, v in pairs(snap.dirs or {}) do
+			save.elses["Zennith_room_dir_" .. i] = v
+		end
+	end,
+	reset = function(_ctx)
+		wind_clear_map()
+		return true
+	end,
+	prepare = function(ctx)
+		ctx = ctx or {}
+		local phase = ctx.phase or "pre_trigger"
+		wind_clear_map()
+		if phase == "pre_trigger" then
+			if item.can_spawn() then
+				item.plan_a_bfs()
+			end
+			save.elses[item.own_key .. "spawn"] = nil
+		elseif phase == "storm_active" or phase == "discovered" then
+			if item.can_spawn() then
+				item.plan_a_bfs()
+			end
+			save.elses[item.own_key .. "spawn"] = true
+		elseif phase == "boss" then
+			if item.can_spawn() then
+				item.plan_a_bfs()
+			end
+			save.elses[item.own_key .. "spawn"] = true
+		end
+		return true
+	end,
+	trigger = function(ctx)
+		ctx = ctx or {}
+		if ctx.phase == "boss" or ctx.phase == "storm_active" then
+			save.elses[item.own_key .. "spawn"] = true
+			if item.can_spawn() and not save.elses["Zennith_room"] then
+				item.plan_a_bfs()
+			end
+			return true
+		end
+		return false, "no trigger for phase"
+	end,
+	inspect = function(_ctx)
+		return {
+			phase = save.elses[item.own_key .. "spawn"] and "active" or "idle",
+			target_room = save.elses["Zennith_room"],
+			spawn = save.elses[item.own_key .. "spawn"] == true,
+			can_spawn = item.can_spawn(),
+			gate = gate.is_material_event_enabled("chapter1.wind"),
+		}
+	end,
+	cleanup = function(_ctx)
+		wind_clear_map()
+		return true
+	end,
+}
+
 return item

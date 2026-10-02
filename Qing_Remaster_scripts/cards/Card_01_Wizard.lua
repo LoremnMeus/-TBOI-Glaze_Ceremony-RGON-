@@ -3,11 +3,11 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
-local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
+local special_dest = require("Qing_Remaster_scripts.others.Special_Destination_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -21,26 +21,10 @@ local item = {
 		[2] = Vector(40,-40),
 		[3] = Vector(-40,-40),
 	},
-	tarot_buffs = {
-		[1] = {id = -1,special = function() 
-			local desc = Game():GetLevel():GetRoomByIdx(-1) 
-			if desc.Data == nil then Game():GetLevel():InitializeDevilAngelRoom(false,false) end
-		end,tp = function() 
-			local desc = Game():GetLevel():GetRoomByIdx(-1)
-			return desc.Data.Type
-		end,},
-		[2] = {id = -2,tp = 3,},
-		[3] = {id = -4,tp = 16,},
-		[4] = {id = -5,tp = 17,ignore_ascent = true,ignore_hush = true,},
-		[5] = {id = -6,tp = 22,},
-		[6] = {id = -7,tp = 114,replace_tp = 30,ignore_ascent = true,},
-		[7] = {id = -13,tp = 116,replace_tp = 31,},
-		[8] = {id = -18,tp = 115,replace_tp = 32,},
-	},
+	-- Floor room portal EID only; special destinations come from Special_Destination_holder.
 	port_desc = {
 		["zh_cn"] = {
 			[2] = {Name = "商店传送旋涡",Description = "#{{Shop}} 将你传送到商店",},
-			[3] = {Name = "错误传送旋涡",Description = "#{{ErrorRoom}} 将你传送到错误房",},
 			[4] = {Name = "宝箱传送旋涡",Description = "#{{TreasureRoom}} 将你传送到宝箱房",},
 			[5] = {Name = "决战传送旋涡",Description = "#{{BossRoom}} 将你传送到Boss房",},
 			[6] = {Name = "七罪传送旋涡",Description = "#{{MiniBoss}} 将你传送到小Boss房",},
@@ -54,18 +38,13 @@ local item = {
 			[14] = {Name = "恶魔传送旋涡",Description = "#{{DevilRoom}} 将你传送到恶魔房",},
 			[15] = {Name = "天使传送旋涡",Description = "#{{AngelRoom}} 将你传送到天使房",},
 			[16] = {Name = "大地传送旋涡",Description = "#{{LadderRoom}} 将你传送到地下室",},
-			[17] = {Name = "究极挑战传送旋涡",Description = "#{{BossRushRoom}} 将你传送到BossRush房",},
 			[18] = {Name = "睡房传送旋涡",Description = "#{{IsaacsRoom}} 将你传送到睡房",},
 			[19] = {Name = "坏睡房传送旋涡",Description = "#{{BarrenRoom}} 将你传送到坏睡房",},
 			[20] = {Name = "大宝箱传送旋涡",Description = "#{{ChestRoom}} 将你传送到双锁宝箱房",},
 			[21] = {Name = "骰子传送旋涡",Description = "#{{DiceRoom}} 将你传送到骰子房",},
-			[22] = {Name = "黑市传送旋涡",Description = "#将你传送到黑市",},
 			[23] = {Name = "出口传送旋涡",Description = "#将你传送到本层出口",},
 			[24] = {Name = "星座传送旋涡",Description = "#{{Planetarium}} 将你传送到星象房",},
 			[29] = {Name = "究极之红传送旋涡",Description = "#{{UltraSecretRoom}} 将你传送到红隐藏房",},
-			[114] = {Name = "五芒星传送旋涡",Description = "#将你传送到最终boss超级撒旦#胜利后获得天使、恶魔、Boss房道具各一个并开启返回通道",},
-			[115] = {Name = "天使商店传送旋涡",Description = "#{{AngelRoom}} 将你传送到天使商店",},
-			[116] = {Name = "地下商店传送旋涡",Description = "#将你传送到地下商店",},
 			[117] = {Name = "愚者传送旋涡",Description = "#{{Card1}} 将你传送到初始房间",},
 			[118] = {Name = "彩虹传送旋涡",Description = "#{{ColorRainbow}} 将你传送到随机特殊房间{{CR}}",},
 			[119] = {Name = "死亡证明传送旋涡",Description = "#{{Collectible628}} 将你传送到死亡证明层",},
@@ -73,7 +52,6 @@ local item = {
 		},
 		["en_us"] = {
 			[2] = {Name = "Shop portal",Description = "#{{Shop}} Teleport you to the shop",},
-			[3] = {Name = "Error portal",Description = "#{{ErrorRoom}} Teleport you to the error room",},
 			[4] = {Name = "Treasure portal",Description = "#{{TreasureRoom}} Teleport you to the treasure room",},
 			[5] = {Name = "Boss portal",Description = "#{{BossRoom}} Teleport you to the boss room",},
 			[6] = {Name = "Sins portal",Description = "#{{MiniBoss}} Teleport you to the mini boss room",},
@@ -87,18 +65,13 @@ local item = {
 			[14] = {Name = "Devil portal",Description = "#{{DevilRoom}} Teleport you to the devil room",},
 			[15] = {Name = "Angel portal",Description = "#{{AngelRoom}} Teleport you to the angel room",},
 			[16] = {Name = "Ground portal",Description = "#{{LadderRoom}} Teleport you to the dungeon",},
-			[17] = {Name = "Ultra Challenge portal",Description = "#{{BossRushRoom}} Teleport you to the Boss Rush room",},
 			[18] = {Name = "Sleeping portal",Description = "#{{IsaacsRoom}} Teleport you to the sleeping room",},
 			[19] = {Name = "Barren portal",Description = "#{{BarrenRoom}} Teleport you to the broken sleeping room",},
 			[20] = {Name = "Chest portal",Description = "#{{ChestRoom}} Teleport you to the chest room",},
 			[21] = {Name = "Dice portal",Description = "#{{DiceRoom}} Teleport you to the dice room",},
-			[22] = {Name = "Market portal",Description = "#Teleport you to the black market",},
 			[23] = {Name = "Exit portal",Description = "#Teleport you to the exit room",},
 			[24] = {Name = "Planet portal",Description = "#{{Planetarium}} Teleport you to the planetrium room",},
 			[29] = {Name = "Ultra secret portal",Description = "#{{UltraSecretRoom}} Teleport you to the ultra secret room",},
-			[114] = {Name = "Pentacle portal",Description = "#Teleport you to the final boss Mega Satan",},
-			[115] = {Name = "Angel shop portal",Description = "#{{AngelRoom}} Teleport you to the angel shop",},
-			[116] = {Name = "Secret shop portal",Description = "#Teleport you to the secret shop",},
 			[117] = {Name = "Fool's portal",Description = "#{{Card1}} Teleport you to the start room",},
 			[118] = {Name = "Rainbow portal",Description = "#{{ColorRainbow}} Teleport you to a random room{{CR}}",},
 			[119] = {Name = "Death portal",Description = "#{{Collectible628}} Teleport you to Death certification level",},
@@ -138,35 +111,16 @@ function item.spawn_a_fool_port(pos,params)
 	if EID then
 		local language = EID.UserConfig.Language
 		if language == "auto" then language = "zh_cn" end
-		if item.port_desc[language] and item.port_desc[language][info.tp] then q:GetData().EID_Description = item.port_desc[language][info.tp] end
+		local eid = special_dest.get_portal_eid(info.tp, language)
+		if not eid and item.port_desc[language] then
+			eid = item.port_desc[language][info.tp]
+		end
+		if eid then q:GetData().EID_Description = eid end
 	end
 	return q
 end
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_SPAWN_CLEAN_AWARD, params = nil,
-Function = function(_,rng,pos)
-	local desc = Game():GetLevel():GetCurrentRoomDesc()
-	if desc.SafeGridIndex == -7 and Game():GetLevel():GetStage() ~= LevelStage.STAGE6 then
-		local room = Game():GetRoom()
-		local itempool = Game():GetItemPool()
-		item.spawn_a_fool_port(Game():GetRoom():GetCenterPos())
-		local seed = rng:GetSeed()
-		local colid = itempool:GetCollectible(3,true,seed)
-		rng:Next()
-		if colid and colid ~= 0 then
-			local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(pos + Vector(-40,0),10,true),Vector(0,0),player):ToPickup()
-			q:Morph(5,100,colid,true,true,true)
-		end
-		local seed = rng:GetSeed()
-		local colid = itempool:GetCollectible(4,true,seed)
-		rng:Next()
-		if colid and colid ~= 0 then
-			local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(pos + Vector(40,0),10,true),Vector(0,0),player):ToPickup()
-			q:Morph(5,100,colid,true,true,true)
-		end
-	end
-end,
-})
+special_dest.bind_fool_portal_spawner(item.spawn_a_fool_port)
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
@@ -179,8 +133,9 @@ Function = function(_)
 		local player = Game():GetPlayer(0)
 		local rng = player:GetCardRNG(item.entity)
 		rng = auxi.rng_for_sake(rng)
-		local cnt = math.random(2) + 3
+		local cnt = rng:RandomInt(2) + 4
 		local dimen = auxi.GetDimension()
+		local ctx = special_dest.build_context()
 		
 		for i = 1, rooms.Size do
 			local targ = rooms:Get(i - 1)
@@ -192,28 +147,41 @@ Function = function(_)
 				end
 			end
 		end
-		if save.elses[item.own_key.."effect"][desc.Data.Type] & 2 == 2 or rng:RandomInt(1000) > 750 then 
-			for u,v in pairs(item.tarot_buffs) do
-				if v.special then v.special() end
-				for i = 1,1 do
-					if v.ignore_ascent and (level:IsAscent() or auxi.get_level_door_info() == 9) then break end
-					if v.ignore_hush and auxi.get_level_door_info() == 5 then break end
-					table.insert(tbl,#tbl + 1,{id = -1,tp = auxi.check_if_any(v.tp,nil),gidx = v.id,replace_tp = v.replace_tp,})
+		if save.elses[item.own_key.."effect"][desc.Data.Type] & 2 == 2 or rng:RandomInt(1000) < 250 then
+			for _, def in ipairs(special_dest.get_available({category = "utility", wizard_pool = true}, ctx)) do
+				local info = special_dest.to_portal_info(def)
+				if info then
+					table.insert(tbl,#tbl + 1,info)
+				end
+			end
+			for _, def in ipairs(special_dest.pick_weighted_unique({category = "rare", wizard_pool = true}, 3, rng, ctx)) do
+				local info = special_dest.to_portal_info(def)
+				if info then
+					table.insert(tbl,#tbl + 1,info)
 				end
 			end
 			cnt = cnt + 2
 		else
-			local v = auxi.random_in_table(item.tarot_buffs)
-			if v.special then v.special() end
-			if v.ignore_ascent and (level:IsAscent() or auxi.get_level_door_info() == 9) then
+			local picked
+			if rng:RandomInt(2) == 0 then
+				picked = special_dest.pick_any({category = "utility", wizard_pool = true}, rng, ctx)
+				if not picked then
+					picked = special_dest.pick_weighted({category = "rare", wizard_pool = true}, rng, ctx)
+				end
 			else
-				table.insert(tbl,#tbl + 1,{id = -1,tp = auxi.check_if_any(v.tp,nil),gidx = v.id,replace_tp = v.replace_tp,})
+				picked = special_dest.pick_weighted({category = "rare", wizard_pool = true}, rng, ctx)
+				if not picked then
+					picked = special_dest.pick_any({category = "utility", wizard_pool = true}, rng, ctx)
+				end
+			end
+			if picked then
+				table.insert(tbl,#tbl + 1,special_dest.to_portal_info(picked))
 			end
 		end
 		tbl = auxi.randomTable(tbl,rng)
 		cnt = math.min(cnt,#tbl)
 		local pos = room:GetCenterPos()
-		local st = math.random(360)
+		local st = rng:RandomInt(360)
 		for i = 1,cnt do
 			if #tbl > 0 then
 				local info = tbl[1]
@@ -254,19 +222,7 @@ Function = function(_,player, tp, params)
 		if d[item.own_key.."effect"] then
 			auxi.check_if_any(d[item.own_key.."others"].Special,player,item)
 			Room_holder.Trans_to(d[item.own_key.."effect"].gidx,Direction.NO_DIRECTION,RoomTransitionAnim.PORTAL_TELEPORT,player,d[item.own_key.."effect"].dim or -1,d[item.own_key.."others"])
-			if d[item.own_key.."effect"].gidx == -6 then 
-				delay_buffer.addeffe(function(params)
-					item.spawn_a_fool_port(Vector(320,280))
-				end,{},1)
-			end
-			if d[item.own_key.."effect"].gidx == -7 then
-				delay_buffer.addeffe(function(params)
-					local room = Game():GetRoom()
-					if room:IsClear() then
-						item.spawn_a_fool_port(room:GetCenterPos())
-					end
-				end,{},1)
-			end
+			special_dest.setup_return_for_room_index(d[item.own_key.."effect"].gidx)
 		end
 		--l Game():GetLevel():InitializeDevilAngelRoom(true,false)
 		--l local desc = Game():GetLevel():GetRoomByIdx(-1) desc.Data = nil desc.OverrideData = nil Game():GetLevel():InitializeDevilAngelRoom(true,false)
@@ -314,8 +270,8 @@ Function = function(_,cardtype,player,useFlags)
 							desc.DisplayFlags = 5
 						end
 					end
-					level:UpdateVisibility()
 				end
+				level:UpdateVisibility()
 			end
 			if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then 
 				save.elses[item.own_key.."effect"][rnd.tp] = 3

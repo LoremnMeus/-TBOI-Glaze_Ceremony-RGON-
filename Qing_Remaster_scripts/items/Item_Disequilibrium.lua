@@ -296,6 +296,88 @@ Function = function(_,tp,vr,st,gid,seed)
 end,
 })
 
+--- 仅当 Duality 全部来自 Disequilibrium 模拟时才合并多余 Deal 门；额外真实 Duality 允许双门。
+local function should_merge_deal_doors()
+	return auxi.have_player_has_collectible(item.entity)
+		and auxi.get_player_have_collectible_num(498)
+			== auxi.get_player_have_collectible_num(item.entity, nil, {counter = 1})
+end
+
+local REMOVED_DEAL_DOOR_SMOKE_TTL = 2 -- Game frames after RemoveDoor
+
+local function prune_removed_deal_door_smoke_positions(now)
+	local list = item._removed_deal_door_smoke_positions
+	if not list or #list == 0 then
+		return
+	end
+	now = now or Game():GetFrameCount()
+	local kept = {}
+	for _, rec in ipairs(list) do
+		if now - (rec.frame or 0) <= REMOVED_DEAL_DOOR_SMOKE_TTL then
+			kept[#kept + 1] = rec
+		end
+	end
+	item._removed_deal_door_smoke_positions = kept
+end
+
+local function note_removed_deal_door_smoke_position(door)
+	if not door then
+		return
+	end
+	item._removed_deal_door_smoke_positions = item._removed_deal_door_smoke_positions or {}
+	item._removed_deal_door_smoke_positions[#item._removed_deal_door_smoke_positions + 1] = {
+		pos = Vector(door.Position.X, door.Position.Y),
+		frame = Game():GetFrameCount(),
+	}
+end
+
+local function is_near_recently_removed_deal_door(pos)
+	if not pos then
+		return false
+	end
+	local now = Game():GetFrameCount()
+	prune_removed_deal_door_smoke_positions(now)
+	for _, rec in ipairs(item._removed_deal_door_smoke_positions or {}) do
+		if now - (rec.frame or 0) <= REMOVED_DEAL_DOOR_SMOKE_TTL
+			and (pos - rec.pos):Length() < 100
+		then
+			return true
+		end
+	end
+	return false
+end
+
+--- 合并生效时：正式 RemoveDoor 前取消多余 -1 Deal 门本帧绘制（换皮后不用 Reloadname）。
+local function should_hide_extra_deal_door(target)
+	if not should_merge_deal_doors() then
+		return false
+	end
+	if not target or target.TargetRoomIndex ~= -1 then
+		return false
+	end
+	local room = Game():GetRoom()
+	local seen = false
+	for slot = 0, 7 do
+		local door = room:GetDoor(slot)
+		if door and door.TargetRoomIndex == -1 then
+			if not seen then
+				seen = true
+			elseif auxi.check_for_the_same(door, target) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+--- 多余 Deal 门开门黑烟：消费 RemoveDoor 前记录的位置，不依赖门仍存在。
+local function should_hide_extra_deal_door_smoke(effect)
+	if not should_merge_deal_doors() or not effect then
+		return false
+	end
+	return is_near_recently_removed_deal_door(effect.Position)
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_SPAWN_CLEAN_AWARD, params = nil,
 Function = function(_,rng,pos)
 	if auxi.have_player_has_collectible(item.entity) then
@@ -308,19 +390,56 @@ Function = function(_,rng,pos)
 				if door.TargetRoomIndex == -1 then table.insert(tbl,#tbl + 1,i) end
 			end
 		end
-		if #tbl > 1 and auxi.get_player_have_collectible_num(498) == auxi.get_player_have_collectible_num(item.entity,nil,{counter = 1,}) then 
+		if #tbl > 1 and should_merge_deal_doors() then
 			for j = 2,#tbl do 
 				local door = room:GetDoor(tbl[j])
 				local n_entity = Isaac.GetRoomEntities()
 				for u,v in pairs(n_entity) do
 					if v.Type == 1000 and v.Variant == 59 and (v.Position - door.Position):Length() < 100 then v:Remove() end
 				end
+				note_removed_deal_door_smoke_position(door)
 				room:RemoveDoor(tbl[j]) 
 			end
 		end
 	end
 end,
 })
+
+if REPENTOGON and ModCallbacks.MC_PRE_GRID_ENTITY_DOOR_RENDER then
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = ModCallbacks.MC_PRE_GRID_ENTITY_DOOR_RENDER,
+		params = nil,
+		Function = function(_, door, _offset)
+			if should_hide_extra_deal_door(door) then
+				return false
+			end
+		end,
+	})
+end
+
+-- 主路径：删门后才生成的 1000.59 在 INIT 即 Remove，不进 render。
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_EFFECT_INIT,
+	params = 59,
+	Function = function(_, effect)
+		if should_merge_deal_doors() and is_near_recently_removed_deal_door(effect.Position) then
+			effect:Remove()
+		end
+	end,
+})
+
+-- 兜底：若 INIT 未拦住，仍取消本帧绘制。
+if REPENTOGON and ModCallbacks.MC_PRE_EFFECT_RENDER then
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = ModCallbacks.MC_PRE_EFFECT_RENDER,
+		params = 59,
+		Function = function(_, effect, _offset)
+			if should_hide_extra_deal_door_smoke(effect) then
+				return false
+			end
+		end,
+	})
+end
 
 function item.check_for_room()
 	local room = Game():GetRoom()
@@ -365,7 +484,7 @@ function item.check_for_room()
 				if door.TargetRoomIndex == -1 then table.insert(tbl,#tbl + 1,i) end
 			end
 		end
-		if #tbl > 1 and auxi.get_player_have_collectible_num(498) == auxi.get_player_have_collectible_num(item.entity,nil,{counter = 1,}) then 
+		if #tbl > 1 and should_merge_deal_doors() then
 			for j = 2,#tbl do room:RemoveDoor(tbl[j]) end
 		end
 	end
@@ -373,6 +492,7 @@ end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
+	item._removed_deal_door_smoke_positions = nil
 	if auxi.have_player_has_collectible(item.entity) then 
 		item.check_for_room()
 	end

@@ -5,7 +5,23 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local ModConfig = require("Qing_Remaster_scripts.others.Mod_Config_Menu_holder")
 
-local MIGRATE_VERSION = 2
+-- CompletionType 仅在 REPENTOGON 下存在；无 RGON 时用本地镜像，避免预加载直接索引全局 nil。
+local CompletionType = rawget(_G, "CompletionType") or {
+	MOMS_HEART = 0,
+	ISAAC = 1,
+	SATAN = 2,
+	BOSS_RUSH = 3,
+	BLUE_BABY = 4,
+	LAMB = 5,
+	MEGA_SATAN = 6,
+	ULTRA_GREED = 7,
+	HUSH = 9,
+	ULTRA_GREEDIER = 11,
+	DELIRIUM = 12,
+	MOTHER = 13,
+	BEAST = 14,
+}
+
 local STORE_KEY = "CompletionMarksV2"
 local PLACEHOLDER_MARK_ID = "MomsHeart"
 
@@ -52,7 +68,8 @@ for _,def in ipairs(VANILLA_MARKS) do
 	VANILLA_BY_ID[def.id] = def
 end
 
-local LEGACY_TAINTED_KEY = {
+-- UnlockData parent-key → tainted character key for extra Boss Board rewards.
+local REWARD_TAINTED_KEY = {
 	wq = "Spwq",
 	Tecro = "Tecrorun",
 	Anna = "annA",
@@ -147,7 +164,7 @@ local function detect_surface(player_type)
 end
 
 local get_rgon_status
-local legacy_unlock_status
+local reward_unlock_status
 
 local function layout_adapter_offset()
 	if UNINTRUSIVEPAUSEMENU then return Vector(0, 0) end
@@ -249,14 +266,14 @@ local function extra_sprite(def)
 	end)
 end
 
-legacy_unlock_status = function(record)
+reward_unlock_status = function(record)
 	if type(record) ~= "table" then return 0 end
 	if record.Hard == true then return 2 end
 	if record.Unlock == true then return 1 end
 	return 0
 end
 
-local function write_legacy_unlock(record, status)
+local function write_reward_unlock(record, status)
 	if type(record) ~= "table" then return end
 	record.Unlock = status >= 1
 	record.Hard = status >= 2
@@ -279,8 +296,8 @@ function manager.register_character(def)
 		player_type = def.player_type,
 		key = def.key,
 		boss_row = def.boss_row or BOSS_ROW_BY_KEY[def.key] or def.key,
-		legacy_boss_key = def.legacy_boss_key or def.legacy_parent_key or def.key,
-		legacy_boss_field = def.legacy_boss_field or "Unlock",
+		reward_boss_key = def.reward_boss_key or def.reward_parent_key or def.key,
+		reward_boss_field = def.reward_boss_field or "Unlock",
 	})
 	return def
 end
@@ -330,10 +347,10 @@ function manager.extra_character_key(player_type)
 	return def and def.key or nil
 end
 
-local function extra_key_from_legacy(legacy_key, field)
+local function reward_extra_key(parent_key, field)
 	local tainted = field == "Tainted" or field == "TaintedHard"
-	if not tainted then return legacy_key end
-	return LEGACY_TAINTED_KEY[legacy_key] or (tostring(legacy_key).."_B")
+	if not tainted then return parent_key end
+	return REWARD_TAINTED_KEY[parent_key] or (tostring(parent_key).."_B")
 end
 
 local function boss_row_for_key(character_key)
@@ -423,8 +440,8 @@ function manager.get_status(player_type, mark_id)
 	if manager.extra_marks[mark_id] then return get_extra_status(player_type, mark_id) end
 	if mark_id == "FullCompletion" then
 		local char = manager.characters_by_type[player_type]
-		local data = char and auxi.check_if_any(char.legacy_save)
-		return legacy_unlock_status(data and data.FullCompletion)
+		local data = char and auxi.check_if_any(char.unlock_save)
+		return reward_unlock_status(data and data.FullCompletion)
 	end
 	return 0
 end
@@ -443,10 +460,10 @@ function manager.set_status(player_type, mark_id, status, context)
 	end
 	if mark_id == "FullCompletion" then
 		local char = manager.characters_by_type[player_type]
-		local data = char and auxi.check_if_any(char.legacy_save)
+		local data = char and auxi.check_if_any(char.unlock_save)
 		if data then
 			data.FullCompletion = data.FullCompletion or {Unlock = false, Hard = false}
-			write_legacy_unlock(data.FullCompletion, status)
+			write_reward_unlock(data.FullCompletion, status)
 			persist()
 		end
 		return status
@@ -481,16 +498,16 @@ function manager.widget_layers(player_type)
 	return layers
 end
 
-function manager.legacy_boss_field_status(mark_id, legacy_key, field)
-	local character_key = extra_key_from_legacy(legacy_key, field)
+function manager.reward_boss_field_status(mark_id, parent_key, field)
+	local character_key = reward_extra_key(parent_key, field)
 	local extra = extra_bucket(mark_id)
 	local status = clamp_status(extra[character_key])
 	if field == "Hard" or field == "TaintedHard" then return status >= 2 end
 	return status >= 1
 end
 
-function manager.set_legacy_boss_field(mark_id, legacy_key, field, value)
-	local character_key = extra_key_from_legacy(legacy_key, field)
+function manager.set_reward_boss_field(mark_id, parent_key, field, value)
+	local character_key = reward_extra_key(parent_key, field)
 	local extra = extra_bucket(mark_id)
 	local current = clamp_status(extra[character_key])
 	local status = current
@@ -513,7 +530,7 @@ end
 function manager.is_requirement_unlocked(category, mark, field)
 	if category == "Glaze" or category == "BossZeis" then
 		local mark_id = category == "BossZeis" and "boss.zeis" or "boss.glaze"
-		return manager.legacy_boss_field_status(mark_id, mark, field)
+		return manager.reward_boss_field_status(mark_id, mark, field)
 	end
 	local char = manager.characters_by_key[category]
 	if char then
@@ -542,10 +559,10 @@ local function grant_extra_rewards(player_type, mark_id, status, prev)
 	if not def or not extra or not item or not item.GrantRewards then return end
 	local category = def.reward_category
 	if not category then return end
-	local field_normal = extra.legacy_boss_field or "Unlock"
+	local field_normal = extra.reward_boss_field or "Unlock"
 	local field_hard = field_normal == "Tainted" and "TaintedHard" or "Hard"
-	if status >= 1 and prev < 1 then item.GrantRewards(category, extra.legacy_boss_key, field_normal) end
-	if status >= 2 and prev < 2 then item.GrantRewards(category, extra.legacy_boss_key, field_hard) end
+	if status >= 1 and prev < 1 then item.GrantRewards(category, extra.reward_boss_key, field_normal) end
+	if status >= 2 and prev < 2 then item.GrantRewards(category, extra.reward_boss_key, field_hard) end
 end
 
 local function note_seen(player_type, mark_id, status)
@@ -727,10 +744,8 @@ local function audit_and_sync_vanilla()
 	manager.migrating = true
 	for _,char in ipairs(manager.characters) do
 		local local_marks = vanilla_bucket(char.key)
-		local legacy = auxi.check_if_any(char.legacy_save)
 		local report = {key = char.key, player_type = char.player_type, marks = {}, mismatches = 0}
 		for _,def in ipairs(VANILLA_MARKS) do
-			local had_local_value = local_marks[def.id] ~= nil
 			local local_status = clamp_status(local_marks[def.id])
 			local rgon_status = get_rgon_status(char.player_type, def.id)
 			local placeholder = manager.pause_placeholder or ensure_store().pause_placeholder_recovery
@@ -739,11 +754,8 @@ local function audit_and_sync_vanilla()
 			and (placeholder.mark_id or PLACEHOLDER_MARK_ID) == def.id then
 				rgon_status = clamp_status(placeholder.previous_status)
 			end
-			-- A missing V2 field means this mark was never migrated. Seed it once
-			-- from legacy/RGON. Explicit numeric 0 remains an intentional lock and
-			-- is not resurrected from stale legacy UnlockData.
-			local legacy_status = had_local_value and 0 or legacy_unlock_status(type(legacy) == "table" and legacy[def.id])
-			local target = math.max(local_status, rgon_status, legacy_status)
+			-- Sync CompletionMarksV2 ↔ RGON only. UnlockData is reward state, not a mark source.
+			local target = math.max(local_status, rgon_status)
 			local action = "equal"
 			if local_status < target then
 				local_marks[def.id] = target
@@ -754,7 +766,7 @@ local function audit_and_sync_vanilla()
 				action = "local_to_rgon"
 			end
 			if action ~= "equal" then report.mismatches = report.mismatches + 1 end
-			report.marks[def.id] = {local_status = local_status, rgon_status = rgon_status, legacy_status = legacy_status, result = target, action = action}
+			report.marks[def.id] = {local_status = local_status, rgon_status = rgon_status, result = target, action = action}
 		end
 		manager.last_audit[char.key] = report
 	end
@@ -769,52 +781,6 @@ end
 
 function manager.get_last_audit()
 	return manager.last_audit
-end
-
-function manager.migrate_legacy_once()
-	if manager.migrated then return false end
-	local store = ensure_store()
-	if store.migrate_version and store.migrate_version >= MIGRATE_VERSION then
-		manager.migrated = true
-		for _,char in ipairs(manager.characters) do snapshot_seen(char.player_type) end
-		return false
-	end
-	manager.migrating = true
-	for _,char in ipairs(manager.characters) do
-		local data = auxi.check_if_any(char.legacy_save)
-		for _,def in ipairs(VANILLA_MARKS) do
-			local local_status = manager.get_status(char.player_type, def.id)
-			local legacy = legacy_unlock_status(type(data) == "table" and data[def.id])
-			local rgon_status = get_rgon_status(char.player_type, def.id)
-			set_vanilla_status(char.player_type, def.id, math.max(local_status, legacy, rgon_status))
-		end
-		snapshot_seen(char.player_type)
-	end
-	local function migrate_boss(legacy_category, mark_id)
-		local source = save.UnlockData and save.UnlockData[legacy_category]
-		if type(source) ~= "table" then return end
-		local extra = extra_bucket(mark_id)
-		for legacy_key, record in pairs(source) do
-			if type(record) == "table" then
-				local normal_key = extra_key_from_legacy(legacy_key, "Unlock")
-				local tainted_key = extra_key_from_legacy(legacy_key, "Tainted")
-				local normal = 0
-				if record.Hard == true then normal = 2 elseif record.Unlock == true then normal = 1 end
-				local tainted = 0
-				if record.TaintedHard == true then tainted = 2 elseif record.Tainted == true then tainted = 1 end
-				if normal > clamp_status(extra[normal_key]) then extra[normal_key] = normal end
-				if tainted_key ~= normal_key and tainted > clamp_status(extra[tainted_key]) then extra[tainted_key] = tainted end
-			end
-		end
-	end
-	migrate_boss("Glaze", "boss.glaze")
-	migrate_boss("BossZeis", "boss.zeis")
-	store.migrate_version = MIGRATE_VERSION
-	manager.migrating = false
-	manager.migrated = true
-	persist()
-	audit_and_sync_vanilla()
-	return true
 end
 
 function manager.unlock_all()
@@ -928,12 +894,12 @@ local function register_mod_character(player_type, key, opts)
 	manager.register_character({
 		player_type = player_type,
 		key = key,
-		legacy_save = function() return save.UnlockData[opts.legacy_save_key or key] end,
+		unlock_save = function() return save.UnlockData[opts.unlock_save_key or key] end,
 		replace_vanilla = opts.replace_vanilla ~= false,
 		pause_renderer = "qing_postit",
 		character_renderer = "qing_menu_marks",
-		legacy_boss_key = opts.legacy_boss_key or key,
-		legacy_boss_field = opts.legacy_boss_field or "Unlock",
+		reward_boss_key = opts.reward_boss_key or key,
+		reward_boss_field = opts.reward_boss_field or "Unlock",
 		boss_row = opts.boss_row,
 	})
 end
@@ -943,20 +909,20 @@ local function register_vanilla_extra(player_type, key, legacy_key, field, boss_
 	manager.register_extra_character({
 		player_type = player_type,
 		key = key,
-		legacy_boss_key = legacy_key,
-		legacy_boss_field = field or "Unlock",
+		reward_boss_key = legacy_key,
+		reward_boss_field = field or "Unlock",
 		boss_row = boss_row or boss_row_for_key(key),
 	})
 end
 
 register_mod_character(enums.Players.wq, "wq")
-register_mod_character(enums.Players.Spwq, "Spwq", {legacy_boss_key = "wq", legacy_boss_field = "Tainted", boss_row = "wq_B"})
+register_mod_character(enums.Players.Spwq, "Spwq", {reward_boss_key = "wq", reward_boss_field = "Tainted", boss_row = "wq_B"})
 register_mod_character(enums.Players.Tecro, "Tecro")
-register_mod_character(enums.Players.Tecrorun, "Tecrorun", {legacy_boss_key = "Tecro", legacy_boss_field = "Tainted", boss_row = "Tecro_B"})
+register_mod_character(enums.Players.Tecrorun, "Tecrorun", {reward_boss_key = "Tecro", reward_boss_field = "Tainted", boss_row = "Tecro_B"})
 register_mod_character(enums.Players.Anna, "Anna")
-register_mod_character(enums.Players.annA, "annA", {legacy_boss_key = "Anna", legacy_boss_field = "Tainted", boss_row = "Anna_B"})
+register_mod_character(enums.Players.annA, "annA", {reward_boss_key = "Anna", reward_boss_field = "Tainted", boss_row = "Anna_B"})
 register_mod_character(enums.Players.Zeistos, "Zeis")
-register_mod_character(enums.Players.Zeiz, "Zeiz", {legacy_boss_key = "Zeis", legacy_boss_field = "Tainted", boss_row = "Zeis_B"})
+register_mod_character(enums.Players.Zeiz, "Zeiz", {reward_boss_key = "Zeis", reward_boss_field = "Tainted", boss_row = "Zeis_B"})
 register_mod_character(enums.Players.Marriano, "Marriano")
 
 register_vanilla_extra(PlayerType.PLAYER_ISAAC, "Isaac", "Isaac", "Unlock", "Isaac")
@@ -1019,10 +985,27 @@ manager.register_extra_mark({
 })
 
 local function render_context(sprite, render_pos, render_scale, player_type)
+	local surface = detect_surface(player_type)
+	local position = render_pos
+	-- Self-drawn Pause marks must follow Quest's native Pause shift.
+	-- Vanilla PauseMenu.GetCompletionMarksSprite already moves via Sprite.Offset —
+	-- do NOT also Offset that sprite; only bump RenderPos for manager-drawn art.
+	if surface == "pause" and render_pos then
+		local ok, pause_ui = pcall(require, "Qing_Remaster_scripts.auxiliary.pause_ui")
+		if ok and pause_ui and pause_ui.get_native_pause_shift then
+			local sh = pause_ui.get_native_pause_shift()
+			if sh then
+				position = Vector(
+					(render_pos.X or 0) + (sh.X or 0),
+					(render_pos.Y or 0) + (sh.Y or 0)
+				)
+			end
+		end
+	end
 	return {
-		surface = detect_surface(player_type),
+		surface = surface,
 		player_type = player_type,
-		position = render_pos,
+		position = position,
 		scale = render_scale,
 		sprite = sprite,
 	}
@@ -1127,8 +1110,15 @@ if REPENTOGON then
 
 	-- RGON CompletionWidget::Render：PRE 返回任意 boolean 都会跳过 super 和 POST。
 	-- replace_vanilla 必须在 PRE 里先画完，再 return false。
+	-- PRE 无条件 capture Pause anchor（在 return 之前），供 Quest 在 POST_PAUSE 使用。
 	table.insert(manager.ToCall, #manager.ToCall + 1, {CallBack = ModCallbacks.MC_PRE_COMPLETION_MARKS_RENDER, params = nil,
 	Function = function(_, sprite, render_pos, render_scale, player_type)
+		do
+			local ok, pause_ui = pcall(require, "Qing_Remaster_scripts.auxiliary.pause_ui")
+			if ok and pause_ui and pause_ui.capture_completion_anchor then
+				pause_ui.capture_completion_anchor(render_pos, render_scale, player_type)
+			end
+		end
 		local char = manager.characters_by_type[player_type]
 		if not (char and char.replace_vanilla) then return end
 		local context = render_context(sprite, render_pos, render_scale, player_type)
@@ -1165,7 +1155,6 @@ Function = function(_, continue)
 	-- Recover a placeholder left by an abnormal previous shutdown before any
 	-- max-merge audit can mistake it for real progression.
 	restore_pause_placeholder()
-	manager.migrate_legacy_once()
 	audit_and_sync_vanilla()
 	flush_pending_rewards()
 	for _,char in ipairs(manager.characters) do snapshot_seen(char.player_type) end

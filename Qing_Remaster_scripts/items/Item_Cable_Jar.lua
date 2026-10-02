@@ -7,6 +7,7 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -107,7 +108,7 @@ function item.make_cable_tear(player,q,pos,vel,id,record_id)
 	s2.Color = item.tear_color_buff[color_id]
 	local d2 = q:GetData()
 	d2[item.own_key.."effect"] = {target = player,}
-	d2.Ignore_me_flag = true
+	attack_holder.MarkIgnore(q)
 	d2.ignore_field = true
 	q.TearFlags = q.TearFlags | BitSet128(1<<1,0) | BitSet128(1<<0,0) 
 	q.CollisionDamage = 2.5
@@ -355,7 +356,7 @@ Function = function(_,continue)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_LEVEL, params = nil,
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
 	save.elses[energy_save_key] = nil
 end,

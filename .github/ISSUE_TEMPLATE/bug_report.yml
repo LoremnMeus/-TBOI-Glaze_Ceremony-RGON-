@@ -1,0 +1,86 @@
+name: Bug Report
+description: Report a crash, broken mechanic, or other unexpected behavior.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for bugs. Feature ideas and general feedback should use the Feedback template.
+
+        If the game crashed, please attach the matching log files **and** the `.dmp` crash dump when you can. You do not need to analyze the dump. Upload the files as issue attachments.
+
+        Current public story scope is **Prologue only** (alpha-0.1). Chapter 1 is not open in normal play.
+  - type: input
+    id: mod_version
+    attributes:
+      label: Mod version
+      description: Example — alpha-0.1.0 (see in-game version or the GitHub Release tag).
+      placeholder: alpha-0.1.0
+    validations:
+      required: true
+  - type: input
+    id: rgon_version
+    attributes:
+      label: REPENTOGON version
+      placeholder: e.g. 1.0.x
+    validations:
+      required: false
+  - type: input
+    id: isaac_version
+    attributes:
+      label: Isaac game version
+      description: Repentance+ build if you know it.
+    validations:
+      required: false
+  - type: textarea
+    id: other_mods
+    attributes:
+      label: Other enabled mods
+      description: List other mods, or write "none".
+    validations:
+      required: false
+  - type: input
+    id: character
+    attributes:
+      label: Character
+    validations:
+      required: false
+  - type: input
+    id: floor_room
+    attributes:
+      label: Current floor / room
+    validations:
+      required: false
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste log excerpts here if they are short. Prefer attaching full log files.
+    validations:
+      required: false
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments
+      description: Confirm whether you attached logs and `.dmp` files. If you cannot tell which files match the crash, attach files created around the crash time.
+    validations:
+      required: false

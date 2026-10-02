@@ -43,7 +43,7 @@ local item = {
 item.player_info = setmetatable({}, {
 	__index = function(_, player_type)
 		local char = CompletionMarks.get_character(player_type)
-		return char and char.legacy_save or nil
+		return char and char.unlock_save or nil
 	end,
 })
 

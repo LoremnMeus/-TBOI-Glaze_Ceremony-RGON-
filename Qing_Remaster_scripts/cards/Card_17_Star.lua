@@ -19,13 +19,22 @@ local item = {
 	own_key = "Thoth_cd17_Sta_",
 }
 
+local function get_effect_state()
+	local key = item.own_key .. "effect"
+	local state = save.elses[key]
+	if type(state) ~= "table" then
+		state = {}
+		save.elses[key] = state
+	end
+	return state
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then
-	else
+	if not continue then
 		save.elses[item.own_key.."effect"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	get_effect_state()
 end,
 })
 
@@ -35,8 +44,9 @@ Function = function(_,cardtype,player,useFlags)
 	local d = player:GetData()
 	local idx = d.__Index
 	
+	local effects = get_effect_state()
 	if useFlags & UseFlag.USE_OWNED == UseFlag.USE_OWNED and (useFlags & UseFlag.USE_CARBATTERY ~= UseFlag.USE_CARBATTERY) then
-		save.elses[item.own_key.."effect"][idx] = true
+		effects[idx] = true
 	else
 	end
 end,
@@ -54,9 +64,10 @@ Function = function(_,cardtype,player,useFlags)
 	local d = player:GetData()
 	local idx = d.__Index
 	
+	local effects = get_effect_state()
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 	else
-		if save.elses[item.own_key.."effect"][idx] then
+		if effects[idx] then
 			local q = Isaac.Spawn(5,10,2,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
 			q:Morph(5,10,2,true,true,true)
 		else

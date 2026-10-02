@@ -10,6 +10,7 @@ local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local Achievement_Display_holder = require("Qing_Remaster_scripts.others.Achievement_Display_holder")
 local Imitate_item_holder = require("Qing_Remaster_scripts.callbacks.imitate_item_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -24,7 +25,9 @@ local function fire_giga_rocket(player,pos,dir)
 	player = player or Game():GetPlayer(0)
 	pos = pos or player.Position
 	dir = dir or Vector(1,0)
-	local q = player:FireBomb(pos,dir * 10 * player.ShotSpeed)
+	local q = attack_holder.FireBomb(player, pos, dir * 10 * player.ShotSpeed, {
+		mode = "untracked",
+	})
 	local s = q:GetSprite()
 	q.IsFetus = false
 	q.ExplosionDamage = 300

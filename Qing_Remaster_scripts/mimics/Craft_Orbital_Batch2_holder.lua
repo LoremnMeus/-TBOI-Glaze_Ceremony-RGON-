@@ -5,9 +5,7 @@ local Orb = require("Qing_Remaster_scripts.mimics.Craft_Orbital_holder")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local SpriteTrails = require("Qing_Remaster_scripts.others.sprite_trail_presets")
 local Familiar_Move_Driver = require("Qing_Remaster_scripts.mimics.Familiar_Move_Driver")
-local dev_env = require("Qing_Remaster_scripts.core.dev_environment")
--- 手指探针已归档到 codex_work/probes；仅调试时拷回 others 才会加载。
-local FingerProbe = dev_env.require_probe("Qing_Remaster_scripts.others.finger_vanilla_probe")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 
 local item = {
 	pre_ToCall = {},
@@ -31,7 +29,7 @@ end
 
 local function flight_damage(air)
 	local Air = get_air_mod()
-	local prof = air and air:GetData()[Air.own_key.."craft_profile"]
+	local prof = air and CraftIdentity.get_profile(air)
 	return (prof and prof.stats and tonumber(prof.stats.damage)) or 3.5
 end
 
@@ -404,39 +402,6 @@ Orb.register_orbital(FamiliarVariant.FINGER or 110, {
 			end
 		end
 		bind.finger_laser_cd = 2
-	end,
-})
-
--- 手指探针开启时绘制延伸至房间边界的实际命中胶囊射线；正式模式零扫描、零绘制。
-table.insert(item.ToCall, {
-	CallBack = ModCallbacks.MC_POST_RENDER,
-	params = nil,
-	Function = function(_)
-		local cfg = FingerProbe and FingerProbe.get_config and FingerProbe.get_config()
-		if not (cfg and cfg.enabled and Isaac.DrawLine) then return end
-		for _, ent in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, FamiliarVariant.FINGER or 110, -1, false, false)) do
-			local fam = ent:ToFamiliar()
-			local bind = fam and Orb.get_bind and Orb.get_bind(fam)
-			local aim = bind and bind.kind == "finger" and bind.last_aim or nil
-			if aim and aim:Length() >= 0.01 then
-				aim = aim:Normalized()
-				local origin = fam.Position + aim * 9.23077
-				local finish = origin + aim * finger_ray_length(origin, aim)
-				local normal = Vector(-aim.Y, aim.X) * 5.076453
-				-- PO 必须进入 WorldToScreen；这样画的是碰撞射线在当前升空高度下的视觉投影。
-				local po = fam.PositionOffset or Vector.Zero
-				local a, b = Isaac.WorldToScreen(origin + po), Isaac.WorldToScreen(finish + po)
-				local a1, b1 = Isaac.WorldToScreen(origin + normal + po), Isaac.WorldToScreen(finish + normal + po)
-				local a2, b2 = Isaac.WorldToScreen(origin - normal + po), Isaac.WorldToScreen(finish - normal + po)
-				local center = KColor(1, 0.15, 0.1, 0.9)
-				local edge = KColor(0.2, 0.9, 1, 0.65)
-				Isaac.DrawLine(a, b, center, center, 2)
-				Isaac.DrawLine(a1, b1, edge, edge, 1)
-				Isaac.DrawLine(a2, b2, edge, edge, 1)
-				Isaac.DrawLine(a1, a2, edge, edge, 1)
-				Isaac.DrawLine(b1, b2, edge, edge, 1)
-			end
-		end
 	end,
 })
 
@@ -988,7 +953,7 @@ table.insert(item.ToCall, {
 					TINYTOMA_PENDING[key] = nil
 					ad[item.own_key.."tinytoma_respawn_at"] = nil
 					Orb.set_collectible_suppress(air, CollectibleType.COLLECTIBLE_TINYTOMA or 645, false)
-					local prof = ad[Air.own_key.."craft_profile"]
+					local prof = CraftIdentity.get_profile(air)
 					if prof and Orb.sync_air_flight then
 						local player = auxi.check_spawner_player(air)
 						if player then Orb.sync_air_flight(air, player, prof) end

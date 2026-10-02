@@ -24,6 +24,15 @@ function item.GetPlayerOffset(player)
 	else return player.PositionOffset end
 end
 
+-- 实际用于渲染的 PositionOffset：Open 时为 holder 替代值，否则为原生 PO。勿再与 PositionOffset 相加。
+function item.GetVisualPositionOffset(player)
+	local d = player:GetData()
+	if d[item.own_key.."Open"] then
+		return ui.Screen2ScaleWorld((d[item.own_key.."Open"].Info or {}).Offset or Vector(0, 0))
+	end
+	return player.PositionOffset or Vector(0, 0)
+end
+
 --此处管理的是角色贴图的位置（用于实现角色的Z坐标位移）
 function item.TrickOnPlayer(player)
 	local d = player:GetData()

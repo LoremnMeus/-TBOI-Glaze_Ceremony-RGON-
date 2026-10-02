@@ -104,59 +104,103 @@ function item.random_player_id(id,rng)
 	return auxi.random_in_table(tab,rng)
 end
 
+-- Gameplay-world helper only.
+-- Do not call from PRE_GAME_EXIT / POST_GAME_END / teardown callbacks.
+
+local function get_effect_root()
+	local key = item.own_key .. "effect"
+	local root = save.elses[key]
+	if type(root) ~= "table" then
+		root = {}
+		save.elses[key] = root
+	end
+	return root
+end
+
 function item.find_main_friend()
+	local effects = get_effect_root()
+	if not g.is_gameplay_world_active() then
+		return nil
+	end
 	for playerNum = 1,Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1) local tidx = player:GetData().__Index local sidx = save.get_sub_idx(player)
-		if auxi.check_all_exists(player) and ((save.elses[item.own_key.."effect"][tidx] and not save.elses[item.own_key.."effect"][tidx].Friend) or (save.elses[item.own_key.."effect"][sidx] and not save.elses[item.own_key.."effect"][sidx].Friend)) then return player end
+		if auxi.check_all_exists(player) and ((effects[tidx] and not effects[tidx].Friend) or (effects[sidx] and not effects[sidx].Friend)) then return player end
 	end
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then else save.elses[item.own_key.."effect"] = {} end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	if continue then
+		get_effect_root()
+	else
+		save.elses[item.own_key.."effect"] = {}
+		save.elses[item.own_key.."need_continue_restore"] = nil
+	end
 end,
 })
 
+-- EXIT: Lua/save bookkeeping only. Parent/HUD restore is not an engine-save requirement:
+-- make_friend briefly sets Parent to AssignPlayerHUDs then clears it; EXIT used to
+-- re-apply Parent + Help so Continue's first PLAYER_UPDATE can undo Parent and rebind HUD.
+-- That entity work belongs after the world is rebuilt.
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_GAME_EXIT, params = nil,
 Function = function(_,shouldsave)
 	if shouldsave then
-		local t_player = item.find_main_friend()
-		if t_player then
-			for _, player in pairs(Isaac.FindByType(1)) do
-				player = player:ToPlayer()
-				local idx = player:GetData().__Index
-				if save.elses[item.own_key.."effect"][idx] and save.elses[item.own_key.."effect"][idx].Friend and player.Parent == nil then
-					save.elses[item.own_key.."effect"][idx].Help = {}
-					player.Parent = t_player
-					--if auxi.check_for_the_same(player:GetMainTwin(),player) then player.Parent = t_player else player.Parent = player:GetMainTwin() end
-					save.elses[item.own_key.."effect"].Help = {}
-				end
-			end
+		save.elses[item.own_key.."need_continue_restore"] = true
+	else
+		save.elses[item.own_key.."need_continue_restore"] = nil
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
+Function = function(_,continued)
+	local effects = get_effect_root()
+	if not continued then
+		save.elses[item.own_key.."need_continue_restore"] = nil
+		return
+	end
+	if not save.elses[item.own_key.."need_continue_restore"] then
+		return
+	end
+	save.elses[item.own_key.."need_continue_restore"] = nil
+
+	local t_player = item.find_main_friend()
+	if not t_player then
+		return
+	end
+	for playerNum = 1, Game():GetNumPlayers() do
+		local player = Game():GetPlayer(playerNum - 1)
+		local idx = player:GetData().__Index
+		local rec = effects[idx]
+		if rec and rec.Friend and player.Parent == nil then
+			rec.Help = {}
+			player.Parent = t_player
 		end
 	end
+	effects.Help = {}
 end,
 })
 --l print(Game():GetPlayer(1):GetData().__Index
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,priority = 20,
 Function = function(_,player)
-	if save.elses[item.own_key.."effect"].Help then
+	local effects = get_effect_root()
+	if effects.Help then
 		local friend = item.find_main_friend()
-		Game():GetHUD():AssignPlayerHUDs() 
+		Game():GetHUD():AssignPlayerHUDs()
 		for playerNum = 1, Game():GetNumPlayers() do
 			local t_player = Game():GetPlayer(playerNum - 1)
 			local idx = t_player:GetData().__Index
-			save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-			if save.elses[item.own_key.."effect"][idx] and save.elses[item.own_key.."effect"][idx].Help then 
-				t_player.Parent = nil 
-				save.elses[item.own_key.."effect"][idx].Help = nil
+			if effects[idx] and effects[idx].Help then
+				t_player.Parent = nil
+				effects[idx].Help = nil
 			end
 			if friend then t_player.Position = Game():GetRoom():GetClampedPosition(friend.Position + auxi.get_by_rotate(nil,playerNum/Game():GetNumPlayers() * 360,40),0) end
 		end
-		save.elses[item.own_key.."effect"].Help = nil
+		effects.Help = nil
 	end
 	local idx = player:GetData().__Index
-	if save.elses[item.own_key.."effect"][idx] and save.elses[item.own_key.."effect"][idx].Friend then
+	if effects[idx] and effects[idx].Friend then
 		if Input.IsActionTriggered(ButtonAction.ACTION_BOMB, player.ControllerIndex) and not player:HasGoldenBomb() then
 			local valid = 0	for _, bomb in pairs(Isaac.FindByType(4)) do if bomb.FrameCount < 1 then valid = valid + 1 end end if valid > 1 then player:AddBombs(1)
 			elseif valid == 1 then Isaac.Spawn(4, 0, 0, player.Position, Vector.Zero, player):ToBomb().Flags = player:GetBombFlags() end
@@ -168,7 +212,7 @@ Function = function(_,player)
 		if auxi.check_all_exists(tg) ~= true or tg:GetData()[item.own_key.."deffect"] == nil then
 			if d[item.own_key.."entitycollision_succ"] then Attribute_holder.try_rewind_attribute(player,"EntityCollisionClass",d[item.own_key.."entitycollision_succ"]) d[item.own_key.."entitycollision_succ"] = nil end
 			if d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] then Attribute_holder.try_rewind_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK)) d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] = nil end
-			d[item.own_key.."Helpeffect"] = nil break 
+			d[item.own_key.."Helpeffect"] = nil break
 		end
 		player_offset_holder.LoadPlayer(player,true)
 		player.Position = tg.Position + Vector(0,-1) + item.Move * tg.SpriteScale.X
@@ -178,10 +222,10 @@ Function = function(_,player)
 		d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] = d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] or Attribute_holder.try_hold_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK))
 		player:AddControlsCooldown(math.max(0,3 - player.ControlsCooldown))
 	end end
-	if d[item.own_key.."deffect"] then 
-		if (d[item.own_key.."deffect"].counter or 0) > item.Flight_info.Light and auxi.check_all_exists(d[item.own_key.."deffect"].Light) ~= true then 
-			d[item.own_key.."deffect"].Light = auxi.fire_nil(player.Position + item.Move * player.SpriteScale.X,Vector(0,0),{cooldown = 999,}) 
-			local q = d[item.own_key.."deffect"].Light q.DepthOffset = 5 
+	if d[item.own_key.."deffect"] then
+		if (d[item.own_key.."deffect"].counter or 0) > item.Flight_info.Light and auxi.check_all_exists(d[item.own_key.."deffect"].Light) ~= true then
+			d[item.own_key.."deffect"].Light = auxi.fire_nil(player.Position + item.Move * player.SpriteScale.X,Vector(0,0),{cooldown = 999,})
+			local q = d[item.own_key.."deffect"].Light q.DepthOffset = 5
 			local s = q:GetSprite() s:Load("gfx/1000.039_heaven door.anm2",true) s:Play("Appear",true)
 			local dq = q:GetData() dq[item.own_key.."Light"] = {linker = player,}
 			dq[Nil_holder.own_key.."work"] = function(ent)
@@ -189,7 +233,7 @@ Function = function(_,player)
 				if de[item.own_key.."Remove"] then
 					if s:IsFinished("Disappear") then ent:Remove() return true else return end
 				end
-				local tg = de[item.own_key.."Light"].linker 
+				local tg = de[item.own_key.."Light"].linker
 				if auxi.check_all_exists(tg) ~= true or tg:GetData()[item.own_key.."deffect"] == nil then de[item.own_key.."Remove"] = {} s:Play("Disappear",true) return end
 				q.Position = tg.Position + item.Move * tg.SpriteScale.X q.Velocity = Vector(0,0)
 				--local cnt = tg:GetData()[item.own_key.."deffect"].counter or 0
@@ -201,11 +245,12 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
+	local effects = get_effect_root()
 	local friend = item.find_main_friend()
 	if friend then
 		for playerNum = 1, Game():GetNumPlayers() do
 			local t_player = Game():GetPlayer(playerNum - 1) local idx = t_player:GetData().__Index
-			if (friend.Position - t_player.Position):Length() < 10 and save.elses[item.own_key.."effect"][idx] and save.elses[item.own_key.."effect"][idx].Friend then t_player.Position = Game():GetRoom():GetClampedPosition(friend.Position + auxi.get_by_rotate(nil,playerNum/Game():GetNumPlayers() * 360,40),0) end
+			if (friend.Position - t_player.Position):Length() < 10 and effects[idx] and effects[idx].Friend then t_player.Position = Game():GetRoom():GetClampedPosition(friend.Position + auxi.get_by_rotate(nil,playerNum/Game():GetNumPlayers() * 360,40),0) end
 		end
 	end
 end,
@@ -213,13 +258,14 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_REWIND, params = nil,
 Function = function(_,tp)
+	local effects = get_effect_root()
 	local friend = item.find_main_friend()
 	if friend then
-		Game():GetHUD():AssignPlayerHUDs() 
+		Game():GetHUD():AssignPlayerHUDs()
 		for playerNum = 1, Game():GetNumPlayers() do
 			local t_player = Game():GetPlayer(playerNum - 1) local idx = t_player:GetData().__Index
-			if save.elses[item.own_key.."effect"][idx] and save.elses[item.own_key.."effect"][idx].Friend then 
-				t_player.Parent = nil 
+			if effects[idx] and effects[idx].Friend then
+				t_player.Parent = nil
 			end
 		end
 	end
@@ -262,8 +308,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player,offset)
 	local d = player:GetData() local s = player:GetSprite()
 	if d[item.own_key.."deffect"] then player:PlayExtraAnimation("Death") end
-	if d[item.own_key.."Helpeffect"] and not d[item.own_key.."Helpeffect"].Finish and not d[item.own_key.."Helpeffect"].Sub then 
-		player:PlayExtraAnimation("UseItem") 
+	if d[item.own_key.."Helpeffect"] and not d[item.own_key.."Helpeffect"].Finish and not d[item.own_key.."Helpeffect"].Sub then
+		player:PlayExtraAnimation("UseItem")
 		local info = auxi.check_lerp(d[item.own_key.."Helpeffect"].cnt or 0,item.Fitem_info)
 		if (d[item.own_key.."Helpeffect"].cnt or 0) < item.Fitem_info.total then local s = auxi.load_item(11) s:Render(Isaac.WorldToRenderPosition(player.Position) + offset + Vector(0,info.val),Vector(0,0),Vector(0,0)) end
 	end
@@ -271,15 +317,15 @@ end,
 })
 
 function item.make_friend(player)
+	local effects = get_effect_root()
 	player:RemoveCollectible(item.entity)
 	local id = item.random_player_id(player:GetPlayerType(),player:GetCollectibleRNG(item.entity))
 	Isaac.ExecuteCommand("addplayer " .. id .. " " .. player.ControllerIndex)
-	local friend = Isaac.GetPlayer(Game():GetNumPlayers() - 1) 
+	local friend = Isaac.GetPlayer(Game():GetNumPlayers() - 1)
 	friend.Parent = player Game():GetHUD():AssignPlayerHUDs() friend.Parent = nil
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	save.elses[item.own_key.."effect"][player:GetData().__Index] = {}
-	save.elses[item.own_key.."effect"][friend:GetData().__Index] = {Friend = true,}
-	for u,v in pairs({player,friend}) do if v:GetOtherTwin() then save.elses[item.own_key.."effect"][v:GetOtherTwin():GetData().__Index] = {Friend = (u == 2),} end end
+	effects[player:GetData().__Index] = {}
+	effects[friend:GetData().__Index] = {Friend = true,}
+	for u,v in pairs({player,friend}) do if v:GetOtherTwin() then effects[v:GetOtherTwin():GetData().__Index] = {Friend = (u == 2),} end end
 	return friend
 end
 
@@ -292,10 +338,10 @@ Function = function(_,player)
 		local rplayer = auxi.has_or_have_coll_(player,item.entity)
 		if rplayer then
 			local ret = {should_revive = true,on_revive = function(player,tp)
-				local d = player:GetData() local dr = rplayer:GetData() 
+				local d = player:GetData() local dr = rplayer:GetData()
 				if d[item.own_key.."deffect"].Friend == nil then item.make_friend(rplayer) end
 				d[item.own_key.."deffect"] = nil player:StopExtraAnimation() player:SetFullHearts()
-				if tp ~= "exit" then 
+				if tp ~= "exit" then
 					Attribute_holder.try_hold_and_rewind_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",true,60,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK))
 					player:AnimateCollectible(11,"Pickup","PlayerPickupSparkle")
 					sound_tracker.PlayStackedSound(SoundEffect.SOUND_1UP,1,1,false,0,2)
@@ -306,9 +352,9 @@ Function = function(_,player)
 				d[item.own_key.."deffect"] = d[item.own_key.."deffect"] or {}
 				d[item.own_key.."deffect"].counter = (d[item.own_key.."deffect"].counter or 0) + 1
 				if d[item.own_key.."deffect"].counter == item.Flight_info.DeathSound then sound_tracker.PlayStackedSound(SoundEffect.SOUND_ISAACDIES,1,1,false,0,2) end
-				if d[item.own_key.."deffect"].counter == item.Flight_info.Friend then 
+				if d[item.own_key.."deffect"].counter == item.Flight_info.Friend then
 					sound_tracker.PlayStackedSound(SoundEffect.SOUND_SUPERHOLY,1,1,false,0,2)
-					local friend = item.make_friend(rplayer) friend.Position = player.Position + Vector(0,-1) + item.Move * player.SpriteScale.X  friend:GetData()[item.own_key.."Helpeffect"] = {linker = player,} d[item.own_key.."deffect"].Friend = true player_offset_holder.LoadPlayer(friend,true) player_offset_holder.TrickOnPlayer(friend) 
+					local friend = item.make_friend(rplayer) friend.Position = player.Position + Vector(0,-1) + item.Move * player.SpriteScale.X  friend:GetData()[item.own_key.."Helpeffect"] = {linker = player,} d[item.own_key.."deffect"].Friend = true player_offset_holder.LoadPlayer(friend,true) player_offset_holder.TrickOnPlayer(friend)
 					if friend:GetOtherTwin() then local friend2 = friend:GetOtherTwin() friend2.Position = player.Position + Vector(0,-11) + item.Move * player.SpriteScale.X friend2:GetData()[item.own_key.."Helpeffect"] = {linker = player,Sub = true,offset = Vector(-10,0),} d[item.own_key.."deffect"].Friend = true player_offset_holder.LoadPlayer(friend2,true) player_offset_holder.TrickOnPlayer(friend2) end
 				end
 			end,revive_time = 240,}
@@ -323,13 +369,14 @@ end,
 
 table.insert(item.post_myToCall,#item.post_myToCall + 1,{CallBack = enums.Callbacks.PRE_PLAYER_KILL, params = nil,
 Function = function(_,player)
+	local effects = get_effect_root()
 	local d = player:GetData()
 	local idx = d.__Index local sidx = save.get_sub_idx(player)
-	if not player:WillPlayerRevive() and (save.elses[item.own_key.."effect"][idx] or save.elses[item.own_key.."effect"][sidx]) then
+	if not player:WillPlayerRevive() and (effects[idx] or effects[sidx]) then
 		for playerNum = 1,Game():GetNumPlayers() do
-			local t_player = Game():GetPlayer(playerNum - 1) 
+			local t_player = Game():GetPlayer(playerNum - 1)
 			if auxi.check_all_exists(t_player) then local tidx = t_player:GetData().__Index local stidx = save.get_sub_idx(t_player)
-				if (tidx ~= idx and save.elses[item.own_key.."effect"][tidx]) or (stidx ~= idx and save.elses[item.own_key.."effect"][stidx]) then player:AddMaxHearts(-player:GetMaxHearts()) player.Parent = t_player save.elses[item.own_key.."effect"][tidx] = {} save.elses[item.own_key.."effect"][stidx] = {} break end
+				if (tidx ~= idx and effects[tidx]) or (stidx ~= idx and effects[stidx]) then player:AddMaxHearts(-player:GetMaxHearts()) player.Parent = t_player effects[tidx] = {} effects[stidx] = {} break end
 			end
 		end
 	end

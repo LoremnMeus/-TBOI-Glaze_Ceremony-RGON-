@@ -643,7 +643,7 @@ if REPENTOGON and ModCallbacks.MC_POST_PLAYERHUD_RENDER_HEARTS then
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYERHUD_RENDER_HEARTS, params = nil,
 Function = function(_,offset,heartsSprite,position,spriteScale,player)
 	if player == nil then return end
-	if Game():GetLevel():GetCurses() & LevelCurse.CURSE_OF_THE_UNKNOWN ~= 0 then return end
+	if not auxi.can_render_health_hud() then return end
 
 	local hud = get_player_hud(player)
 	local rowmax = get_heart_row_max(hud)

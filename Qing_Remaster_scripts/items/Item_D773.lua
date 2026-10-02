@@ -88,6 +88,9 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = nil,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then
+		return
+	end
 	if ent.Type == 3 and ent.Variant == FamiliarVariant.WISP and ent.SubType == item.entity then
 		local rng = ent:GetDropRNG()
 		local n_pickups = auxi.getpickups(Isaac.GetRoomEntities(),false)

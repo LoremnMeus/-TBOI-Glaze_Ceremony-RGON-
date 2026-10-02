@@ -219,10 +219,10 @@ local function move(player,dir)
 					local succ = true
 					if auxi.should_do_Seija(player) then local rng = player:GetCollectibleRNG(item.entity) if rng:RandomFloat() > 0.5 then succ = false end end
 					if succ then
-						unique_holder.Hold_for_missing(true)
-						local q = Isaac.Spawn(5,100,col,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-						auxi.self_morph(q,{5,100,col,})
-						unique_holder.Hold_for_missing() 
+						unique_holder.with_missing(33, function()
+							local q = Isaac.Spawn(5,100,col,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+							auxi.self_morph(q,{5,100,col,})
+						end)
 						sound_tracker.PlayStackedSound(268,1,1,false,0,2)
 					else
 						local adder = false

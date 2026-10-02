@@ -1,6 +1,8 @@
 -- Flight 受伤触发轻量路由（v2 七项 + 702 复仇之火；408 Athame 受伤环已废止 2026-08-16）。
 -- 审阅：orbital_on_hurt_implementation_review.md
+local g = require("Qing_Remaster_scripts.core.globals")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local enums = require("Qing_Remaster_scripts.core.enums")
 
 local item = {
@@ -124,7 +126,7 @@ local function list_player_flights(player)
 			local state = Orb.get_air_combat_state(air, player)
 			-- 七项受伤效果仅 active；degraded/inactive 不触发
 			if state == "active" then
-				local profile = air:GetData()[Air.own_key.."craft_profile"]
+				local profile = CraftIdentity.get_profile(air)
 				out[#out + 1] = {air = air, profile = profile}
 			end
 		end
@@ -137,7 +139,7 @@ local function stamp_hurt_attack(ent2, air, extra)
 	local Air = get_air_mod()
 	local td = ent2:GetData()
 	td[Air.own_key.."craft_air"] = air
-	td[Air.own_key.."craft_uid"] = air:GetData()[get_blueprint().own_key.."craft_uid"]
+	td[Air.own_key.."craft_uid"] = CraftIdentity.get_uid(air)
 	td[item.own_key.."from_hurt"] = true
 	if extra then
 		for k, v in pairs(extra) do td[k] = v end
@@ -509,6 +511,7 @@ table.insert(item.ToCall, {
 	CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE,
 	params = EntityType.ENTITY_TEAR,
 	Function = function(_, ent)
+		if not g.is_gameplay_world_active() then return end
 		local tear = ent and ent:ToTear()
 		if tear then spawn_zit_creep(tear) end
 	end,

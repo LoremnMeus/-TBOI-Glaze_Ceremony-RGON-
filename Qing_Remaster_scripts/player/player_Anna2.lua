@@ -22,9 +22,10 @@ local Item_Assassin_s_Eye = require("Qing_Remaster_scripts.items.Item_Assassin_s
 local Flat_Stone_holder = require("Qing_Remaster_scripts.mimics.Flat_Stone_holder")
 local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_holder")
 local Jacob_ladder_holder = require("Qing_Remaster_scripts.mimics.Jacob_ladder_holder")
-local tear_trigger_holder = require("Qing_Remaster_scripts.callbacks.tear_trigger_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 local Familiar_Control_Selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
 local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
+local CharRound = require("Qing_Remaster_scripts.player.character_attack_round")
 
 local item = {
 	pre_ToCall = {},
@@ -648,7 +649,11 @@ Function = function(_,ent)
 				if d[item.own_key.."Attack"].OneStep > 0 then d[item.own_key.."Attack"].OneStep = d[item.own_key.."Attack"].OneStep - 1 end
 				if d[item.own_key.."Attack"].OneStep <= 0 then should_end = true end
 			end
-			if should_end or (d[item.own_key.."Attack"].total and d[item.own_key.."Attack"].step >= d[item.own_key.."Attack"].total) then d[item.own_key.."Attack"] = nil d[item.own_key.."Fade"] = {} end
+			if should_end or (d[item.own_key.."Attack"].total and d[item.own_key.."Attack"].step >= d[item.own_key.."Attack"].total) then
+				release_dive_round(d[item.own_key.."Attack"], player)
+				d[item.own_key.."Attack"] = nil
+				d[item.own_key.."Fade"] = {}
+			end
 		end
 	end end
 	if ctrlvel then ent.Velocity = Vector(0,0) end
@@ -732,9 +737,86 @@ Function = function(_,player,value)
 end,
 })
 
+-- M6.1: dive / phantom sequence = persistent Attack (not grouping cohort).
+local function attach_round_attack(attack_tab, player, opts)
+	if not attack_tab or not player then return nil end
+	local existing = attack_tab.round_attack
+	if existing and existing.active and not existing.ending then
+		return existing
+	end
+	attack_tab.round_attack = CharRound.open_persistent_player_attack(player, "tear", opts or {
+		reason = "anna2_dive",
+		position = player.Position,
+	})
+	if attack_tab.round_attack then
+		attack_tab.round_attack._anna2_holders = 1
+	end
+	player:GetData()[item.own_key.."round_attack"] = attack_tab.round_attack
+	return attack_tab.round_attack
+end
+
+-- share=true: Phantom_mult concurrent holders. share=false/nil: ownership transfer (weapon 8).
+local function restore_round_after_deepcopy(dst_tab, round_attack, share)
+	if dst_tab and round_attack then
+		dst_tab.round_attack = round_attack
+		if share then
+			round_attack._anna2_holders = (round_attack._anna2_holders or 1) + 1
+		end
+	end
+	return dst_tab
+end
+
+local function release_dive_round(attack_tab, player)
+	local pd = player and player:GetData()
+	local round = (attack_tab and attack_tab.round_attack)
+		or (pd and pd[item.own_key.."round_attack"])
+	if attack_tab then attack_tab.round_attack = nil end
+	if not round then
+		if pd then pd[item.own_key.."round_attack"] = nil end
+		return
+	end
+	local holders = (round._anna2_holders or 1) - 1
+	round._anna2_holders = holders
+	if holders <= 0 then
+		CharRound.seal_persistent_attack(round)
+		if pd then pd[item.own_key.."round_attack"] = nil end
+	end
+end
+
+local function resolve_dive_round(player, ent)
+	local ed = ent and ent:GetData()
+	local pd = player and player:GetData()
+	local tab = (ed and ed[item.own_key.."Attack"]) or (pd and pd[item.own_key.."Attack"])
+	if tab then
+		return attach_round_attack(tab, player, {
+			reason = "anna2_dive",
+			position = (ent and ent.Position) or player.Position,
+			emitter = ent or player,
+		})
+	end
+	return pd and pd[item.own_key.."round_attack"]
+end
+
+local function with_anna2_fire(player, ent, reason, fn)
+	if CharRound.holder.PeekFireContext() then
+		return fn()
+	end
+	local attack = resolve_dive_round(player, ent)
+	if attack and attack.active and not attack.ending then
+		return CharRound.with_inherit_attack(attack, {
+			reason = reason or "anna2_fire",
+			emitter = ent or player,
+		}, fn)
+	end
+	-- No live dive Attack: never open a cohort (would spam Create every frame from
+	-- idle release_launch / residual cleanup). Missing parent → untracked.
+	return CharRound.with_untracked(reason or "anna2_orphan_fire", fn)
+end
+
 function item.cast_bomb(player,pos,vel,params)
 	params = params or {}
-	local q = player:FireBomb(pos,vel)
+	local opts = attack_holder.CopyFireContext("anna2_cast_bomb") or { mode = "untracked", reason = "anna2_cast_bomb_orphan" }
+	local q = attack_holder.FireBomb(player, pos, vel, opts)
 	local d = q:GetData()
 	d[item.own_key.."effect"] = {counter = 0,}
 	if params.Appear and params.Rocket then d[item.own_key.."effect"].Appear = {counter = 0,} end
@@ -770,7 +852,9 @@ function item.cast_brim(player,pos,vel,params)
 	if (params.mode and params.mode == 1) or (not params.tri and not params.both) then params.charge = (params.charge or 1) * 0.5 end
 	local tearflags = params.tearflags
 	params.tri = params.tri or (tearflags and (tearflags & BitSet128(1<<60,0) == BitSet128(1<<60,0)))
-	local q = player:FireBrimstone(vel,nil,params.charge or 1)
+	local brim_opts = attack_holder.CopyFireContext("anna2_cast_brim") or { mode = "untracked", reason = "anna2_cast_brim_orphan" }
+	brim_opts.damage_multiplier = params.charge or 1
+	local q = attack_holder.FireBrimstone(player, vel, brim_opts)
 	q.CollisionDamage = 0
 	q:SetTimeout(99)
 	q.Mass = 0
@@ -795,8 +879,14 @@ end
 
 function item.release_launch(player,ent,params)
 	params = params or {}
-	local tearflags = params.tearflags or BitSet128(0,0)
 	local d = player:GetData()
+	-- Idle PLAYER_UPDATE calls this every frame when not diving; skip empty work
+	-- so Attack Fire Context is never opened for a no-op.
+	if not d[item.own_key.."Bomb"] and not d[item.own_key.."Brim"] then
+		return
+	end
+	return with_anna2_fire(player, ent, "anna2_release_launch", function()
+	local tearflags = params.tearflags or BitSet128(0,0)
 	if d[item.own_key.."Bomb"] then
 		for u,v in pairs(d[item.own_key.."Bomb"]) do
 			if auxi.check_all_exists(v) then
@@ -839,6 +929,10 @@ function item.release_launch(player,ent,params)
 		end
 		d[item.own_key.."Brim"] = nil
 	end
+	if not d[item.own_key.."Bomb"] and not d[item.own_key.."Brim"] then
+		-- Keep persistent dive Attack until dive ends; do not Seal here.
+	end
+	end)
 end
 
 function item.control_linkers(player,ent,params)
@@ -868,6 +962,7 @@ function item.control_linkers(player,ent,params)
 end
 
 function item.trigger_finfo(player,ent,finfo,einfo,params)
+	return with_anna2_fire(player, ent, "anna2_finfo", function()
 	params = params or {}
 	local d = player:GetData()
 	local tearHitParams = einfo.tearHitParams or player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
@@ -991,6 +1086,7 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 				local d2 = q:GetData()
 				local info = auxi.check_if_any(item.separate_finfo[1],player,ent)
 				d2[item.own_key.."Attack"] = {target = q,counter = 0,step = 0,forms = info.finfo or info,extra_info = info.einfo or {[1] = auxi.deepCopy(einfo),},OneStep = info.steps or finfo.steps or 1,}
+				attach_round_attack(d2[item.own_key.."Attack"], player, { reason = "anna2_separate", position = ent.Position, emitter = q })
 			end
 		end
 	end
@@ -1000,6 +1096,7 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 		local d2 = q:GetData()
 		local info = auxi.check_if_any(finfo.separate_finfo,player,ent)
 		d2[item.own_key.."Attack"] = {target = q,counter = 0,step = info.step or 0,forms = info.finfo or info,extra_info = info.einfo or {},OneStep = info.steps or finfo.steps,}
+		attach_round_attack(d2[item.own_key.."Attack"], player, { reason = "anna2_separate", position = ent.Position, emitter = q })
 		if ent:GetData()[item.own_key.."Base"] then q:GetData()[item.own_key.."Base"].color = ent:GetData()[item.own_key.."Base"].color end
 	end
 	if finfo.set and finfo.set == params.counter then 
@@ -1075,9 +1172,11 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 			end end end
 		end
 	end	
+	end)
 end
 
 function item.anna_attack(player,ent,pos,einfo,params)
+	return with_anna2_fire(player, ent, "anna2_attack", function()
 	einfo = einfo or {}
 	params = params or {}
 	-- 主攻击与宝宝副本共用同一份 TearParams 采样，避免概率 flag/颜色在同次攻击内各自重投。
@@ -1110,8 +1209,12 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	local tearflags = (einfo.tearflags or BitSet128(0,0)) | tearHitParams.TearFlags
 	local tearcolor = params.color or einfo.tearcolor or tearHitParams.TearColor
 	local dmg = tearHitParams.TearDamage * 5 * (einfo.dmgmul or 1) * (params.dmgrate or 1)
-	local range_mul = (ent.SpriteScale:Length()/math.sqrt(2)) * (params.rangerate or 1)
-	local range = (math.sqrt(player.TearRange/10) * 12 + 20) * range_mul
+	-- SpriteScale 是幻影 squash/stretch 动画态，只能驱动落点冲击体积；
+	-- Tech X 等武器半径只吃显式 rangerate，避免动画帧造成偶发最小圈。
+	local visual_scale_mul = ent.SpriteScale:Length() / math.sqrt(2)
+	local weapon_range_mul = params.rangerate or 1
+	local impact_scale_mul = visual_scale_mul * weapon_range_mul
+	local range = (math.sqrt(player.TearRange/10) * 12 + 20) * impact_scale_mul
 	local weap = einfo.weap or auxi.get_weapon(player)
 	local clear_tear = (tearflags & BitSet128(1<<34,0) == BitSet128(1<<34,0)) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LOST_CONTACT)
 	local magnet_tear = (tearflags & BitSet128(0,1<<(66-64)) == BitSet128(0,1<<(66-64))) or player:HasTrinket(TrinketType.TRINKET_SUPER_MAGNET)
@@ -1135,10 +1238,55 @@ function item.anna_attack(player,ent,pos,einfo,params)
 			end
 		end
 	end
-	tear_trigger_holder.trigger_tear("Anna2",ent,pos,player,nil)
+	local round = nil
+	do
+		local ctx = CharRound.holder.PeekFireContext and CharRound.holder.PeekFireContext()
+		if ctx and ctx.attack and ctx.attack.active and not ctx.attack.ending then
+			round = ctx.attack
+		else
+			local ed = ent and ent:GetData()
+			local tab = ed and ed[item.own_key.."Attack"]
+			local pd = player:GetData()
+			round = (tab and tab.round_attack) or (pd and pd[item.own_key.."round_attack"])
+		end
+	end
+	if round and round.active and not round.ending then
+		attack_holder.EmitDpsSample(round, ent, {
+			position = pos,
+			reason = "anna2_impact",
+			sample_weight = 1,
+		})
+		if not params.advanced_familiar_copy then
+			local dir = params.dir or einfo.dir or Vector(0, 1)
+			local snap = item.build_aeon_impact_snapshot(player, dir, einfo, params, weap)
+			CharacterAttackCompat.attach_attack_snapshot(round, snap)
+			-- Impact may deal area damage with no Fire* member; bind a 1-frame marker so Aeon MEMBER_BOUND can capture.
+			local marker = auxi.fire_nil(pos, Vector.Zero, {cooldown = 1})
+			if marker then
+				CharRound.holder.BindMember(round, marker, {
+					role = "primary",
+					reason = "anna2_impact_marker",
+					direction = dir,
+				})
+			end
+		end
+	else
+		if not item._anna2_sample_orphan_warned then
+			item._anna2_sample_orphan_warned = true
+			Isaac.DebugString("[Qing AttackHolder] Anna2 impact sample missing round_attack; EmitSyntheticSample fallback.")
+		end
+		attack_holder.EmitSyntheticSample(player, {
+			family = "tear",
+			source_entity = ent,
+			position = pos,
+			sample_weight = 1,
+			reason = "anna2_impact_orphan",
+			synthetic_kind = "sample",
+		})
+	end
 	Isaacs_Tear_holder.add_tear(player)
-	if tearflags & BitSet128(1<<12,0) == BitSet128(1<<12,0) then Game():BombExplosionEffects(pos,dmg * 0.5,tearflags,tearcolor,player,range_mul,false,false) end
-	if tearflags & BitSet128(1<<61,0) == BitSet128(1<<61,0) then Flat_Stone_holder.attack_wave(pos,{scale = Vector(1,1) * range_mul,dmg = dmg * 0.1,}) end		--!!
+	if tearflags & BitSet128(1<<12,0) == BitSet128(1<<12,0) then Game():BombExplosionEffects(pos,dmg * 0.5,tearflags,tearcolor,player,impact_scale_mul,false,false) end
+	if tearflags & BitSet128(1<<61,0) == BitSet128(1<<61,0) then Flat_Stone_holder.attack_wave(pos,{scale = Vector(1,1) * impact_scale_mul,dmg = dmg * 0.1,}) end		--!!
 	if tearflags & BitSet128(1<<55,0) == BitSet128(1<<55,0) then Jacob_ladder_holder.fire_laser(pos,{player = player,dmg = dmg * 0.1,range = range * 2,}) end
 	if tearflags & BitSet128(1<<39,0) == BitSet128(1<<39,0) then
 		local q = Isaac.Spawn(1000,EffectVariant.CRACK_THE_SKY,0,pos,Vector(0,0),player):ToEffect()
@@ -1157,6 +1305,7 @@ function item.anna_attack(player,ent,pos,einfo,params)
 		local q = item.fire_anna_phantom(player,ent.Position,Vector(0,0),{})
 		local d2 = q:GetData()
 		d2[item.own_key.."Attack"] = {target = q,counter = 0,step = 0,forms = {[0] = {id = 0.1,},},extra_info = {},}
+		attach_round_attack(d2[item.own_key.."Attack"], player, { reason = "anna2_belial", position = ent.Position, emitter = q })
 		local ret = item.anna_plan(player,nil,d2[item.own_key.."Attack"],1,{pos = (auxi.get_nearest_enemy(nil,ent.Position) or ent).Position,})
 		local tcnt = 0
 		for u,v in pairs(ret.forms) do
@@ -1173,8 +1322,8 @@ function item.anna_attack(player,ent,pos,einfo,params)
 		local q = player:SpawnMawOfVoid(35)
 		local both = (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MAW_OF_THE_VOID) and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ATHAME))
 		q:GetData()[item.own_key.."MawLaser"] = {}
-		if both then q.CollisionDamage = dmg * 0.4 q:GetData()[item.own_key.."MawLaser"].Radius = 150 * range_mul
-		else q.CollisionDamage = dmg * 0.2 q:GetData()[item.own_key.."MawLaser"].Radius = 80 * range_mul end
+		if both then q.CollisionDamage = dmg * 0.4 q:GetData()[item.own_key.."MawLaser"].Radius = 150 * impact_scale_mul
+		else q.CollisionDamage = dmg * 0.2 q:GetData()[item.own_key.."MawLaser"].Radius = 80 * impact_scale_mul end
 		q.Radius = 0
 		local t = auxi.fire_nil(pos,Vector(0,0),{cooldown = 35,})
 		q.Parent = t
@@ -1182,9 +1331,10 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	end
 	if weap == 9 or auxi.has_have_coll(player,395) then
 		local both = (weap == 9 and auxi.has_have_coll(player,395))
-		local t
-		if both then t = player:FireTechXLaser(pos,Vector(0,0),40 * range_mul + 10,nil,1)
-		else t = player:FireTechXLaser(pos,Vector(0,0),20 * range_mul + 20,nil,0.5) end
+		local techx_opts = attack_holder.CopyFireContext("anna2_attack_techx") or { mode = "untracked", reason = "anna2_attack_techx_orphan" }
+		techx_opts.damage_multiplier = both and 1 or 0.5
+		local rad = both and (40 * weapon_range_mul + 10) or (20 * weapon_range_mul + 20)
+		local t = attack_holder.FireTechXLaser(player, pos, Vector(0,0), rad, techx_opts)
 		t.SubType = 2 t.Parent = ent
 		t:GetData()[item.own_key.."Reffect"] = {radius = t.Radius,counter = 0,color = auxi.color2table(t:GetSprite().Color),}
 		--t.Radius = 0
@@ -1199,14 +1349,18 @@ function item.anna_attack(player,ent,pos,einfo,params)
 			local q2 = auxi.fire_nil(pos,Vector(0,0),{cooldown = 10,})
 			local cnt = math.random(2) + 3
 			local rnd = math.random(36000)/100
+			local tech_opts = attack_holder.CopyFireContext("anna2_attack_tech") or { mode = "untracked", reason = "anna2_attack_tech_orphan" }
+			tech_opts.offset_id = 1
+			tech_opts.one_hit = true
 			for i = 1,cnt do
-				local q1 = player:FireTechLaser(pos,1,auxi.MakeVector(360/cnt * i + rnd),false,true) q1.Parent = q2 q1.PositionOffset = Vector(0,0)
+				local q1 = attack_holder.FireTechLaser(player, pos, auxi.MakeVector(360/cnt * i + rnd), tech_opts) q1.Parent = q2 q1.PositionOffset = Vector(0,0)
 			end
 		end
 	end
 	if weap == 14 or auxi.has_have_coll(player,678) then
 		local both = (weap == 14 and auxi.has_have_coll(player,678))
-		local q = auxi.fire_fetus(nil,player,pos,Vector(0,0),true,true,{dmg = dmg * 0.3,tearflags = tearflags,})
+		local attack_ctx = attack_holder.CopyFireContext("anna2_fetus") or { mode = "untracked", reason = "anna2_fetus_orphan" }
+		local q = auxi.fire_fetus(nil,player,pos,Vector(0,0),true,true,{dmg = dmg * 0.3,tearflags = tearflags, attack_ctx = attack_ctx,})
 		local s = q:GetSprite()
 		local d = q:GetData()
 		s:Load("gfx/mimics/Evil_Intervention/Evil_I_Tear.anm2",true) s:Play("Idle",true)
@@ -1266,8 +1420,10 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	end
 	if (tearflags & BitSet128(1<<62,0) == BitSet128(1<<62,0)) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_HAEMOLACRIA) then
 		local maxcnt = math.random(math.ceil((player:GetCollectibleNum(CollectibleType.COLLECTIBLE_HAEMOLACRIA) + 1) * math.max(1,(einfo.dmgmul or 1))))
+		local tear_opts = attack_holder.CopyFireContext("anna2_haemo") or { mode = "untracked", reason = "anna2_haemo_orphan" }
+		tear_opts.no_tracer = true
 		for i = 1, maxcnt do 
-			local q = player:FireTear(pos,Vector(0,0),true,true,true)
+			local q = attack_holder.FireTear(player, pos, Vector(0,0), tear_opts)
 			q.Visible = false
 			q.TearFlags = q.TearFlags | BitSet128(1<<62,0)
 			q.TearFlags = q.TearFlags & (~(BitSet128(1<<60,0)))
@@ -1306,7 +1462,7 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	local s2 = q:GetSprite()
 	s2:Load("gfx/player/anna/_anna_effect.anm2",true)
 	s2:Play("Fade",true)
-	s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1.2,0.8)) * range_mul
+	s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1.2,0.8)) * impact_scale_mul
 	s2.Rotation = params.Rotation or 0
 	if tearflags & BitSet128(1<<6,0) == BitSet128(1<<6,0) or tearflags & BitSet128(1<<18,0) == BitSet128(1<<18,0) then
 		local dir = auxi.random_r()
@@ -1318,11 +1474,12 @@ function item.anna_attack(player,ent,pos,einfo,params)
 			local s2 = q:GetSprite()
 			s2:Load("gfx/player/anna/_anna_effect.anm2",true)
 			s2:Play("Fade",true)
-			s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1.2,0.8)) * range_mul * 0.5
+			s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1.2,0.8)) * impact_scale_mul * 0.5
 			s2.Color = tearcolor
 		end
 	end
 	if params.nosound ~= true then sound_tracker.PlayStackedSound(SoundEffect.SOUND_DEMON_HIT,1,1,false,0,2) end
+	end)
 end
 
 function item.anna_plan(player,dinfo,tab,i,params)
@@ -1447,6 +1604,7 @@ Function = function(_,player)
 						local q = item.fire_anna_phantom(player,fpos,Vector(0,0),{color = Color(0,0.85,0.85,0.5,0,0.85,0.85),})
 						local d2 = q:GetData() 
 						d2[item.own_key.."Attack"] = {target = d[item.own_key.."Focus_target"],counter = 0,step = 0,forms = {[0] = {id = 0.1,},},extra_info = {},wait = true,}
+						attach_round_attack(d2[item.own_key.."Attack"], player, { reason = "anna2_antigrav", position = fpos, emitter = q })
 						local ret = item.anna_plan(player,nil,d2[item.own_key.."Attack"],1,{pos = fpos,})
 						for u,v in pairs(ret.forms) do
 							table.insert(d2[item.own_key.."Attack"].forms,auxi.deepCopy(v))
@@ -1468,12 +1626,20 @@ Function = function(_,player)
 						--q.PositionOffset = player_offset_holder.GetPlayerOffset(player)
 						q.Visible = true
 					else
-						local q = player:FireTechLaser(player.Position,0,dir,true,false,nil,0.2)
-						q.TearFlags = q.TearFlags & (~TearFlags.TEAR_WAIT)
-						q.Parent = ent q:SetTimeout(-1)
-						--q.PositionOffset = Vector(0,0)
-						d[item.own_key.."Tech2"] = q
-						q.Visible = false
+						CharRound.with_untracked("anna2_tech2", function()
+							local q = attack_holder.FireTechLaser(player, player.Position, dir, {
+								mode = "untracked",
+								reason = "anna2_tech2",
+								offset_id = 0,
+								left_eye = true,
+								damage_multiplier = 0.2,
+							})
+							q.TearFlags = q.TearFlags & (~TearFlags.TEAR_WAIT)
+							q.Parent = ent q:SetTimeout(-1)
+							--q.PositionOffset = Vector(0,0)
+							d[item.own_key.."Tech2"] = q
+							q.Visible = false
+						end)
 					end
 				elseif auxi.check_all_exists(d[item.own_key.."Tech2"]) then d[item.own_key.."Tech2"]:Remove() d[item.own_key.."Tech2"] = nil end
 			end
@@ -1498,6 +1664,12 @@ Function = function(_,player)
 					basedata = multishot_of_player,
 					total = 1 + #(multishot_of_player.main),
 				}
+				attach_round_attack(d[item.own_key.."Attack"], player, {
+					reason = "anna2_release",
+					position = player.Position,
+					direction = d[item.own_key.."Focus_target"].Position - player.Position,
+					emitter = player,
+				})
 				local fpos = d[item.own_key.."Focus_target"].Position
 				local stpos = d[item.own_key.."Attack"].startpos
 				for i = 1,#multishot_of_player.main do
@@ -1520,7 +1692,9 @@ Function = function(_,player)
 				if weapon == 8 then
 					local q = item.fire_anna_phantom(player,fpos,Vector(0,0))
 					local d2 = q:GetData()
+					local shared_round = d[item.own_key.."Attack"].round_attack
 					d2[item.own_key.."Attack"] = auxi.deepCopy(d[item.own_key.."Attack"])
+					restore_round_after_deepcopy(d2[item.own_key.."Attack"], shared_round)
 					d[item.own_key.."Attack"] = nil
 				end
 				for i = 1,#multishot_of_player.phantom do
@@ -1531,6 +1705,7 @@ Function = function(_,player)
 					local q = item.fire_anna_phantom(player,player.Position,auxi.get_by_rotate(fpos - stpos,dinfo.dir,((dinfo.legmul or 1) * 30 + 10) * player.ShotSpeed),{})
 					local d2 = q:GetData()
 					d2[item.own_key.."Attack"] = {target = q,counter = 0,step = 0,forms = {[0] = {id = 0,Slowdown = true,},},extra_info = {},}
+					attach_round_attack(d2[item.own_key.."Attack"], player, { reason = "anna2_phantom", position = q.Position, emitter = q })
 					d2[item.own_key.."Base"] = {color = dinfo.color,}
 					auxi.check_if_any(dinfo,player)
 					local ret = item.anna_plan(player,dinfo,d2[item.own_key.."Attack"],i,{dir = fpos - stpos,weap = weap,charge = charge,})
@@ -1548,6 +1723,7 @@ Function = function(_,player)
 						local q = item.fire_anna_phantom(player,player.Position,auxi.get_by_rotate(fpos - stpos,dinfo.dir,((dinfo.legmul or 1) * 30 + 10) * player.ShotSpeed),{})
 						local d2 = q:GetData()
 						d2[item.own_key.."Attack"] = {target = q,counter = 0,step = 0,forms = {[0] = {id = 0,},},extra_info = {},ForceWise = true,}
+						attach_round_attack(d2[item.own_key.."Attack"], player, { reason = "anna2_eye_of_belial", position = q.Position, emitter = q })
 						d2[item.own_key.."Base"] = {color = dinfo.color,}
 						auxi.check_if_any(dinfo,player)
 						local ret = item.anna_plan(player,dinfo,d2[item.own_key.."Attack"],i,{dir = fpos - stpos,weap = weap,charge = charge,})
@@ -1687,7 +1863,9 @@ Function = function(_,player)
 						local tgpos = (mcnt - i + 0.5)/mcnt * (player.Position - d[item.own_key.."Attack"].startpos) + d[item.own_key.."Attack"].startpos
 						local q = item.fire_anna_phantom(player,tgpos,Vector(0,0),{})		--!!
 						local d2 = q:GetData()
+						local shared_round = d[item.own_key.."Attack"].round_attack
 						d2[item.own_key.."Attack"] = auxi.deepCopy(d[item.own_key.."Attack"])
+						restore_round_after_deepcopy(d2[item.own_key.."Attack"], shared_round, true)
 						--d2[item.own_key.."Attack"].OneStep = 1
 						d2[item.own_key.."Attack"].Hide = i * 2
 						d2[item.own_key.."Attack"].NoPos = true
@@ -1695,6 +1873,7 @@ Function = function(_,player)
 					end
 				end
 				if (d[item.own_key.."Attack"].step >= d[item.own_key.."Attack"].total) then 
+					release_dive_round(d[item.own_key.."Attack"], player)
 					d[item.own_key.."Attack"] = nil 
 					local desc = Game():GetLevel():GetCurrentRoomDesc() if desc.Data.Type == 16 then player.Position = Game():GetRoom():FindFreeTilePosition(player.Position,20) end
 					request_size_cache(player, true)
@@ -1724,6 +1903,7 @@ function item.force_break(player)
 		port_data[item.own_key.."AnnaPort"] = port_data[item.own_key.."AnnaPort"] or {}
 		port_data[item.own_key.."AnnaPort"].Fade = true
 	end
+	release_dive_round(attack, player)
 	d[item.own_key.."Attack"] = nil
 	if d[item.own_key.."gridcollision_succ"] then
 		Attribute_holder.try_rewind_attribute(player, "GridCollisionClass", d[item.own_key.."gridcollision_succ"])
@@ -1915,10 +2095,12 @@ Function = function(_,ent)
 					d[item.own_key.."Sword"].link_brim = nil 
 				end
 				if auxi.check_all_exists(d[item.own_key.."Sword"].link_brim) ~= true then
-					local q = item.cast_brim(player,ent.Position + ent.PositionOffset,-d[item.own_key.."Sword"].dir,{mode = d[item.own_key.."Sword"].brimmode,charge = 1,})
-					sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLOOD_LASER_LARGE,1,1,false,0,2)
-					d[item.own_key.."Sword"].link_brim = q
-					q:SetTimeout(10)
+					CharRound.with_untracked("anna2_sword_brim", function()
+						local q = item.cast_brim(player,ent.Position + ent.PositionOffset,-d[item.own_key.."Sword"].dir,{mode = d[item.own_key.."Sword"].brimmode,charge = 1,})
+						sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLOOD_LASER_LARGE,1,1,false,0,2)
+						q:SetTimeout(10)
+						d[item.own_key.."Sword"].link_brim = q
+					end)
 				end
 				local q = d[item.own_key.."Sword"].link_brim
 				q.PositionOffset = Vector(0,0)
@@ -2143,7 +2325,36 @@ end,
 })
 
 --- Gello 等宝宝：从 familiar 原点执行 anna_attack；advanced_familiar_copy 跳过 Incubus 二次复制。
-function item.fire_familiar_attack(player, request)
+--- Aeon：传 frozen snapshot，从 Ghost origin 再打一次 impact。
+function item.build_aeon_impact_snapshot(player, dir, einfo, params, weap)
+	einfo = einfo or {}
+	params = params or {}
+	local dir_tbl = {x = 0, y = 1}
+	if dir then
+		if type(dir) == "table" then
+			dir_tbl = {x = tonumber(dir.x or dir.X) or 0, y = tonumber(dir.y or dir.Y) or 0}
+		elseif dir.X ~= nil then
+			dir_tbl = {x = tonumber(dir.X) or 0, y = tonumber(dir.Y) or 0}
+		end
+	end
+	local flags_tbl = nil
+	if einfo.tearflags ~= nil then
+		local ok, tbl = pcall(function() return auxi.bit2table(einfo.tearflags) end)
+		if ok then flags_tbl = tbl end
+	end
+	return {
+		kind = "anna2_impact",
+		direction = dir_tbl,
+		dmgmul = tonumber(einfo.dmgmul) or 1,
+		dmgrate = tonumber(params.dmgrate) or 1,
+		rangerate = tonumber(params.rangerate) or 1,
+		weap = tonumber(weap) or tonumber(einfo.weap) or auxi.get_weapon(player),
+		tearflags = flags_tbl,
+		main = params.main == true,
+	}
+end
+
+function item.fire_attack_copy(player, request)
 	request = request or {}
 	if not player then return {fired = false} end
 	local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
@@ -2151,18 +2362,76 @@ function item.fire_familiar_attack(player, request)
 	local origin = request.origin or (source and source.Position) or player.Position
 	local aim = request.aim_dir or Vector(0, 1)
 	local mul = tonumber(request.damage_mul) or 0.75
+	local snap = request.snapshot
+	local weap, dmgrate, rangerate, flags, main
+	if type(snap) == "table" and snap.kind == "anna2_impact" then
+		mul = tonumber(snap.dmgmul) or mul
+		dmgrate = tonumber(snap.dmgrate) or 1
+		rangerate = tonumber(snap.rangerate) or 1
+		weap = tonumber(snap.weap)
+		main = snap.main == true
+		if type(snap.tearflags) == "table" then
+			local ok, bits = pcall(function() return auxi.table2bit(snap.tearflags) end)
+			if ok then flags = bits end
+		end
+		if type(snap.direction) == "table" and not request.aim_dir then
+			local dx = tonumber(snap.direction.x) or 0
+			local dy = tonumber(snap.direction.y) or 0
+			if dx * dx + dy * dy > 0.0001 then
+				aim = Vector(dx, dy):Normalized()
+			end
+		end
+	end
 	local einfo = {
 		dmgmul = mul,
 		dir = aim,
-		tearflags = CharacterFamiliars.apply_familiar_tear_flags(player, BitSet128(0, 0)),
+		weap = weap,
+		tearflags = flags or CharacterFamiliars.apply_familiar_tear_flags(player, BitSet128(0, 0)),
 	}
 	local params = {
 		advanced_familiar_copy = true,
 		dir = aim,
-		suppress_player_cost = request.suppress_player_cost,
+		dmgrate = dmgrate,
+		rangerate = rangerate,
+		main = main,
+		suppress_player_cost = request.suppress_player_cost ~= false,
+		noshock = request.noshock,
 	}
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local fire_token = nil
+	if request.fire_context and request.fire_context.mode == "untracked" then
+		local pushed = attack_holder.PushFireContext(request.fire_context)
+		fire_token = pushed and pushed.token
+	end
 	item.anna_attack(player, source or player, origin, einfo, params)
+	if fire_token then
+		attack_holder.PopFireContext(fire_token)
+	end
 	return {fired = true, delay = player.MaxFireDelay}
+end
+
+function item.snapshot_attack(player, context)
+	context = context or {}
+	local snap = CharacterAttackCompat.read_attack_snapshot(context.attack)
+	if type(snap) == "table" and snap.kind == "anna2_impact" then
+		return snap
+	end
+	return nil
+end
+
+function item.replay_attack(player, request)
+	request = request or {}
+	request.damage_mul = tonumber(request.damage_mul) or 1
+	request.suppress_player_cost = true
+	request.suppress_state_advance = true
+	return item.fire_attack_copy(player, request)
+end
+
+function item.fire_familiar_attack(player, request)
+	request = request or {}
+	request.damage_mul = tonumber(request.damage_mul) or 0.75
+	request.snapshot = nil
+	return item.fire_attack_copy(player, request)
 end
 
 CharacterAttackCompat.register(item.entity, {
@@ -2170,7 +2439,10 @@ CharacterAttackCompat.register(item.entity, {
 	module = "Qing_Remaster_scripts.player.player_Anna2",
 	advanced_familiars = true,
 	familiar_attack = item.fire_familiar_attack,
-	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+	snapshot_attack = item.snapshot_attack,
+	replay_attack = item.replay_attack,
+	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true, aeon_replay = true},
+	audit = "Aeon replays anna_attack impact from Ghost origin with frozen dmgmul/weap/dir",
 })
 
 return item

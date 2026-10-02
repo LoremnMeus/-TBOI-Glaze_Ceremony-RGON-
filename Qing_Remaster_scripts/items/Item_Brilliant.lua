@@ -12,10 +12,6 @@ local item = {
 	pre_myToCall = {},
 	post_ToCall = {},
 	entity = enums.Items.Brilliant,
-	info = {
-		["zh_cn"] = "#{{Coin}} 基础价格不高于所持有的硬币数量",
-		["en_us"] = "#{{Coin}} Basic price not higher than the number of coins held",
-	},
 }
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_GAIN_COLLECTIBLE, params = item.entity,
@@ -67,17 +63,5 @@ Function = function(_,ent)
 end,
 })
 
-if EID then
-
-EID:addDescriptionModifier("qing_item_sync"..tostring(item.entity), function(desc) return true end, function(desc)
-	if desc.Entity and desc.Entity.Type == 5 and desc.Entity.Variant == 100 and desc.Entity.SubType == item.entity and desc.Entity:ToPickup():IsShopItem() and desc.Entity:ToPickup().Price > 0 then
-		local language = auxi.get_EID_language()
-		local info = item.info[language] or item.info["en_us"]
-		EID:appendToDescription(desc, info)
-	end
-	return desc
-end)
-
-end
 
 return item

@@ -2,6 +2,8 @@
 -- full：PRE 跳过原版 AI；POST_UPDATE 驱动移动/冷却/瞄准/动画；adapter 开火
 -- move_only：放行原版 AI；实体保持脱离玩家 follower 链，FAMILIAR_UPDATE 用 FollowPosition + 强 Velocity 移动
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local g = require("Qing_Remaster_scripts.core.globals")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local Familiar_Control_Selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
 local Familiar_Follower_Arbiter = require("Qing_Remaster_scripts.mimics.Familiar_Follower_Arbiter")
 
@@ -57,7 +59,9 @@ local TRAIL_FRAME_KEY = "craft_path_trail_frame"
 local TRAIL_PHASE_LAG = 8 -- 相邻轨迹宝宝相位差（约 30Hz 帧）
 local TRAIL_MAX_LEN = 200
 local TRAIL_SNAP_DIST = 140 -- 仅失联时硬钉；平时只写 Velocity 留给引擎插值
-local TRAIL_VEL_BLEND = 0.9 -- 紧跟历史点，略混合当前速避免抖
+local TRAIL_VEL_BLEND = 0.9 -- 当前速与目标速混合
+local TRAIL_POS_CORRECT = 0.22 -- 历史速度回放时向采样点轻拉
+local TRAIL_POS_CORRECT_CAP = 7
 -- GetPtrHash -> 最新 wrapper；禁止 userdata wrapper 直接作长期键。
 local ACTIVE_BOUND = {}
 
@@ -439,6 +443,75 @@ local function drive_keep_vanilla_follow(fam, target, air, bind)
 end
 
 --- 每逻辑帧向 Flight 追加一个轨迹采样（同帧多次调用只写一次）
+--- 位置+速度供所有 trail 宝宝位移插值；anim/rotation 仅阴影剪影回放（勿对角/Scale 做插值）
+local function capture_air_trail_sample(air)
+	local pos = air.Position
+	local vel = air.Velocity or Vector.Zero
+	local sample = {
+		x = pos.X,
+		y = pos.Y,
+		vx = vel.X,
+		vy = vel.Y,
+		anim = "View",
+		frame = 0,
+		overlay = nil,
+		overlay_frame = 0,
+		flip_x = false,
+		rotation = 0,
+	}
+	local spr = air:GetSprite()
+	if spr then
+		sample.anim = spr:GetAnimation() or sample.anim
+		sample.frame = spr:GetFrame() or 0
+		if spr.GetOverlayAnimation then
+			local ok, ov = pcall(function() return spr:GetOverlayAnimation() end)
+			if ok and ov and ov ~= "" then sample.overlay = ov end
+		end
+		if spr.GetOverlayFrame then
+			local ok, of = pcall(function() return spr:GetOverlayFrame() end)
+			if ok and of then sample.overlay_frame = of end
+		end
+		sample.flip_x = spr.FlipX == true
+		-- Flight 朝向只写在 Sprite.Rotation（Transfer 俯仰在帧里）；禁止叠 Entity.SpriteRotation
+		sample.rotation = tonumber(spr.Rotation) or 0
+	end
+	return sample
+end
+
+local function trail_sample_pos(sample)
+	if not sample then return nil end
+	if sample.X ~= nil and sample.Y ~= nil then
+		return Vector(sample.X, sample.Y) -- 旧 Vector 采样兼容
+	end
+	local x = tonumber(sample.x)
+	local y = tonumber(sample.y)
+	if x and y then return Vector(x, y) end
+	return nil
+end
+
+local function trail_sample_vel(sample)
+	if not sample or type(sample) ~= "table" then return nil end
+	if sample.vx == nil and sample.vy == nil then return nil end
+	return Vector(tonumber(sample.vx) or 0, tonumber(sample.vy) or 0)
+end
+
+--- 相邻采样速度线性插值（只用于位移，不碰朝向）
+local function lerp_trail_vel(a, b, t)
+	local va = trail_sample_vel(a)
+	local vb = trail_sample_vel(b)
+	if not va then return vb end
+	if not vb then return va end
+	t = math.max(0, math.min(1, tonumber(t) or 0))
+	return Vector(va.X + (vb.X - va.X) * t, va.Y + (vb.Y - va.Y) * t)
+end
+
+function item.clear_air_path_trail(air)
+	if not air then return end
+	local ad = air:GetData()
+	ad[item.own_key..TRAIL_KEY] = nil
+	ad[item.own_key..TRAIL_FRAME_KEY] = nil
+end
+
 local function ensure_air_path_trail(air)
 	if not air then return nil end
 	local ad = air:GetData()
@@ -452,15 +525,17 @@ local function ensure_air_path_trail(air)
 		trail = {}
 		ad[item.own_key..TRAIL_KEY] = trail
 	end
-	trail[#trail + 1] = Vector(air.Position.X, air.Position.Y)
+	trail[#trail + 1] = capture_air_trail_sample(air)
 	while #trail > TRAIL_MAX_LEN do
 		table.remove(trail, 1)
 	end
 	return trail
 end
 
---- 430/431/426：顺滑复刻 Flight 轨迹；trail_index 越大相位越落后。
---- 禁止每帧 Position 硬钉 + Velocity=0（30Hz 阶跃、渲染无插值）。只写 Velocity 追上采样点。
+--- 430/431/426/468：顺滑复刻 Flight 轨迹；trail_index 越大相位越落后。
+--- 位移：回放相邻采样速度插值 + 向延迟点轻拉（保留引擎插值）。
+--- 朝向：trail_pose 仍为整数延迟采样，仅阴影剪影使用；不做角插值。
+--- 轨迹未热身时跟当前 Flight，禁止 SNAP。
 local function drive_trail_follow(fam, air, bind)
 	if not fam or not air then return end
 	if fam.RemoveFromDelayed then
@@ -473,9 +548,24 @@ local function drive_trail_follow(fam, air, bind)
 	if not trail or #trail == 0 then return end
 	local slot = math.max(1, math.floor(tonumber(bind and bind.trail_index) or 1))
 	local lag = slot * TRAIL_PHASE_LAG
-	local hi = #trail - lag
-	if hi < 1 then hi = 1 end
-	local target = trail[hi]
+	local warmed = #trail > lag
+	local sample = nil
+	local sample_next = nil
+	local target = nil
+	local hist_vel = nil
+	if warmed then
+		local hi = #trail - lag
+		if hi < 1 then hi = 1 end
+		sample = trail[hi]
+		sample_next = trail[hi + 1]
+		target = trail_sample_pos(sample)
+		-- 在 [hi, hi+1] 中点插速度，路径曲率更接近 Flight；pose 仍用 hi（阴影朝向）
+		hist_vel = lerp_trail_vel(sample, sample_next, 0.5)
+	else
+		sample = trail[#trail]
+		target = air.Position
+		hist_vel = trail_sample_vel(sample)
+	end
 	if not target then return end
 	if fam.FollowPosition then
 		fam:FollowPosition(target)
@@ -483,12 +573,24 @@ local function drive_trail_follow(fam, air, bind)
 	local delta = target - fam.Position
 	local dist = delta:Length()
 	local settle = 6
-	if dist > TRAIL_SNAP_DIST then
-		-- 装配/换房失联：允许一次硬钉，下帧恢复速度跟随
+	if warmed and dist > TRAIL_SNAP_DIST then
+		-- 严重失联才硬钉；带上插值速度，避免钉死后一帧静止
 		fam.Position = Vector(target.X, target.Y)
-		fam.Velocity = Vector.Zero
+		fam.Velocity = hist_vel and Vector(hist_vel.X, hist_vel.Y) or Vector.Zero
+	elseif hist_vel then
+		local correct = Vector.Zero
+		if dist > 0.5 then
+			correct = delta * TRAIL_POS_CORRECT
+			local clen = correct:Length()
+			if clen > TRAIL_POS_CORRECT_CAP then
+				correct = correct:Resized(TRAIL_POS_CORRECT_CAP)
+			end
+		end
+		local cur = fam.Velocity or Vector.Zero
+		local desired = hist_vel + correct
+		local blend = TRAIL_VEL_BLEND
+		fam.Velocity = cur * (1 - blend) + desired * blend
 	elseif dist > settle then
-		-- Velocity≈超出 settle 的残差：近距不保底高速，避免叠 Flight 抖动
 		local desired = delta:Resized(dist - settle)
 		local cur = fam.Velocity or Vector.Zero
 		local blend = TRAIL_VEL_BLEND
@@ -510,6 +612,9 @@ local function drive_trail_follow(fam, air, bind)
 	if bind then
 		bind.vel = fam.Velocity
 		bind.trail_target = target
+		-- 整数延迟姿态：阴影专属朝向回放，不随速度中点插值
+		bind.trail_pose = sample
+		bind.trail_warmed = warmed
 	end
 end
 
@@ -947,7 +1052,7 @@ end
 function item.sync_air_flight(air, player, profile)
 	if not air or not player then return end
 	local bp = get_blueprint()
-	local uid = air:GetData()[bp.own_key.."craft_uid"]
+	local uid = CraftIdentity.get_uid(air)
 	local air_ptr = GetPtrHash(air)
 	local extras = profile and profile.extras or {}
 
@@ -1520,7 +1625,27 @@ function item.fire_tech_laser(fam, player, aim_vector, adapter, opts)
 	if one_hit == nil then one_hit = adapter.one_hit end
 	if one_hit == nil then one_hit = false end
 	local dmg_mul = 1
-	local laser = player:FireTechLaser(fam.Position, offset, dir, false, one_hit, fam, dmg_mul)
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local fire_opts = attack_holder.CopyFireContext("craft_familiar_tech_laser", {
+		offset_id = offset,
+		left_eye = false,
+		one_hit = one_hit,
+		source_entity = fam,
+		damage_multiplier = dmg_mul,
+		emitter = fam,
+		role = "derived",
+	}) or {
+		mode = "untracked",
+		reason = "craft_familiar_tech_laser_orphan",
+		offset_id = offset,
+		left_eye = false,
+		one_hit = one_hit,
+		source_entity = fam,
+		damage_multiplier = dmg_mul,
+		emitter = fam,
+		role = "derived",
+	}
+	local laser = attack_holder.FireTechLaser(player, fam.Position, dir, fire_opts)
 	if not laser then return nil end
 	laser = laser:ToLaser() or laser
 	-- CollisionDamage 承担 BFFS / Mongo damage_mul；引擎倍率保持 1 避免双乘
@@ -1688,7 +1813,7 @@ local function update_bound_move_only(fam, air, player, bind, adapter, d)
 					or Vector(fam.Position.X, fam.Position.Y)
 				target = d[item.own_key.."duct_position"]
 			elseif adapter.strict_follow then
-				-- 阴影等：严格钉 Flight，不进波比链
+				-- 旧标记：硬钉 Flight（Shade 已改 trail_follow，勿再给延迟宝宝开这个）
 				d[item.own_key.."duct_position"] = nil
 				target = air.Position
 			elseif player and player:HasTrinket(TrinketType.TRINKET_FRIENDSHIP_NECKLACE) then
@@ -2076,13 +2201,9 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_PRE_GAME_EXIT,
 	params = nil,
 	Function = function(_)
-		for variant,_ in pairs(item.ADAPTERS) do
-			for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, variant, -1, false, false)) do
-				if is_bound(fam) then
-					item.release_familiar(fam, "exit")
-				end
-			end
-		end
+		-- Exit: drop Lua ownership only. Do not FindByType / release engine entities
+		-- while the gameplay world is tearing down.
+		ACTIVE_BOUND = {}
 	end,
 })
 
@@ -2186,6 +2307,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE,
 	params = EntityType.ENTITY_FAMILIAR,
 	Function = function(_, ent)
+		if not g.is_gameplay_world_active() then return end
 		if not ent or ent.Variant ~= FamiliarVariant.MILK then return end
 		if item._milk_room_unload then return end
 		local bind = bind_data(ent)

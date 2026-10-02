@@ -133,12 +133,12 @@ local function move(player,dir)
 			local room = Game():GetRoom()
 			if colid == item.Item_list[(d[item.own_key.."counter"] or 0) + 1] then
 				player:AnimateHappy()
-				unique_holder.Hold_for_missing(true) 
-				local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-				auxi.self_morph(q,{5,100,colid,})
-				local q2 = Isaac.Spawn(5,100,CollectibleType.COLLECTIBLE_DEATH_CERTIFICATE,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
-				auxi.self_morph(q2,{5,100,CollectibleType.COLLECTIBLE_DEATH_CERTIFICATE,})
-				unique_holder.Hold_for_missing() 
+				unique_holder.with_missing(33, function()
+					local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+					auxi.self_morph(q,{5,100,colid,})
+					local q2 = Isaac.Spawn(5,100,CollectibleType.COLLECTIBLE_DEATH_CERTIFICATE,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector(0,0),player):ToPickup()
+					auxi.self_morph(q2,{5,100,CollectibleType.COLLECTIBLE_DEATH_CERTIFICATE,})
+				end)
 				if d[item.own_key.."wisp"] then
 					d[item.own_key.."wisp"] = nil
 					player:AddItemWisp(colid,player.Position,true)

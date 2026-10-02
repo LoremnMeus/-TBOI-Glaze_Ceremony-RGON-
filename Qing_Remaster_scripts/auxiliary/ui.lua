@@ -3,7 +3,39 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 
 local item = {
 	ToCall = {},
+	post_ToCall = {},
 	active_slot_render = {},
+	-- Runtime only. Not saved, not written into optional_maker.
+	debug_hud_tune = {
+		card = {},
+		coin = {},
+		bomb = {},
+		key = {},
+	},
+	debug_hud_audit = {
+		draw_card_guide = false,
+		draw_resource_guide = false,
+		-- nil = follow the current HUD. 1 = normal, 2 = twin.
+		resource_state = nil,
+		heart = nil,
+	},
+	CARD_UI_STATE = {
+		NORMAL = 1,
+		MAIN_TWIN = 2,
+		OTHER_TWIN = 3,
+	},
+	-- Extra sprite-geometry correction on top of the visible-card center. Not a HUD layout offset.
+	CARD_OVERLAY_LOCAL_OFFSET = {
+		tarot_cloth = Vector(0, 0),
+		oblivion = Vector(0, 0),
+	},
+	-- ui_cardfronts.anm2 的 Frame Crop 是 16×20、pivot 8,12。
+	-- cards.png 上全部 56 张 16×20 裁切的不透明像素都是 14×18，四边各 1px 透明。
+	-- 含黑边的可见卡面是 14×18。HUD 对齐和审计按可见区域，不能按 Crop 尺寸。
+	CARD_VISIBLE_SIZE = Vector(14, 18),
+	CARD_VISIBLE_PIVOT = Vector(7, 9),
+	-- 可见区域在 crop 内从 (1,1) 起，中心是 (8,10)。相对 ANM2 pivot (8,12) 为 (0,-2)。
+	CARD_VISIBLE_CENTER_OFFSET = Vector(0, -2),
 	optional_maker = {
 		["heart"] = {
 			[1] = {name = "GetScreenTopLeft",del = Vector(40,4),},		--正常的血条
@@ -40,8 +72,10 @@ local item = {
 		},
 		["card"] = {
 			[1] = {name = "GetScreenBottomRight",del = Vector(-15,-12),},	--正常卡牌
-			[2] = {name = "GetScreenTopLeft",del = Vector(11,41),},			--双子卡牌
-			[3] = {name = "GetScreenBottomRight",del = Vector(-10,-44),},	--双子卡牌
+			-- Rep+ Jacob / main twin. Measured: old (11,41) + tune (34,0.5).
+			[2] = {name = "GetScreenTopLeft",del = Vector(45,41.5),},
+			-- Rep+ Esau / other twin. Measured: old (-10,-44) + tune (-38,38.5).
+			[3] = {name = "GetScreenBottomRight",del = Vector(-48,-5.5),},
 		},
 	},
 }
@@ -402,8 +436,9 @@ function item.PlayerActive_UI_Pos(player,slot,order)
 	return ret
 end
 
-function item.PlayerActiveUIPos(player,slot,order,cid)
-	if REPENTOGON then
+function item.PlayerActiveUIPos(player,slot,order,cid,opts)
+	opts = opts or {}
+	if REPENTOGON and not opts.ignore_capture then
 		local render_info = item.GetActiveSlotRenderInfo(player,slot)
 		if render_info and render_info.offset then
 			local scale = tonumber(render_info.scale) or 1
@@ -525,6 +560,354 @@ function item.UICardPos(state,offset,params)
 	return item.UI_Pos("card",state,offset,params)
 end
 
+local function player_hud(player)
+	if player.GetPlayerHUD then
+		local ok, hud = pcall(function()
+			return player:GetPlayerHUD()
+		end)
+		if ok and hud then return hud end
+	end
+	local game_hud = Game():GetHUD()
+	if not (game_hud and game_hud.GetPlayerHUD) then return nil end
+	for i = 0, 3 do
+		local ok, hud = pcall(function()
+			return game_hud:GetPlayerHUD(i)
+		end)
+		if ok and hud and hud.GetPlayer then
+			local ok_player, owner = pcall(function()
+				return hud:GetPlayer()
+			end)
+			if ok_player and owner and GetPtrHash(owner) == GetPtrHash(player) then
+				return hud
+			end
+		end
+	end
+	return nil
+end
+
+local function read_hud_layout(player)
+	local hud = player_hud(player)
+	if not (hud and hud.GetLayout) then return nil end
+	local ok, layout = pcall(function()
+		return hud:GetLayout()
+	end)
+	if ok then return layout end
+	return nil
+end
+
+local function layout_equals(layout, enum_name, numeric)
+	if layout == nil then return false end
+	local enum_value = nil
+	if PlayerHUDLayout then
+		if enum_name == "NORMAL" then enum_value = PlayerHUDLayout.NORMAL
+		elseif enum_name == "JACOB_AND_ESAU" then enum_value = PlayerHUDLayout.JACOB_AND_ESAU
+		elseif enum_name == "COMPACT" then enum_value = PlayerHUDLayout.COMPACT
+		elseif enum_name == "COMPACT_JACOB_AND_ESAU" then enum_value = PlayerHUDLayout.COMPACT_JACOB_AND_ESAU
+		end
+	end
+	if enum_value ~= nil then return layout == enum_value end
+	return layout == numeric
+end
+
+local function is_esau_seat(player)
+	if player:GetPlayerType() == PlayerType.PLAYER_ESAU then return true end
+	if not player.GetMainTwin then return false end
+	local main = player:GetMainTwin()
+	if not main or GetPtrHash(main) == GetPtrHash(player) then return false end
+	local tp = player:GetPlayerType()
+	return tp == PlayerType.PLAYER_JACOB or tp == PlayerType.PLAYER_ESAU
+end
+
+--- Spectralsword / HUD: solo | main | other（优先 Twin 关系 API，兼容模组 InitTwin）。
+function item.GetPlayerHUDTwinRole(player)
+	if not player then
+		return "solo"
+	end
+	local main = player.GetMainTwin and player:GetMainTwin() or nil
+	local other = player.GetOtherTwin and player:GetOtherTwin() or nil
+	local self_hash = GetPtrHash(player)
+	local has_other = other and other.Exists and other:Exists()
+	local main_is_self = main and GetPtrHash(main) == self_hash
+	if has_other then
+		if main_is_self or not main then
+			return "main"
+		end
+		return "other"
+	end
+	-- Other twin may lack GetOtherTwin on some seats; MainTwin ≠ self ⇒ other.
+	if main and GetPtrHash(main) ~= self_hash and main.Exists and main:Exists() then
+		return "other"
+	end
+	return "solo"
+end
+
+function item.CardHudLayoutName(layout)
+	if layout == nil then return "none" end
+	if layout_equals(layout, "NORMAL", 0) then return "NORMAL" end
+	if layout_equals(layout, "JACOB_AND_ESAU", 1) then return "JACOB_AND_ESAU" end
+	if layout_equals(layout, "COMPACT", 2) then return "COMPACT" end
+	if layout_equals(layout, "COMPACT_JACOB_AND_ESAU", 3) then return "COMPACT_JACOB_AND_ESAU" end
+	return tostring(layout)
+end
+
+function item.CardUiStateName(state)
+	if state == item.CARD_UI_STATE.NORMAL then return "NORMAL" end
+	if state == item.CARD_UI_STATE.MAIN_TWIN then return "MAIN_TWIN" end
+	if state == item.CARD_UI_STATE.OTHER_TWIN then return "OTHER_TWIN" end
+	return "unsupported"
+end
+
+-- Player -> supported card anchor. Compact coop has no measured anchor and returns nil.
+function item.GetPrimaryCardUIState(player)
+	if not player then return nil end
+	local layout = read_hud_layout(player)
+	if layout ~= nil then
+		if layout_equals(layout, "JACOB_AND_ESAU", 1) then
+			if is_esau_seat(player) then return item.CARD_UI_STATE.OTHER_TWIN end
+			return item.CARD_UI_STATE.MAIN_TWIN
+		end
+		if layout_equals(layout, "NORMAL", 0) then
+			return item.CARD_UI_STATE.NORMAL
+		end
+		return nil
+	end
+	local tp = player:GetPlayerType()
+	if tp == PlayerType.PLAYER_ESAU then return item.CARD_UI_STATE.OTHER_TWIN end
+	if tp == PlayerType.PLAYER_JACOB then return item.CARD_UI_STATE.MAIN_TWIN end
+	local p0 = Game():GetPlayer(0)
+	if p0 and GetPtrHash(p0) == GetPtrHash(player) then
+		return item.CARD_UI_STATE.NORMAL
+	end
+	return nil
+end
+
+-- Resource icons only have normal (1) and twin (2) anchors.
+function item.GetResourceHUDState()
+	local player = Game():GetPlayer(0)
+	if not player then return 1 end
+	local layout = read_hud_layout(player)
+	if layout ~= nil then
+		if layout_equals(layout, "JACOB_AND_ESAU", 1) or layout_equals(layout, "COMPACT_JACOB_AND_ESAU", 3) then
+			return 2
+		end
+		return 1
+	end
+	local tp = player:GetPlayerType()
+	if tp == PlayerType.PLAYER_JACOB or tp == PlayerType.PLAYER_ESAU then
+		return 2
+	end
+	return 1
+end
+
+function item.GetHudAuditResourceState()
+	local forced = item.debug_hud_audit and item.debug_hud_audit.resource_state
+	if forced == 1 or forced == 2 then return forced end
+	return item.GetResourceHUDState()
+end
+
+function item.DescribePrimaryCardHud(player)
+	if not player then return nil end
+	local state = item.GetPrimaryCardUIState(player)
+	return {
+		layout_name = item.CardHudLayoutName(read_hud_layout(player)),
+		state_name = item.CardUiStateName(state),
+		pos = item.PrimaryCardUIPos(player),
+		player_type = player:GetPlayerType(),
+	}
+end
+
+function item.GetHudDebugTune(kind, state)
+	local root = item.debug_hud_tune and item.debug_hud_tune[kind]
+	local tune = root and root[state]
+	if tune then return Vector(tune.X or 0, tune.Y or 0) end
+	return Vector(0, 0)
+end
+
+function item.GetCardDebugTune(state)
+	return item.GetHudDebugTune("card", state)
+end
+
+function item.SetHudDebugTune(kind, state, axis, value)
+	if not item.debug_hud_tune[kind] then item.debug_hud_tune[kind] = {} end
+	local cur = item.GetHudDebugTune(kind, state)
+	value = tonumber(value) or 0
+	if axis == "x" then
+		item.debug_hud_tune[kind][state] = Vector(value, cur.Y)
+	else
+		item.debug_hud_tune[kind][state] = Vector(cur.X, value)
+	end
+end
+
+function item.ResetHudDebugTune(kind)
+	if item.debug_hud_tune then item.debug_hud_tune[kind] = {} end
+end
+
+function item.ResetHudDebugTuneState(kind, state)
+	local root = item.debug_hud_tune and item.debug_hud_tune[kind]
+	if root then root[state] = nil end
+end
+
+function item.GetHudBaseDel(kind, state)
+	local info = (item.optional_maker[kind] or {})[state]
+	if not info or not info.del then return nil end
+	return Vector(info.del.X, info.del.Y)
+end
+
+function item.GetHudAuditValues(kind, state)
+	local base = item.GetHudBaseDel(kind, state)
+	if not base then return nil end
+	local tune = item.GetHudDebugTune(kind, state)
+	return {
+		base = base,
+		tune = tune,
+		final = Vector(base.X + tune.X, base.Y + tune.Y),
+	}
+end
+
+function item.HudAuditFinalDel(kind, state)
+	local values = item.GetHudAuditValues(kind, state)
+	return values and values.final or nil
+end
+
+-- Primary pocket card render anchor. Debug tune stays here so UICardPos consumers are unchanged.
+function item.PrimaryCardUIPos(player)
+	local state = item.GetPrimaryCardUIState(player)
+	if not state then return nil end
+	return item.UICardPos(state) + item.GetCardDebugTune(state)
+end
+
+function item.CardRenderAnchorToVisibleCenter(render_pos)
+	if not render_pos then return nil end
+	return render_pos + (item.CARD_VISIBLE_CENTER_OFFSET or Vector(0, 0))
+end
+
+function item.PrimaryCardVisibleCenter(player)
+	return item.CardRenderAnchorToVisibleCenter(item.PrimaryCardUIPos(player))
+end
+
+-- Overlay sprites for the visible 14×18 card use a center pivot, so they render at the visible center.
+-- CARD_OVERLAY_LOCAL_OFFSET is only an extra measured nudge, not the crop-to-visible conversion.
+function item.CardOverlayPos(player, kind)
+	local pos = item.PrimaryCardVisibleCenter(player)
+	if not pos then return nil end
+	local off = item.CARD_OVERLAY_LOCAL_OFFSET and item.CARD_OVERLAY_LOCAL_OFFSET[kind]
+	if off then return pos + off end
+	return pos
+end
+
+function item.HudAuditGuidePos(kind, state)
+	return item.UI_Pos(kind, state) + item.GetHudDebugTune(kind, state)
+end
+
+local function hud_audit_line(line)
+	print(line)
+	if Isaac.ConsoleOutput then Isaac.ConsoleOutput(line .. "\n") end
+end
+
+function item.PrintCardHudAudit()
+	hud_audit_line("[HUD AUDIT]")
+	local rows = {
+		{ item.CARD_UI_STATE.NORMAL, "normal" },
+		{ item.CARD_UI_STATE.MAIN_TWIN, "main_twin" },
+		{ item.CARD_UI_STATE.OTHER_TWIN, "other_twin" },
+	}
+	for _, row in ipairs(rows) do
+		local final = item.HudAuditFinalDel("card", row[1])
+		if final then
+			hud_audit_line(string.format("card.%s = Vector(%.1f, %.1f)", row[2], final.X, final.Y))
+		end
+	end
+end
+
+function item.PrintResourceHudAudit()
+	hud_audit_line("[HUD AUDIT]")
+	local kinds = { "coin", "bomb", "key" }
+	local rows = { { 1, "normal" }, { 2, "twin" } }
+	for _, kind in ipairs(kinds) do
+		for _, row in ipairs(rows) do
+			local final = item.HudAuditFinalDel(kind, row[1])
+			if final then
+				hud_audit_line(string.format("%s.%s = Vector(%.1f, %.1f)", kind, row[2], final.X, final.Y))
+			end
+		end
+	end
+end
+
+local function draw_cross(pos, color, arm)
+	if not (pos and Isaac.DrawLine and color) then return end
+	arm = arm or 6
+	Isaac.DrawLine(pos + Vector(-arm, 0), pos + Vector(arm, 0), color, color, 1)
+	Isaac.DrawLine(pos + Vector(0, -arm), pos + Vector(0, arm), color, color, 1)
+end
+
+local function draw_pivot_box(pos, pivot_x, pivot_y, width, height, color)
+	if not (pos and Isaac.DrawLine and color) then return end
+	local top_left = pos - Vector(pivot_x, pivot_y)
+	local size = Vector(width, height)
+	local a = top_left
+	local b = top_left + Vector(size.X, 0)
+	local c = top_left + size
+	local d = top_left + Vector(0, size.Y)
+	Isaac.DrawLine(a, b, color, color, 1)
+	Isaac.DrawLine(b, c, color, color, 1)
+	Isaac.DrawLine(c, d, color, color, 1)
+	Isaac.DrawLine(d, a, color, color, 1)
+end
+
+local function draw_label(pos, text, y_off)
+	if not (pos and text and Isaac.RenderText) then return end
+	Isaac.RenderText(text, math.floor(pos.X + 8), math.floor(pos.Y + (y_off or -14)), 1, 1, 1, 1)
+end
+
+function item.DrawHudAuditGuides()
+	local audit = item.debug_hud_audit
+	if not audit then return end
+	local hud = Game():GetHUD()
+	if hud and hud.IsVisible and not hud:IsVisible() then return end
+	if audit.draw_card_guide then
+		local anchor_color = KColor(1, 0.9, 0.2, 1)
+		local visible_color = KColor(0.3, 0.9, 1, 1)
+		local game = Game()
+		local visible_size = item.CARD_VISIBLE_SIZE or Vector(14, 18)
+		local visible_pivot = item.CARD_VISIBLE_PIVOT or Vector(7, 9)
+		local short_name = {
+			[item.CARD_UI_STATE.NORMAL] = "NORMAL",
+			[item.CARD_UI_STATE.MAIN_TWIN] = "MAIN",
+			[item.CARD_UI_STATE.OTHER_TWIN] = "OTHER",
+		}
+		for i = 0, game:GetNumPlayers() - 1 do
+			local player = game:GetPlayer(i)
+			local pos = player and item.PrimaryCardUIPos(player)
+			if pos then
+				local state = item.GetPrimaryCardUIState(player)
+				draw_cross(pos, anchor_color, 7)
+				-- Draw only the measured 14×18 visible card. Do not draw the 16×20 ANM2 crop:
+				-- that crop includes 1px of transparent padding and is not the on-screen card.
+				local visible = item.CardRenderAnchorToVisibleCenter(pos)
+				if visible then
+					draw_pivot_box(visible, visible_pivot.X, visible_pivot.Y, visible_size.X, visible_size.Y, visible_color)
+					draw_cross(visible, visible_color, 2)
+				end
+				draw_label(pos, string.format("%s (%.1f, %.1f)", short_name[state] or item.CardUiStateName(state), pos.X, pos.Y), -14)
+			end
+		end
+	end
+	if audit.draw_resource_guide then
+		local colors = {
+			coin = KColor(1, 0.85, 0.2, 1),
+			bomb = KColor(1, 0.35, 0.25, 1),
+			key = KColor(0.4, 0.75, 1, 1),
+		}
+		local state = item.GetHudAuditResourceState()
+		local state_name = state == 2 and "TWIN" or "NORMAL"
+		for _, kind in ipairs({ "coin", "bomb", "key" }) do
+			local pos = item.HudAuditGuidePos(kind, state)
+			draw_cross(pos, colors[kind], 5)
+			draw_label(pos, string.format("%s %s", string.upper(kind), state_name), -12)
+		end
+	end
+end
+
 function item.Screen2ScaleWorld(v) 
 	return auxi.mul_t(v,item.myScreenToWorld(Vector(1,1)) - item.myScreenToWorld(Vector(0,0)))
 end
@@ -588,5 +971,44 @@ end,
 })
 
 --meus please ui card 1 -20 -23
+
+if ModCallbacks.MC_PRE_PLAYERHUD_RENDER_HEARTS then
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = ModCallbacks.MC_PRE_PLAYERHUD_RENDER_HEARTS,
+		params = nil,
+		Function = function(_, offset, _sprite, position, sprite_scale, player)
+			if not item.debug_hud_audit then return end
+			local seat = 1
+			local p0 = Game():GetPlayer(0)
+			if player and p0 and GetPtrHash(player) ~= GetPtrHash(p0) then
+				seat = 2
+			end
+			item.debug_hud_audit.heart = {
+				position = position and Vector(position.X, position.Y) or nil,
+				offset = offset and Vector(offset.X, offset.Y) or nil,
+				scale = sprite_scale,
+				seat = seat,
+				frame = Game():GetFrameCount(),
+			}
+		end,
+	})
+end
+
+if ModCallbacks.MC_POST_HUD_RENDER then
+	table.insert(item.post_ToCall, #item.post_ToCall + 1, {
+		CallBack = ModCallbacks.MC_POST_HUD_RENDER,
+		params = nil,
+		Function = function()
+			item.DrawHudAuditGuides()
+		end,
+	})
+end
+
+local entity_head_anchor = require("Qing_Remaster_scripts.auxiliary.entity_head_anchor")
+
+--- 实体头顶 Sprite 局部锚点（头层中轴 + 顶部 texel；见 entity_head_anchor）。
+function item.GetEntityHeadAnchor(ent, options)
+	return entity_head_anchor.GetEntityHeadAnchor(ent, options)
+end
 
 return item

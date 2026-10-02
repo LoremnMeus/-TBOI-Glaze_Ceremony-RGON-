@@ -68,7 +68,7 @@
           canShoot="true" 
 		  birthright="WYSIWYG" 
 		  />
-	<player name="Zeiz" pocketActive="" black="8" bombs="0" items="" trinket=""
+	<player name="Zeiz" pocketActive="" black="8" bombs="0" items="" trinket="" hidden = "true"
           nameimage="playername_Zeistos.png" 
           portrait="ZeisPortrait2.png" 
 		  bigportrait="ZeisPortrait2.png"

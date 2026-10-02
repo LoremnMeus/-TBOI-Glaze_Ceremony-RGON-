@@ -181,7 +181,17 @@ local function fire_lil_brimstone(adapter, ctx, aim)
 	if aim:Length() < 0.01 then aim = Vector(0, 1) end
 	aim = aim:Normalized()
 	-- Source=fam；第三参伤害倍率取 1 对齐满蓄外观（勿乱改 Variant）
-	local laser = player:FireBrimstone(aim, fam, 1)
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local brim_opts = attack_holder.CopyFireContext("craft_lil_brimstone", {
+		source_entity = fam,
+		damage_multiplier = 1,
+	}) or {
+		mode = "untracked",
+		reason = "craft_lil_brimstone_orphan",
+		source_entity = fam,
+		damage_multiplier = 1,
+	}
+	local laser = attack_holder.FireBrimstone(player, aim, brim_opts)
 	if not laser then return false end
 	laser = stamp_laser_source(laser, fam)
 	laser.Position = fam.Position

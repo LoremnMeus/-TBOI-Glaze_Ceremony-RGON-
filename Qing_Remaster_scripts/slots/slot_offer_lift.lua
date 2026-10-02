@@ -118,9 +118,13 @@ function item.current_option(player, key)
 	return sess.options[sess.idx]
 end
 
-local function opt_anm2(opt)
+local function opt_anm2(opt, player)
 	if not opt then return DEFAULT_ANM2 end
-	return opt.anm2 or opt.anm2 or DEFAULT_ANM2
+	if opt.anm2_fn and player then
+		local dyn = opt.anm2_fn(player)
+		if dyn and dyn ~= "" then return dyn end
+	end
+	return opt.anm2 or DEFAULT_ANM2
 end
 
 local function pickup_hud_anchor(anm2, scale, sprite)
@@ -322,7 +326,8 @@ function item.end_session(player, key, hide)
 	local d = player:GetData()
 	local sess = d[key.."sess"]
 	if hide and player:IsHoldingItem() then
-		player:AnimatePickup(make_lift_sprite(opt_anm2(sess and sess.options and sess.options[sess.idx])), true, "HideItem")
+		local opt = sess and sess.options and sess.options[sess.idx]
+		player:AnimatePickup(make_lift_sprite(opt_anm2(opt, player)), true, "HideItem")
 	end
 	selection_holder.remove_select(player, key)
 	d[key.."sess"] = nil
@@ -345,7 +350,7 @@ function item.begin_session(player, ent, key, options)
 	d[key.."last_dir"] = DIR_ITEM
 	d[key.."last_dir_counter"] = 0
 	selection_holder.try_select(player, key)
-	player:AnimatePickup(make_lift_sprite(opt_anm2(options[1])), true, "LiftItem")
+	player:AnimatePickup(make_lift_sprite(opt_anm2(options[1], player)), true, "LiftItem")
 	return true
 end
 
@@ -385,7 +390,7 @@ local function relift(player, sess)
 	if not opt then return end
 	sess.lifting = true
 	sess.hold_miss = 0
-	player:AnimatePickup(make_lift_sprite(opt_anm2(opt)), true, "LiftItem")
+	player:AnimatePickup(make_lift_sprite(opt_anm2(opt, player)), true, "LiftItem")
 	sound_tracker.PlayStackedSound(194, 1, 1, false, 0, 2)
 end
 
@@ -504,6 +509,7 @@ function item.tick(player, spec)
 	if in_range and can_open and not d[key.."blocked"] and player:IsExtraAnimationFinished() then
 		local options = spec.get_options and spec.get_options(player, ent)
 		if options and #options > 0 then
+			if spec.on_open then spec.on_open(player, ent) end
 			item.begin_session(player, ent, key, options)
 		end
 	end
@@ -563,14 +569,15 @@ function item.render(player, spec)
 		return
 	end
 	if opt.hud_num then
+		local lift_anm2 = opt_anm2(opt, player)
 		local tokens = {
 			{t = "num", v = opt.hud_num, c = opt.hud_take and "gain" or "neutral", w = 18},
-			{t = "spr", anm2 = opt_anm2(opt), a = 0.85, w = 18},
+			{t = "spr", anm2 = lift_anm2, a = 0.85, w = 18},
 		}
 		if opt.hud_take then
 			tokens[#tokens + 1] = {t = "txt", v = "->", c = "arrow", w = 16, scale = 1}
 			tokens[#tokens + 1] = {t = "num", v = "-"..tostring(opt.hud_take), c = "debt", w = 20}
-			tokens[#tokens + 1] = {t = "spr", anm2 = opt.hud_take_anm2 or opt_anm2(opt), a = 0.45, w = 18}
+			tokens[#tokens + 1] = {t = "spr", anm2 = opt.hud_take_anm2 or lift_anm2, a = 0.45, w = 18}
 		end
 		render_tokens(tokens, pos)
 	end

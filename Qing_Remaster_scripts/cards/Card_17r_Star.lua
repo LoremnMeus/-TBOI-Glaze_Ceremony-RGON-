@@ -15,6 +15,7 @@ local item = {
 	myToCall = {},
 	entity = enums.Cards.Star_r,
 	own_key = "Thoth_cd17r_Sta_",
+	active_stars = {},
 }
 
 function item.assign_star(v)
@@ -24,6 +25,7 @@ function item.assign_star(v)
 	local d2 = q:GetData()
 	d2[item.own_key.."effect"] = true
 	q.Parent = v
+	item.active_stars[GetPtrHash(q)] = q
 	return q
 end
 
@@ -45,6 +47,7 @@ end,
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_ROOM, params = nil,
 Function = function(_,ent)
 	item[item.own_key.."effect"] = nil
+	item.active_stars = {}
 end,
 })
 
@@ -86,10 +89,12 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player)
 	local d = player:GetData()
 	local idx = d.__Index
-	local n_entity = Isaac.GetRoomEntities()
+	if next(item.active_stars) == nil and (d[item.own_key.."effect"] or 0) == 0 then return end
 	local mx_cnt = 0
-	for u,v in pairs(n_entity) do	
-		if v.Variant == 112 and v.Type == 1000 and (v.Position - player.Position):Length() < 100 then
+	for hash,v in pairs(item.active_stars) do
+		if auxi.check_all_exists(v) ~= true then
+			item.active_stars[hash] = nil
+		elseif (v.Position - player.Position):Length() < 100 then
 			local d2 = v:GetData()
 			if d2[item.own_key.."effect"] then
 				mx_cnt = math.max(v:GetSprite().Color.A,mx_cnt)
@@ -118,7 +123,7 @@ Function = function(_,ent,amt,flag,source,cooldown)
 		if (d[item.own_key.."effect"] or 0) > 0.5 then
 			local rng = player:GetCardRNG(item.entity)
 			rng = auxi.rng_for_sake(rng)
-			if rng:RandomInt(1000) > 500 then
+			if rng:RandomInt(2) == 0 then
 				player:SetMinDamageCooldown(cooldown)
 				local mx = 8
 				for i = 1,mx do
@@ -146,9 +151,14 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFEC
 Function = function(_,ent)
 	local d = ent:GetData()
 	if d[item.own_key.."effect"] then
+		item.active_stars[GetPtrHash(ent)] = ent
 		local s = ent:GetSprite()
 		local v = ent.Parent
-		if auxi.check_all_exists(v) == false then ent.Parent = nil return end
+		if auxi.check_all_exists(v) == false then
+			item.active_stars[GetPtrHash(ent)] = nil
+			ent:Remove()
+			return
+		end
 		local d2 = v:GetData()
 		d2[item.own_key.."child"] = d2[item.own_key.."child"] or ent
 		if auxi.check_for_the_same(d2[item.own_key.."child"],ent) ~= true then

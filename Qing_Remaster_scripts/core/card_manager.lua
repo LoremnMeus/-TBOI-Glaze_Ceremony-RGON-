@@ -70,6 +70,8 @@ function manager.Init(mod)
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.cards.Card_21r_Profound"))
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.cards.Card_05_Sting"))
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.cards.Card_05r_Sting"))
+	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.cards.Card_00_Oblivion"))
+	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.cards.Card_00r_Oblivion"))
 	--manager.Make()
 end
 

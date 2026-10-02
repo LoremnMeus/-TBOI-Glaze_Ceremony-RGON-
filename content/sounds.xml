@@ -121,4 +121,14 @@
 	<sound name="Qing_rocket">
 		<sample weight="1" path="Qing_rocket.wav" />
 	</sound>
+	<!-- 倒位深邃心跳：从原版 sfx 拷贝独立注册，避开引擎对 321–323 可能的特殊衰减 -->
+	<sound name="Qing Heartbeat">
+		<sample weight="1" path="heartbeat/heartbeat.wav" />
+	</sound>
+	<sound name="Qing Heartbeat Faster">
+		<sample weight="1" path="heartbeat/heartbeat_faster.wav" />
+	</sound>
+	<sound name="Qing Heartbeat Fastest">
+		<sample weight="1" path="heartbeat/heartbeat_fastest.wav" />
+	</sound>
 </sounds>

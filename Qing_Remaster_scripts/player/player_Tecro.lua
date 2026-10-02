@@ -17,8 +17,41 @@ local Damo_holder = require("Qing_Remaster_scripts.mimics.Damo_holder")
 local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_holder")
 local Flat_Stone_holder = require("Qing_Remaster_scripts.mimics.Flat_Stone_holder")
 local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
+local CharRound = require("Qing_Remaster_scripts.player.character_attack_round")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local player_Tecrorun = require("Qing_Remaster_scripts.player.player_Tecrorun")
+
+--- Virtual / Aeon presentation spears: keep TecroNil motion + sprite lifecycle, skip gameplay.
+local function spear_gameplay_enabled(ent)
+	local d = ent and ent.GetData and ent:GetData()
+	return not (d and d.virtual_presentation_only == true)
+end
+
+--- Linked Fire* after thrust: prefer persistent spear Attack; Peek only as same-frame backup.
+local function tecro_linked_fire_opts(spear, reason, overrides)
+	local sd = spear and spear.GetData and spear:GetData()
+	local round = sd and sd.tecro_round_attack
+	local opts
+	if round and round.active and not round.ending then
+		opts = {
+			mode = "inherit",
+			attack = round,
+			reason = reason,
+			role = "derived",
+			emitter = spear,
+		}
+	else
+		opts = attack_holder.CopyFireContext(reason)
+			or { mode = "untracked", reason = reason .. "_orphan" }
+	end
+	if type(overrides) == "table" then
+		for k, v in pairs(overrides) do
+			opts[k] = v
+		end
+	end
+	return opts
+end
 
 local function get_impale_rate(player)
 	local ret = auxi.get_sharp_rate(player) + (player:GetData().temp_sharp_rate or 0)
@@ -58,7 +91,7 @@ local item = {
 	},
 	sprite_loader = {
 		{name = "gfx/player/spears/Missile_Spear.png",offset = 28,color = Color(0.5,0.5,0.5,1),firename = "Head2",triggername = "Shoot",check = function(player,info)
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_EPIC_FETUS) or (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DR_FETUS) and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ROCKET_IN_A_JAR)) then return true end 
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_EPIC_FETUS) or (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DR_FETUS) and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ROCKET_IN_A_JAR)) then return true end
 		end,check_trigger = function(player,ent,info)
 			local d = ent:GetData()
 			if d.head and d.head:IsPlaying(info.firename or "") and d.head:IsEventTriggered(info.triggername or "") then return true end
@@ -70,7 +103,7 @@ local item = {
 			return "gfx/player/spears/Missile_Spear3.png"
 		end,},},						--史诗、博士+罐装火箭
 		{name = "gfx/player/spears/Brim_Spear.png",offset = 20,color = Color(1,0,0,1),idlename = "IdleHead2",firename = "Head3",onfirename = "IdleHead3",triggername = "Shoot",check = function(player,info) 			--硫磺火：射击时口中发射硫磺火。黑圈：射击时口中发射黑圈
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BRIMSTONE) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MAW_OF_THE_VOID) then return true end 
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BRIMSTONE) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MAW_OF_THE_VOID) then return true end
 		end,check_on_fire = function(player,ent,info)
 			local d = ent:GetData()
 			if auxi.check_delay_exists(d.Tecro_linked_brimstone) or auxi.check_delay_exists(d.Tecro_linked_maw_of_void) then return true end
@@ -79,7 +112,7 @@ local item = {
 			if d.head and d.head:IsPlaying(info.firename or "") and d.head:IsEventTriggered(info.triggername or "") then return true end
 		end,},							--硫磺火、黑圈
 		{name = "gfx/player/spears/Needle_Spear.png",offset = 15,color = Color(1,1,1,0.3),check = function(player,info) 		--剖腹产：飞针取敌
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_C_SECTION) then return true end 
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_C_SECTION) then return true end
 		end,},							--剖腹产
 		{name = "gfx/player/spears/Gun_Spear.png",offset = 20,color = Color(1,1,1,1),idlename = "IdleHead2",firename = "Head4",triggername = "Shoot",check = function(player,info) 			--博士：从炮口发射炸弹
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DR_FETUS) then return true end 		--or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GLASS_CANNON) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BROKEN_GLASS_CANNON)
@@ -88,235 +121,235 @@ local item = {
 			if d.head and d.head:IsPlaying(info.firename or "") and d.head:IsEventTriggered(info.triggername or "") then return true end
 		end,},							--博士
 		----5----
-		{name = "gfx/player/spears/Sword_Spear.png",offset = 28,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SPIRIT_SWORD) then return true end 
+		{name = "gfx/player/spears/Sword_Spear.png",offset = 28,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SPIRIT_SWORD) then return true end
 		end,},							--英灵剑
 		{name = "gfx/player/spears/Tech_X_Spear.png",offset = 18,color = Color(1,0,0,1),check = function(player,info) 		--科X：口中射击激光圈
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TECH_X) then return true end 
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TECH_X) then return true end
 		end,},							--科技X
 		{name = "gfx/player/spears/Ipec_Spear.png",offset = 15,color = Color(1,1,1,0.3),firename = "Head1",triggername = "Shoot",check = function(player,info) 		--鍚愭牴
 			local idx = player:GetData().__Index
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_IPECAC) then return true end 
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_IPECAC) then return true end
 		end,check_trigger = function(player,ent,info)
 			local d = ent:GetData()
 			if d.head and d.head:IsPlaying(info.firename or "") and d.head:IsEventTriggered(info.triggername or "") then return true end
 		end,},
-		{name = "gfx/player/spears/Knife_Spear.png",offset = 25,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_KNIFE) or (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KNIFE_PIECE_1) and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KNIFE_PIECE_2)) then return true end 
+		{name = "gfx/player/spears/Knife_Spear.png",offset = 25,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_KNIFE) or (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KNIFE_PIECE_1) and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KNIFE_PIECE_2)) then return true end
 		end,},							--妈刀、妈刀碎片
-		
+
 		----10----
-		{name = "gfx/player/spears/Tech_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TECHNOLOGY) then return true end 
+		{name = "gfx/player/spears/Tech_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TECHNOLOGY) then return true end
 		end,},							--科技
-		{name = "gfx/player/spears/Damo_Spear.png",offset = 24,color = Color(0.8,0.6,0.45,1),damo = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DAMOCLES) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DAMOCLES_PASSIVE) then return true end 
+		{name = "gfx/player/spears/Damo_Spear.png",offset = 24,color = Color(0.8,0.6,0.45,1),damo = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DAMOCLES) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DAMOCLES_PASSIVE) then return true end
 		end,},							--达摩
-		{name = "gfx/player/spears/Salva_Spear.png",offset = 12,color = Color(0.6,0.8,1,0.8),salva = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SALVATION) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_HOLY_LIGHT) then return true end 
+		{name = "gfx/player/spears/Salva_Spear.png",offset = 12,color = Color(0.6,0.8,1,0.8),salva = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SALVATION) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_HOLY_LIGHT) then return true end
 		end,},							--救济、圣光
-		{name = "gfx/player/spears/Sacrifice_Spear.png",offset = 34,color = Color(1,0,0,1),sacri = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SACRIFICIAL_DAGGER) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SACRIFICIAL_ALTAR) then return true end 
+		{name = "gfx/player/spears/Sacrifice_Spear.png",offset = 34,color = Color(1,0,0,1),sacri = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SACRIFICIAL_DAGGER) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SACRIFICIAL_ALTAR) then return true end
 		end,},							--献祭刀、煲仔饭
-		
-		{name = "gfx/player/spears/Razor_Spear.png",offset = 13,color = Color(1,0.4,0.6,1),bleed_out = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_RAZOR) then return true end 
+
+		{name = "gfx/player/spears/Razor_Spear.png",offset = 13,color = Color(1,0.4,0.6,1),bleed_out = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_RAZOR) then return true end
 		end,},							--妈妈的剃刀
-		{name = "gfx/player/spears/Star_Spear.png",offset = 17,color = Color(0.2,0.2,0.7,1),star = true,idlename = "IdleHead2",check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_STAR_OF_BETHLEHEM) then return true end 
+		{name = "gfx/player/spears/Star_Spear.png",offset = 17,color = Color(0.2,0.2,0.7,1),star = true,idlename = "IdleHead2",check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_STAR_OF_BETHLEHEM) then return true end
 		end,},							--伯利恒
-		{name = "gfx/player/spears/Lipstick_Spear.png",offset = 18,color = Color(1,0,0,1),reder = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_LIPSTICK) then return true end 
+		{name = "gfx/player/spears/Lipstick_Spear.png",offset = 18,color = Color(1,0,0,1),reder = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_LIPSTICK) then return true end
 		end,},							--口红
-		{name = "gfx/player/spears/Urn_Spear.png",offset = 22,color = Color(0,0.7,1,1),firename = "Head3",onfirename = "IdleHead3",triggername = "Shoot",bluefire = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_URN_OF_SOULS) then return true end 
+		{name = "gfx/player/spears/Urn_Spear.png",offset = 22,color = Color(0,0.7,1,1),firename = "Head3",onfirename = "IdleHead3",triggername = "Shoot",bluefire = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_URN_OF_SOULS) then return true end
 		end,check_trigger = function(player,ent,info)
 			local d = ent:GetData()
 			if d.head and d.head:IsPlaying(info.firename or "") and d.head:IsEventTriggered(info.triggername or "") then return true end
 		end,},							--魂瓶
-		
+
 		----20----
-		{name = "gfx/player/spears/Athame_Spear.png",offset = 14,color = Color(1,1,1,1),reversed_tail = true,maw_of_void = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ATHAME) then return true end 
+		{name = "gfx/player/spears/Athame_Spear.png",offset = 14,color = Color(1,1,1,1),reversed_tail = true,maw_of_void = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ATHAME) then return true end
 		end,},							--被黑
-		{name = "gfx/player/spears/Sanguine_Spear.png",offset = 14,color = Color(1,0,0,1),bond = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SANGUINE_BOND) then return true end 
+		{name = "gfx/player/spears/Sanguine_Spear.png",offset = 14,color = Color(1,0,0,1),bond = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SANGUINE_BOND) then return true end
 		end},							--血色羁绊
-		{name = "gfx/player/spears/Bloodoath_Spear.png",offset = 20,color = Color(0.5,0,0,1),blood_oath = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BLOOD_OATH) then return true end 
+		{name = "gfx/player/spears/Bloodoath_Spear.png",offset = 20,color = Color(0.5,0,0,1),blood_oath = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BLOOD_OATH) then return true end
 		end},							--血誓
-		
-		{name = "gfx/player/spears/Reap_Spear.png",offset = 4,rot_offset = -45,color = Color(0.65,0.45,0.45,1),blade_mul = 0.6,blade = true,blade_offset = 20,blade_rot_offset = 10,blade_rot = -10,blade_scale = Vector(1,3.5),reversed_tail = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DEATHS_TOUCH) then return true end 
+
+		{name = "gfx/player/spears/Reap_Spear.png",offset = 4,rot_offset = -45,color = Color(0.65,0.45,0.45,1),blade_mul = 0.6,blade = true,blade_offset = 20,blade_rot_offset = 10,blade_rot = -10,blade_scale = Vector(1,3.5),reversed_tail = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DEATHS_TOUCH) then return true end
 		end,},							--镰刀
-		{name = "gfx/player/spears/Highheel_Spear.png",offset = 10,rot_offset = -20,color = Color(1,0,0,1),blade_mul = 0.3,blade = true,blade_offset = 10,blade_rot_offset = 20,blade_scale = Vector(1,2),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_HEELS) then return true end 
+		{name = "gfx/player/spears/Highheel_Spear.png",offset = 10,rot_offset = -20,color = Color(1,0,0,1),blade_mul = 0.3,blade = true,blade_offset = 10,blade_rot_offset = 20,blade_scale = Vector(1,2),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MOMS_HEELS) then return true end
 		end},							--高跟鞋
-		{name = "gfx/player/spears/Kamikaze_Spear.png",offset = 10,color = Color(1,0,0,1),kamikaze = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KAMIKAZE) then return true end 
+		{name = "gfx/player/spears/Kamikaze_Spear.png",offset = 10,color = Color(1,0,0,1),kamikaze = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_KAMIKAZE) then return true end
 		end,},							--神风
-		{name = "gfx/player/spears/Gear_Spear.png",offset = 10,color = Color(1,1,1,1),idlename = "IdleHead6",gear = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SMB_SUPER_FAN) then return true end 
+		{name = "gfx/player/spears/Gear_Spear.png",offset = 10,color = Color(1,1,1,1),idlename = "IdleHead6",gear = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SMB_SUPER_FAN) then return true end
 		end,},							--食肉男孩
-		{name = "gfx/player/spears/Censer_Spear.png",offset = 34,color = Color(0.9,0.7,0,1),censer = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CENSER) then return true end 
+		{name = "gfx/player/spears/Censer_Spear.png",offset = 34,color = Color(0.9,0.7,0,1),censer = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CENSER) then return true end
 		end,},							--香炉
-		
-		{name = "gfx/player/spears/Prism_Spear.png",offset = 12,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GODHEAD) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ANGELIC_PRISM) or auxi.has_have_coll(player,enums.Items.Gospel) then return true end 
+
+		{name = "gfx/player/spears/Prism_Spear.png",offset = 12,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GODHEAD) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ANGELIC_PRISM) or auxi.has_have_coll(player,enums.Items.Gospel) then return true end
 		end,},		--彩色？			--神性、棱镜、福音
-		{name = "gfx/player/spears/Rock_Spear.png",offset = 20,color = Color(0,0.75,0.35,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TERRA) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TINY_PLANET) then return true end 
+		{name = "gfx/player/spears/Rock_Spear.png",offset = 20,color = Color(0,0.75,0.35,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TERRA) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TINY_PLANET) then return true end
 		end,},							--地球、小星球
-		{name = "gfx/player/spears/Guillotine_Spear.png",offset = 10,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GUILLOTINE) then return true end 
+		{name = "gfx/player/spears/Guillotine_Spear.png",offset = 10,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GUILLOTINE) then return true end
 		end,},							--断头台
 		{name = "gfx/player/spears/Vampire_Spear.png",offset = 20,color = Color(1,1,1,1),reversed_tail = true,idlename = "IdleHead5",check = function(player,info) 		--idlename = "IdleHead2",
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CHARM_VAMPIRE) then return true end 
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CHARM_VAMPIRE) then return true end
 		end,},							--吸血鬼
-		{name = "gfx/player/spears/Spear_Spear.png",offset = 24,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SPEAR_OF_DESTINY) then return true end 
+		{name = "gfx/player/spears/Spear_Spear.png",offset = 24,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SPEAR_OF_DESTINY) then return true end
 		end,},							--长枪
-		{name = "gfx/player/spears/Finger_Spear.png",offset = 20,color = Color(0.84,0.78,0.69,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_FINGER) then return true end 
+		{name = "gfx/player/spears/Finger_Spear.png",offset = 20,color = Color(0.84,0.78,0.69,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_FINGER) then return true end
 		end,},							--手指头
-		{name = "gfx/player/spears/Magnet_Spear.png",offset = 12,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MAGNETO) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_STRANGE_ATTRACTOR) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LODESTONE) then return true end 
+		{name = "gfx/player/spears/Magnet_Spear.png",offset = 12,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MAGNETO) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_STRANGE_ATTRACTOR) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LODESTONE) then return true end
 		end,},							--磁铁
 		----30----
-		{name = "gfx/player/spears/Pencil_Spear.png",offset = 15,color = Color(1,1,0.5,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LEAD_PENCIL) then return true end 
+		{name = "gfx/player/spears/Pencil_Spear.png",offset = 15,color = Color(1,1,0.5,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LEAD_PENCIL) then return true end
 		end,},							--铅笔
-		
-		
-		{name = "gfx/player/spears/Peeler_Spear.png",offset = 18,color = Color(0.5,0.5,0.5,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_POTATO_PEELER) then return true end 
+
+
+		{name = "gfx/player/spears/Peeler_Spear.png",offset = 18,color = Color(0.5,0.5,0.5,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_POTATO_PEELER) then return true end
 		end,},							--土豆削皮器
-		{name = "gfx/player/spears/Scissor_Spear.png",offset = 10,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SCISSORS) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_PINKING_SHEARS) then return true end 
+		{name = "gfx/player/spears/Scissor_Spear.png",offset = 10,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SCISSORS) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_PINKING_SHEARS) then return true end
 		end,},							--六、二充剪
-		{name = "gfx/player/spears/Darkart_Spear.png",offset = 22,color = Color(1,0,0,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DARK_ARTS) then return true end 
+		{name = "gfx/player/spears/Darkart_Spear.png",offset = 22,color = Color(1,0,0,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DARK_ARTS) then return true end
 		end,},							--黑暗艺术
-		{name = "gfx/player/spears/Ice_Spear.png",offset = 25,color = Color(0.45,0.6,0.93,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_URANUS) then return true end 
+		{name = "gfx/player/spears/Ice_Spear.png",offset = 25,color = Color(0.45,0.6,0.93,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_URANUS) then return true end
 		end,},							--天王星
-		{name = "gfx/player/spears/Sea_Spear.png",offset = 25,color = Color(0,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_NEPTUNUS) then return true end 
+		{name = "gfx/player/spears/Sea_Spear.png",offset = 25,color = Color(0,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_NEPTUNUS) then return true end
 		end,},							--海王星
-		{name = "gfx/player/spears/Key_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SHARP_KEY) then return true end 
+		{name = "gfx/player/spears/Key_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SHARP_KEY) then return true end
 		end},							--尖钥匙
-		{name = "gfx/player/spears/Big_chub_Spear.png",offset = 18,color = Color(0.8,0.8,0.7,1),idlename = "IdleHead2",check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BIG_CHUBBY) then return true end 
+		{name = "gfx/player/spears/Big_chub_Spear.png",offset = 18,color = Color(0.8,0.8,0.7,1),idlename = "IdleHead2",check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BIG_CHUBBY) then return true end
 		end,},							--大妈刀宝
-		{name = "gfx/player/spears/Small_chub_Spear.png",offset = 10,color = Color(0.8,0.8,0.7,1),idlename = "IdleHead2",check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LITTLE_CHUBBY) then return true end 
+		{name = "gfx/player/spears/Small_chub_Spear.png",offset = 10,color = Color(0.8,0.8,0.7,1),idlename = "IdleHead2",check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LITTLE_CHUBBY) then return true end
 		end,},							--小妈刀宝
-		
+
 		----40----
-		
-		{name = "gfx/player/spears/Ventriclerazor_Spear.png",offset = 20,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_VENTRICLE_RAZOR) then return true end 
+
+		{name = "gfx/player/spears/Ventriclerazor_Spear.png",offset = 20,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_VENTRICLE_RAZOR) then return true end
 		end,},							--手术刀
-		{name = "gfx/player/spears/Sumptorium_Spear.png",offset = 26,color = Color(1,0,0,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SUMPTORIUM) then return true end 
+		{name = "gfx/player/spears/Sumptorium_Spear.png",offset = 26,color = Color(1,0,0,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SUMPTORIUM) then return true end
 		end,},							--圣血吸管
-		{name = "gfx/player/spears/Unicorn_Spear.png",offset = 24,color = Color(1,1,1,0.8),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MY_LITTLE_UNICORN) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_UNICORN_STUMP) then return true end 
+		{name = "gfx/player/spears/Unicorn_Spear.png",offset = 24,color = Color(1,1,1,0.8),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_MY_LITTLE_UNICORN) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_UNICORN_STUMP) then return true end
 		end,},							--独角兽
-		{name = "gfx/player/spears/Goathead_Spear.png",offset = 20,color = Color(0.5,0.4,0.3,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GOAT_HEAD) then return true end 
+		{name = "gfx/player/spears/Goathead_Spear.png",offset = 20,color = Color(0.5,0.4,0.3,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_GOAT_HEAD) then return true end
 		end,},							--羊头
-		{name = "gfx/player/spears/Stigmata_Spear.png",offset = 20,color = Color(0.5,0.4,0.3,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_STIGMATA) then return true end 
+		{name = "gfx/player/spears/Stigmata_Spear.png",offset = 20,color = Color(0.5,0.4,0.3,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_STIGMATA) then return true end
 		end,},							--圣痕
-		{name = "gfx/player/spears/Restock_Spear.png",offset = 16,color = Color(0.4,0.8,0.8,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_RESTOCK) then return true end 
+		{name = "gfx/player/spears/Restock_Spear.png",offset = 16,color = Color(0.4,0.8,0.8,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_RESTOCK) then return true end
 		end,},							--补货
-		{name = "gfx/player/spears/Plug_Spear.png",offset = 10,color = Color(1,1,1,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SHARP_PLUG) then return true end 
+		{name = "gfx/player/spears/Plug_Spear.png",offset = 10,color = Color(1,1,1,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_SHARP_PLUG) then return true end
 		end,},							--插头
-		{name = "gfx/player/spears/Wirecoathanger_Spear.png",offset = 16,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_WIRE_COAT_HANGER) then return true end 
+		{name = "gfx/player/spears/Wirecoathanger_Spear.png",offset = 16,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_WIRE_COAT_HANGER) then return true end
 		end,},							--鸭架
-		{name = "gfx/player/spears/Betrayal_Spear.png",offset = 16,color = Color(1,0,0,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BETRAYAL) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BACKSTABBER) then return true end 
+		{name = "gfx/player/spears/Betrayal_Spear.png",offset = 16,color = Color(1,0,0,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BETRAYAL) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BACKSTABBER) then return true end
 		end,},							--背叛、背刺
-		{name = "gfx/player/spears/Cupid_Spear.png",offset = 16,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CUPIDS_ARROW) then return true end 
+		{name = "gfx/player/spears/Cupid_Spear.png",offset = 16,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CUPIDS_ARROW) then return true end
 		end,},							--丘比特
-		{name = "gfx/player/spears/Ithurts_Spear.png",offset = 2,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_IT_HURTS) then return true end 
+		{name = "gfx/player/spears/Ithurts_Spear.png",offset = 2,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_IT_HURTS) then return true end
 		end},							--缝衣针
-		{name = "gfx/player/spears/Nail_Spear.png",offset = 18,color = Color(0.7,0.7,0.7,1),check = function(player,info) 
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_THE_NAIL) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_8_INCH_NAILS) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TOOTH_AND_NAIL) then return true end 
+		{name = "gfx/player/spears/Nail_Spear.png",offset = 18,color = Color(0.7,0.7,0.7,1),check = function(player,info)
+			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_THE_NAIL) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_8_INCH_NAILS) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_TOOTH_AND_NAIL) then return true end
 		end,},							--钉子、八寸钉
-		
-		{name = "gfx/player/spears/Angel_Spear.png",offset = 18,color = Color(1,1,1,1),check = function(player,info) 
-			if player:HasPlayerForm(PlayerForm.PLAYERFORM_ANGEL) then return true end 
+
+		{name = "gfx/player/spears/Angel_Spear.png",offset = 18,color = Color(1,1,1,1),check = function(player,info)
+			if player:HasPlayerForm(PlayerForm.PLAYERFORM_ANGEL) then return true end
 		end,},							--天使套
-		{name = "gfx/player/spears/Devil_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info) 
-			if player:HasPlayerForm(PlayerForm.PLAYERFORM_EVIL_ANGEL) then return true end 
+		{name = "gfx/player/spears/Devil_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info)
+			if player:HasPlayerForm(PlayerForm.PLAYERFORM_EVIL_ANGEL) then return true end
 		end,},							--恶魔套
-		{name = "gfx/player/spears/Succubus_Spear.png",offset = 17,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if player:HasPlayerForm(PlayerForm.PLAYERFORM_BABY) then return true end 
+		{name = "gfx/player/spears/Succubus_Spear.png",offset = 17,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if player:HasPlayerForm(PlayerForm.PLAYERFORM_BABY) then return true end
 		end,},							--宝宝套
-		{name = "gfx/player/spears/Bone_Spear.png",offset = 30,color = Color(0.6,0,0,1),check = function(player,info) 
-			if player:GetCollectibleNum(453) + player:GetCollectibleNum(544) + player:GetCollectibleNum(549) + player:GetCollectibleNum(541) + player:GetCollectibleNum(542) + player:GetCollectibleNum(548) + player:GetCollectibleNum(683) >= 2 then return true end 
+		{name = "gfx/player/spears/Bone_Spear.png",offset = 30,color = Color(0.6,0,0,1),check = function(player,info)
+			if player:GetCollectibleNum(453) + player:GetCollectibleNum(544) + player:GetCollectibleNum(549) + player:GetCollectibleNum(541) + player:GetCollectibleNum(542) + player:GetCollectibleNum(548) + player:GetCollectibleNum(683) >= 2 then return true end
 		end,},							--骨类
-		{name = "gfx/player/spears/Eye_Spear.png",offset = 10,color = Color(1,0,0,1),check = function(player,info) 
-			if player:GetCollectibleNum(558) + player:GetCollectibleNum(529) * 2 + player:GetCollectibleNum(261) + player:GetCollectibleNum(410) + player:GetCollectibleNum(462) >= 2 then return true end 
+		{name = "gfx/player/spears/Eye_Spear.png",offset = 10,color = Color(1,0,0,1),check = function(player,info)
+			if player:GetCollectibleNum(558) + player:GetCollectibleNum(529) * 2 + player:GetCollectibleNum(261) + player:GetCollectibleNum(410) + player:GetCollectibleNum(462) >= 2 then return true end
 		end,},							--眼睛
-		
-		{name = "gfx/player/spears/Mega_satan_Spear.png",offset = 15,color = Color(0.7,0.7,0.65,1),check = function(player,info) 
-			if save.elses.Tecro_Satan_killed then return true end 
+
+		{name = "gfx/player/spears/Mega_satan_Spear.png",offset = 15,color = Color(0.7,0.7,0.65,1),check = function(player,info)
+			if save.elses.Tecro_Satan_killed then return true end
 		end,},							--击杀大撒旦
-		{name = "gfx/player/spears/Lamb_Spear.png",offset = 20,color = Color(0.7,0.7,0.65,1),lamb = true,check = function(player,info) 
-			if save.elses.Tecro_Lamb_killed then return true end 
+		{name = "gfx/player/spears/Lamb_Spear.png",offset = 20,color = Color(0.7,0.7,0.65,1),lamb = true,check = function(player,info)
+			if save.elses.Tecro_Lamb_killed then return true end
 		end,check_id = function(player,info,ent,id)
 			if player:HasTrinket(TrinketType.TRINKET_CURVED_HORN) then return id - 1000 end
 		end,},							--击杀羊总
-		{name = "gfx/player/spears/Siren_Spear.png",offset = 20,color = Color(0.7,0.7,0.7,1),charm = true,check = function(player,info) 
-			if save.elses.Tecro_Siren_killed then return true end 
+		{name = "gfx/player/spears/Siren_Spear.png",offset = 20,color = Color(0.7,0.7,0.7,1),charm = true,check = function(player,info)
+			if save.elses.Tecro_Siren_killed then return true end
 		end,check_id = function(player,info,ent,id)
 			if player:HasCollectible(CollectibleType.COLLECTIBLE_VENUS) then return id - 1000 end
 		end,},							--击杀塞壬
-		{name = "gfx/player/spears/Darkone_Spear.png",offset = 20,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if save.elses.Tecro_Darkone_killed then return true end 
+		{name = "gfx/player/spears/Darkone_Spear.png",offset = 20,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if save.elses.Tecro_Darkone_killed then return true end
 		end,},							--击杀小恶魔
-		{name = "gfx/player/spears/Whip_Spear.png",offset = 30,color = Color(0.3,0.3,0.2,1),check = function(player,info) 
-			if save.elses.Tecro_Whip_killed then return true end 
+		{name = "gfx/player/spears/Whip_Spear.png",offset = 30,color = Color(0.3,0.3,0.2,1),check = function(player,info)
+			if save.elses.Tecro_Whip_killed then return true end
 		end,},							--击杀天灾
-		{name = "gfx/player/spears/Horn_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info) 
-			if save.elses.Tecro_Horn_killed then return true end 
+		{name = "gfx/player/spears/Horn_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info)
+			if save.elses.Tecro_Horn_killed then return true end
 		end,},							--击杀角恶魔
-		{name = "gfx/player/spears/Krampus_Spear.png",offset = 10,color = Color(1,1,1,1),reversed_tail = true,idlename = "IdleHead7",krampus = true,check = function(player,info) 
-			if save.elses.Tecro_Krampus_killed then return true end 
+		{name = "gfx/player/spears/Krampus_Spear.png",offset = 10,color = Color(1,1,1,1),reversed_tail = true,idlename = "IdleHead7",krampus = true,check = function(player,info)
+			if save.elses.Tecro_Krampus_killed then return true end
 		end,check_id = function(player,info,ent,id)
 			if player:HasCollectible(CollectibleType.COLLECTIBLE_HEAD_OF_KRAMPUS) then return id - 1000 end
 		end,},							--击杀坎普斯
-		{name = "gfx/player/spears/Shell_Spear.png",offset = 20,color = Color(0.7,0.7,0.7,1),idlename = "IdleHead2",check = function(player,info) 
-			if save.elses.Tecro_Shell_killed then return true end 
+		{name = "gfx/player/spears/Shell_Spear.png",offset = 20,color = Color(0.7,0.7,0.7,1),idlename = "IdleHead2",check = function(player,info)
+			if save.elses.Tecro_Shell_killed then return true end
 		end,},							--击杀灰虫
 		{name = "gfx/player/spears/Tufftwin_Spear.png",offset = 20,color = Color(1,0,0,1),check = function(player,info) 	--idlename = "IdleHead2",
-			if save.elses.Tecro_Tufftwin_killed then return true end 
+			if save.elses.Tecro_Tufftwin_killed then return true end
 		end,},							--击杀石虫
-		{name = "gfx/player/spears/Hollow_Spear.png",offset = 20,color = Color(0.7,0.7,0.7,1),idlename = "IdleHead2",check = function(player,info) 
-			if save.elses.Tecro_Hollow_killed then return true end 
+		{name = "gfx/player/spears/Hollow_Spear.png",offset = 20,color = Color(0.7,0.7,0.7,1),idlename = "IdleHead2",check = function(player,info)
+			if save.elses.Tecro_Hollow_killed then return true end
 		end,},							--击杀空心虫
 		----50----
-		{name = "gfx/player/spears/Larry_Spear.png",offset = 20,color = Color(0.9,0.8,0.8,1),idlename = "IdleHead2",check = function(player,info) 
-			if save.elses.Tecro_Larry_killed then return true end 
+		{name = "gfx/player/spears/Larry_Spear.png",offset = 20,color = Color(0.9,0.8,0.8,1),idlename = "IdleHead2",check = function(player,info)
+			if save.elses.Tecro_Larry_killed then return true end
 		end,},							--击杀贪吃蛇
-		
-		{name = "gfx/player/spears/Arrow_Spear.png",offset = 27,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info) 
-			if player.TearFlags & (TearFlags.TEAR_PIERCING | TearFlags.TEAR_SPECTRAL) == (TearFlags.TEAR_PIERCING | TearFlags.TEAR_SPECTRAL) then return true end 
+
+		{name = "gfx/player/spears/Arrow_Spear.png",offset = 27,color = Color(1,1,1,1),reversed_tail = true,check = function(player,info)
+			if player.TearFlags & (TearFlags.TEAR_PIERCING | TearFlags.TEAR_SPECTRAL) == (TearFlags.TEAR_PIERCING | TearFlags.TEAR_SPECTRAL) then return true end
 		end,},							--双穿透
-		{name = "gfx/player/spears/Long_Spear.png",offset = 45,color = Color(1,1,1,1),check = function(player,info) 
+		{name = "gfx/player/spears/Long_Spear.png",offset = 45,color = Color(1,1,1,1),check = function(player,info)
 			if get_impale_rate(player) >= 3 then return true end
 		end,},							--锋利度>=3
-		
+
 		{name = "gfx/player/spears/Normal_Spear2.png",offset = 18,color = Color(1,1,1,1),check = function(player,info,ent) if ent:GetData()[player_Tecrorun.own_key.."spear"] then return true end end,
 		},
 		{name = "gfx/player/spears/Normal_Spear.png",offset = 18,color = Color(1,1,1,1),
@@ -324,7 +357,7 @@ local item = {
 		{name = "gfx/player/spears/Sharp_Spear.png",offset = 0,color = Color(0.5,0.5,0.5,1),idlename = "IdleHead4",reversed_tail = true,check = function(player,info,ent)
 			if ent.Variant == enums.Entities.Tecro_Needle then return true end
 		end,},								--剖腹产附带
-		
+
 		--53--
 	},
 	Special_Des = {
@@ -342,7 +375,7 @@ local item = {
 				[CollectibleType.COLLECTIBLE_SACRIFICIAL_DAGGER] = {Name = "祭奠之利齿",Description = "锋利而喋血！",},
 				[CollectibleType.COLLECTIBLE_ATHAME] = {Name = "祭奠之利刃",Description = "锋利而嗜血！",},
 				[CollectibleType.COLLECTIBLE_BLOOD_OATH] = {Name = "刃之誓言",Description = "锋利而可怖！",},
-				
+
 				[CollectibleType.COLLECTIBLE_ANTI_GRAVITY] = {Name = nil,Description = "枪尖在空中漂浮",},
 				[CollectibleType.COLLECTIBLE_CHOCOLATE_MILK] = {Name = nil,Description = "枪尖变得自由",},
 				[CollectibleType.COLLECTIBLE_CURSED_EYE] = {Name = nil,Description = "枪尖的诅咒",},
@@ -352,7 +385,7 @@ local item = {
 				[CollectibleType.COLLECTIBLE_IPECAC] = {Name = nil,Description = "枪尖带来爆破",},
 				[CollectibleType.COLLECTIBLE_EYE_OF_BELIAL] = {Name = nil,Description = "枪尖如有恶魔",},
 				[CollectibleType.COLLECTIBLE_THE_WIZ] = {Name = nil,Description = "出枪决不能偏！",},
-				
+
 				[CollectibleType.COLLECTIBLE_TECHNOLOGY_ZERO] = {Name = nil,Description = "这枪导电！",},
 				[CollectibleType.COLLECTIBLE_JACOBS_LADDER] = {Name = nil,Description = "这枪导电？",},
 				[CollectibleType.COLLECTIBLE_TECHNOLOGY_2] = {Name = nil,Description = "似乎可以用来改造枪尖？",},
@@ -360,10 +393,10 @@ local item = {
 				[CollectibleType.COLLECTIBLE_WHITE_PONY] = {Name = nil,Description = "英风锐气敌胆寒",},
 				[CollectibleType.COLLECTIBLE_MOMS_RAZOR] = {Name = "锐利的剃刀",Description = "刺破它们的血管",},
 				[CollectibleType.COLLECTIBLE_KAMIKAZE] = {Name = nil,Description = "有趣...",},
-				
+
 				[CollectibleType.COLLECTIBLE_BIG_CHUBBY] = {Name = nil,Description = "你也喜欢尖锐么？",},
 				[CollectibleType.COLLECTIBLE_LITTLE_CHUBBY] = {Name = nil,Description = "你也喜欢尖锐吧！",},
-				
+
 				[CollectibleType.COLLECTIBLE_CUPIDS_ARROW] = {Name = nil,Description = "箭矢犹锋",},
 				[CollectibleType.COLLECTIBLE_SANGUINE_BOND] = {Name = nil,Description = "定要撕开一道裂口",},
 				[CollectibleType.COLLECTIBLE_DARK_ARTS] = {Name = "暗锋寻踪",Description = "黑夜与枪共舞",},
@@ -379,7 +412,7 @@ local item = {
 				[CollectibleType.COLLECTIBLE_SCISSORS] = {Name = nil,Description = "该怎么在另一端操控呢？",},
 				[CollectibleType.COLLECTIBLE_PINKING_SHEARS] = {Name = nil,Description = "剪刀可以是枪吗？",},
 				[CollectibleType.COLLECTIBLE_MOMS_HEELS] = {Name = "足刃",Description = "讲真，我喜欢这个",},
-				
+
 				[CollectibleType.COLLECTIBLE_LEAD_PENCIL] = {Name = nil,Description = "尖而不利",},
 				[CollectibleType.COLLECTIBLE_VENTRICLE_RAZOR] = {Name = nil,Description = "只能用来划开肉壁",},
 				[CollectibleType.COLLECTIBLE_TOOTH_AND_NAIL] = {Name = nil,Description = "理论上，这也是刺",},
@@ -391,20 +424,20 @@ local item = {
 				[CollectibleType.COLLECTIBLE_IV_BAG] = {Name = nil,Description = "锋利，但在难以镶上枪尖",},
 				[CollectibleType.COLLECTIBLE_BLOOD_RIGHTS] = {Name = nil,Description = "锋利，但刃口只能对着自己",},
 				[CollectibleType.COLLECTIBLE_GOLDEN_RAZOR] = {Name = nil,Description = "黄金枪？开什么玩笑！",},
-				
+
 				[CollectibleType.COLLECTIBLE_TERRA] = {Name = "石开利刃",Description = "唯锐可以破坚",},
 				[CollectibleType.COLLECTIBLE_URANUS] = {Name = "冰行利刃",Description = "寒意刺骨",},
 				[CollectibleType.COLLECTIBLE_MARS] = {Name = nil,Description = "冲锋枪？",},
 				[CollectibleType.COLLECTIBLE_NEPTUNUS] = {Name = nil,Description = "半自动枪？",},
 				[CollectibleType.COLLECTIBLE_VENUS] = {Name = nil,Description = "热流枪？",},
 				[CollectibleType.COLLECTIBLE_MY_REFLECTION] = {Name = nil,Description = "回马枪？",},
-				
+
 				[CollectibleType.COLLECTIBLE_LOKIS_HORNS] = {Name = nil,Description = "以防腹背受敌",},
 				[CollectibleType.COLLECTIBLE_INNER_EYE] = {Name = nil,Description = "落枪如雷",},
 				[CollectibleType.COLLECTIBLE_MUTANT_SPIDER] = {Name = nil,Description = "飞枪如瀑",},
 				[CollectibleType.COLLECTIBLE_20_20] = {Name = nil,Description = "枪底藏锋",},
 				[CollectibleType.COLLECTIBLE_SPOON_BENDER] = {Name = nil,Description = "宁折不弯",},
-				
+
 				[CollectibleType.COLLECTIBLE_WIRE_COAT_HANGER] = {Name = "弯刃鸭架",Description = "掰直顶部的话还能勉强用用",},
 				[CollectibleType.COLLECTIBLE_ANGELIC_PRISM] = {Name = nil,Description = "易碎的尖角",},
 				[CollectibleType.COLLECTIBLE_GOAT_HEAD] = {Name = nil,Description = "这玩意也能穿在枪头诶！",},
@@ -427,7 +460,7 @@ local item = {
 				[CollectibleType.COLLECTIBLE_BACKSTABBER] = {Name = nil,Description = "暗杀这种事还是交给别人吧",},
 				[CollectibleType.COLLECTIBLE_FINGER] = {Name = "手指枪",Description = "指枪 · 六王枪！",},
 				[CollectibleType.COLLECTIBLE_LUDOVICO_TECHNIQUE] = {Name = "御枪飞行",Description = "飞枪术其实并不怎么好用",},
-				
+
 				[CollectibleType.COLLECTIBLE_MONSTROS_LUNG] = {Name = nil,Description = "隐枪于万向",},
 				[CollectibleType.COLLECTIBLE_TINY_PLANET] = {Name = "星落",Description = "枪如陀螺",},
 				[CollectibleType.COLLECTIBLE_SOY_MILK] = {Name = nil,Description = "枪疾似电",},
@@ -441,7 +474,7 @@ local item = {
 				[enums.Items.Illumination] = {Name = "幻灭",Description = "不...",},
 				[enums.Items.Book_of_6_sin] = {Name = "论嫉妒",Description = "痛在我心",},
 				[enums.Items.The_Suture_Needle] = {Name = "缝合恶魔",Description = "她比我还痛吗？",},
-				
+
 				[CollectibleType.COLLECTIBLE_KNIFE_PIECE_1] = {Name = nil,Description = "锋？",},
 				[CollectibleType.COLLECTIBLE_KNIFE_PIECE_2] = {Name = nil,Description = "利！",},
 			},
@@ -477,7 +510,7 @@ local item = {
 				[CollectibleType.COLLECTIBLE_SACRIFICIAL_DAGGER] = {Name = nil,Description = "Sharp and bleeding!",},
 				[CollectibleType.COLLECTIBLE_ATHAME] = {Name = nil,Description = "Sharp and Bloodthirsty!",},
 				[CollectibleType.COLLECTIBLE_BLOOD_OATH] = {Name = "Blade oath",Description = "Sharp and Terrifying!",},
-				
+
 				[CollectibleType.COLLECTIBLE_ANTI_GRAVITY] = {Name = nil,Description = "Floating in the air?",},
 				[CollectibleType.COLLECTIBLE_CHOCOLATE_MILK] = {Name = nil,Description = "I'm in freedom",},
 				[CollectibleType.COLLECTIBLE_CURSED_EYE] = {Name = nil,Description = "I'm cursed",},
@@ -487,7 +520,7 @@ local item = {
 				[CollectibleType.COLLECTIBLE_IPECAC] = {Name = nil,Description = "I bring blast",},
 				[CollectibleType.COLLECTIBLE_EYE_OF_BELIAL] = {Name = nil,Description = "I board belial",},
 				[CollectibleType.COLLECTIBLE_THE_WIZ] = {Name = nil,Description = "No place for deviation",},
-				
+
 				[CollectibleType.COLLECTIBLE_TECHNOLOGY_ZERO] = {Name = nil,Description = "I conduct electricity!",},
 				[CollectibleType.COLLECTIBLE_JACOBS_LADDER] = {Name = nil,Description = "I conduct electricity?",},
 				[CollectibleType.COLLECTIBLE_TECHNOLOGY_2] = {Name = nil,Description = "Seems to be useful",},
@@ -495,10 +528,10 @@ local item = {
 				--[CollectibleType.COLLECTIBLE_WHITE_PONY] = {Name = nil,Description = "横枪跃马，威风凛凛",},
 				[CollectibleType.COLLECTIBLE_MOMS_RAZOR] = {Name = "Sharp razor",Description = "Pierce their vessels",},
 				[CollectibleType.COLLECTIBLE_KAMIKAZE] = {Name = nil,Description = "Funny...",},
-				
+
 				[CollectibleType.COLLECTIBLE_BIG_CHUBBY] = {Name = nil,Description = "You want to be pierced？",},
 				[CollectibleType.COLLECTIBLE_LITTLE_CHUBBY] = {Name = nil,Description = "You want to be pierced！",},
-				
+
 				[CollectibleType.COLLECTIBLE_CUPIDS_ARROW] = {Name = nil,Description = "As sharp as an arrow",},
 				[CollectibleType.COLLECTIBLE_SANGUINE_BOND] = {Name = nil,Description = "to Tear a Crack",},
 				--[CollectibleType.COLLECTIBLE_DARK_ARTS] = {Name = nil,Description = "黑夜与枪共舞",},
@@ -514,7 +547,7 @@ local item = {
 				--[CollectibleType.COLLECTIBLE_SCISSORS] = {Name = nil,Description = "该怎么在另一端操控呢？",},
 				--[CollectibleType.COLLECTIBLE_PINKING_SHEARS] = {Name = nil,Description = "剪刀可以是枪吗？",},
 				[CollectibleType.COLLECTIBLE_MOMS_HEELS] = {Name = "Foot blade",Description = "I love it",},
-				
+
 				--[CollectibleType.COLLECTIBLE_LEAD_PENCIL] = {Name = nil,Description = "尖而不利",},
 				[CollectibleType.COLLECTIBLE_VENTRICLE_RAZOR] = {Name = nil,Description = "Only be used to cut the meat",},
 				[CollectibleType.COLLECTIBLE_TOOTH_AND_NAIL] = {Name = nil,Description = "That's sharp,theoretically",},
@@ -526,20 +559,20 @@ local item = {
 				[CollectibleType.COLLECTIBLE_IV_BAG] = {Name = nil,Description = "Sharp but not ideal",},
 				[CollectibleType.COLLECTIBLE_BLOOD_RIGHTS] = {Name = nil,Description = "It hurts me",},
 				[CollectibleType.COLLECTIBLE_GOLDEN_RAZOR] = {Name = nil,Description = "Golden?WTF!",},
-				
+
 				--[CollectibleType.COLLECTIBLE_TERRA] = {Name = nil,Description = "唯锐可以破坚",},		--怎么翻译呢？
 				--[CollectibleType.COLLECTIBLE_URANUS] = {Name = nil,Description = "寒意刺骨",},
 				--[CollectibleType.COLLECTIBLE_MARS] = {Name = nil,Description = "冲锋枪？",},
 				--[CollectibleType.COLLECTIBLE_NEPTUNUS] = {Name = nil,Description = "半自动枪？",},
 				--[CollectibleType.COLLECTIBLE_VENUS] = {Name = nil,Description = "热流枪？",},
 				--[CollectibleType.COLLECTIBLE_MY_REFLECTION] = {Name = nil,Description = "回马枪？",},
-				
+
 				--[CollectibleType.COLLECTIBLE_LOKIS_HORNS] = {Name = nil,Description = "以防腹背受敌",},
 				--[CollectibleType.COLLECTIBLE_INNER_EYE] = {Name = nil,Description = "落枪如雷",},
 				--[CollectibleType.COLLECTIBLE_MUTANT_SPIDER] = {Name = nil,Description = "飞枪如瀑",},
 				--[CollectibleType.COLLECTIBLE_20_20] = {Name = nil,Description = "枪底藏锋",},
 				[CollectibleType.COLLECTIBLE_SPOON_BENDER] = {Name = nil,Description = "I would rather break than bend",},
-				
+
 				[CollectibleType.COLLECTIBLE_WIRE_COAT_HANGER] = {Name = nil,Description = "I have to straighten the top",},
 				[CollectibleType.COLLECTIBLE_ANGELIC_PRISM] = {Name = nil,Description = "Fragile sharp corner",},
 				[CollectibleType.COLLECTIBLE_GOAT_HEAD] = {Name = nil,Description = "It can also be pierced on!",},
@@ -562,7 +595,7 @@ local item = {
 				--[CollectibleType.COLLECTIBLE_BACKSTABBER] = {Name = nil,Description = "暗杀这种事还是交给别人吧",},
 				[CollectibleType.COLLECTIBLE_FINGER] = {Name = "Finger gun",Description = nil,},
 				--[CollectibleType.COLLECTIBLE_LUDOVICO_TECHNIQUE] = {Name = "御枪飞行",Description = "飞枪术其实并不怎么好用",},
-				
+
 				[CollectibleType.COLLECTIBLE_MONSTROS_LUNG] = {Name = nil,Description = "Multidirections",},
 				[CollectibleType.COLLECTIBLE_TINY_PLANET] = {Name = "Falling Planet",Description = "Like a whipping top",},
 				[CollectibleType.COLLECTIBLE_SOY_MILK] = {Name = nil,Description = "As quick as the lightning",},
@@ -573,7 +606,7 @@ local item = {
 				[enums.Items.Devil_s_Heart] = {Name = "Keen's Heart",Description = "That's a nice nightmare..",},
 				[enums.Items.Pendulum_Star] = {Name = nil,Description = "It swings too high",},
 				[enums.Items.Squiresaga] = {Name = "THE SWORD!",Description = "...",},
-				
+
 				[CollectibleType.COLLECTIBLE_KNIFE_PIECE_1] = {Name = nil,Description = "SHA?",},
 				[CollectibleType.COLLECTIBLE_KNIFE_PIECE_2] = {Name = nil,Description = "SHARP!",},
 			},
@@ -728,26 +761,17 @@ local function stop_time(ent,player)
 	if ent == nil then return end
 	local s = ent:GetSprite()
 	for u,v in pairs(item.eventlist) do
-		if s:IsEventTriggered(v) ~= false then 
+		if s:IsEventTriggered(v) ~= false then
 			s:Update()
 		end
 	end
 	local d = ent:GetData()
-	if d.Tecro_flag_freeze_succ == nil then
-		d.Tecro_flag_freeze_succ = Attribute_holder.try_hold_attribute(ent,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-	end
-	if d.Tecro_flag_no_sprite_update_succ == nil then
-		d.Tecro_flag_no_sprite_update_succ = Attribute_holder.try_hold_attribute(ent,"EntityFlag_FLAG_NO_SPRITE_UPDATE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-	end
-	if d.Tecro_flag_velocity_succ == nil then
-		d.Tecro_flag_velocity_succ = Attribute_holder.try_hold_attribute(ent,"Velocity",Vector(0,0),{tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-	end
-	if d.Tecro_flag_positionoffset_succ == nil then
-		d.Tecro_flag_positionoffset_succ = Attribute_holder.try_hold_attribute(ent,"PositionOffset",Vector(0,0),{tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-	end
-	if d.Tecro_flag_gridcollision_succ == nil then
-		d.Tecro_flag_gridcollision_succ = Attribute_holder.try_hold_attribute(ent,"GridCollisionClass",GridCollisionClass.COLLISION_NONE)
-	end
+	local vel_cmp = {tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,}
+	Attribute_holder.ensure_hold_token(ent, d, "Tecro_flag_freeze_succ", "EntityFlag_FLAG_FREEZE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+	Attribute_holder.ensure_hold_token(ent, d, "Tecro_flag_no_sprite_update_succ", "EntityFlag_FLAG_NO_SPRITE_UPDATE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
+	Attribute_holder.ensure_hold_token(ent, d, "Tecro_flag_velocity_succ", "Velocity", Vector(0,0), vel_cmp)
+	Attribute_holder.ensure_hold_token(ent, d, "Tecro_flag_positionoffset_succ", "PositionOffset", Vector(0,0), vel_cmp)
+	Attribute_holder.ensure_hold_token(ent, d, "Tecro_flag_gridcollision_succ", "GridCollisionClass", GridCollisionClass.COLLISION_NONE)
 	d.time_stopped = true
 	d.Tecro_spear_hold_time_Charge_Bar_buff = 0
 	local extra_time = auxi.get_sharp_time(player)
@@ -762,25 +786,19 @@ end
 local function time_free(ent)
 	if ent == nil then return end
 	local d = ent:GetData()
-	if d.Tecro_flag_freeze_succ then
-		local succ = Attribute_holder.try_rewind_attribute(ent,"EntityFlag_FLAG_FREEZE",d.Tecro_flag_freeze_succ,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-		d.Tecro_flag_freeze_succ = nil
-	end
-	if d.Tecro_flag_no_sprite_update_succ then
-		Attribute_holder.try_rewind_attribute(ent,"EntityFlag_FLAG_NO_SPRITE_UPDATE",d.Tecro_flag_no_sprite_update_succ,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-		d.Tecro_flag_no_sprite_update_succ = nil
-	end
-	if d.Tecro_flag_velocity_succ then
-		Attribute_holder.try_rewind_attribute(ent,"Velocity",d.Tecro_flag_velocity_succ,{tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-		d.Tecro_flag_velocity_succ = nil
-	end
-	if d.Tecro_flag_positionoffset_succ then
-		Attribute_holder.try_rewind_attribute(ent,"PositionOffset",d.Tecro_flag_positionoffset_succ,{tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-		d.Tecro_flag_positionoffset_succ = nil
-	end
-	if d.Tecro_flag_gridcollision_succ then
-		Attribute_holder.try_rewind_attribute(ent,"GridCollisionClass",d.Tecro_flag_gridcollision_succ)
-		d.Tecro_flag_gridcollision_succ = nil
+	local vel_cmp = {tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,}
+	local failed = false
+	if not Attribute_holder.rewind_hold_token(ent, d, "Tecro_flag_freeze_succ", "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, "Tecro_flag_no_sprite_update_succ", "EntityFlag_FLAG_NO_SPRITE_UPDATE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE)) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, "Tecro_flag_velocity_succ", "Velocity", vel_cmp) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, "Tecro_flag_positionoffset_succ", "PositionOffset", vel_cmp) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, "Tecro_flag_gridcollision_succ", "GridCollisionClass") then failed = true end
+	if failed then
+		Attribute_holder.force_clear_freeze_entity(ent, {
+			zero_velocity = true,
+			zero_position_offset = true,
+			grid_collision = GridCollisionClass.COLLISION_WALLS,
+		})
 	end
 	Attribute_holder.try_hold_and_rewind_attribute(ent,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE,3)
 	d.time_stopped = nil
@@ -821,7 +839,7 @@ local function reload_needle(ent,player,tp)
 	local idlename = info.idlename or "IdleHead"
 	s:Play(idlename)
 	if d.tail then
-		local s2 = d.tail:GetSprite() 
+		local s2 = d.tail:GetSprite()
 		if info.reversed_tail then
 			s2:Load("gfx/recolored_trail.anm2",true)
 			s2:Play("Idle",true)
@@ -867,12 +885,12 @@ local function reload_spear(ent,player,params)
 	if d.record_spear_type ~= d.spear_type then
 		d.record_spear_type = d.spear_type
 		local info = item.sprite_loader[(d.spear_type or 1)] or item.sprite_loader[1]
-		if d.head == nil then 
-			d.head = Sprite() 
+		if d.head == nil then
+			d.head = Sprite()
 			d.head:Load("gfx/player/tecro/_Tecro_Spear.anm2",true)
 		end
 		local head = d.head
-		for i = 1,2 do 
+		for i = 1,2 do
 			local name = info.name
 			local t_name = name
 			if info.special_reloader then if type(info.special_reloader) == "table" and info.special_reloader[i] then t_name = info.special_reloader[i] end else t_name = info.special_reloader end
@@ -881,15 +899,15 @@ local function reload_spear(ent,player,params)
 			local sprite_path = get_spear_sprite_path(name)
 			s:ReplaceSpritesheet(i,sprite_path)
 			head:ReplaceSpritesheet(i,sprite_path)
-		end	
+		end
 		s:LoadGraphics()
 		head:LoadGraphics()
-		
+
 		local idlename = info.idlename or "IdleHead"
 		head:Play(idlename,true)
-		
+
 		if d.tail then
-			local s2 = d.tail:GetSprite() 
+			local s2 = d.tail:GetSprite()
 			if info.reversed_tail then
 				s2:Load("gfx/recolored_trail.anm2",true)
 				s2:Play("Idle",true)
@@ -926,7 +944,7 @@ local function check_mouse_work(player,ndir,qdir,center)
 		end
 		local dir = mspos - (center or Vector(0,0))
 		ret = ret + Vector(auxi.get_correct_angle_id(dir:GetAngleDegrees() - qdir:GetAngleDegrees()),0)
-		if Input.IsMouseBtnPressed(0) then 
+		if Input.IsMouseBtnPressed(0) then
 			ret = ret + Vector(0,-1)
 		elseif Input.IsMouseBtnPressed(1) then
 			ret = ret + Vector(0,1)
@@ -938,11 +956,15 @@ end
 --l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") local tearHitParams = Game():GetPlayer(0):GetTearHitParams(WeaponType.WEAPON_BRIMSTONE,1,0) print(tearHitParams.TearFlags) auxi.PrintColor(tearHitParams.TearColor) print(tearHitParams.TearDamage.." "..tearHitParams.TearScale)
 local function add_addition_to_spear(ent,player,params)
 	params = params or {}
+	local d = ent:GetData()
+	-- presentation_only: never open Attack / linked tear-bomb-laser-knife / birthright extras.
+	if params.presentation_only or d.virtual_presentation_only then
+		return
+	end
 	local birth = params.birth
 	local tearHitParams = params.tearHitParams or player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
 	local tearflag = tearHitParams.TearFlags | (params.TearFlags or BitSet128(0,0))
 	local tearcolor = auxi.AddColor(tearHitParams.TearColor,(params.TearColor or tearHitParams.TearColor),0.7,0.3)
-	local d = ent:GetData()
 	local d2 = player:GetData()
 	local idx = d2.__Index
 	local list = d2.Tecro_list or params.list or {}
@@ -951,15 +973,33 @@ local function add_addition_to_spear(ent,player,params)
 	local dir = params.dir or d2.now_dir or Vector(0,1)
 	local charge = params.charge or (d2.Tecro_spear_Charge_Bar_buff or 0)/(d2.Tecro_spear_Charge_Bar_buff_mx or 1)
 	local weap = auxi.get_weapon(player)
+	-- M6.1: one thrust = one persistent Attack. Retract only Seals; never open a second round.
+	-- Do not Bind the spear entity: it persists while idle and would keep the Attack alive forever.
+	CharRound.seal_persistent_attack(d.tecro_round_attack)
+	local snap = nil
+	if not params.advanced_familiar_copy then
+		local d2p = player:GetData()
+		local list_snap = d2p.Tecro_list or params.list or {}
+		snap = item.build_aeon_spear_snapshot(player, dir, charge, d.spear_type, list_snap)
+	end
+	d.tecro_round_attack = CharRound.open_persistent_player_attack(player, "tear", {
+		reason = "tecro_spear_addition",
+		position = ent.Position,
+		direction = dir,
+		emitter = ent,
+		character_snapshot = snap,
+	})
+	-- Snapshot ownership stays in Tecro; CharRound mounts it before POST_ATTACK_ONCE.
 	if weap == 2 or (list.brimstone or 0) > 0 then			--硫磺火
 		local both = (weap == 2 and (list.brimstone or 0) > 0)
 		if (list.soy or 0) > 0 or (list.soy2 or 0) > 0 then
-			local q 
-			if both then
-				q = player:FireBrimstone(dir,nil,1 * charge)
-			else
-				q = player:FireBrimstone(dir,nil,0.5 * charge)
-			end
+			local q
+			CharRound.with_untracked("tecro_soy_brim", function()
+				local dmg = both and (1 * charge) or (0.5 * charge)
+				q = attack_holder.FireBrimstone(player, dir, attack_holder.CopyFireContext("tecro_soy_brim", {
+					damage_multiplier = dmg,
+				}) or { mode = "untracked", reason = "tecro_soy_brim", damage_multiplier = dmg })
+			end)
 			q.PositionOffset = Vector(0,0)
 			q.Parent = ent
 			q.Position = ent.Position
@@ -973,12 +1013,10 @@ local function add_addition_to_spear(ent,player,params)
 			q:SetTimeout(-1)
 		else
 			d.Tecro_linked_brimstone = function(ent,spear,player)
-				local q 
-				if both then
-					q = player:FireBrimstone(dir,nil,1 * charge)
-				else
-					q = player:FireBrimstone(dir,nil,0.5 * charge)
-				end
+				local dmg = both and (1 * charge) or (0.5 * charge)
+				local q = attack_holder.FireBrimstone(player, dir, tecro_linked_fire_opts(spear, "tecro_linked_brim", {
+					damage_multiplier = dmg,
+				}))
 				q.PositionOffset = Vector(0,0)
 				q.Parent = spear
 				q.Position = spear.Position
@@ -1019,7 +1057,22 @@ local function add_addition_to_spear(ent,player,params)
 		end
 	end
 	if ((weap == 3 or (list.tech or 0) > 0) and ((list.soy or 0) > 0 or (list.soy2 or 0) > 0)) or (list.tech2 or 0) > 0 then		--科技2、科技
-		local q = player:FireTechLaser(player.Position,0,dir,true,false,nil,0.13 * charge)
+		local q
+		CharRound.with_untracked("tecro_tech2", function()
+			q = attack_holder.FireTechLaser(player, player.Position, dir, attack_holder.CopyFireContext("tecro_tech2", {
+				offset_id = 0,
+				left_eye = true,
+				one_hit = false,
+				damage_multiplier = 0.13 * charge,
+			}) or {
+				mode = "untracked",
+				reason = "tecro_tech2",
+				offset_id = 0,
+				left_eye = true,
+				one_hit = false,
+				damage_multiplier = 0.13 * charge,
+			})
+		end)
 		q.TearFlags = q.TearFlags & (~TearFlags.TEAR_WAIT)
 		q.PositionOffset = Vector(0,0)
 		q.Parent = ent
@@ -1031,12 +1084,13 @@ local function add_addition_to_spear(ent,player,params)
 		if weap == 3 or (list.tech or 0) > 0 then
 			local both = (weap == 3 and (list.tech or 0) > 0)
 			d.Tecro_linked_tech = function(ent,spear,player,dir)
-				local q
-				if both then
-					q = player:FireTechLaser(spear.Position,0,dir,true,false,nil,1 * charge)
-				else
-					q = player:FireTechLaser(spear.Position,0,dir,true,false,nil,0.6 * charge)
-				end
+				local dmg = both and (1 * charge) or (0.6 * charge)
+				local q = attack_holder.FireTechLaser(player, spear.Position, dir, tecro_linked_fire_opts(spear, "tecro_linked_tech", {
+					offset_id = 0,
+					left_eye = true,
+					one_hit = false,
+					damage_multiplier = dmg,
+				}))
 				q.TearFlags = q.TearFlags & (~TearFlags.TEAR_WAIT)
 				q.PositionOffset = Vector(0,0)
 				q.Parent = spear
@@ -1044,16 +1098,30 @@ local function add_addition_to_spear(ent,player,params)
 			end
 		end
 	end
-	if (list.tech_5 or 0) > 0 then							--科技.5 
+	if (list.tech_5 or 0) > 0 then							--科技.5
 		if auxi.check_rand(player.Luck,30,10,5) then
-			local q = player:FireTechLaser(ent.Position,0,dir,true,false,nil,1 * charge)
-			q.PositionOffset = Vector(0,0)
-			q.Parent = ent
-			for u,v in pairs(item.buff_list) do 
-				if math.random(1000) > 700 then
-					q.TearFlags = q.TearFlags | v
+			CharRound.with_untracked("tecro_tech5", function()
+				local q = attack_holder.FireTechLaser(player, ent.Position, dir, attack_holder.CopyFireContext("tecro_tech5", {
+					offset_id = 0,
+					left_eye = true,
+					one_hit = false,
+					damage_multiplier = 1 * charge,
+				}) or {
+					mode = "untracked",
+					reason = "tecro_tech5",
+					offset_id = 0,
+					left_eye = true,
+					one_hit = false,
+					damage_multiplier = 1 * charge,
+				})
+				q.PositionOffset = Vector(0,0)
+				q.Parent = ent
+				for u,v in pairs(item.buff_list) do
+					if math.random(1000) > 700 then
+						q.TearFlags = q.TearFlags | v
+					end
 				end
-			end
+			end)
 		end
 	end
 	if ((list.bluefire or 0) > 0) or info.bluefire then
@@ -1062,7 +1130,7 @@ local function add_addition_to_spear(ent,player,params)
 				local dmg = player.Damage * 4 * charge
 				if (list.bluefire or 0) > 0 then else dmg = dmg * 0.1 end
 				local cnt = math.random(5) + 3
-				if (list.soy or 0) > 0 or (list.soy2 or 0) > 0 or (list.urn or 0) > 0 then 
+				if (list.soy or 0) > 0 or (list.soy2 or 0) > 0 or (list.urn or 0) > 0 then
 					cnt = cnt + math.random(10 * ((list.soy or 0) + (list.soy2 or 0) + (list.urn or 0)))
 				end
 				for i = 1,cnt do
@@ -1109,7 +1177,7 @@ local function add_addition_to_spear(ent,player,params)
 	if weap == 5 or (list.dr or 0) > 0 then					--博士
 		d.Tecro_linked_bomb = function(ent,spear,player,dir)
 			local both = (weap == 5 and (list.dr or 0) > 0)
-			local q = player:FireBomb(spear.Position + dir:Normalized() * 10,dir:Normalized() * 10 * player.ShotSpeed)
+			local q = attack_holder.FireBomb(player, spear.Position + dir:Normalized() * 10, dir:Normalized() * 10 * player.ShotSpeed, tecro_linked_fire_opts(spear, "tecro_linked_bomb"))
 			local s2 = q:GetSprite()
 			local d3 = q:GetData()
 			Attribute_holder.try_hold_and_rewind_attribute(q,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE,5)
@@ -1124,9 +1192,9 @@ local function add_addition_to_spear(ent,player,params)
 			end
 			if ((list.soy or 0) > 0 or (list.soy2 or 0) > 0) then
 				local cnt = math.random(5)
-				for i = 1,cnt do 
+				for i = 1,cnt do
 					delay_buffer.addeffe(function(params)
-						local q = player:FireBomb(spear.Position + dir:Normalized() * 10,auxi.MakeVector(dir:GetAngleDegrees() + math.random(20) - 10) * (math.random(60)/10 + 7) * player.ShotSpeed)
+						local q = attack_holder.FireBomb(player, spear.Position + dir:Normalized() * 10, auxi.MakeVector(dir:GetAngleDegrees() + math.random(20) - 10) * (math.random(60)/10 + 7) * player.ShotSpeed, tecro_linked_fire_opts(spear, "tecro_linked_bomb_soy"))
 						if both then
 							q.ExplosionDamage = q.ExplosionDamage * charge
 						else
@@ -1140,21 +1208,23 @@ local function add_addition_to_spear(ent,player,params)
 	end
 	if weap == 9 or (list.techX or 0) > 0 then				--科技X
 		local both = (weap == 9 and (list.techX or 0) > 0)
-		local range = 30 * charge * player.ShotSpeed 
+		local range = 30 * charge * player.ShotSpeed
 		local dmgmul = 0.2 * charge
-		if both then 
-			range = 50 * charge * player.ShotSpeed 
+		if both then
+			range = 50 * charge * player.ShotSpeed
 			dmgmul = 0.75 * charge
 		end
-		local q = player:FireTechXLaser(ent.Position,Vector(0,0),range,nil,dmgmul)
+		local q = attack_holder.FireTechXLaser(player, ent.Position, Vector(0,0), range, tecro_linked_fire_opts(ent, "tecro_linked_techx", {
+			damage_multiplier = dmgmul,
+		}))
 		local s2 = q:GetSprite()
 		q.PositionOffset = Vector(0,0)
 		q.Parent = ent
 		q.SubType = 3
-		if item.brim_list[q.Variant] then 
+		if item.brim_list[q.Variant] then
 			q.Variant = 3
 		end
-		if d.Tecro_linked_tech_x_laser and d.Tecro_linked_tech_x_laser:Exists() then 
+		if d.Tecro_linked_tech_x_laser and d.Tecro_linked_tech_x_laser:Exists() then
 			d.Tecro_linked_tech_x_laser.SubType = 2
 			d.Tecro_linked_tech_x_laser.Velocity = dir:Normalized() * 10 * player.ShotSpeed
 			d.Tecro_linked_tech_x_laser = nil
@@ -1196,8 +1266,8 @@ local function add_addition_to_spear(ent,player,params)
 						if j == 1 and (list.brimstone or 0) > 0 then pm.Brim = true end
 						local rand = math.random(31) - 16
 						local q2 = auxi.fire_knife(ent.Position + Vector(0,-10),12 * player.ShotSpeed * auxi.MakeVector(dir:GetAngleDegrees() + rand),player.Damage * charge,nil,pm)
-						if rand < 0 then 
-							q2:GetSprite().FlipX = true 
+						if rand < 0 then
+							q2:GetSprite().FlipX = true
 							q2.RotationOffset = 180 - q2.RotationOffset
 						end
 						delay_buffer.addeffe(function(params)
@@ -1224,7 +1294,7 @@ local function add_addition_to_spear(ent,player,params)
 	end end
 	if (list.ipec or 0) > 0 then
 		d.Tecro_linked_ipec = function(ent,spear,player,dir)
-			Game():BombExplosionEffects(spear.Position,player.Damage * 2,tearflag,spear:GetSprite().Color,player,1,false,false) 
+			Game():BombExplosionEffects(spear.Position,player.Damage * 2,tearflag,spear:GetSprite().Color,player,1,false,false)
 		end
 	end
 	if weap == 6 or (list.epic or 0) > 0 then				--史诗
@@ -1233,20 +1303,20 @@ local function add_addition_to_spear(ent,player,params)
 			local q
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ROCKET_IN_A_JAR) == false then
 				Imitate_item_holder.assign_fake_item(player,CollectibleType.COLLECTIBLE_ROCKET_IN_A_JAR,true)
-				q = player:FireBomb(spear.Position + dir:Normalized() * 10,dir:Normalized() * 10 * player.ShotSpeed)
+				q = attack_holder.FireBomb(player, spear.Position + dir:Normalized() * 10, dir:Normalized() * 10 * player.ShotSpeed, tecro_linked_fire_opts(spear, "tecro_linked_epic"))
 				if ((list.soy or 0) > 0 or (list.soy2 or 0) > 0) then
 					local cnt = math.random(6) + 2
-					for i = 1,cnt do 
-						q = player:FireBomb(spear.Position + dir:Normalized() * 10 + auxi.MakeVector(360/cnt*i) * 40,auxi.MakeVector(dir:GetAngleDegrees() + math.random(20) - 10) * (math.random(60)/10 + 7) * player.ShotSpeed)
+					for i = 1,cnt do
+						q = attack_holder.FireBomb(player, spear.Position + dir:Normalized() * 10 + auxi.MakeVector(360/cnt*i) * 40, auxi.MakeVector(dir:GetAngleDegrees() + math.random(20) - 10) * (math.random(60)/10 + 7) * player.ShotSpeed, tecro_linked_fire_opts(spear, "tecro_linked_epic_soy"))
 					end
 				end
 				Imitate_item_holder.re_assign_fake_item()
 			else
-				q = player:FireBomb(spear.Position + dir:Normalized() * 10,dir:Normalized() * 10 * player.ShotSpeed)
+				q = attack_holder.FireBomb(player, spear.Position + dir:Normalized() * 10, dir:Normalized() * 10 * player.ShotSpeed, tecro_linked_fire_opts(spear, "tecro_linked_epic"))
 				if ((list.soy or 0) > 0 or (list.soy2 or 0) > 0) then
 					local cnt = math.random(6) + 2
-					for i = 1,cnt do 
-						q = player:FireBomb(spear.Position + dir:Normalized() * 10 + auxi.MakeVector(360/cnt*i) * 40,auxi.MakeVector(dir:GetAngleDegrees() + math.random(20) - 10) * (math.random(60)/10 + 7) * player.ShotSpeed)
+					for i = 1,cnt do
+						q = attack_holder.FireBomb(player, spear.Position + dir:Normalized() * 10 + auxi.MakeVector(360/cnt*i) * 40, auxi.MakeVector(dir:GetAngleDegrees() + math.random(20) - 10) * (math.random(60)/10 + 7) * player.ShotSpeed, tecro_linked_fire_opts(spear, "tecro_linked_epic_soy"))
 					end
 				end
 			end
@@ -1316,7 +1386,7 @@ local function add_addition_to_spear(ent,player,params)
 			Attribute_holder.try_hold_and_rewind_attribute(q2,"Height",q2.Height,29)
 			Attribute_holder.try_hold_and_rewind_attribute(q2,"FallingSpeed",q2.FallingSpeed,29)
 			local d2 = q2:GetData()
-			d2.Ignore_me_flag = true
+			attack_holder.MarkIgnore(q2)
 			d2.is_assassin = true
 			delay_buffer.addeffe(function(params)
 				if q2:Exists() and not q2:IsDead() then
@@ -1367,8 +1437,8 @@ local function add_addition_to_spear(ent,player,params)
 			local s2 = q2:GetSprite()
 			s2:Load("gfx/Knife_loader.anm2",true)
 			s2:Play("Idle",true)
-			if rand < 0 then 
-				q2:GetSprite().FlipX = true 
+			if rand < 0 then
+				q2:GetSprite().FlipX = true
 				q2.RotationOffset = 180 - q2.RotationOffset
 			end
 			delay_buffer.addeffe(function(params)
@@ -1420,9 +1490,13 @@ local function add_addition_to_spear(ent,player,params)
 	end
 	if info.star then
 		d.Tecro_linked_star = function(ent,spear,player,dir)
-			local q = player:FireTear(spear.Position,dir * player.ShotSpeed * 10,true,true,true)
+			local q = attack_holder.FireTear(player, spear.Position, dir * player.ShotSpeed * 10, tecro_linked_fire_opts(spear, "tecro_linked_star", {
+				can_be_eye = true,
+				no_tracer = true,
+				can_trigger_streak_end = true,
+			}))
 			local s2 = q:GetSprite()
-			s2:Load("gfx/player/tecro/Star_tear.anm2",true)
+			s2:Load("gfx/tears/Star_tear.anm2",true)
 			s2:Play("Idle",true)
 			q.CollisionDamage = player.Damage * 0.5
 			q.TearFlags = q.TearFlags & (~(BitSet128(1<<60,0)))
@@ -1453,6 +1527,299 @@ function item.fire_birth_right_spear(player,pos,dir,params)
 	return q
 end
 
+--- Create one TecroNil-backed spear. Never pass external Entity as fire_spear.source.
+--- source replaces TecroNil controller; external ghost/familiar/effect must only supply origin.
+local function make_virtual_spear_handle(player, spear, params)
+	params = params or {}
+	local controller = spear and spear.Parent
+	return {
+		kind = "tecro_virtual_spear",
+		controller = controller,
+		spear = spear,
+		player = player,
+		anchor = params.anchor,
+		source = params.anchor,
+		direction = params.direction,
+		presentation_only = params.presentation_only == true,
+		replay_copy = params.replay_copy == true,
+		reason = params.reason or "virtual_spear",
+		alive = true,
+		character_key = "tecro",
+		player_type = player and player.GetPlayerType and player:GetPlayerType() or nil,
+	}
+end
+
+-- PtrHash(controller) -> handle. Replay copies follow Ghost via anchor, not fire_spear.source.
+local VIRTUAL_SPEAR_HANDLES = {}
+local virtual_spawn_counts = {total = 0, gameplay = 0, presentation = 0}
+local virtual_spawn_mark = {total = 0, gameplay = 0, presentation = 0}
+
+local function virtual_anchor_alive(source)
+	if not source then return false end
+	local ok, alive = pcall(function()
+		return source:Exists() and not source:IsDead()
+	end)
+	return ok and alive == true
+end
+
+local function track_virtual_spear(handle)
+	local controller = handle and handle.controller
+	if not controller then return end
+	local ok, ptr = pcall(GetPtrHash, controller)
+	if ok and ptr then
+		VIRTUAL_SPEAR_HANDLES[ptr] = handle
+		handle._track_key = ptr
+	end
+end
+
+local function untrack_virtual_spear(handle)
+	if type(handle) ~= "table" then return end
+	local key = handle._track_key
+	if key then
+		VIRTUAL_SPEAR_HANDLES[key] = nil
+		handle._track_key = nil
+	end
+end
+
+local function note_virtual_spear_spawn(params)
+	params = params or {}
+	virtual_spawn_counts.total = (virtual_spawn_counts.total or 0) + 1
+	if params.presentation_only == true then
+		virtual_spawn_counts.presentation = (virtual_spawn_counts.presentation or 0) + 1
+	else
+		virtual_spawn_counts.gameplay = (virtual_spawn_counts.gameplay or 0) + 1
+	end
+end
+
+function item.debug_virtual_spear_stats()
+	return {
+		total = virtual_spawn_counts.total or 0,
+		gameplay = virtual_spawn_counts.gameplay or 0,
+		presentation = virtual_spawn_counts.presentation or 0,
+	}
+end
+
+function item.debug_take_virtual_spawn_delta()
+	local now = item.debug_virtual_spear_stats()
+	local delta = {
+		total = now.total - (virtual_spawn_mark.total or 0),
+		gameplay = now.gameplay - (virtual_spawn_mark.gameplay or 0),
+		presentation = now.presentation - (virtual_spawn_mark.presentation or 0),
+	}
+	virtual_spawn_mark.total = now.total
+	virtual_spawn_mark.gameplay = now.gameplay
+	virtual_spawn_mark.presentation = now.presentation
+	return delta
+end
+
+local function tick_virtual_spear_anchor(handle)
+	if type(handle) ~= "table" then return end
+	if not item.virtual_spear_alive(handle) then
+		untrack_virtual_spear(handle)
+		return
+	end
+	local anchor = handle.anchor
+	if not virtual_anchor_alive(anchor) then
+		if handle.replay_copy then
+			item.end_virtual_spear(handle, "source_lost")
+		end
+		return
+	end
+	item.update_virtual_spear(handle, anchor.Position, handle.direction)
+end
+
+local function clear_virtual_spear_handles(reason)
+	for key, handle in pairs(VIRTUAL_SPEAR_HANDLES) do
+		if handle then
+			item.end_virtual_spear(handle, reason or "clear")
+		end
+		VIRTUAL_SPEAR_HANDLES[key] = nil
+	end
+end
+
+function item.virtual_spear_alive(handle)
+	if type(handle) ~= "table" or handle._ended then
+		return false
+	end
+	local controller = handle.controller
+	local spear = handle.spear
+	local c_ok = controller and controller.Exists and controller:Exists() and not controller:IsDead()
+	local s_ok = spear and spear.Exists and spear:Exists() and not spear:IsDead()
+	return c_ok == true and s_ok == true
+end
+
+function item.update_virtual_spear(handle, origin, dir)
+	if not item.virtual_spear_alive(handle) then
+		return false
+	end
+	local spear = handle.spear
+	local d = spear:GetData()
+	if origin then
+		d.birth_init_pos = Vector(origin.X, origin.Y)
+	end
+	if dir and dir.Length and dir:Length() > 0.01 then
+		dir = dir:Normalized()
+		d.on_record_spear_dir = dir
+		d.record_spear_dir = dir
+		handle.direction = dir
+		if handle.presentation_only or handle.replay_copy then
+			d.tecro_dir_offset = 0
+		end
+	end
+	return true
+end
+
+function item.end_virtual_spear(handle, reason)
+	if type(handle) ~= "table" then
+		return
+	end
+	handle.alive = false
+	handle._ended = true
+	handle._end_reason = reason
+	local force = reason == "source_lost"
+		or reason == "game_exit"
+		or reason == "destroy"
+		or reason == "room_change"
+		or reason == "new_recording"
+	local spear = handle.spear
+	local controller = handle.controller
+	if force then
+		if spear and spear.Exists and spear:Exists() then
+			local sd = spear:GetData()
+			if sd.tail and sd.tail.Exists and sd.tail:Exists() and sd.tail.Remove then
+				sd.tail:Remove()
+			end
+			spear:Remove()
+		end
+		if controller and controller.Exists and controller:Exists() then
+			controller:Remove()
+		end
+	elseif spear and spear.Exists and spear:Exists() then
+		local sd = spear:GetData()
+		sd.tecro_remove_then = true
+		sd.tecro_remove_now = true
+	end
+	handle.spear = nil
+	handle.controller = nil
+	handle.anchor = nil
+	handle.source = nil
+	untrack_virtual_spear(handle)
+end
+
+--- Public owner API: spawn a detached Tecro spear (gameplay or presentation_only).
+function item.spawn_virtual_spear(player, origin, dir, params)
+	params = params or {}
+	if not player then
+		return nil
+	end
+	origin = origin or player.Position
+	if not dir or not dir.Length or dir:Length() < 0.01 then
+		dir = Vector(0, 1)
+	else
+		dir = dir:Normalized()
+	end
+	local presentation_only = params.presentation_only == true
+	local replay_copy = params.replay_copy == true or params.is_replay_copy == true
+	local snap = params.snapshot
+	local charge = tonumber(params.charge)
+	if charge == nil and type(snap) == "table" then
+		charge = tonumber(snap.charge)
+	end
+	charge = charge or 1
+	local spear_type = tonumber(params.spear_type)
+	if spear_type == nil and type(snap) == "table" then
+		spear_type = tonumber(snap.spear_type)
+	end
+	local list = params.list
+	if list == nil and type(snap) == "table" then
+		list = snap.list
+	end
+	local dir_offset = tonumber(params.dir_offset)
+	if dir_offset == nil then
+		if presentation_only or replay_copy then
+			dir_offset = 0
+		else
+			dir_offset = dir:GetAngleDegrees() - (player:GetData().now_dir or Vector(0, 1)):GetAngleDegrees()
+		end
+	end
+	local detached_init = presentation_only
+		or replay_copy
+		or params.advanced_familiar_copy
+		or params.detached_init
+		or params.origin_explicit
+
+	-- CRITICAL: never pass Ghost/familiar/effect as source (would replace TecroNil).
+	local q = auxi.fire_spear(origin, nil, {
+		player = player,
+		dir = dir:GetAngleDegrees(),
+	})
+	local d = q:GetData()
+	local controller = q.Parent
+	d.tecro_dir_offset = dir_offset
+	d.tecro_remove_then = true
+	if params.charge ~= nil then
+		d.record_spear_charge = charge
+	end
+	if detached_init then
+		-- 宝宝/邪眼/Aeon 脱主枪：预置满伸展 + birth 锚点，走收回动画而非空放秒删。
+		d.birth_init_pos = Vector(origin.X, origin.Y)
+		d.record_spear_charge = math.max(0.5, tonumber(d.record_spear_charge) or charge or 1)
+		d.tecro_remove_cnt = 1
+		d.on_record_spear_dir = dir
+		d.record_spear_dir = dir
+		d.should_not_reload = true
+		reload_spear(q, player, {spear_type = spear_type})
+	elseif params.charge then
+		d.record_spear_charge = charge
+	end
+	if presentation_only then
+		d.virtual_presentation_only = true
+		d.Tecro_spear_damage = 0
+		q.CollisionDamage = 0
+		if controller then
+			controller:GetData().virtual_presentation_only = true
+		end
+	end
+	if replay_copy then
+		d.virtual_replay_copy = true
+		if controller then
+			controller:GetData().virtual_replay_copy = true
+		end
+	end
+	if controller and detached_init then
+		controller.Position = Vector(origin.X, origin.Y)
+	end
+	local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS, 1, auxi.choose(0, 1))
+	local addertearflag = params.TearFlags or BitSet128(0, 0)
+	q.TearFlags = tearHitParams.TearFlags & (~TearFlags.TEAR_LASERSHOT) | addertearflag
+	if not presentation_only then
+		add_addition_to_spear(q, player, {
+			dir = dir,
+			TearFlags = addertearflag,
+			charge = charge,
+			advanced_familiar_copy = params.advanced_familiar_copy or replay_copy,
+			should_not_reload = detached_init and true or nil,
+			list = list,
+		})
+	end
+	note_virtual_spear_spawn({
+		presentation_only = presentation_only,
+		replay_copy = replay_copy,
+		reason = params.reason,
+	})
+	local handle = make_virtual_spear_handle(player, q, {
+		anchor = params.anchor,
+		direction = dir,
+		presentation_only = presentation_only,
+		replay_copy = replay_copy,
+		reason = params.reason or "virtual_spear",
+	})
+	if handle.anchor then
+		track_virtual_spear(handle)
+	end
+	return handle
+end
+
 local function work_on_Tecro_multi_attack_params(player,params)
 	params = params or {}
 	local d = player:GetData()
@@ -1464,29 +1831,32 @@ local function work_on_Tecro_multi_attack_params(player,params)
 		local adderdir = v.dir or 0
 		local addertearflag = (v.tearflag or BitSet128(0,0)) | (params.TearFlags or BitSet128(0,0))
 		local shot_dir = auxi.MakeVector(dir:GetAngleDegrees() + adderdir)
-		local q = auxi.fire_spear(params.origin,nil,{
-			player = player,
-			dir = dir:GetAngleDegrees() + adderdir,
-			source = params.source,
+		-- Never forward external Effect/Ghost as fire_spear.source (replaces TecroNil).
+		local handle = item.spawn_virtual_spear(player, params.origin or player.Position, shot_dir, {
+			charge = params.charge,
+			TearFlags = addertearflag,
+			dir_offset = adderdir,
+			advanced_familiar_copy = params.advanced_familiar_copy,
+			detached_init = params.origin ~= nil or params.advanced_familiar_copy,
+			origin_explicit = params.origin ~= nil,
+			reason = params.reason or "tecro_multi",
 		})
-		local d2 = q:GetData()
-		d2.tecro_dir_offset = adderdir
-		d2.tecro_remove_then = true
-		if params.charge then d2.record_spear_charge = params.charge end
-		-- 宝宝/邪眼等脱主枪齐射：无玩家蓄力态时 TecroNil 会在 remove_cnt<0.1 时立刻删枪。
-		-- 预置满伸展 + birth 锚点，走收回动画而非空放。
-		if params.origin or params.advanced_familiar_copy then
-			local origin = params.origin
-			if origin then
-				d2.birth_init_pos = Vector(origin.X, origin.Y)
-			end
-			d2.record_spear_charge = math.max(0.5, tonumber(d2.record_spear_charge) or tonumber(params.charge) or 1)
-			d2.tecro_remove_cnt = 1
-			d2.on_record_spear_dir = shot_dir
+		local q = handle and handle.spear
+		if not q then
+			break
 		end
-		local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
-		q.TearFlags = tearHitParams.TearFlags & (~TearFlags.TEAR_LASERSHOT) | addertearflag
-		add_addition_to_spear(q,player,{dir = shot_dir,TearFlags = addertearflag,charge = params.charge,})
+		local d2 = q:GetData()
+		-- Disposable thrust spears: Bind as Attack primary (member lifecycle).
+		-- Idle linked_spear is never Bound (would pin Attack forever).
+		-- Aeon character_action is captured on POST_ATTACK_ONCE via character_snapshot at open.
+		-- Skip Bind for familiar/Aeon copy paths (would pollute recording).
+		if d2.tecro_remove_then and d2.tecro_round_attack and not params.advanced_familiar_copy then
+			CharRound.holder.BindMember(d2.tecro_round_attack, q, {
+				role = "primary",
+				reason = "tecro_spear_thrust",
+				direction = shot_dir,
+			})
+		end
 	end
 	if not params.advanced_familiar_copy then
 		local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
@@ -1579,6 +1949,7 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
 	item._room_epoch = (item._room_epoch or 0) + 1
+	clear_virtual_spear_handles("room_change")
 end,
 })
 
@@ -1624,7 +1995,7 @@ Function = function(_,ent)
 			if ent.Parent == nil or ent.Parent:Exists() == false or ent.Parent:IsDead() or (ent.Parent.Type == 1 and ent.Parent.Variant == 0) then
 				ent.Parent = spear
 			end
-			if ent.SubType == 0 then 
+			if ent.SubType == 0 then
 				local eent = ent.Child
 				if eent and eent:Exists() then
 					--print(eent.Type.." "..eent.Variant)
@@ -1765,6 +2136,11 @@ Function = function(_,player)
 			d.damaged_sharp_rate = nil
 			d.ludo_init_pos = nil
 			d.Tecro_Tech0_lst_pos = nil
+			if auxi.check_all_exists(d.linked_spear) then
+				local sd = d.linked_spear:GetData()
+				CharRound.seal_persistent_attack(sd.tecro_round_attack)
+				sd.tecro_round_attack = nil
+			end
 		end
 		local s = player:GetSprite()
 		local ctrlid = player.ControllerIndex
@@ -1777,12 +2153,12 @@ Function = function(_,player)
 			d.Tecro_list = auxi.get_Tecro_list(player)
 		end
 		d.Tecro_list = d.Tecro_list or auxi.get_Tecro_list(player)
-		
+
 		d.now_rot_vel = d.now_rot_vel or 0
 		d.Tecro_spear_state = d.Tecro_spear_state or 0
 		local angle = d.now_dir:GetAngleDegrees()
 		local dir = d.linked_spear:GetData().on_record_spear_dir or d.now_dir or Vector(0,1)
-		
+
 		local rot = get_rot_dis(gdir,"rot")
 		local dis = get_rot_dis(gdir,"dis")
 		local alpha = player.ShotSpeed * 3 + 4						--alpha 就是旋转速度上限
@@ -1843,7 +2219,7 @@ Function = function(_,player)
 		end
 		d.now_rot_set = rot
 		d.now_vel_alpha = math.max(0.001,alpha)
-		
+
 		d.Tecro_spear_Charge_Bar_buff = (d.Tecro_spear_Charge_Bar_buff or 0)
 		d.Tecro_spear_Charge_Bar_buff_mx = get_max_delay(player)			--寤惰繜涓婇檺
 		local mxn = 1
@@ -1854,7 +2230,7 @@ Function = function(_,player)
 			if auxi.g_dir_can_work(player) then
 				if d.Tecro_spear_state <= 0 then
 					d.Tecro_spear_Charge_Bar_buff = math.min(d.Tecro_spear_Charge_Bar_buff_mx * mxn,d.Tecro_spear_Charge_Bar_buff + 1)
-					if (d.Tecro_list.nepton or 0) > 0 then 
+					if (d.Tecro_list.nepton or 0) > 0 then
 						d.Tecro_spear_Charge_Bar_buff = math.max(d.Tecro_spear_Charge_Bar_buff,d.Tecro_spear_nep_Charge_Bar_buff or 0)
 						d.Tecro_spear_nep_Charge_Bar_buff = 0
 					end
@@ -1878,7 +2254,7 @@ Function = function(_,player)
 				if d.Tecro_spear_Charge_Bar_buff >= d.Tecro_spear_Charge_Bar_buff_mx * 0.15 and (d.Tecro_spear_state == 0 or d.Tecro_spear_state == -1) then		--蓄力后发射，发射时记录各状态
 					d.Tecro_spear_state = 1
 					d.tecro_rev_counter = - (d.tecro_rev_counter or 1)
-					
+
 					d.Tecro_spear_charge = math.min(mxn,math.max(0.1,d.Tecro_spear_Charge_Bar_buff / d.Tecro_spear_Charge_Bar_buff_mx))
 					d.Tecro_list = auxi.get_Tecro_list(player)
 					if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CURSED_EYE) then 			--连续5发
@@ -1923,7 +2299,7 @@ Function = function(_,player)
 		end
 		for i = 1,1 do if (d.Tecro_list.ludo or 0) > 0 then
 			local room = Game():GetRoom()
-			if dis < 0 then 
+			if dis < 0 then
 				d.ludo_init_pos = room:GetClampedPosition((d.ludo_init_pos or player.Position) + dir:Normalized() * 5 * player.ShotSpeed,0)
 			elseif dis > 0 then
 				if d.ludo_init_pos == nil then break end
@@ -1931,7 +2307,7 @@ Function = function(_,player)
 				if (d.ludo_init_pos - player.Position):Length() < 30 then d.ludo_init_pos = nil end
 			end
 		end end
-		
+
 		d.now_dir = auxi.MakeVector(angle + d.now_rot_vel)
 		if player.Velocity:Length() > 12 then		--冲刺状态
 			if d.ludo_init_pos then d.ludo_init_pos = d.ludo_init_pos * 0.5 + player.Position * 0.5 + player.Velocity * 2 end
@@ -1951,7 +2327,7 @@ Function = function(_,player,cacheFlag)
 			player.Luck = player.Luck + 0.88
 		end
 		if cacheFlag == CacheFlag.CACHE_DAMAGE then
-			if player:GetData().linked_spear and item.sprite_loader[player:GetData().linked_spear:GetData().spear_type or 1].lamb and player:HasTrinket(TrinketType.TRINKET_CURVED_HORN) then 
+			if player:GetData().linked_spear and item.sprite_loader[player:GetData().linked_spear:GetData().spear_type or 1].lamb and player:HasTrinket(TrinketType.TRINKET_CURVED_HORN) then
 				player.Damage = player.Damage * 1.5
 			end
 		end
@@ -1996,7 +2372,7 @@ Function = function(_,ent)
 	if linker == nil then return end
 	local dir_vel = (d2.now_rot_vel or 0)
 	local delta = math.abs(dir_vel)/(d2.now_vel_alpha or 1)
-	
+
 	local init_pos = d3.init_pos or ent.Position
 	local focus_pos = ent.Position
 	local mx_vel = nil
@@ -2004,7 +2380,7 @@ Function = function(_,ent)
 	if d2.Tecro_spear_state == -1 or d2.Tecro_spear_state == 0 and not d2[player_Tecrorun.own_key.."Csection"] then
 		if d.linked_enemy_target then
 			local tg = d.linked_enemy_target
-			time_free(tg) 
+			time_free(tg)
 			d.linked_enemy_target = nil
 		end
 		d.nolinked_enemy_target = nil
@@ -2036,8 +2412,8 @@ Function = function(_,ent)
 			if dd.time_stopped == nil and (tg.Position - focus_pos):Length() > 30 then
 				init_pos = tg.Position
 			else
-				if dd.time_stopped == nil then 
-					stop_time(tg,player) 
+				if dd.time_stopped == nil then
+					stop_time(tg,player)
 				end
 				dd.Tecro_spear_hold_time_Charge_Bar_buff = (dd.Tecro_spear_hold_time_Charge_Bar_buff or 0) + 1
 				if (dd.Tecro_spear_hold_time_Charge_Bar_buff or 60) > (dd.Tecro_spear_hold_time_Charge_Bar_buff_mx or 30) then
@@ -2055,7 +2431,7 @@ Function = function(_,ent)
 			cross_out = true
 		end
 	end
-	
+
 	local dis = init_pos - focus_pos
 	if cross_out then
 		d3.linked_target = d.nolinked_enemy_target
@@ -2068,7 +2444,7 @@ Function = function(_,ent)
 	ent.Velocity = dis:Normalized() * math.min(35,dis:Length() * 0.3)
 	if mx_vel then ent.Velocity = ent.Velocity:Normalized() * math.min(mx_vel,ent.Velocity:Length()) end
 	--spear.RotationOffset = spear.RotationOffset * 0.9 + ent.Velocity:GetAngleDegrees() * 0.1
-	
+
 end,
 })
 
@@ -2082,15 +2458,15 @@ Function = function(_,ent,offset)
 			if not player then return end
 			local d2 = player:GetData()
 			local list = d2.Tecro_list or {}
-			
+
 			if d.Tecro_linked_godhead then d.Tecro_linked_godhead:Render(Isaac.WorldToScreen(ent.Position),Vector(0,0),Vector(0,0)) end
 			if d.Tecro_linked_salva then d.Tecro_linked_salva:Render(Isaac.WorldToScreen(ent.Position),Vector(0,0),Vector(0,0)) end
 			if d.Tecro_linked_censer then d.Tecro_linked_censer:Render(Isaac.WorldToScreen(ent.Position),Vector(0,0),Vector(0,0)) end
 			if d.Tecro_linked_charming then d.Tecro_linked_charming:Render(Isaac.WorldToScreen(ent.Position),Vector(0,0),Vector(0,0)) end
 			if d.Tecro_linked_charming_2 then d.Tecro_linked_charming_2:Render(Isaac.WorldToScreen(ent.Position),Vector(0,0),Vector(0,0)) end
-			
-			if d.head == nil then 
-				d.head = Sprite() 
+
+			if d.head == nil then
+				d.head = Sprite()
 				d.head:Load("gfx/player/tecro/_Tecro_Spear.anm2",true)
 				d.head:Play("IdleHead",true)
 			end
@@ -2100,7 +2476,7 @@ Function = function(_,ent,offset)
 			d.head.Color = auxi.AddColor(t_color,Color(0,0,0,0),cnt,1 - cnt)
 			d.head.Rotation = s.Rotation --+ ent.RotationOffset
 			d.head:Render(Isaac.WorldToScreen(ent.Position),Vector(0,0),Vector(0,0))
-			
+
 			if (list.deadeye or 0) > 0 then
 				local alpha = math.min(1,(d2.Tecro_dead_eye_total_counter or 0)/6) * 0.5
 				local s2 = d.tecro_dead_eye_sprite or Sprite()
@@ -2120,7 +2496,12 @@ Function = function(_,ent)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	local room = Game():GetRoom()
-	
+
+	local vhandle = VIRTUAL_SPEAR_HANDLES[GetPtrHash(ent)]
+	if vhandle then
+		tick_virtual_spear_anchor(vhandle)
+	end
+
 	d.Tecro_inner_frame = (d.Tecro_inner_frame or 0) + 1
 	local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
 	if not player then return end
@@ -2135,8 +2516,12 @@ Function = function(_,ent)
 		local tail = spear:GetData().tail
 		local info = item.sprite_loader[(d3.spear_type or 1)] or item.sprite_loader[1]
 		local init_pos = d3.birth_init_pos or d2.ludo_init_pos or player.Position
-		local range = get_spear_range(player) 
+		local range = get_spear_range(player)
 		local dir = d2.now_dir or Vector(0,1)
+		-- Detached / virtual spears: recorded aim wins over the player's live now_dir.
+		if d3.tecro_remove_then and d3.on_record_spear_dir and d3.on_record_spear_dir:Length() > 0.01 then
+			dir = d3.on_record_spear_dir
+		end
 		local postdir = dir
 		for i = 1,1 do if spear.TearFlags & BitSet128(1<<16,0) == BitSet128(1<<16,0) or spear.TearFlags & BitSet128(0,1<<(69-64)) == BitSet128(0,1<<(69-64)) then
 			if (d2.Tecro_spear_state == 1) then break end
@@ -2145,7 +2530,7 @@ Function = function(_,ent)
 			d3.planet_flying_charge = (d3.planet_flying_charge or 0) + 10 * (d3.record_that_spear_charge + 1) * (d2.tecro_rev_counter or 1)
 		end end
 		dir = dir:Length() * auxi.MakeVector(dir:GetAngleDegrees() + (d3.planet_flying_charge or 0))
-		for i = 1,1 do if d2.Tecro_spear_state == -1 and math.abs(d3.planet_flying_charge or 0) > 0.01 then 
+		for i = 1,1 do if d2.Tecro_spear_state == -1 and math.abs(d3.planet_flying_charge or 0) > 0.01 then
 			if d3.tecro_remove_then then break end
 			local dir_angle = auxi.get_correct_angle(dir:GetAngleDegrees() - postdir:GetAngleDegrees())
 			local mxag = dir_angle * 0.85
@@ -2154,7 +2539,7 @@ Function = function(_,ent)
 			d3.planet_flying_charge = dir_angle
 		end end
 		postdir = dir
-		
+
 		for i = 1,1 do if spear.TearFlags & BitSet128(1<<2,0) == BitSet128(1<<2,0) then
 			if d2.Tecro_spear_state == 4 then break end
 			local nearest = auxi.get_by_nearest_enemy(spear.Position)
@@ -2163,11 +2548,11 @@ Function = function(_,ent)
 			local dir_leg = math.min(8,dis:Length()/20 + 1)
 			local dir_aid = auxi.get_correct_angle(dis:GetAngleDegrees() - (dir:GetAngleDegrees() + (d3.homing_flying_charge or 0) + (d3.tecro_dir_offset or 0)))
 			local adder = auxi.get_id(dir_aid) * math.min(dir_leg,math.abs(dir_aid))
-			if d2.now_rot_set ~= 0 and d2.now_rot_set * adder < 0 then adder = 0 end 
+			if d2.now_rot_set ~= 0 and d2.now_rot_set * adder < 0 then adder = 0 end
 			d3.homing_flying_charge = (d3.homing_flying_charge or 0) + adder
 		end end
 		dir = dir:Length() * auxi.MakeVector(dir:GetAngleDegrees() + (d3.homing_flying_charge or 0))
-		for i = 1,1 do if d2.Tecro_spear_state == -1 and math.abs(d3.homing_flying_charge or 0) > 0.01 then 
+		for i = 1,1 do if d2.Tecro_spear_state == -1 and math.abs(d3.homing_flying_charge or 0) > 0.01 then
 			if d3.tecro_remove_then then break end
 			local dir_angle = auxi.get_correct_angle(dir:GetAngleDegrees() - postdir:GetAngleDegrees())
 			local mxag = dir_angle * 0.85
@@ -2175,7 +2560,7 @@ Function = function(_,ent)
 			if dir_angle < 0.01 then dir_angle = math.min(0,math.max(mxag,dir_angle + 5)) end
 			d3.homing_flying_charge = dir_angle
 		end end
-		
+
 		local tg_pos = room:GetClampedPosition(init_pos + dir * range, - range * 1.3)
 		local dis = (tg_pos - ent.Position)
 		local ttg_pos = room:GetClampedPosition(init_pos + dir * range * (d2.Tecro_spear_charge or 0.2), - range * 1.3)
@@ -2186,9 +2571,18 @@ Function = function(_,ent)
 		local dir_vel = (d2.now_rot_vel or 0)
 		local delta = math.abs(dir_vel)/(d2.now_vel_alpha or 1)
 		local wait_me = false
-		
+
 		d3.tecro_dir_offset = d3.tecro_dir_offset or 0
-		local ddir = dir:Length() * auxi.MakeVector(dir:GetAngleDegrees() + d3.tecro_dir_offset)
+		local ddir
+		if d3.virtual_presentation_only or d3.virtual_replay_copy then
+			if d3.on_record_spear_dir and d3.on_record_spear_dir:Length() > 0.01 then
+				ddir = d3.on_record_spear_dir
+			else
+				ddir = dir:Length() * auxi.MakeVector(dir:GetAngleDegrees() + d3.tecro_dir_offset)
+			end
+		else
+			ddir = dir:Length() * auxi.MakeVector(dir:GetAngleDegrees() + d3.tecro_dir_offset)
+		end
 		d3.record_spear_dir = dir
 		d3.record_spear_ddir = ddir
 		for i = 1,1 do if d3.tecro_remove_then then
@@ -2196,7 +2590,7 @@ Function = function(_,ent)
 				if d3.Tecro_anti_counter == nil and d2.Tecro_spear_state == -1 then
 					d3.Tecro_anti_record_pos = d3.Tecro_anti_record_pos or ent.Position
 					wait_me = true
-					break 
+					break
 				else
 					if d3.Tecro_anti_counter == nil then if info.firename and d3.head then d3.head:Play(info.firename,true) end end
 					d3.Tecro_anti_counter = true
@@ -2211,10 +2605,10 @@ Function = function(_,ent)
 			end
 			if (d2.Tecro_spear_state == 1 and d3.tecro_remove_now == nil) then
 				d3.record_spear_charge = math.max(0,d3.record_spear_charge + 0.1)
-				local rrange = get_spear_range(player,1) 
+				local rrange = get_spear_range(player,1)
 				local tttg_pos = room:GetClampedPosition(init_pos + ddir * rrange * d3.record_spear_charge * 1.2, - rrange * 1.3)
 				local dddis = (tttg_pos - ent.Position)
-				if dddis:Length() > rrange * 7 then 
+				if dddis:Length() > rrange * 7 then
 					ent.Position = tttg_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
@@ -2223,16 +2617,18 @@ Function = function(_,ent)
 			else
 				d3.tecro_remove_now = true
 				if (d3.tecro_remove_cnt or 0) < 0.1 then
+					CharRound.seal_persistent_attack(d3.tecro_round_attack)
+					d3.tecro_round_attack = nil
 					spear:Remove()
 					ent:Remove()
 					return
 				else
 					d3.record_spear_charge = math.max(0,(d3.record_spear_charge) - (1.1 - (d3.tecro_remove_cnt or 0)) * 0.2)
-					local rrange = get_spear_range(player,1) 
-					--ddir = d3.record_spear_dir:Length() * auxi.MakeVector(d3.record_spear_dir:GetAngleDegrees() + d3.tecro_dir_offset + (d3.planet_flying_charge or 0))	
+					local rrange = get_spear_range(player,1)
+					--ddir = d3.record_spear_dir:Length() * auxi.MakeVector(d3.record_spear_dir:GetAngleDegrees() + d3.tecro_dir_offset + (d3.planet_flying_charge or 0))
 					local tttg_pos = room:GetClampedPosition(init_pos + ddir * rrange * d3.record_spear_charge * 1.2, - rrange * 1.3)
 					local dddis = (tttg_pos - ent.Position)
-					if dddis:Length() > rrange * 7 then 
+					if dddis:Length() > rrange * 7 then
 						ent.Position = tttg_pos
 						ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 					else
@@ -2242,14 +2638,14 @@ Function = function(_,ent)
 			end
 		else
 			if d2.Tecro_spear_state == 0 then			--正常
-				if dis:Length() > get_spear_range(player,1) * 7 then 
+				if dis:Length() > get_spear_range(player,1) * 7 then
 					ent.Position = tg_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
 					ent.Velocity = ent.Velocity * 0.5 + player.Velocity * 0.3 + dis:Normalized() * dis:Length() * 0.1 * math.sqrt(math.max(1,ent.Velocity:Length() * 0.4))
 				end
 			elseif d2.Tecro_spear_state == -1 then		--鍚戝悗
-				if dis:Length() > get_spear_range(player,1) * 7 then 	
+				if dis:Length() > get_spear_range(player,1) * 7 then
 					ent.Position = init_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
@@ -2260,13 +2656,13 @@ Function = function(_,ent)
 				if d2.now_dir_set_on ~= nil then
 					d2.Tecro_spear_charge = math.min((d2.Tecro_spear_charge or 0.06) + 0.12,math.max(d2.Tecro_spear_charge,1.5))
 				end
-				if ddis:Length() > range * 7 then 
+				if ddis:Length() > range * 7 then
 					ent.Position = ttg_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
 					ent.Velocity = ent.Velocity * 0.4 + player.Velocity * 0.15 + ddis:Normalized() * (ddis:Length() + 5) * 0.15 * math.sqrt(math.max(1,ent.Velocity:Length() * 0.6))
 				end
-				
+
 				local ddisn = ddis:Normalized()
 				if ddisn.X * dir.X + ddisn.Y * dir.Y < -0.3 then
 					if d2.now_dir_set_on == nil then
@@ -2281,34 +2677,36 @@ Function = function(_,ent)
 				else
 					d2.Tecro_spear_state = 3
 				end
-				if ddis:Length() > range * 7 then 
+				if ddis:Length() > range * 7 then
 					ent.Position = ttg_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
 					ent.Velocity = ent.Velocity * 0.5 + player.Velocity * 0.1 + ddis:Normalized() * ddis:Length() * 0.1 * math.sqrt(math.max(1,ent.Velocity:Length() * 0.3))
 				end
 				if d2.Tecro_spear_charge < 0.15 then
+					CharRound.seal_persistent_attack(d3.tecro_round_attack)
+					d3.tecro_round_attack = nil
 					d2.Tecro_spear_state = 0
 				end
 			elseif d2.Tecro_spear_state == 3 then		--正常出枪
-				if d2.now_dir_set_on == nil then 
+				if d2.now_dir_set_on == nil then
 					d2.Tecro_spear_state = 2
 				else
 					d2.Tecro_spear_charge = math.min((d2.Tecro_spear_charge or 0.06) + 0.15,math.max(d2.Tecro_spear_charge,1))
 				end
-				if ddis:Length() > range * 7 then 
+				if ddis:Length() > range * 7 then
 					ent.Position = ttg_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
 					ent.Velocity = ent.Velocity * 0.3 + player.Velocity * 0.3 + ddis:Normalized() * ddis:Length() * 0.2 * math.sqrt(math.max(1,ent.Velocity:Length() * 0.4))
 				end
 			elseif d2.Tecro_spear_state == 4 then		--刺入敌人
-				if d2.now_dir_set_on then 
+				if d2.now_dir_set_on then
 					d2.Tecro_spear_charge = math.min((d2.Tecro_spear_charge or 0.06) + 0.1,math.max(d2.Tecro_spear_charge,1))
 				else
 					d2.Tecro_spear_charge = math.min((d2.Tecro_spear_charge or 0.06) + 0.14,math.max(d2.Tecro_spear_charge,0.5))
 				end
-				if ddis:Length() > range * 7 then 
+				if ddis:Length() > range * 7 then
 					ent.Position = ttg_pos
 					ent.Velocity = ent.Velocity:Normalized() * player.ShotSpeed * 3
 				else
@@ -2316,7 +2714,7 @@ Function = function(_,ent)
 				end
 				for u,v in pairs(d2.Tecro_spear_target) do
 					local eent = v.ent
-					if (eent:Exists() == false or eent:IsDead()) then 
+					if (eent:Exists() == false or eent:IsDead()) then
 						time_free(eent)
 						table.remove(d2.Tecro_spear_target,u)
 					end
@@ -2342,7 +2740,7 @@ Function = function(_,ent)
 								local q = Isaac.Spawn(1000,7,0,eent.Position,Vector(0,0),nil):ToEffect()
 								q.SpriteRotation = math.random(360)
 								q.SpriteScale = Vector(0.9 + math.random(1000)/1000 * 0.2,0.9 + math.random(1000)/1000 * 0.2)
-								sound_tracker.PlayStackedSound(SoundEffect.SOUND_MEATY_DEATHS,0.7 + math.random(1000)/1000 * 0.7,0.8 + math.random(1000)/1000 * 0.4,false,0,2) 
+								sound_tracker.PlayStackedSound(SoundEffect.SOUND_MEATY_DEATHS,0.7 + math.random(1000)/1000 * 0.7,0.8 + math.random(1000)/1000 * 0.4,false,0,2)
 							end
 						end
 						if (dd.Tecro_spear_hold_time_Charge_Bar_buff or 60) > (dd.Tecro_spear_hold_time_Charge_Bar_buff_mx or 30) then
@@ -2376,7 +2774,7 @@ Function = function(_,ent)
 				if (d2.Tecro_spear_state or 0) <= 0 then
 					if d3.Tecro_wavereye_counter ~= nil then
 						if d3.Tecro_wavereye_counter > 0 then
-							if math.random(1000) > 750 then	
+							if math.random(1000) > 750 then
 								Wavering_Eyes.clear_waver_eye_charge(player)
 							end
 						end
@@ -2398,9 +2796,15 @@ Function = function(_,ent)
 				end
 			end
 		end	end
-		
+
 		if d2[item.own_key.."Record_spear_shot"] then d2[item.own_key.."Record_spear_shot"] = (d2[item.own_key.."Record_spear_shot"] or 0) - 1 if d2[item.own_key.."Record_spear_shot"] <= 0 then d2[item.own_key.."Record_spear_shot"] = nil end end
-		
+
+		dir = ddir
+		if not spear_gameplay_enabled(spear) then
+			-- presentation_only: keep TecroNil motion/lifecycle; skip linked gameplay fires.
+			return
+		end
+
 		for i = 1,1 do if (list.tech_0 or 0) > 0 then
 			if d.Tecro_inner_frame % 5 == 3 then
 				if tail then
@@ -2423,13 +2827,35 @@ Function = function(_,ent)
 				end
 			end
 		end end
-		
-		dir = ddir
+
+		local tecro_linked_tok = nil
+		do
+			local round = d3.tecro_round_attack
+			-- Retract / post-Seal: do not open a recovery Attack (that looked like a
+			-- second round on 收枪). Residual linked cleanup stays untracked.
+			if round and round.active and not round.ending then
+				local pushed = CharRound.holder.PushFireContext({
+					mode = "inherit",
+					attack = round,
+					emitter = spear,
+					role = "primary",
+					reason = "tecro_linked_fire",
+				})
+				tecro_linked_tok = pushed.token
+			else
+				d3.tecro_round_attack = nil
+				local pushed = CharRound.holder.PushFireContext({
+					mode = "untracked",
+					reason = "tecro_linked_fire_no_round",
+				})
+				tecro_linked_tok = pushed.token
+			end
+		end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_bomb) then						--博士
-			if wait_me then break end 
-			if type(d3.Tecro_linked_bomb) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_bomb = d3.Tecro_linked_bomb(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_bomb) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_bomb = d3.Tecro_linked_bomb(ent,spear,player,dir)
 				else
 					break
 				end
@@ -2443,19 +2869,19 @@ Function = function(_,ent)
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_bluefire) then					--钃濈伀
-			if wait_me then break end 
-			if type(d3.Tecro_linked_bluefire) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_bluefire = d3.Tecro_linked_bluefire(ent,spear,player,dir,d3.Tecro_linked_bluefire) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_bluefire) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_bluefire = d3.Tecro_linked_bluefire(ent,spear,player,dir,d3.Tecro_linked_bluefire)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_redfire) then						--红火
-			if wait_me then break end 
-			if type(d3.Tecro_linked_redfire) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
+			if wait_me then break end
+			if type(d3.Tecro_linked_redfire) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
 					d3.Tecro_linked_redfire = d3.Tecro_linked_redfire(ent,spear,player,dir)
 				else
 					break
@@ -2471,9 +2897,9 @@ Function = function(_,ent)
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_brimstone) then					--硫磺火
-			if type(d3.Tecro_linked_brimstone) == "function" then 
-				if wait_me then break end 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
+			if type(d3.Tecro_linked_brimstone) == "function" then
+				if wait_me then break end
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
 					d3.Tecro_linked_brimstone = d3.Tecro_linked_brimstone(ent,spear,player)
 				else
 					break
@@ -2487,10 +2913,10 @@ Function = function(_,ent)
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_maw_of_void) then					--榛戝湀
-			if wait_me then break end 
-			if type(d3.Tecro_linked_maw_of_void) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_maw_of_void = d3.Tecro_linked_maw_of_void(ent,spear,player) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_maw_of_void) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_maw_of_void = d3.Tecro_linked_maw_of_void(ent,spear,player)
 				else
 					break
 				end
@@ -2501,58 +2927,58 @@ Function = function(_,ent)
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_epic_missile) then				--史诗
-			if wait_me then break end 
-			if type(d3.Tecro_linked_epic_missile) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_epic_missile = d3.Tecro_linked_epic_missile(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_epic_missile) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_epic_missile = d3.Tecro_linked_epic_missile(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_knife) then						--濡堝垁
-			if wait_me then break end 
-			if type(d3.Tecro_linked_knife) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_knife = d3.Tecro_linked_knife(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_knife) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_knife = d3.Tecro_linked_knife(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_sacri) then						--献祭刀
-			if wait_me then break end 
-			if type(d3.Tecro_linked_sacri) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_sacri = d3.Tecro_linked_sacri(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_sacri) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_sacri = d3.Tecro_linked_sacri(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_star) then						--启明星
-			if wait_me then break end 
-			if type(d3.Tecro_linked_star) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_star = d3.Tecro_linked_star(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_star) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_star = d3.Tecro_linked_star(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_krampus) then						--坎普头
-			if wait_me then break end 
-			if type(d3.Tecro_linked_krampus) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_krampus = d3.Tecro_linked_krampus(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_krampus) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_krampus = d3.Tecro_linked_krampus(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 			if type(d3.Tecro_linked_krampus) == "table" then
 				for u,v in pairs(d3.Tecro_linked_krampus) do
-					if auxi.check_all_exists(v) ~= true then 
-						table.remove(d3.Tecro_linked_krampus,u) 
+					if auxi.check_all_exists(v) ~= true then
+						table.remove(d3.Tecro_linked_krampus,u)
 					else
 						local dd = v:GetData()
 						v.Angle = dir:GetAngleDegrees() + (dd.Tecro_delta_angle or 0) + (dd.Tecro_delta_dangle or 0)
@@ -2563,30 +2989,30 @@ Function = function(_,ent)
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_assassin_eye) then				--鏆楁潃
-			if wait_me then break end 
-			if type(d3.Tecro_linked_assassin_eye) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_assassin_eye = d3.Tecro_linked_assassin_eye(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_assassin_eye) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_assassin_eye = d3.Tecro_linked_assassin_eye(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_ipec) then						--鍚愭牴
-			if wait_me then break end 
-			if type(d3.Tecro_linked_ipec) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_ipec = d3.Tecro_linked_ipec(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_ipec) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_ipec = d3.Tecro_linked_ipec(ent,spear,player,dir)
 				else
 					break
 				end
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_sword) then						--英灵剑
-			if wait_me then break end 
-			if type(d3.Tecro_linked_sword) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_sword = d3.Tecro_linked_sword(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_sword) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_sword = d3.Tecro_linked_sword(ent,spear,player,dir)
 				else
 					break
 				end
@@ -2594,10 +3020,10 @@ Function = function(_,ent)
 			d3.Tecro_linked_sword.RotationOffset = dir:GetAngleDegrees()
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_tech) then						--科技1
-			if wait_me then break end 
-			if type(d3.Tecro_linked_tech) == "function" then 
-				if info.check_trigger == nil or info.check_trigger(player,spear,info) then 
-					d3.Tecro_linked_tech = d3.Tecro_linked_tech(ent,spear,player,dir) 
+			if wait_me then break end
+			if type(d3.Tecro_linked_tech) == "function" then
+				if info.check_trigger == nil or info.check_trigger(player,spear,info) then
+					d3.Tecro_linked_tech = d3.Tecro_linked_tech(ent,spear,player,dir)
 				else
 					break
 				end
@@ -2606,7 +3032,7 @@ Function = function(_,ent)
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_tech2) then						--科技2
 			d3.Tecro_linked_tech2.Angle = spear.RotationOffset
 			d3.Tecro_linked_tech2.Position = spear.Position
-			if wait_me then break end 
+			if wait_me then break end
 			if d2.Tecro_spear_state == -1 then
 				d3.Tecro_linked_tech2:SetTimeout(1)
 				d3.Tecro_linked_tech2 = nil
@@ -2614,7 +3040,7 @@ Function = function(_,ent)
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_trisagon) then					--硫磺水
 			d3.Tecro_linked_trisagon.Angle = 180 + spear.RotationOffset
-			if wait_me then break end 
+			if wait_me then break end
 			if d2.Tecro_spear_state <= 0 then
 				local eent = d3.Tecro_linked_trisagon
 				eent.Parent = nil
@@ -2627,13 +3053,14 @@ Function = function(_,ent)
 			end
 		end end
 		for i = 1,1 do if auxi.check_delay_exists(d3.Tecro_linked_tech_x_laser) then				--科技X
-			if wait_me then break end 
+			if wait_me then break end
 			if d2.Tecro_spear_state <= 0 and d3.Tecro_linked_tech_x_laser.FrameCount > 3 then
 				d3.Tecro_linked_tech_x_laser.SubType = 2
 				d3.Tecro_linked_tech_x_laser.Velocity = dir:Normalized() * 10 * player.ShotSpeed
 				d3.Tecro_linked_tech_x_laser = nil
 			end
 		end end
+		CharRound.finish(tecro_linked_tok)
 	else ent:Remove() return end
 end,
 })
@@ -2664,7 +3091,7 @@ Function = function(_,ent)
 		local lev = math.min(100,math.floor(math.max(0,(dis - 50) * 0.3)))
 		local source = ent.Parent or player
 		d2.Tecro_spear_state = d2.Tecro_spear_state or 0
-		
+
 		if d.head then
 			if d["spear_render_Clock"] ~= Game():GetFrameCount() then d.head:Update() end
 			if not d.Tecro_Ignore_fire then
@@ -2680,7 +3107,7 @@ Function = function(_,ent)
 				end
 			end
 		end
-		
+
 		if (d.Tecro_inner_frame or 0) ~= (source:GetData().Tecro_inner_frame or 0) then	s:SetFrame("IdleUp",lev) end
 		d.Tecro_inner_frame = (source:GetData().Tecro_inner_frame or 0)
 		d.inner_frame = (d.inner_frame or 0) + 1
@@ -2707,7 +3134,7 @@ Function = function(_,ent)
 			else ent.TearFlags = tearHitParams.TearFlags & (~TearFlags.TEAR_LASERSHOT) end
 		end
 		ent.RotationOffset = dir:GetAngleDegrees() + (d.tecro_dir_offset or 0)
-		
+
 		d.Tecro_spear_damage = get_spear_damage(player)
 		local vel = source.Velocity
 		if vel:Length() < 0.0005 then vel = Vector(0.0005,0) end
@@ -2740,14 +3167,16 @@ Function = function(_,ent)
 		else d.record_collisiondamage = math.max(val * 0.9,(d.record_collisiondamage or val)) * 0.6 + val * 0.4	end
 		d.Tecro_damage_rate = d.Tecro_damage_rate or 1
 		d.record_collisiondamage = d.record_collisiondamage * d.Tecro_damage_rate
-		if info.gear then ent.CollisionDamage = d.record_collisiondamage * 0.9 + 0.1 * player.Damage * 0.5
+		if not spear_gameplay_enabled(ent) then
+			ent.CollisionDamage = 0
+		elseif info.gear then ent.CollisionDamage = d.record_collisiondamage * 0.9 + 0.1 * player.Damage * 0.5
 		else ent.CollisionDamage = d.record_collisiondamage end
-		
+
 		local tosetsize = get_spear_size(player)
 		ent:SetSize(tosetsize.size1,tosetsize.size2,tosetsize.size3)
 		local tail_pos = ent.Position + ddir:Normalized() * (info.offset or 20) + auxi.Get_rotate(ddir) * (info.rot_offset or 0)
-		if ent.TearFlags & BitSet128(1<<61,0) == BitSet128(1<<61,0) and d.inner_frame % 7 == 3 and ent.Parent.Velocity:Length() > 3 then Flat_Stone_holder.attack_wave(tail_pos,{scale = s.Scale * 1.5,dmg = ent.CollisionDamage * 0.5,}) end
-		
+		if spear_gameplay_enabled(ent) and ent.TearFlags & BitSet128(1<<61,0) == BitSet128(1<<61,0) and d.inner_frame % 7 == 3 and ent.Parent.Velocity:Length() > 3 then Flat_Stone_holder.attack_wave(tail_pos,{scale = s.Scale * 1.5,dmg = ent.CollisionDamage * 0.5,}) end
+
 		if d.tail and d.tail:Exists() and d.tail:IsDead() ~= true then
 			d.tail.Position = tail_pos
 			local s2 = d.tail:GetSprite()
@@ -2785,7 +3214,7 @@ Function = function(_,ent)
 					for i = #d.sec_spear,mx_cnt + 1,-1 do
 						local q = d.sec_spear[i].needle
 						q:GetData().link_parent = nil
-						table.remove(d.sec_spear,i) 
+						table.remove(d.sec_spear,i)
 					end
 				end
 				for u,v in pairs(d.sec_spear) do
@@ -2799,7 +3228,7 @@ Function = function(_,ent)
 					d3.link_parent = ent
 					table.insert(d.sec_spear,#d.sec_spear + 1,{needle = q,})
 				end
-				
+
 				local sec_delta = (ent.Position - player.Position):Length() * 0.5
 				if d2.Tecro_spear_state == -1 or d2.Tecro_spear_state == 4 then sec_delta = 30 end
 				for u,v in pairs(d.sec_spear) do
@@ -2828,7 +3257,7 @@ Function = function(_,ent)
 						q.TearFlags = BitSet128(1,0)
 						q.CollisionDamage = player.Damage * 0.33
 						q:GetSprite().Color = player.TearColor
-						q:GetData().Ignore_me_flag = true
+						attack_holder.MarkIgnore(q)
 						q:GetData().Tecro_occu_linked_tear = true
 						d.linked_occu_tears[i] = q
 						q:GetData().Tecro_occu_linked_parent = ent
@@ -2877,7 +3306,7 @@ Function = function(_,ent)
 				d.Tecro_linked_godhead = s3
 			end
 			if d["spear_render_Clock"] ~= Game():GetFrameCount() then d.Tecro_linked_godhead:Update() end
-			
+
 			if ent.FrameCount % 5 == 1 then
 				local tgs = Isaac.FindInRadius(ent.Position,40,EntityPartition.ENEMY)
 				for u,v in pairs(tgs) do
@@ -2906,13 +3335,13 @@ Function = function(_,ent)
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_VENUS) then scaler = 2 end
 			d.Tecro_linked_charming_2.Scale = d.Tecro_linked_charming_2.Scale * 0.9 + Vector(0.25 * scaler,0.25 * scaler) * 0.1
 			d.Tecro_linked_charming.Scale = d.Tecro_linked_charming.Scale * 0.9 + Vector(0.5 * scaler,0.5 * scaler) * 0.1
-			if d["spear_render_Clock"] ~= Game():GetFrameCount() then 
-				d.Tecro_linked_charming:Update() 
+			if d["spear_render_Clock"] ~= Game():GetFrameCount() then
+				d.Tecro_linked_charming:Update()
 				d.Tecro_linked_charming.Rotation = d.Tecro_linked_charming.Rotation + 5
-				d.Tecro_linked_charming_2:Update() 
+				d.Tecro_linked_charming_2:Update()
 				d.Tecro_linked_charming_2.Rotation = d.Tecro_linked_charming_2.Rotation - 5
 			end
-			
+
 			if ent.FrameCount % 5 == 1 then
 				local tgs = Isaac.FindInRadius(ent.Position,50 * d.Tecro_linked_charming.Scale.X,EntityPartition.ENEMY)
 				for u,v in pairs(tgs) do
@@ -2933,11 +3362,11 @@ Function = function(_,ent)
 				s3.Scale = Vector(0.5,0.5)
 				d.Tecro_linked_salva = s3
 			end
-			if d["spear_render_Clock"] ~= Game():GetFrameCount() then 
-				d.Tecro_linked_salva:Update() 
+			if d["spear_render_Clock"] ~= Game():GetFrameCount() then
+				d.Tecro_linked_salva:Update()
 				d.Tecro_linked_salva.Rotation = d.Tecro_linked_salva.Rotation + 5
 			end
-			
+
 			if ent.FrameCount % 15 == 1 then
 				local tgs = Isaac.FindInRadius(ent.Position,40,EntityPartition.ENEMY)
 				for u,v in pairs(tgs) do
@@ -2961,10 +3390,10 @@ Function = function(_,ent)
 				s3.Color = Color(1,1,1,0.4)
 				d.Tecro_linked_censer = s3
 			end
-			if d["spear_render_Clock"] ~= Game():GetFrameCount() then 
-				d.Tecro_linked_censer:Update() 
+			if d["spear_render_Clock"] ~= Game():GetFrameCount() then
+				d.Tecro_linked_censer:Update()
 			end
-			
+
 			if ent.FrameCount % 5 == 1 then
 				local tgs = Isaac.FindInRadius(ent.Position,60,EntityPartition.ENEMY | EntityPartition.BULLET)
 				for u,v in pairs(tgs) do
@@ -2976,12 +3405,12 @@ Function = function(_,ent)
 		else
 			if d.Tecro_linked_censer then d.Tecro_linked_censer = nil end
 		end
-		
+
 		if d.bond_delay and d.bond_delay > 0 then d.bond_delay = d.bond_delay - 1 end
-		
-		d["spear_render_Clock"] = Game():GetFrameCount() 
+
+		d["spear_render_Clock"] = Game():GetFrameCount()
 	end
-	
+
 	if ent.Variant == enums.Entities.Tecro_Needle then
 		local d = ent:GetData()
 		local s = ent:GetSprite()
@@ -2996,12 +3425,12 @@ Function = function(_,ent)
 			reload_needle(ent,player)
 		end
 		local info = item.sprite_loader[#(item.sprite_loader)]
-		
-		if d.link_parent and d.link_parent:Exists() and d.link_parent:IsDead() ~= true then 
+
+		if d.link_parent and d.link_parent:Exists() and d.link_parent:IsDead() ~= true then
 			local d3 = d.link_parent:GetData()
 			local dir = d3.on_record_spear_dir or d3.record_spear_dir or d2.now_dir or Vector(0,1)
 			local ndir = source.Position - (d.link_parent.Position)
-			if d2.Tecro_spear_state == -1 or d2.Tecro_spear_state == 1 then 
+			if d2.Tecro_spear_state == -1 or d2.Tecro_spear_state == 1 then
 				ndir = d.link_parent.Position + dir * get_spear_range(player,1) - source.Position
 			end
 			ndir = ndir + source.Velocity * 5
@@ -3009,7 +3438,7 @@ Function = function(_,ent)
 			ent.RotationOffset = ent.RotationOffset + auxi.get_correct_angle_id(ndir:GetAngleDegrees() - ent.RotationOffset) * math.min(10,0.3 * math.abs(ent.RotationOffset - ndir:GetAngleDegrees()))
 
 			ent.CollisionDamage = 0.5 * player.Damage * 0.07
-			
+
 			if d.tail and d.tail:Exists() and d.tail:IsDead() ~= true then
 				d.tail.Position = ent.Position + dir:Normalized() * (info.offset or 20) + auxi.Get_rotate(dir) * (info.rot_offset or 0)
 				local s2 = d.tail:GetSprite()
@@ -3049,6 +3478,9 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_KNIFE_
 Function = function(_,ent,col,low)
 	if ent.Variant == enums.Entities.Tecro_Spear then
 		local d = ent:GetData()
+		if not spear_gameplay_enabled(ent) then
+			return true
+		end
 		local s = ent:GetSprite()
 		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)
 		if not player then return end
@@ -3061,23 +3493,23 @@ Function = function(_,ent,col,low)
 		local delta = math.abs(dir_vel)/(d2.now_vel_alpha or 1)
 		local info = item.sprite_loader[(d.spear_type or 1)] or item.sprite_loader[1]
 		local should_repel = true
-		
+
 		if d.tecro_remove_then == nil then
-			if ((d2[item.own_key.."Record_spear_shot"] or 0) > 0 and d2.Tecro_spear_state == 1 or (d2.Tecro_spear_state == 4 and find_a_impaled_place(col,player)) or player.Velocity:Length() > 12) and can_be_impaled(col,player) and (d3.Tecro_spear_hold_time_Charge_Bar_buff or 0) < 5 and d3.time_stopped == nil then		--or (d2.Tecro_spear_state == 3 and (d2.Tecro_spear_charge or 0) < 0.9) 
+			if ((d2[item.own_key.."Record_spear_shot"] or 0) > 0 and d2.Tecro_spear_state == 1 or (d2.Tecro_spear_state == 4 and find_a_impaled_place(col,player)) or player.Velocity:Length() > 12) and can_be_impaled(col,player) and (d3.Tecro_spear_hold_time_Charge_Bar_buff or 0) < 5 and d3.time_stopped == nil then		--or (d2.Tecro_spear_state == 3 and (d2.Tecro_spear_charge or 0) < 0.9)
 				d2.Tecro_spear_state = 4
-				d2.Tecro_spear_target = d2.Tecro_spear_target or {} 
+				d2.Tecro_spear_target = d2.Tecro_spear_target or {}
 				table.insert(d2.Tecro_spear_target,#d2.Tecro_spear_target + 1,{ent = col,})
 				d3.Tecro_linked_ent = ent
 				stop_time(col,player)
-				if auxi.check_if_any(item.Addition_catcher[col.Type],col) then 
-					local n_entities = auxi.get_linked(col) 
-					for u,v in pairs(n_entities) do	
+				if auxi.check_if_any(item.Addition_catcher[col.Type],col) then
+					local n_entities = auxi.get_linked(col)
+					for u,v in pairs(n_entities) do
 						local d4 = v:GetData()
-						if (d4.Tecro_spear_hold_time_Charge_Bar_buff or 0) < 5 and d4.time_stopped == nil then 
+						if (d4.Tecro_spear_hold_time_Charge_Bar_buff or 0) < 5 and d4.time_stopped == nil then
 							table.insert(d2.Tecro_spear_target,#d2.Tecro_spear_target + 1,{ent = v,})
 							stop_time(v,player)
 							d4.Tecro_linked_ent = ent
-						end 
+						end
 					end
 				end
 				local rnd = math.random(math.max(math.ceil(6 * delta),1)) + 2
@@ -3103,7 +3535,7 @@ Function = function(_,ent,col,low)
 				q.SpriteRotation = math.random(360)
 				q.SpriteScale = Vector(0.9 + math.random(1000)/1000 * 0.2,0.9 + math.random(1000)/1000 * 0.2)
 			end
-			if info.bleed_out and col:HasEntityFlags(EntityFlag.FLAG_BLEED_OUT) == false then 
+			if info.bleed_out and col:HasEntityFlags(EntityFlag.FLAG_BLEED_OUT) == false then
 				if auxi.check_rand(player.Luck,30,10,5) then
 					Attribute_holder.try_hold_and_rewind_attribute(col,"EntityFlag_FLAG_BLEED_OUT",true,1 * 30,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_BLEED_OUT))
 				end
@@ -3131,7 +3563,7 @@ Function = function(_,ent,col,low)
 						d4.tail_pos_offset = Vector(0,-10)
 						d4.follow_position_offset = true
 						local q3 = Isaac.Spawn(EntityType.ENTITY_EFFECT,EffectVariant.SPRITE_TRAIL, 0, col.Position, Vector(0,0), ent):ToEffect()
-						d4.tail = q3 
+						d4.tail = q3
 						q3.PositionOffset = Vector(0,0)
 						q3:GetSprite().Color = Color(1,0,0,0.3)
 						q3.MinRadius = 0.07
@@ -3156,7 +3588,7 @@ Function = function(_,ent,col,low)
 				s:Load("gfx/player/tecro/tecro_spike.anm2",true)
 				q:GetData().is_spike = true
 				q:GetData().recorded_damage = player.Damage * 0.3
-				if item.bond_special_spikes[Game():GetLevel():GetStage()] then 
+				if item.bond_special_spikes[Game():GetLevel():GetStage()] then
 					s:Play("SummonWomb",true)
 				else
 					s:Play("Summon",true)
@@ -3204,11 +3636,11 @@ Function = function(_,ent,col,low)
 				Isaac.Spawn(1000,53,0,col.Position,Vector(0,0),player)
 			end
 		end
-		if (list.ipec or 0) > 0 then 
+		if (list.ipec or 0) > 0 then
 			if (d.Tecro_ipec_counter or 0) <= 0 then
 				local head = ent:GetData().head or Sprite()
 				local dmgself = false
-				Game():BombExplosionEffects(col.Position,player.Damage,ent.TearFlags,s.Color,player,head.Scale:Length()/math.sqrt(2),false,dmgself) 
+				Game():BombExplosionEffects(col.Position,player.Damage,ent.TearFlags,s.Color,player,head.Scale:Length()/math.sqrt(2),false,dmgself)
 				d.Tecro_ipec_counter = player.MaxFireDelay * 5
 			end
 		end
@@ -3389,14 +3821,14 @@ Function = function(_,ent,hook,button)
 					elseif hook == InputHook.GET_ACTION_VALUE then
 						if math.abs(gdir.Y) > 0.7 then
 							return val
-						else 
+						else
 							return val * 0.01
 						end
 --						return val * (gdir.Y * gdir.Y + 0.01)			--有趣的参数
 					end
 				end
 			else
-				
+
 			end
 		end
 	end
@@ -3440,31 +3872,154 @@ end,
 })
 
 --- Gello 等宝宝：从 origin 发射长枪多发；charge 承载伤害倍率；不扣币/不推进眼泪盆。
-function item.fire_familiar_attack(player, request)
-	request = request or {}
-	if not player then return {fired = false} end
-	local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
-	local aim = request.aim_dir or Vector(0, 1)
-	if aim:Length() < 0.01 then aim = Vector(0, 1) end
-	local mul = tonumber(request.damage_mul) or 0.75
-	-- fire_spear 会把 source 当作 TecroNil Parent；仅允许熟悉体/TecroNil，禁止邪眼等 Effect
-	local src = request.source
-	if src and src.Type == EntityType.ENTITY_EFFECT then
-		if src.Variant ~= enums.Entities.TecroNil and src.Variant ~= enums.Entities.TecroLaserNil then
-			src = nil
+--- Aeon：传 frozen snapshot（dir/charge/spear_type），advanced_familiar_copy 防二次录制。
+function item.build_aeon_spear_snapshot(player, dir, charge, spear_type, list)
+	local dir_tbl = {x = 0, y = 1}
+	if dir then
+		if type(dir) == "table" then
+			dir_tbl = {x = tonumber(dir.x or dir.X) or 0, y = tonumber(dir.y or dir.Y) or 0}
+		elseif dir.X ~= nil then
+			dir_tbl = {x = tonumber(dir.X) or 0, y = tonumber(dir.Y) or 0}
 		end
 	end
-	-- cnt1=1：get_Tecro_multishots 默认 base=0，无多发道具时表为空（玩家主枪不走这条）。
-	work_on_Tecro_multi_attack_params(player, {
-		dir = aim,
-		charge = mul,
-		cnt1 = 1,
-		origin = request.origin or (request.source and request.source.Position),
-		source = src,
-		TearFlags = CharacterFamiliars.apply_familiar_tear_flags(player, BitSet128(0, 0)),
-		advanced_familiar_copy = true,
+	local list_tbl = {}
+	if type(list) == "table" then
+		for _, key in ipairs({"brimstone", "knife", "soy", "soy2", "ludo", "nepton", "anti", "greed_head"}) do
+			if list[key] ~= nil then
+				list_tbl[key] = tonumber(list[key]) or list[key]
+			end
+		end
+	end
+	return {
+		kind = "tecro_spear",
+		charge = tonumber(charge) or 1,
+		direction = dir_tbl,
+		spear_type = tonumber(spear_type) or 1,
+		list = list_tbl,
+	}
+end
+
+function item.fire_spear_copy(player, request)
+	request = request or {}
+	if not player then return {fired = false} end
+	local snap = request.snapshot
+	local dir = request.aim_dir
+	if dir and dir.X ~= nil and dir.Length and dir:Length() >= 0.01 then
+		dir = dir:Normalized()
+	else
+		dir = nil
+	end
+	if not dir and type(snap) == "table" and type(snap.direction) == "table" then
+		local dx = tonumber(snap.direction.x or snap.direction.X) or 0
+		local dy = tonumber(snap.direction.y or snap.direction.Y) or 0
+		if dx * dx + dy * dy > 0.0001 then
+			dir = Vector(dx, dy):Normalized()
+		end
+	end
+	if not dir then
+		dir = Vector(0, 1)
+	end
+	local origin = request.origin
+		or (request.source and request.source.Position)
+		or player.Position
+	local charge = tonumber(request.damage_mul)
+	if charge == nil and type(snap) == "table" then
+		charge = tonumber(snap.charge)
+	end
+	charge = charge or 0.75
+	local replay_copy = request.is_replay_copy == true or request.replay_copy == true
+	local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
+	local tearflags = CharacterFamiliars.apply_familiar_tear_flags(player, BitSet128(0, 0))
+	local attack_holder_mod = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local fire_token = nil
+	if request.fire_context and request.fire_context.mode == "untracked" then
+		local pushed = attack_holder_mod.PushFireContext(request.fire_context)
+		fire_token = pushed and pushed.token
+	end
+	-- Unique creation owner. Ghost is anchor/origin only — never fire_spear.source.
+	local handle = item.spawn_virtual_spear(player, origin, dir, {
+		snapshot = snap,
+		spear_type = type(snap) == "table" and snap.spear_type or nil,
+		list = type(snap) == "table" and snap.list or nil,
+		charge = charge,
+		TearFlags = tearflags,
+		presentation_only = false,
+		advanced_familiar_copy = request.advanced_familiar_copy == true or replay_copy,
+		replay_copy = replay_copy,
+		detached_init = true,
+		origin_explicit = true,
+		anchor = request.source,
+		reason = request.reason or "tecro_spear_copy",
 	})
-	return {fired = true, delay = player.MaxFireDelay}
+	if fire_token then
+		attack_holder_mod.PopFireContext(fire_token)
+	end
+	return {
+		fired = handle ~= nil,
+		handle = handle,
+		delay = player.MaxFireDelay,
+	}
+end
+
+function item.snapshot_attack(player, context)
+	context = context or {}
+	local snap = CharacterAttackCompat.read_attack_snapshot(context.attack)
+	if type(snap) == "table" and snap.kind == "tecro_spear" then
+		return snap
+	end
+	return nil
+end
+
+function item.replay_attack(player, request)
+	request = request or {}
+	request.damage_mul = tonumber(request.damage_mul) or 1
+	request.suppress_player_cost = true
+	request.suppress_state_advance = true
+	return item.fire_spear_copy(player, request)
+end
+
+function item.fire_familiar_attack(player, request)
+	request = request or {}
+	request.damage_mul = tonumber(request.damage_mul) or 0.75
+	request.snapshot = nil
+	request.advanced_familiar_copy = true
+	return item.fire_spear_copy(player, request)
+end
+
+-- ---------- Aeon pose capture (replay spear is fire_spear_copy only) ----------
+local REPLAY_POSE_AIM_DISTANCE = 160
+
+local function presentation_canvas_xy(center)
+	if not center then return 0, 0 end
+	if center.X ~= nil or center.Y ~= nil then
+		return tonumber(center.X) or 0, tonumber(center.Y) or 0
+	end
+	return tonumber(center.x) or 0, tonumber(center.y) or 0
+end
+
+--- Aeon frame pose: canvas-relative visual aim point from live now_dir (not attack snapshot).
+function item.capture_replay_pose(player, context)
+	if not player then return nil end
+	context = context or {}
+	local d = player:GetData()
+	local dir = d.now_dir
+	if not dir or not dir.Length or dir:Length() < 0.001 then
+		return nil
+	end
+	dir = dir:Normalized()
+	local center = context.canvas_center
+	if center then
+		local cx, cy = presentation_canvas_xy(center)
+		local target = player.Position + dir * REPLAY_POSE_AIM_DISTANCE
+		return {
+			target_x = target.X - cx,
+			target_y = target.Y - cy,
+		}
+	end
+	return {
+		aim_x = dir.X,
+		aim_y = dir.Y,
+	}
 end
 
 CharacterAttackCompat.register(item.entity, {
@@ -3472,7 +4027,21 @@ CharacterAttackCompat.register(item.entity, {
 	module = "Qing_Remaster_scripts.player.player_Tecro",
 	advanced_familiars = true,
 	familiar_attack = item.fire_familiar_attack,
-	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+	snapshot_attack = item.snapshot_attack,
+	replay_attack = item.replay_attack,
+	capture_replay_pose = item.capture_replay_pose,
+	begin_replay_presentation = false,
+	update_replay_presentation = false,
+	end_replay_presentation = false,
+	capabilities = {
+		projectile = true,
+		volley = true,
+		charge = true,
+		weapon_morph = true,
+		aeon_replay = true,
+		aeon_presentation = false,
+	},
+	audit = "Aeon character_action replay_attack is the only spear spawn; spawn_virtual_spear(presentation_only=false) owns TecroNil + linked spear",
 })
 
 return item

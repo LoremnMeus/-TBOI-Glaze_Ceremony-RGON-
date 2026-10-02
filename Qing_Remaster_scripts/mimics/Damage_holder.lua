@@ -7,7 +7,7 @@ local Ice_holder = require("Qing_Remaster_scripts.mimics.Ice_holder")
 local Horn_hand_holder = require("Qing_Remaster_scripts.mimics.Horn_hand_holder")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Punch_holder = require("Qing_Remaster_scripts.mimics.Punch_holder")
-local tear_trigger_holder = require("Qing_Remaster_scripts.callbacks.tear_trigger_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -118,7 +118,13 @@ function item.damage_with(ent,col,params)
 		local cnt = auxi.choose(1,2,3)
 		for i = 1,cnt do
 			local dir = auxi.random_r()
-			local q = player:FireTear(col.Position,dir * 10 * player.ShotSpeed,true,true,true)
+			local q = attack_holder.FireTear(player, col.Position, dir * 10 * player.ShotSpeed, {
+				mode = "untracked",
+				reason = "damage_holder_compound_fracture",
+				can_be_eye = true,
+				no_tracer = true,
+				can_trigger_streak_end = true,
+			})
 			q.TearFlags = BitSet128(0,0)
 			q.CollisionDamage = dmg * 0.2
 			q.Scale = q.Scale * 0.5
@@ -165,7 +171,27 @@ function item.damage_with(ent,col,params)
 	--77：毛霉菌		--!!
 	--78：鬼炸弹，79：杀死掉塔罗牌，80：杀死掉符文，81：随机传送敌人，82：减速，83：加速
 	--104：墙间弹射，105：防止地形伤害，106：背刺，107-114：剖腹产	...
-	if params.tear_trigger then tear_trigger_holder.trigger_tear(params.tear_trigger_tp or "_",ent,nil,player,nil) end
+	-- Caller-driven Attack sample (M8.1). Default none — do not imply synthetic from legacy tear_trigger.
+	local sample = params.attack_sample
+	if type(sample) == "table" then
+		local mode = sample.mode or "none"
+		if mode == "inherit" and sample.attack then
+			attack_holder.EmitDpsSample(sample.attack, ent, {
+				position = ent.Position,
+				reason = sample.reason or "damage_holder",
+				sample_weight = sample.sample_weight or 1,
+			})
+		elseif mode == "synthetic" then
+			attack_holder.EmitSyntheticSample(player, {
+				family = sample.family or "tear",
+				source_entity = ent,
+				position = ent.Position,
+				reason = sample.reason or "damage_holder",
+				sample_weight = sample.sample_weight or 1,
+				synthetic_kind = sample.synthetic_kind or "sample",
+			})
+		end
+	end
 end
 
 return item

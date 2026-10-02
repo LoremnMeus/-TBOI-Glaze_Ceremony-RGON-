@@ -117,6 +117,9 @@
 	<entity anm2path="mimics/Little_Duck/littleduck.anm2" baseHP="99999" boss="0" champion="0" collisionDamage="0" shutdoors="false" collisionMass="3" collisionRadius="15" friction="1" id="996" name="littleduck" numGridCollisionPoints="12" shadowSize="15" stageHP="0" variant="2364">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
     </entity>
+	<entity anm2path="mimics/Gold_Rush/rat.anm2" name="Gold Rush Rat" id="996" variant="2455" boss="0" champion="0" baseHP="6" collisionDamage="0" collisionRadius="5" numGridCollisionPoints="4" collisionMass="2" friction="1" shadowSize="4" stageHP="0" gridCollision="walls" reroll="false" shutdoors="false" tags="nodelirium noreroll">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0"/>
+	</entity>
 	
 	<entity anm2path="boss/Zennith/wildwind.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Wildwind" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="23765">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
@@ -294,9 +297,9 @@
 	<entity anm2path="items/slots/bloody_messenger.anm2" baseHP="1" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="6" name="Bloody Messenger" numGridCollisionPoints="24" shadowSize="15" stageHP="0" variant="24014" shutdoors="false">
         <gibs amount="6" blood="1" bone="1" eye="1" gut="1" large="0"/>
     </entity>
-	<!-- 钻石收购商：暂借 Bard Beggar 贴图 -->
-	<entity anm2path="items/slots/diamond_merchant.anm2" baseHP="1" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="6" name="Qing Diamond Merchant" numGridCollisionPoints="24" shadowSize="15" stageHP="0" variant="24015" shutdoors="false">
-        <gibs amount="6" blood="1" bone="1" eye="1" gut="1" large="0"/>
+	<!-- 银行支行：暂借 Bard Beggar 贴图；Closed/Broken 用 Idle/Teleport + 染色 -->
+	<entity anm2path="items/slots/bard_beggar.anm2" baseHP="20" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="14" friction="1" id="6" name="Bank Branch" numGridCollisionPoints="24" shadowSize="18" stageHP="0" variant="24017" shutdoors="false">
+        <gibs amount="6" blood="0" bone="0" eye="0" gut="0" large="0"/>
     </entity>
 	<entity anm2path="items/slots/rift/Rift_beggar.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="10" friction="1" id="1000" name="Rift Beggar Helper" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2414">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
@@ -332,6 +335,13 @@
 	<entity anm2path="mimics/Cursed_Mask/linker.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Cursed Linker" numGridCollisionPoints="0" shadowSize="10" stageHP="0" variant="2424"></entity>
 	<entity anm2path="cards/Card_Sting/Pentagram2.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="1000" name="S Pentagram" numGridCollisionPoints="24" shadowSize="0" stageHP="0" variant="2425">
     </entity>
+	<!-- 倒位密仪：独立法阵 variant；ANM2 专属（仍引用 Pentagram2.png），无 Spike -->
+	<entity anm2path="cards/Card_Sting/Pentagram2_reversed.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="1000" name="S Pentagram Reversed" numGridCollisionPoints="24" shadowSize="0" stageHP="0" variant="2452">
+    </entity>
+	<!-- 倒位密仪：祭品回流血鼓包（纯视觉） -->
+	<entity anm2path="cards/Card_Sting/ritual_blood.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="S Sting Reversed Blood" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2453">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	<entity anm2path="effects/nil_effect.anm2" baseHP="20" id="996" variant="2426" name="ZeistosHelper2"  collisionDamage="1" collisionRadius="12" numGridCollisionPoints="12" collisionMass="10" friction="1" stageHP="10" shadowSize="16" tags="nodelirium noreroll" gridCollision="walls" reroll="false" shutdoors="true" >
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
     </entity>
@@ -409,9 +419,45 @@
 	<entity anm2path="mimics/Abiogenesis/Abiogenesis.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="15" friction="1" id="3" name="Abiogenesis" numGridCollisionPoints="12" shadowSize="15" stageHP="0" variant="2449">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
     </entity>
+	<entity anm2path="mimics/Regenesis/Regenesis.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="3" name="Regenesis Baby" numGridCollisionPoints="12" shadowSize="12" stageHP="0" variant="2454">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" id="1000" name="Glaze Helper" variant="2443" collisionRadius="0" numGridCollisionPoints="0" friction="1" shadowSize="18">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
     </entity>
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" id="1000" name="Abiogenesis Avatar" variant="2444" collisionRadius="0" numGridCollisionPoints="0" friction="1" shadowSize="0">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" id="1000" name="Art Effect" variant="2450" collisionRadius="0" numGridCollisionPoints="0" collisionMass="0" friction="1" shadowSize="0">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- 死神场虚影：专用 Effect，禁止用 MeusNil 承载持续业务虚影 -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="12" friction="1" id="1000" name="Death Field Proxy" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2451">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Bank HQ room anchors. Runtime Effect 1000; room XML / BR use serialization alias Type 999. SubType: 1 Main 2 Records 3 Deposit 4 Repossession 5 Settlement 6 Treasury 7 Entrance -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="8" friction="1" id="1000" name="Bank Room Marker" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2457">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Stone / Chess room anchors. Runtime Effect 1000; room XML / BR use Type 999. SubType: 1 Entry 2 Return 3 BossGate 4 Center 5 FloraineEntry 6 Origin -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="8" friction="1" id="1000" name="Stone Room Marker" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2458">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Phase Lab room anchors. Runtime Effect 1000; room XML / BR use Type 999. SubType: 1 Center 2 Entry 3 Reset 4 Terminal -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="8" friction="1" id="1000" name="Phase Lab Room Marker" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2459">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Phase Lab fixtures (blocks / reset / slots / anchor / terminal). SubType owned by phase_lab.defs.FIX -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="16" friction="1" id="1000" name="Phase Lab Fixture" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2460">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Runtime Stitch invisible Base/Linker.
+	     Owns combined HP/collision/lifecycle.
+	     Native Left/Right NPCs own AI.
+	     Visual rendered dynamically from live native sprites through sprite_splice. -->
+	<entity anm2path="effects/nil_effect.anm2" name="Runtime Stitch Linker" id="996" variant="2456" boss="0" champion="0" baseHP="40" collisionDamage="0" collisionRadius="12" numGridCollisionPoints="8" collisionMass="10" friction="1" shadowSize="12" stageHP="0" shutdoors="false" tags="nodelirium noreroll" gridCollision="walls" reroll="false">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	<!-- SubType=收藏品 ID；Item 层(4)运行时 ReplaceSpritesheet -->
 	<entity anm2path="items/prototype.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="5" name="Blueprint Prototype" numGridCollisionPoints="24" shadowSize="16" stageHP="0" variant="2448" subtype="0">
     </entity>

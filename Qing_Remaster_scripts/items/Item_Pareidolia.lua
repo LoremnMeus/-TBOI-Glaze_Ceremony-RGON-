@@ -7,6 +7,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Nil_holder = require("Qing_Remaster_scripts.others.Nil_holder")
 local moon = require("Qing_Remaster_scripts.others.pareidolia_moon_render")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -1614,7 +1615,12 @@ local function spawn_fx_techx_ring(player, fx, pos)
 	end
 	if not auxi.check_all_exists(anchor) then return end
 	-- 与 Craft_Ludovico_holder.spawn_ring 同序：FireTechXLaser → Parent=锚点 → RING_LUDOVICO
-	local ring = player:FireTechXLaser(anchor.Position, Vector.Zero, TECHX_START_R, player, 0.4)
+	local ring = attack_holder.FireTechXLaser(player, anchor.Position, Vector.Zero, TECHX_START_R, {
+		mode = "untracked",
+		reason = "pareidolia_techx_ring",
+		Source = player,
+		damage_multiplier = 0.4,
+	})
 	if not ring then
 		release_techx_hover(fx)
 		return
@@ -2011,7 +2017,13 @@ local function tick_fx_evil_eyes(player, fx)
 			row.shooting = frame < (row.shoot_until or 0)
 			if frame >= (row.next_shot or 0) then
 				local speed = (player.ShotSpeed or 1) * 10
-				local tear = player:FireTear(pos, aim * speed, false, true, false)
+				local tear = attack_holder.FireTear(player, pos, aim * speed, {
+					mode = "untracked",
+					reason = "pareidolia_evil_eye",
+					can_be_eye = false,
+					no_tracer = true,
+					can_trigger_streak_end = false,
+				})
 				if tear then
 					tear = tear:ToTear() or tear
 					tear.SpawnerEntity = player
@@ -2890,8 +2902,8 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	end,
 })
 
-table.insert(item.ToCall, #item.ToCall + 1, {
-	CallBack = ModCallbacks.MC_POST_NEW_ROOM,
+table.insert(item.myToCall, #item.myToCall + 1, {
+	CallBack = enums.Callbacks.PRE_NEW_ROOM,
 	params = nil,
 	Function = function()
 		for i = 0, g.game:GetNumPlayers() - 1 do

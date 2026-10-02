@@ -9,6 +9,7 @@ local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 
 local item = {
 	pickup = enums.Pickups.Glaze_battery,
@@ -57,7 +58,7 @@ function item.try_collect(ent,player)
 		local idx = player_idx(player)
 		if idx ~= nil then pending_bag()[idx] = true end
 		save.elses.glaze_battery = 0
-		glaze_crown.notify_pickup(player)
+		glaze_crown.notify_pickup(player, ent and ent.Position)
 		return true
 	end
 	return nil
@@ -74,7 +75,10 @@ Function = function(_,ent, col, low)
 				ent.Velocity = Vector(0,0)
 				ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BATTERYDISCHARGE,1,1,false,0,2)
-				auxi.remove_others_option_pickup(ent)
+				option_index_holder.commit_selection(ent, player, {
+					skip_will_collect = true,
+					remove_siblings = true,
+				})
 				if ent:IsShopItem() then auxi.buy_a_pickup(ent,player)
 				else ent:GetSprite():Play("Collect", true) end
 				return true

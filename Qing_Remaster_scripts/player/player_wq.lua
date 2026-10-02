@@ -16,6 +16,20 @@ local Flat_Stone_holder = require("Qing_Remaster_scripts.mimics.Flat_Stone_holde
 local Isaacs_Tear_holder = require("Qing_Remaster_scripts.mimics.Isaacs_Tear_holder")
 local Damage_holder = require("Qing_Remaster_scripts.mimics.Damage_holder")
 local CharacterAttackCompat = require("Qing_Remaster_scripts.player.character_attack_compat")
+local CharRound = require("Qing_Remaster_scripts.player.character_attack_round")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+
+--- Combo / knife secondary Fire*: CopyFireContext inherit; orphan → untracked (never new_attack).
+local function wq_fire_opts(reason, overrides)
+	local opts = attack_holder.CopyFireContext(reason)
+		or { mode = "untracked", reason = reason .. "_orphan" }
+	if type(overrides) == "table" then
+		for k, v in pairs(overrides) do
+			opts[k] = v
+		end
+	end
+	return opts
+end
 
 local item = {
 	pre_ToCall = {},
@@ -210,7 +224,7 @@ local item = {
 				if ((params.list or {}).brimstone or 0) > 0 and (params.charge or 1) > 0.3 then		--!!
 					local cnt = params.list.brimstone
 					for u,v in pairs({90,-90}) do 
-						local q = player:FireBrimstone(auxi.get_by_rotate(vel,v,1))
+						local q = attack_holder.FireBrimstone(player, auxi.get_by_rotate(vel,v,1), wq_fire_opts("wq_combo_brim"))
 						q.PositionOffset = Vector(0,0)
 						if cnt > 1 then	q:SetTimeout(25)
 						else q:SetTimeout(13) end
@@ -223,7 +237,7 @@ local item = {
 				local vel = player.Velocity + dir * 10
 				auxi.fire_dosome_knife((params.pos or (player.Position + player.Velocity)) + auxi.get_by_rotate(vel,90,60) + auxi.get_by_rotate(vel,0,-20),auxi.get_by_rotate(vel,-30),tearHitParams,"StabDown",{player = player,repel = dir * 10,},params)
 				auxi.fire_dosome_knife((params.pos or (player.Position + player.Velocity)) + auxi.get_by_rotate(vel,-90,60) + auxi.get_by_rotate(vel,0,-20),auxi.get_by_rotate(vel,30),tearHitParams,"StabDown",{player = player,repel = dir * 10,},params)
-				local q3 = player:FireBomb((params.pos or (player.Position + player.Velocity)),vel * player.ShotSpeed)
+				local q3 = attack_holder.FireBomb(player, (params.pos or (player.Position + player.Velocity)), vel * player.ShotSpeed, wq_fire_opts("wq_combo_bomb"))
 				return 0.8
 			end,
 			[3] = function(player,dir,tearHitParams,info,item,params) 
@@ -299,7 +313,7 @@ local item = {
 				local cnt = math.random(3) + 3
 				local vel = player.Velocity + dir * 10
 				for i = 1,cnt do auxi.fire_dosome_knife((params.pos or (player.Position + player.Velocity)) + auxi.get_by_rotate(dir,(i - 0.5)/cnt * 360,30),auxi.get_by_rotate(dir,(i - 0.5)/cnt * 360,10),tearHitParams,"StabDown",{player = player,repel = dir * 3,},params) end
-				local q = player:FireTechXLaser((params.pos or (player.Position + player.Velocity)),vel,60)
+				local q = attack_holder.FireTechXLaser(player, (params.pos or (player.Position + player.Velocity)), vel, 60, wq_fire_opts("wq_combo_techx"))
 				q.Velocity = Vector(0,0)
 				q.PositionOffset = Vector(0,0)
 				q:SetTimeout(10)
@@ -310,14 +324,14 @@ local item = {
 				local vel = player.Velocity + dir * 10
 				local cnt = (math.random(2) + 2) * 2
 				for i = 1,cnt do auxi.fire_dosome_knife((params.pos or (player.Position + player.Velocity)) + auxi.get_by_rotate(dir,(i - 0.5)/cnt * 360,30),auxi.get_by_rotate(dir,(i - 0.5)/cnt * 360,1/1000),tearHitParams,"AttackUp",{player = player,Flip = (i < cnt/2),},params) end
-				local q = player:FireTechXLaser((params.pos or (player.Position + player.Velocity)),vel,60)
+				local q = attack_holder.FireTechXLaser(player, (params.pos or (player.Position + player.Velocity)), vel, 60, wq_fire_opts("wq_combo_techx"))
 				q.Velocity = Vector(0,0)
 				q.PositionOffset = Vector(0,0)
 				q:SetTimeout(10)
 				return {punimul = 4,mul = 2.5,}
 			end,
 			[2] = function(player,dir,tearHitParams,info,item,params) 
-				local q = player:FireTechXLaser((params.pos or (player.Position + player.Velocity)) + (player.Velocity + dir * 10) * 4,player.Velocity + dir * 10,30)
+				local q = attack_holder.FireTechXLaser(player, (params.pos or (player.Position + player.Velocity)) + (player.Velocity + dir * 10) * 4, player.Velocity + dir * 10, 30, wq_fire_opts("wq_combo_techx"))
 				q.PositionOffset = Vector(0,0)
 				q:SetTimeout(math.floor(player.ShotSpeed) * 10)
 				local cnt = math.random(6) + 6
@@ -439,7 +453,12 @@ local item = {
 			local vel = player.Velocity + dir * 10
 			local q = auxi.fire_dosome_knife((params.pos or (player.Position + player.Velocity)),auxi.get_by_rotate(vel,0,20 * player.ShotSpeed),tearHitParams,"IdleUp",{player = player,dmgmul = 1,},params)
 			local d = q:GetData()
-			local q2 = player:FireTechLaser(player.Position,1,-(player.Velocity + dir * 10),false,false,nil,0.5)
+			local q2 = attack_holder.FireTechLaser(player, player.Position, -(player.Velocity + dir * 10), wq_fire_opts("wq_tech5", {
+				offset_id = 1,
+				left_eye = false,
+				one_hit = false,
+				damage_multiplier = 0.5,
+			}))
 			q2.PositionOffset = Vector(0,0)
 			q2:GetData().followParent = q
 			q2:SetTimeout(13)
@@ -451,7 +470,12 @@ local item = {
 			local vel = player.Velocity + dir * 10
 			local q = auxi.fire_dosome_knife((params.pos or (player.Position + player.Velocity)),auxi.get_by_rotate(vel,0,20 * player.ShotSpeed),tearHitParams,"IdleUp",{cooldown = 10,player = player,dmgmul = 1,},params)
 			local d = q:GetData()
-			local q2 = player:FireTechLaser(player.Position,1,-(player.Velocity + dir * 10),false,false,nil,0.2)
+			local q2 = attack_holder.FireTechLaser(player, player.Position, -(player.Velocity + dir * 10), wq_fire_opts("wq_tech2", {
+				offset_id = 1,
+				left_eye = false,
+				one_hit = false,
+				damage_multiplier = 0.2,
+			}))
 			q2:SetTimeout(10)
 			q2.PositionOffset = Vector(0,0)
 			q2:GetData().followParent = q
@@ -475,6 +499,14 @@ local item = {
 		["NoChargedFall"] = "NoChargedDown",
 	},
 }
+
+local function with_knife_member_fire(ent, reason, fn)
+	local attack = select(1, CharRound.holder.GetAttackForMember(ent))
+	return CharRound.with_inherit_attack(attack, {
+		reason = reason or "wq_knife_secondary",
+		emitter = ent,
+	}, fn)
+end
 
 function item.repel_self(player,ent,dir)
 	local d = ent:GetData()
@@ -827,6 +859,14 @@ Function = function(_,player)
 				weap = d[item.own_key.."ThreeDoll"]
 			end
 			local attack_params = auxi.get_Qing_multishots(player,list)
+			-- M6: one input fire = one Attack across multishot knives + secondary Fire*.
+			CharRound.with_player_round(player, "knife", {
+				reason = "wq_combo",
+				position = player.Position,
+				direction = gdir,
+				emitter = player,
+			}, function(attack)
+			local aeon_attached = false
 			for i = #attack_params,1,-1 do
 				local info = attack_params[i]
 				local dir = auxi.MakeVector(info.dir + gdir:GetAngleDegrees()) * math.max(0.6,math.min(3,0.7 * player.ShotSpeed + 0.3 + math.log(player.TearRange/260)))
@@ -839,6 +879,17 @@ Function = function(_,player)
 				
 				local weap_listinfo = (auxi.check_if_any(item.attack_list[weap],item) or item.attack_list[1])
 				d[item.own_key.."State"] = auxi.check_if_any(weap_listinfo.state_trans,d[item.own_key.."State"],list) or d[item.own_key.."State"]
+				if i == 1 and not aeon_attached then
+					CharacterAttackCompat.attach_attack_snapshot(attack, item.build_aeon_melee_snapshot(
+						player,
+						weap,
+						d[item.own_key.."State"] or 0,
+						d[item.own_key.."Charge"] or 1,
+						gdir,
+						list
+					))
+					aeon_attached = true
+				end
 				local weapinfo = item.attack_list[info.Anim] or weap_listinfo[d[item.own_key.."State"]] or item.attack_list[1][0]
 				local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
 				local attack_call_params = {tearflag = info.tearflag,color = info.color,state = d[item.own_key.."State"],weap = weap,list = list,charge = (d[item.own_key.."Charge"] or 1),pos = (d[item.own_key.."Ludo_Mark"] or {}).Position,}
@@ -860,6 +911,7 @@ Function = function(_,player)
 					d[item.own_key.."Delay_Puni"] = auxi.check_if_any((ret.punimul or 0) * player.MaxFireDelay)
 				end
 			end
+			end)
 			d[item.own_key.."Charge"] = nil
 			Isaacs_Tear_holder.add_tear(player)
 			do
@@ -871,17 +923,21 @@ Function = function(_,player)
 		end
 		if player:HasCollectible(152) then		--科技2
 			if gdir:Length() > 0.05 and auxi.check_all_exists(d[item.own_key.."Tech2"]) ~= true then
-				local weapinfo = item.attack_list["Tech2"]
-				local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
-				local ret = auxi.check_if_any(weapinfo,player,gdir,tearHitParams,weapinfo,item,{state = d[item.own_key.."State"],weap = weap,list = list,charge = 1,}) or {delay = player.MaxFireDelay,}
-				d[item.own_key.."Tech2"] = ret.ent
+				CharRound.with_untracked("wq_tech2", function()
+					local weapinfo = item.attack_list["Tech2"]
+					local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
+					local ret = auxi.check_if_any(weapinfo,player,gdir,tearHitParams,weapinfo,item,{state = d[item.own_key.."State"],weap = weap,list = list,charge = 1,}) or {delay = player.MaxFireDelay,}
+					d[item.own_key.."Tech2"] = ret.ent
+				end)
 			end
 		end
 		if gdir:Length() > 0.05 and player:HasCollectible(244) then		--科技.5
 			if math.random(1000) > 950 and d[item.own_key.."Delay"]/2 > math.random(math.floor(player.MaxFireDelay) + 1) then
-				local weapinfo = item.attack_list["Tech.5"]
-				local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
-				local ret = auxi.check_if_any(weapinfo,player,gdir,tearHitParams,weapinfo,item,{state = d[item.own_key.."State"],weap = weap,list = list,charge = 1,}) or {delay = player.MaxFireDelay,}
+				CharRound.with_untracked("wq_tech5", function()
+					local weapinfo = item.attack_list["Tech.5"]
+					local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS,1,auxi.choose(0,1))
+					local ret = auxi.check_if_any(weapinfo,player,gdir,tearHitParams,weapinfo,item,{state = d[item.own_key.."State"],weap = weap,list = list,charge = 1,}) or {delay = player.MaxFireDelay,}
+				end)
 			end
 		end
 	end
@@ -1136,7 +1192,10 @@ Function = function(_,ent)
 							if vel:Length() < 0.005 then
 								vel = auxi.MakeVector(ent.RotationOffset) * 0.005
 							end
-							local q1 = player:FireBomb(ent.Position,vel * (math.random(50)/10 + 2),nil,0.3)
+							local q1
+							with_knife_member_fire(ent, "wq_knife_dr", function()
+								q1 = attack_holder.FireBomb(player, ent.Position, vel * (math.random(50)/10 + 2), wq_fire_opts("wq_knife_dr"))
+							end)
 						end
 						d.Dr_fetus_firedelay = math.random(65) + 10 + player.MaxFireDelay
 					end
@@ -1191,11 +1250,17 @@ Function = function(_,ent)
 				if d2.removecd and d2.removecd == 1 then
 					local maxcnt = math.random(d.params.list.hae * 1 + 1) - 1
 					for i = 1, maxcnt do 
-						local q1 = player:FireTear(ent.Position, auxi.MakeVector(math.random(36000)/100) * 3 * player.ShotSpeed * (math.random(1000)/400+0.3),true,true,true)
-						q1.FallingSpeed = 10
-						q1.FallingAcceleration = 2.6
-						q1.PositionOffset = Vector(0,0)
-						q1.Scale = q1.Scale * (math.random(1500)/1000 + 0.8)
+						with_knife_member_fire(ent, "wq_knife_hae", function()
+							local q1 = attack_holder.FireTear(player, ent.Position, auxi.MakeVector(math.random(36000)/100) * 3 * player.ShotSpeed * (math.random(1000)/400+0.3), wq_fire_opts("wq_knife_hae", {
+								can_be_eye = true,
+								no_tracer = true,
+								can_trigger_streak_end = true,
+							}))
+							q1.FallingSpeed = 10
+							q1.FallingAcceleration = 2.6
+							q1.PositionOffset = Vector(0,0)
+							q1.Scale = q1.Scale * (math.random(1500)/1000 + 0.8)
+						end)
 					end
 				end
 			end
@@ -1338,20 +1403,28 @@ Function = function(_,ent)
 				end
 				d[item.own_key.."holder"] = d[item.own_key.."holder"] or {}
 				if (d.params.brimstone or 0) > 0 then
-					local q2 = player:FireBrimstone(-ent.Parent.Velocity,nil,0.3)
-					q2.PositionOffset = Vector(0,0)
-					q2:SetTimeout(math.ceil(ent.Parent:GetData().removecd) - 1)
-					q2:SetMaxDistance(player.TearRange/4)
-					q2.Parent = ent
-					q2.Position = ent.Position
-					table.insert(d[item.own_key.."holder"],{ent = q2,adder = 180,})
+					with_knife_member_fire(ent, "wq_knife_sec_brim", function()
+						local q2 = attack_holder.FireBrimstone(player, -ent.Parent.Velocity, wq_fire_opts("wq_knife_sec_brim", {
+							damage_multiplier = 0.3,
+						}))
+						q2.PositionOffset = Vector(0,0)
+						q2:SetTimeout(math.ceil(ent.Parent:GetData().removecd) - 1)
+						q2:SetMaxDistance(player.TearRange/4)
+						q2.Parent = ent
+						q2.Position = ent.Position
+						table.insert(d[item.own_key.."holder"],{ent = q2,adder = 180,})
+					end)
 				end
 				if d.params.TechX and d.params.TechX > 0 and d.params.Tech and d.params.Tech == 0 then
-					local q2 = player:FireTechXLaser(ent.Position,ent.Velocity,player.TearRange/10,nil,0.3)
-					q2.SubType = 3
-					q2.PositionOffset = Vector(0,0)
-					q2.Parent = ent
-					q2:SetTimeout(math.ceil(ent.Parent:GetData().removecd) - 1)
+					with_knife_member_fire(ent, "wq_knife_sec_techx", function()
+						local q2 = attack_holder.FireTechXLaser(player, ent.Position, ent.Velocity, player.TearRange/10, wq_fire_opts("wq_knife_sec_techx", {
+							damage_multiplier = 0.3,
+						}))
+						q2.SubType = 3
+						q2.PositionOffset = Vector(0,0)
+						q2.Parent = ent
+						q2:SetTimeout(math.ceil(ent.Parent:GetData().removecd) - 1)
+					end)
 				end
 			end
 		end
@@ -1670,12 +1743,13 @@ Function = function(_,ent,col,low)
 			end
 			if (d.params.follow_hae or 0) > 0 then
 				d.params.follow_hae = d.params.follow_hae - 1
+				with_knife_member_fire(ent, "wq_knife_follow_hae", function()
 				if (d.params.list.brimstone or 0) > 0 then
 					local cnt = d.params.list.brimstone
 					if d.has_thor then
 						local rnd = math.random(3) + math.ceil((1 + cnt)/2)
 						for i = 1,rnd do
-							local q = player:FireBrimstone(auxi.MakeVector(math.random(3600)/10))
+							local q = attack_holder.FireBrimstone(player, auxi.MakeVector(math.random(3600)/10), wq_fire_opts("wq_knife_follow_hae_brim"))
 							q.PositionOffset = Vector(0,0)
 							q:SetTimeout(7)
 							q.Parent = ent
@@ -1687,7 +1761,7 @@ Function = function(_,ent,col,low)
 						for k = 1,-1,-2 do
 							for i = 1,tot do
 								local adder = (90 + (i - 0.5) * 60 / tot) * k
-								local q = player:FireBrimstone(auxi.MakeVector(ent.Velocity:GetAngleDegrees() + adder))
+								local q = attack_holder.FireBrimstone(player, auxi.MakeVector(ent.Velocity:GetAngleDegrees() + adder), wq_fire_opts("wq_knife_follow_hae_brim"))
 								q.PositionOffset = Vector(0,0)
 								q:SetTimeout(15)
 								q.Parent = ent
@@ -1702,7 +1776,7 @@ Function = function(_,ent,col,low)
 					if d.has_thor then
 						local rnd = math.random(2) + math.ceil((3 + cnt)/4)
 						for i = 1,rnd do
-							local q = player:FireTechXLaser(ent.Position + ent.Velocity,auxi.MakeVector(math.random(3600)/10) * 10 * player.ShotSpeed,20 + math.random(30))
+							local q = attack_holder.FireTechXLaser(player, ent.Position + ent.Velocity, auxi.MakeVector(math.random(3600)/10) * 10 * player.ShotSpeed, 20 + math.random(30), wq_fire_opts("wq_knife_follow_hae_techx"))
 							q.PositionOffset = Vector(0,0)
 							if (d.params.list.brimstone or 0) == 0 then q:SetTimeout(10) end
 							q.Parent = ent
@@ -1712,7 +1786,7 @@ Function = function(_,ent,col,low)
 						for k = 1,-1,-2 do
 							for i = 1,tot do
 								local adder = (90 + (i - 0.5) * 60 / tot) * k
-								local q = player:FireTechXLaser(ent.Position + ent.Velocity,auxi.MakeVector(ent.Velocity:GetAngleDegrees() + k * (180 - (i - 0.5) * 60/tot)) * 10 * player.ShotSpeed,20 + math.random(30))
+								local q = attack_holder.FireTechXLaser(player, ent.Position + ent.Velocity, auxi.MakeVector(ent.Velocity:GetAngleDegrees() + k * (180 - (i - 0.5) * 60/tot)) * 10 * player.ShotSpeed, 20 + math.random(30), wq_fire_opts("wq_knife_follow_hae_techx"))
 								q.PositionOffset = Vector(0,0)
 								if (d.params.list.brimstone or 0) == 0 then q:SetTimeout(20) end
 								q.Parent = ent
@@ -1720,6 +1794,7 @@ Function = function(_,ent,col,low)
 						end
 					end
 				end
+				end)
 			end
 		end
 		if s:IsPlaying("IdleUp") or s:IsPlaying("ChargedUp") or s:IsPlaying("NoChargedUp") then
@@ -1880,8 +1955,8 @@ Function = function(_,player,tp,id,value)
 end,
 })
 
---- Gello 等宝宝：从 origin 沿 aim_dir 复用当前武器分支；不推进玩家 Delay/State，不复制 Incubus。
-function item.fire_familiar_attack(player, request)
+--- Shared copy executor. Familiar: live weap/state. Aeon: frozen snapshot branch.
+function item.fire_attack_copy(player, request)
 	request = request or {}
 	if not player then return {fired = false} end
 	local CharacterFamiliars = require("Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder")
@@ -1891,29 +1966,63 @@ function item.fire_familiar_attack(player, request)
 	local aim = request.aim_dir or Vector(0, 1)
 	if aim:Length() < 0.01 then aim = Vector(0, 1) end
 	local mul = tonumber(request.damage_mul) or 0.75
-	local weap = auxi.get_weapon(player)
-	if player:HasCollectible(258) then
-		weap = auxi.choose(1, 2, 3, 4, 5, 6, 7, 9, 13, 14, 15)
-	end
-	if player:HasCollectible(191) then
-		weap = d[item.own_key.."ThreeDoll"] or weap
+	local snap = request.snapshot
+	local weap, state, charge, list_override, frozen_dir
+	if type(snap) == "table" and snap.kind == "qing_melee" then
+		weap = tonumber(snap.weap) or 1
+		state = tonumber(snap.state) or 0
+		charge = tonumber(snap.charge) or 1
+		mul = charge * (tonumber(request.damage_mul) or 1)
+		if type(snap.list) == "table" then
+			list_override = snap.list
+			list = {}
+			for k, v in pairs(list_override) do
+				list[k] = v
+			end
+		end
+		if type(snap.direction) == "table" and not request.aim_dir then
+			frozen_dir = Vector(tonumber(snap.direction.x) or 0, tonumber(snap.direction.y) or 0)
+			if frozen_dir:Length() > 0.01 then
+				aim = frozen_dir
+			end
+		end
+	else
+		weap = auxi.get_weapon(player)
+		if player:HasCollectible(258) then
+			weap = auxi.choose(1, 2, 3, 4, 5, 6, 7, 9, 13, 14, 15)
+		end
+		if player:HasCollectible(191) then
+			weap = d[item.own_key.."ThreeDoll"] or weap
+		end
+		state = d[item.own_key.."State"] or 0
+		charge = mul
 	end
 	local attack_params = auxi.get_Qing_multishots(player, list)
 	local delay_out = player.MaxFireDelay
-	local state = d[item.own_key.."State"] or 0
+	local spawned = {}
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local fire_token = nil
+	if request.fire_context and request.fire_context.mode == "untracked" then
+		local pushed = attack_holder.PushFireContext(request.fire_context)
+		fire_token = pushed and pushed.token
+	end
 	for i = #attack_params, 1, -1 do
 		local info = attack_params[i]
 		local dir = auxi.MakeVector(info.dir + aim:GetAngleDegrees())
 			* math.max(0.6, math.min(3, 0.7 * player.ShotSpeed + 0.3 + math.log(player.TearRange / 260)))
 		local local_weap = weap
-		if player:HasCollectible(418) and math.random(1000) > 800 then
-			local_weap = auxi.choose(1, 2, 3, 4, 5, 6, 7, 9, 13, 14, 15)
+		if type(snap) ~= "table" or snap.kind ~= "qing_melee" then
+			if player:HasCollectible(418) and math.random(1000) > 800 then
+				local_weap = auxi.choose(1, 2, 3, 4, 5, 6, 7, 9, 13, 14, 15)
+			end
+			if (list.tech9 or 0) > 0 then
+				if math.random(1000) > 850 then local_weap = 3 end
+				if math.random(1000) > 850 then local_weap = 9 end
+			end
+			if local_weap == 1 and (list.hae or 0) > 0 then local_weap = 15 end
+		elseif type(snap.anim) == "string" and snap.anim ~= "" then
+			info = {dir = info.dir, Anim = snap.anim, tearflag = info.tearflag, color = info.color}
 		end
-		if (list.tech9 or 0) > 0 then
-			if math.random(1000) > 850 then local_weap = 3 end
-			if math.random(1000) > 850 then local_weap = 9 end
-		end
-		if local_weap == 1 and (list.hae or 0) > 0 then local_weap = 15 end
 		local weap_listinfo = auxi.check_if_any(item.attack_list[local_weap], item) or item.attack_list[1]
 		local weapinfo = item.attack_list[info.Anim] or weap_listinfo[state] or item.attack_list[1][0]
 		local tearHitParams = player:GetTearHitParams(WeaponType.WEAPON_TEARS, 1, auxi.choose(0, 1))
@@ -1923,19 +2032,81 @@ function item.fire_familiar_attack(player, request)
 			state = state,
 			weap = local_weap,
 			list = list,
-			charge = mul,
+			charge = charge,
 			pos = origin,
 			advanced_familiar_copy = true,
 			source = request.source,
+			suppress_state_advance = request.suppress_state_advance,
 		}
 		local ret = auxi.check_if_any(weapinfo, player, dir, tearHitParams, weapinfo, item, call_params) or {}
 		if type(ret) == "number" then ret = {mul = ret} end
+		if ret.special then
+			auxi.check_if_any(ret.special, player, dir, tearHitParams, ret.special, item, call_params)
+		end
+		if weap_listinfo.special then
+			auxi.check_if_any(weap_listinfo.special, player, dir, tearHitParams, ret.special, item, call_params)
+		end
 		if i == 1 then
 			delay_out = ret.delay or (player.MaxFireDelay * (ret.mul or 1)) * (auxi.check_if_any(weap_listinfo.delaymul, player) or 1)
 			delay_out = auxi.check_if_any(weap_listinfo.delay, player, delay_out) or delay_out
 		end
 	end
-	return {fired = true, delay = delay_out}
+	if fire_token then
+		attack_holder.PopFireContext(fire_token)
+	end
+	return {fired = true, delay = delay_out, spawned = spawned}
+end
+
+function item.build_aeon_melee_snapshot(player, weap, state, charge, direction, list)
+	local dir_tbl = {x = 0, y = 1}
+	if direction then
+		if type(direction) == "table" then
+			dir_tbl = {x = tonumber(direction.x or direction.X) or 0, y = tonumber(direction.y or direction.Y) or 0}
+		elseif direction.X ~= nil then
+			dir_tbl = {x = tonumber(direction.X) or 0, y = tonumber(direction.Y) or 0}
+		end
+	end
+	local list_tbl = {}
+	if type(list) == "table" then
+		for _, key in ipairs({"brimstone", "knife", "hae", "tech9", "sword", "soy", "soy2"}) do
+			if list[key] ~= nil then
+				list_tbl[key] = tonumber(list[key]) or list[key]
+			end
+		end
+	end
+	return {
+		kind = "qing_melee",
+		weap = tonumber(weap) or 1,
+		state = tonumber(state) or 0,
+		charge = tonumber(charge) or 1,
+		direction = dir_tbl,
+		list = list_tbl,
+	}
+end
+
+function item.snapshot_attack(player, context)
+	context = context or {}
+	local snap = CharacterAttackCompat.read_attack_snapshot(context.attack)
+	if type(snap) == "table" and snap.kind == "qing_melee" then
+		return snap
+	end
+	return nil
+end
+
+function item.replay_attack(player, request)
+	request = request or {}
+	request.damage_mul = tonumber(request.damage_mul) or 1
+	request.suppress_player_cost = true
+	request.suppress_state_advance = true
+	return item.fire_attack_copy(player, request)
+end
+
+--- Gello 等宝宝：从 origin 沿 aim_dir 复用当前武器分支；不推进玩家 Delay/State，不复制 Incubus。
+function item.fire_familiar_attack(player, request)
+	request = request or {}
+	request.damage_mul = tonumber(request.damage_mul) or 0.75
+	request.snapshot = nil
+	return item.fire_attack_copy(player, request)
 end
 
 CharacterAttackCompat.register(item.entity, {
@@ -1943,7 +2114,10 @@ CharacterAttackCompat.register(item.entity, {
 	module = "Qing_Remaster_scripts.player.player_wq",
 	advanced_familiars = true,
 	familiar_attack = item.fire_familiar_attack,
-	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true},
+	snapshot_attack = item.snapshot_attack,
+	replay_attack = item.replay_attack,
+	capabilities = {projectile = true, volley = true, charge = true, weapon_morph = true, aeon_replay = true},
+	audit = "Aeon freezes weap/state/charge/list; familiar still reads live player branch",
 })
 
 return item

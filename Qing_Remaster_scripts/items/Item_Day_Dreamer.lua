@@ -19,9 +19,9 @@ local item = {
 	limit1 = 60 * 5,
 	limit2 = 60 * 60,
 	description = {
-		[CollectibleType.COLLECTIBLE_DREAM_CATCHER] = {desc = "改为进入你的梦境，在其中选择最爱的道具#梦境中按方向键可以行走",},
-		[CollectibleType.COLLECTIBLE_PJS] = {desc = "大幅提升进入梦境的速度",},
-		[CollectibleType.COLLECTIBLE_BLANKET] = {desc = "翻倍梦境道具的刷新速度",},
+		[CollectibleType.COLLECTIBLE_DREAM_CATCHER] = {desc = "进入可自由探索的梦境，靠近想要的道具后按 {{ButtonRT}} 结束并带回#未选中就结束则本层空手醒来",},
+		[CollectibleType.COLLECTIBLE_PJS] = {desc = "大幅加快入睡速度，并允许按 {{ButtonRT}} 提前结束梦境",},
+		[CollectibleType.COLLECTIBLE_BLANKET] = {desc = "候选刷新等待减半，并允许按 {{ButtonRT}} 提前结束梦境",},
 	},
 	banish_button = {
 		[0] = true,
@@ -69,15 +69,29 @@ local item = {
 }
 auxi.add_to_seija(item.entity)
 
+local function get_roots()
+	local effect_key = item.own_key .. "effect"
+	local buff_key = item.own_key .. "buff"
+	local effect = save.elses[effect_key]
+	if type(effect) ~= "table" then
+		effect = {}
+		save.elses[effect_key] = effect
+	end
+	local buff = save.elses[buff_key]
+	if type(buff) ~= "table" then
+		buff = {}
+		save.elses[buff_key] = buff
+	end
+	return effect, buff
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then
-	else
+	if not continue then
 		save.elses[item.own_key.."effect"] = {}
 		save.elses[item.own_key.."buff"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
+	get_roots()
 end,
 })
 
@@ -86,12 +100,13 @@ Function = function(_)
 	save.elses[item.own_key.."effect"] = {}
 	save.elses[item.own_key.."buff"] = {}
 	delay_buffer.addeffe(function(params)
+		local effects = get_roots()
 		for playerNum = 1, Game():GetNumPlayers() do
 			local player = Game():GetPlayer(playerNum - 1)
 			local d = player:GetData()
 			if auxi.has_have_coll(player,item.entity) then
 				local idx = d.__Index
-				save.elses[item.own_key.."effect"][idx] = true
+				effects[idx] = true
 			end
 		end
 	end,{},1)
@@ -102,8 +117,9 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.MC_EVA
 Function = function(_,player,colid,value)
 	local d = player:GetData()
 	local idx = d.__Index
-	save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-	if save.elses[item.own_key.."buff"][idx] then value[save.elses[item.own_key.."buff"][idx]] = (value[save.elses[item.own_key.."buff"][idx]] or 0) + 1 end
+	local _, buffs = get_roots()
+	local buff_id = buffs[idx]
+	if buff_id then value[buff_id] = (value[buff_id] or 0) + 1 end
 end,
 })
 
@@ -238,7 +254,8 @@ Function = function(_,player)
 	local s = player:GetSprite()
 	local rng = player:GetCollectibleRNG(item.entity)
 	local idx = d.__Index
-	if (save.elses[item.own_key.."effect"] or {})[idx] and not d[item.own_key.."effect"] then
+	local effects, buffs = get_roots()
+	if effects[idx] and not d[item.own_key.."effect"] then
 		local succ = (input_holder.all_nill(player) and player.Velocity:Length() < 0.01)
 		if succ then d[item.own_key.."counter1"] = (d[item.own_key.."counter1"] or 0) + 1
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_PJS) then d[item.own_key.."counter1"] = (d[item.own_key.."counter1"] or 0) + 5 end
@@ -246,7 +263,7 @@ Function = function(_,player)
 		if d[item.own_key.."counter1"] >= item.limit1 then 
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DREAM_CATCHER) then
 				d[item.own_key.."effect3"] = {}
-				save.elses[item.own_key.."effect"][idx] = nil
+				effects[idx] = nil
 			else
 				d[item.own_key.."effect"] = {} 
 			end
@@ -286,13 +303,13 @@ Function = function(_,player)
 		local fr = s:GetFrame()
 		fr = math.min(fr,math.floor(d[item.own_key.."effect"]["c1"]/2))
 		s:SetFrame("DeathTeleport",fr)
-		if d[item.own_key.."effect"]["c1"] >= item.limit2 or (Input.IsActionTriggered(11,ctrlid) or Input.IsActionPressed(11,ctrlid) and (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_PJS) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BLANKET))) then
+		if d[item.own_key.."effect"]["c1"] >= item.limit2 or ((Input.IsActionTriggered(11,ctrlid) or Input.IsActionPressed(11,ctrlid)) and (auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_PJS) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_BLANKET))) then
 			d[item.own_key.."effect2"] = {}
 			d[item.own_key.."effect2"]["id"] = d[item.own_key.."effect"]["buff"]
 			d[item.own_key.."effect2"]["c1"] = fr
 			d[item.own_key.."effect2"]["c2"] = fr
 			d[item.own_key.."effect"] = nil
-			save.elses[item.own_key.."effect"][idx] = nil
+			effects[idx] = nil
 			if d[item.own_key.."Mouse"] then d[item.own_key.."Mouse"] = nil console_holder.try_set_temp_option("MouseControl",true) end
 		end
 	end
@@ -346,8 +363,7 @@ Function = function(_,player)
 		s:SetFrame("DeathTeleport",fr)
 		if fr <= 0 then
 			if d[item.own_key.."effect2"]["id"] then
-				save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-				save.elses[item.own_key.."buff"][idx] = d[item.own_key.."effect2"]["id"]
+				buffs[idx] = d[item.own_key.."effect2"]["id"]
 				Imitate_item_holder.Evaluate_Imitate_Items(player)
 				player:AnimateCollectible(d[item.own_key.."effect2"]["id"],"Pickup","PlayerPickupSparkle")
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_POWERUP1,1,1,false,0,2)
@@ -419,8 +435,8 @@ do
 	temp_hud.register_provider(function(player)
 		local idx = player:GetData() and player:GetData().__Index
 		if not idx then return end
-		local buff = save.elses[item.own_key.."buff"]
-		local id = buff and tonumber(buff[idx])
+		local _, buffs = get_roots()
+		local id = tonumber(buffs[idx])
 		if not id or id <= 0 then return end
 		return {[id] = 1}
 	end,{

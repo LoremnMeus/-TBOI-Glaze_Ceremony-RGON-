@@ -141,19 +141,6 @@ end
 local function permanent_bag()
 	local key = item.own_key.."data"
 	save.PermanentData = save.PermanentData or {}
-	-- 兼容曾误写入 elses 的旧档
-	if save.PermanentData[key] == nil and save.elses then
-		local legacy_price = save.elses[item.own_key.."shop_price"]
-		local legacy_sale = save.elses[item.own_key.."last_sale"]
-		if legacy_price ~= nil or legacy_sale ~= nil then
-			save.PermanentData[key] = {
-				shop_price = legacy_price,
-				last_sale = legacy_sale,
-			}
-			save.elses[item.own_key.."shop_price"] = nil
-			save.elses[item.own_key.."last_sale"] = nil
-		end
-	end
 	save.PermanentData[key] = save.PermanentData[key] or {}
 	return save.PermanentData[key]
 end

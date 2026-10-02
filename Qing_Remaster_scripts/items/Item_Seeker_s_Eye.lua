@@ -4,6 +4,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local SpriteTrails = require("Qing_Remaster_scripts.others.sprite_trail_presets")
 local CraftTearParams = require("Qing_Remaster_scripts.others.craft_tear_params_data")
 local dev_env = require("Qing_Remaster_scripts.core.dev_environment")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -11,6 +12,7 @@ local item = {
 	post_ToCall = {},
 	entity = enums.Items.Seeker_s_Eye,
 	own_key = "Item_Seeker_s_eye_",
+	consumer_key = "seeker",
 	wall_probe_enabled = false,
 	wall_probe_count = 0,
 	wall_probe_last_path = "",
@@ -19,6 +21,22 @@ local item = {
 }
 
 auxi.add_to_seija(item.entity)
+
+local function player_has_seeker(player)
+	return player and auxi.has_have_coll(player, item.entity)
+end
+
+--- Player inventory Seeker, OR Craft Attack whose recipe includes Seeker's Eye.
+local function tear_can_use_seeker(player, attack, source)
+	source = source or (attack and attack.source)
+	if not player then
+		return false
+	end
+	if not source or attack_holder.classifier.IsPlayerAttackSource(source) then
+		return player_has_seeker(player)
+	end
+	return attack_holder.classifier.SourceCanConsume(source, item.consumer_key, player, attack)
+end
 
 local CHECK_INTERVAL = 2
 -- 暗杀者之眼首次检查：counter 默认 5，命中后再隔 max(8, MaxFireDelay*1.3)。
@@ -1520,7 +1538,9 @@ end
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_FIRE_TEAR, params = nil,
 Function = function(_, ent)
 	local player = auxi.check_spawner_player(ent)
-	if not player or not auxi.has_have_coll(player, item.entity) then return end
+	local attack = select(1, attack_holder.GetAttackForMember(ent))
+	local source = attack and attack.source
+	if not tear_can_use_seeker(player, attack, source) then return end
 	if is_unsupported_tear(ent) then return end
 	local d = ent:GetData()
 	d[EFFECT_KEY] = true
@@ -1582,7 +1602,7 @@ end
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_TEAR_UPDATE, params = nil,
 Function = function(_, ent)
 	local d = ent:GetData()
-	if d.Ignore_me_flag ~= nil or not d[EFFECT_KEY] then return end
+	if attack_holder.IsIgnored(ent) or not d[EFFECT_KEY] then return end
 	local seek = d[DATA_KEY]
 	if not seek then return end
 	if not auxi.check_all_exists(ent) or ent:IsDead() then

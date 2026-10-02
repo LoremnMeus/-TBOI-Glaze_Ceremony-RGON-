@@ -141,19 +141,19 @@ Function = function(_,card,player,useflags)
 					if colinfo then
 						local tgpos = pos + Vector(i,j) * 40
 						if item.check_all_available(tgpos) then
-							unique_holder.Hold_for_missing(true)
-							local q = Isaac.Spawn(5,100,iid,room:FindFreePickupSpawnPosition(tgpos,10,true),Vector(0,0),ent):ToPickup()
-							auxi.self_morph(q,{5,100,iid,})
-							q.OptionsPickupIndex = ndx
-							local d = q:GetData()
-							d[item.own_key.."effect"] = {leg = (v.Position - tgpos):Length(),tg = v,price = v.Price,}
-							succ = true
-							consistance_holder.try_hold_over_entity(q,item.own_key)
-							d._Data[item.own_key][item.own_key.."effect"] = q:GetData()[item.own_key.."effect"]
-							consistance_holder.try_hold_entity(q,item.own_key)
-							item.record_over(q)
-							if v.Price ~= 0 then q.Price = v.Price price_holder.catch_price_over(q) end
-							unique_holder.Hold_for_missing()
+							unique_holder.with_missing(33, function()
+								local q = Isaac.Spawn(5,100,iid,room:FindFreePickupSpawnPosition(tgpos,10,true),Vector(0,0),ent):ToPickup()
+								auxi.self_morph(q,{5,100,iid,})
+								q.OptionsPickupIndex = ndx
+								local d = q:GetData()
+								d[item.own_key.."effect"] = {leg = (v.Position - tgpos):Length(),tg = v,price = v.Price,}
+								succ = true
+								consistance_holder.try_hold_over_entity(q,item.own_key)
+								d._Data[item.own_key][item.own_key.."effect"] = q:GetData()[item.own_key.."effect"]
+								consistance_holder.try_hold_entity(q,item.own_key)
+								item.record_over(q)
+								if v.Price ~= 0 then q.Price = v.Price price_holder.catch_price_over(q) end
+							end)
 						end
 					end
 				end end

@@ -12,7 +12,9 @@ local Others_manager = {
 function Others_manager.Init(mod)
 	modReference = mod
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.auxiliary.delay_buffer"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.auxiliary.screen_desync"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Time_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.render_phase_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.core.globals"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.core.savedata"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.core.completion_marks_manager"))
@@ -26,8 +28,19 @@ function Others_manager.Init(mod)
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.HUD_Chargebar_Overlay_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Costume_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Consistance_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Pickup_Morph_Transaction_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Entity_lifetime_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Generation_audit_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.consistance_test_lab"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.unique_consumer_regression_lab"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.unique_resolve_regression_lab"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.unique_fresh_generation_lab"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.pedestal_encounter_regression_lab"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.pickup_morph_txn_regression_lab"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.price_refresh_regression_lab"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Tarot_Cloth_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Option_Index_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Special_Destination_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Record_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Damage_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.craft_dynamic_stats"))
@@ -40,21 +53,8 @@ function Others_manager.Init(mod)
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.craft_zodiac"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.craft_taurus"))
 	do
-		local probes = {
-			"Qing_Remaster_scripts.others.craft_orbiting_tear_offset_probe",
-			"Qing_Remaster_scripts.others.craft_laser_flag_probe",
-			"Qing_Remaster_scripts.others.craft_knife_path_probe",
-			"Qing_Remaster_scripts.others.craft_evil_eye_vanilla_probe",
-			"Qing_Remaster_scripts.others.vengeful_spirit_vanilla_probe",
-			"Qing_Remaster_scripts.others.vengeful_craft_lifecycle_probe",
-			"Qing_Remaster_scripts.others.craft_path_tear_vanilla_probe",
-			"Qing_Remaster_scripts.others.craft_floor_stat_counter_probe",
-			"Qing_Remaster_scripts.others.time_stop_probe",
-			"Qing_Remaster_scripts.others.destiny_anchor_probe",
-			"Qing_Remaster_scripts.others.remaster_ghost_render_probe",
-			"Qing_Remaster_scripts.others.baby_lu_ceremony_probe",
-		}
-		for _, path in ipairs(probes) do
+		local probe_registry = require("Qing_Remaster_scripts.debug.probe_registry")
+		for _, path in ipairs(probe_registry.runtime_modules()) do
 			local mod = dev_env.require_probe(path)
 			if mod then table.insert(Others_manager.items,#Others_manager.items + 1,mod) end
 		end
@@ -65,6 +65,7 @@ function Others_manager.Init(mod)
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.selection_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.fullscreen_select_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Unique_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Pedestal_Encounter_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Nil_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Color_cross_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Completion_Marks_holder"))

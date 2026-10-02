@@ -8,6 +8,7 @@ local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_h
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local grid_morpher = require("Qing_Remaster_scripts.grids.grid_morpher")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -97,8 +98,7 @@ Function = function(_,player)
 	local rng = player:GetCardRNG(item.entity)
 	rng = auxi.rng_for_sake(rng)
 	if d[item.own_key.."effect"] then
-		local n_entity = Isaac.GetRoomEntities()
-		local n_enemy = auxi.getenemies(n_entity)
+		local n_enemy = nil
 		for i = #(d[item.own_key.."effect"]),1,-1 do
 			local v = d[item.own_key.."effect"][i]
 			if auxi.check_all_exists(v) == false then table.remove(d[item.own_key.."effect"],i) end
@@ -109,7 +109,8 @@ Function = function(_,player)
 				table.remove(d[item.own_key.."effect"],i)
 				d2[item.own_key.."effect"] = nil
 				d2[item.own_key.."effect2"] = true
-				d2[item.own_key.."float"] = 4 + math.random(1000)/1000 * 3
+				d2[item.own_key.."float"] = 4 + rng:RandomFloat() * 3
+				if n_enemy == nil then n_enemy = auxi.getenemies(Isaac.GetRoomEntities()) end
 				if #n_enemy > 0 then
 					local rnd = auxi.random_in_table(n_enemy,rng)
 					d2[item.own_key.."target"] = rnd
@@ -158,13 +159,13 @@ Function = function(_,cardtype,player,useFlags)
 					q.TearFlags = TearFlags.TEAR_SPECTRAL
 					
 					local d2 = q:GetData()
-					d2.Ignore_me_flag = true
+					attack_holder.MarkIgnore(q)
 					d2[item.own_key.."effect"] = true
-					d2[item.own_key.."distance"] = math.random(1000)/1000 * 150 + 100
-					d2[item.own_key.."float"] = - (math.random(1000)/1000 * 5 + 1)
-					d2[item.own_key.."rotate"] = (math.random(1000)/1000 * 10 + 10) * (math.random(2) * 2 - 3)
-					d2[item.own_key.."rot"] = (math.random(1000)/1000 * 60 + 10) * (math.random(2) * 2 - 3)
-					d2[item.own_key.."height"] = - (math.random(1000)/1000 * 10 + 19)
+				d2[item.own_key.."distance"] = rng:RandomFloat() * 150 + 100
+				d2[item.own_key.."float"] = - (rng:RandomFloat() * 5 + 1)
+				d2[item.own_key.."rotate"] = (rng:RandomFloat() * 10 + 10) * (rng:RandomInt(2) * 2 - 1)
+				d2[item.own_key.."rot"] = (rng:RandomFloat() * 60 + 10) * (rng:RandomInt(2) * 2 - 1)
+				d2[item.own_key.."height"] = - (rng:RandomFloat() * 10 + 19)
 					
 					d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}
 					table.insert(d[item.own_key.."effect"],#d[item.own_key.."effect"] + 1,q)

@@ -144,46 +144,27 @@ function item.stop_time(ent,key)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	for u,v in pairs(item.eventlist) do if s:IsEventTriggered(v) ~= false then s:Update() end end
-	if d[item.own_key..key.."flag_freeze_succ"] == nil then
-		d[item.own_key..key.."flag_freeze_succ"] = Attribute_holder.try_hold_attribute(ent,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+	local prefix = item.own_key..key
+	Attribute_holder.ensure_hold_token(ent, d, prefix.."flag_freeze_succ", "EntityFlag_FLAG_FREEZE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+	Attribute_holder.ensure_hold_token(ent, d, prefix.."flag_no_sprite_update_succ", "EntityFlag_FLAG_NO_SPRITE_UPDATE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
+	if ent.Type ~= 3 then
+		Attribute_holder.ensure_hold_token(ent, d, prefix.."flag_no_query_succ", "EntityFlag_FLAG_FLAG_NO_QUERY", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_QUERY))
 	end
-	if d[item.own_key..key.."flag_no_sprite_update_succ"] == nil then
-		d[item.own_key..key.."flag_no_sprite_update_succ"] = Attribute_holder.try_hold_attribute(ent,"EntityFlag_FLAG_NO_SPRITE_UPDATE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-	end
-	if d[item.own_key..key.."flag_no_query_succ"] == nil and ent.Type ~= 3 then
-		d[item.own_key..key.."flag_no_query_succ"] = Attribute_holder.try_hold_attribute(ent,"EntityFlag_FLAG_FLAG_NO_QUERY",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_QUERY))
-	end
-	if d[item.own_key..key.."flag_gridcollision_succ"] == nil then
-		d[item.own_key..key.."flag_gridcollision_succ"] = Attribute_holder.try_hold_attribute(ent,"GridCollisionClass",EntityGridCollisionClass.GRIDCOLL_NONE)
-	end
-	if d[item.own_key..key.."flag_entitycollision_succ"] == nil then
-		d[item.own_key..key.."flag_entitycollision_succ"] = Attribute_holder.try_hold_attribute(ent,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
-	end
+	Attribute_holder.ensure_hold_token(ent, d, prefix.."flag_gridcollision_succ", "GridCollisionClass", EntityGridCollisionClass.GRIDCOLL_NONE)
+	Attribute_holder.ensure_hold_token(ent, d, prefix.."flag_entitycollision_succ", "EntityCollisionClass", EntityCollisionClass.ENTCOLL_NONE)
 end
 
 function item.time_free(ent,key)
 	if ent == nil then return end
 	local d = ent:GetData()
-	if d[item.own_key..key.."flag_freeze_succ"] then
-		local succ = Attribute_holder.try_rewind_attribute(ent,"EntityFlag_FLAG_FREEZE",d[item.own_key..key.."flag_freeze_succ"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-		d[item.own_key..key.."flag_freeze_succ"] = nil
-	end
-	if d[item.own_key..key.."flag_no_sprite_update_succ"] then
-		Attribute_holder.try_rewind_attribute(ent,"EntityFlag_FLAG_NO_SPRITE_UPDATE",d[item.own_key..key.."flag_no_sprite_update_succ"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-		d[item.own_key..key.."flag_no_sprite_update_succ"] = nil
-	end
-	if d[item.own_key..key.."flag_no_query_succ"] then
-		Attribute_holder.try_rewind_attribute(ent,"EntityFlag_FLAG_FLAG_NO_QUERY",d[item.own_key..key.."flag_no_query_succ"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_QUERY))
-		d[item.own_key..key.."flag_no_query_succ"] = nil
-	end
-	if d[item.own_key..key.."flag_gridcollision_succ"] then
-		Attribute_holder.try_rewind_attribute(ent,"GridCollisionClass",d[item.own_key..key.."flag_gridcollision_succ"])
-		d[item.own_key..key.."flag_gridcollision_succ"] = nil
-	end
-	if d[item.own_key..key.."flag_entitycollision_succ"] then
-		Attribute_holder.try_rewind_attribute(ent,"EntityCollisionClass",d[item.own_key..key.."flag_entitycollision_succ"])
-		d[item.own_key..key.."flag_entitycollision_succ"] = nil
-	end
+	local prefix = item.own_key..key
+	local failed = false
+	if not Attribute_holder.rewind_hold_token(ent, d, prefix.."flag_freeze_succ", "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, prefix.."flag_no_sprite_update_succ", "EntityFlag_FLAG_NO_SPRITE_UPDATE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE)) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, prefix.."flag_no_query_succ", "EntityFlag_FLAG_FLAG_NO_QUERY", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_QUERY)) then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, prefix.."flag_gridcollision_succ", "GridCollisionClass") then failed = true end
+	if not Attribute_holder.rewind_hold_token(ent, d, prefix.."flag_entitycollision_succ", "EntityCollisionClass") then failed = true end
+	if failed then Attribute_holder.force_clear_freeze_entity(ent) end
 	if auxi.check_if_any(item.target[ent.Type],ent) and not ent:IsBoss() then ent.TargetPosition = Game():GetRoom():FindFreeTilePosition(ent.Position,ent.Size) end
 	if auxi.check_if_any(item.middle_target[ent.Type],ent) then ent.TargetPosition = Game():GetRoom():FindFreeTilePosition(ent.Position * 0.9 + Game():GetPlayer(0).Position * 0.1,10) end
 end

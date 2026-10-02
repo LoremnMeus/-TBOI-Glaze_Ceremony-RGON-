@@ -30,11 +30,192 @@ local item = {
 		[CollectibleType.COLLECTIBLE_MARKED] = {desc = "按上方向键准星沿线前进，按下方向键回收准星",},
 		[CollectibleType.COLLECTIBLE_EYE_OF_THE_OCCULT] = {desc = "按上方向键准星沿线前进，按下方向键回收准星",},
 		[CollectibleType.COLLECTIBLE_LUDOVICO_TECHNIQUE] = {desc = "按上方向键准星沿线前进，按下方向键回收准星",},
-		[CollectibleType.COLLECTIBLE_BLACK_CANDLE] = {desc = "保留属性且失去旋转的负面效果",},
+		-- Black Candle 静态联动已在 translate.lua Description
 	},
 }
 auxi.add_EID_item_synic(item.entity,item.description)
 auxi.add_to_seija(item.entity)
+
+item.CRAFT_STATE_KEY = item.own_key .. "craft_aim"
+item.CRAFT_SPENT_KEY = item.own_key .. "craft_aim_spent"
+item.LINK_KIND_KEY = item.own_key .. "link_kind"
+item.LINK_CRAFT_UID_KEY = item.own_key .. "craft_uid"
+local BLACK_CANDLE = CollectibleType.COLLECTIBLE_BLACK_CANDLE or 260
+local LINK_KIND_PLAYER = "player"
+local LINK_KIND_CRAFT = "craft"
+
+local function craft_state(air, allow_create)
+	if not air then return nil end
+	local d = air:GetData()
+	local st = d[item.CRAFT_STATE_KEY]
+	if type(st) ~= "table" then
+		if allow_create == false then return nil end
+		st = {counter = 0, dir = Vector(1, 0), ddir = Vector(1, 0)}
+		d[item.CRAFT_STATE_KEY] = st
+	end
+	return st
+end
+
+local function stamp_linker_player(q)
+	local d = q:GetData()
+	d[item.LINK_KIND_KEY] = LINK_KIND_PLAYER
+	d[item.LINK_CRAFT_UID_KEY] = nil
+end
+
+local function stamp_linker_craft(q, air)
+	local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
+	local d = q:GetData()
+	d[item.LINK_KIND_KEY] = LINK_KIND_CRAFT
+	d[item.LINK_CRAFT_UID_KEY] = CraftIdentity.get_uid(air)
+	q.Parent = air
+end
+
+local function probe_note_craft_link(kind, air, linker, extra)
+	local env = require("Qing_Remaster_scripts.core.dev_environment")
+	if not env.probes_allowed() then return end
+	local probe = env.require_probe("Qing_Remaster_scripts.debug.cursed_mask_craft_link_probe")
+	if not probe or not probe.is_enabled or not probe.is_enabled() or not probe.note then
+		return
+	end
+	probe.note(kind, air, linker, extra)
+end
+
+function item.clear_craft_linker(air, reason)
+	local st = craft_state(air, false)
+	if st and auxi.check_all_exists(st.linker) then
+		probe_note_craft_link("remove", air, st.linker, {remove_reason = reason or "clear"})
+		st.linker:Remove()
+	end
+	if st then st.linker = nil end
+end
+
+function item.clear_craft_aim(air)
+	if not air or not air.GetData then return end
+	item.clear_craft_linker(air, "clear_aim")
+	local d = air:GetData()
+	d[item.CRAFT_STATE_KEY] = nil
+	d[item.CRAFT_SPENT_KEY] = nil
+end
+
+local function finish_craft_aim_room(air)
+	item.clear_craft_linker(air, "room_spent")
+	if not air or not air.GetData then return end
+	local d = air:GetData()
+	d[item.CRAFT_STATE_KEY] = nil
+	d[item.CRAFT_SPENT_KEY] = true
+end
+
+--- Craft linker lifecycle owned solely by tick_craft_aim / Air Flight.
+local function sync_craft_linker(air, st)
+	if not air or not st or not st.dir then return end
+
+	local q = st.linker
+	local spawned = false
+	if auxi.check_all_exists(q) ~= true then
+		q = Isaac.Spawn(
+			EntityType.ENTITY_EFFECT,
+			enums.Entities.Cursed_Linker,
+			0,
+			air.Position,
+			Vector.Zero,
+			air
+		)
+		st.linker = q
+		spawned = true
+	end
+
+	stamp_linker_craft(q, air)
+	q.Position = air.Position
+	-- Follow Flight screen height (cruise bob / combat offset), not floor Position alone.
+	local off = air.PositionOffset
+	if off then
+		q.PositionOffset = Vector(off.X, off.Y)
+	else
+		q.PositionOffset = Vector.Zero
+	end
+	q:GetSprite().Rotation = st.dir:GetAngleDegrees() - 90
+	if st.counter == item.rotate_info.total - 5 * 2 then
+		q:GetSprite():Play("Remove", true)
+	end
+	probe_note_craft_link(spawned and "spawn" or "tick", air, q, {
+		spawn = spawned and 1 or 0,
+		counter = st.counter,
+	})
+end
+
+--- Advance Flight cursed-mask aim. Pauses while owner has Black Candle.
+--- Matches player: one rotation per room, then stop (no infinite loop).
+function item.tick_craft_aim(air, player)
+	if not air then return nil end
+	local d = air:GetData()
+	if d[item.CRAFT_SPENT_KEY] then
+		item.clear_craft_linker(air, "spent")
+		return nil
+	end
+	if player and auxi.has_have_coll(player, BLACK_CANDLE) then
+		item.clear_craft_linker(air, "black_candle")
+		return craft_state(air, false) or craft_state(air, true)
+	end
+	local st = craft_state(air, true)
+	st.counter = (st.counter or 0) + 1
+	local info = auxi.check_lerp(st.counter, item.rotate_info)
+	if auxi.should_do_Seija(player, true) then
+		st.ddir = auxi.get_by_rotate(st.ddir or Vector(1, 0), info.speed)
+		local succ = false
+		local tg = auxi.get_nearest_enemy(nil, air.Position)
+		if tg then
+			local ddir = (tg.Position - air.Position):Normalized()
+			if auxi.do_t(ddir, st.ddir) > 0.5 then
+				st.dir = ddir
+				succ = true
+			end
+		end
+		if not succ then
+			st.dir = st.dir or st.ddir
+			local delta = auxi.checkrounded(
+				st.dir:GetAngleDegrees(),
+				st.ddir:GetAngleDegrees(),
+				-0.5, 0.5, 360
+			)
+			if math.abs(delta) < 5 then
+				st.dir = st.ddir
+			else
+				st.dir = auxi.get_by_rotate(st.dir, delta)
+			end
+		end
+	else
+		st.dir = auxi.get_by_rotate(st.dir or Vector(1, 0), info.speed)
+	end
+	if st.counter > item.rotate_info.total then
+		finish_craft_aim_room(air)
+		return nil
+	end
+	sync_craft_linker(air, st)
+	return st
+end
+
+--- Replace Flight fire direction when recipe has Cursed Mask and Black Candle is absent.
+--- Expects tick_craft_aim already ran this frame (do not double-advance).
+function item.resolve_craft_direction(air, player, normal_dir)
+	local fallback = normal_dir
+	if fallback and fallback:Length() > 0.01 then
+		fallback = fallback:Normalized()
+	else
+		fallback = Vector(1, 0)
+	end
+	if not air or not player then return fallback end
+	if auxi.has_have_coll(player, BLACK_CANDLE) then
+		return fallback
+	end
+	if air:GetData()[item.CRAFT_SPENT_KEY] then
+		return fallback
+	end
+	local st = craft_state(air, false)
+	if st and st.dir and st.dir:Length() > 0.01 then
+		return st.dir:Normalized()
+	end
+	return fallback
+end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.MC_EVALUATE_IMITATE_ITEM, params = nil,
 Function = function(_,player,colid,value)
@@ -100,8 +281,11 @@ Function = function(_,player)
 			local q = Isaac.Spawn(1000,enums.Entities.Cursed_Linker,0,player.Position,Vector(0,0),nil)
 			d[item.own_key.."effect"].linker = q
 			q.Parent = player
+			stamp_linker_player(q)
 		else 
 			local q = d[item.own_key.."effect"].linker
+			q.Parent = player
+			stamp_linker_player(q)
 			q.Position = player.Position
 			q:GetSprite().Rotation = d[item.own_key.."effect"].dir:GetAngleDegrees() - 90
 			if d[item.own_key.."effect"].counter == item.rotate_info.total - 5 * 2 then q:GetSprite():Play("Remove",true) end
@@ -158,10 +342,24 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFECT_UPDATE, params = enums.Entities.Cursed_Linker,
 Function = function(_,ent)
-	if auxi.check_all_exists(ent.Parent) ~= true then ent:Remove() return
-	else
-		local player = ent.Parent:ToPlayer()
-		if player == nil or (auxi.has_have_coll(player,item.entity) and player:GetData()[item.own_key.."effect"] and not auxi.has_have_coll(player,260)) ~= true then ent:Remove() return end
+	if auxi.check_all_exists(ent.Parent) ~= true then
+		ent:Remove()
+		return
+	end
+	local ld = ent:GetData()
+	local kind = ld[item.LINK_KIND_KEY] or LINK_KIND_PLAYER
+	if kind == LINK_KIND_CRAFT then
+		-- Craft lifecycle is owned by tick_craft_aim / Air Flight.
+		-- Effect UPDATE only orphans when Parent is gone (checked above).
+		return
+	end
+	local player = ent.Parent:ToPlayer()
+	if player == nil
+		or (auxi.has_have_coll(player, item.entity)
+			and player:GetData()[item.own_key.."effect"]
+			and not auxi.has_have_coll(player, BLACK_CANDLE)) ~= true
+	then
+		ent:Remove()
 	end
 end,
 })
@@ -171,6 +369,13 @@ Function = function(_)
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		player:GetData()[item.own_key.."effect"] = {}
+	end
+	-- Reset Flight craft aim when rooms change (mirror player room-start reset).
+	local ok, Air = pcall(require, "Qing_Remaster_scripts.items.Item_Air_Flight")
+	if ok and Air and Air.familiar then
+		for _, fam in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR, Air.familiar, -1, false, false)) do
+			item.clear_craft_aim(fam)
+		end
 	end
 end,
 })

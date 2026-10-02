@@ -424,122 +424,122 @@ local item = {
 		},
 		boss = {
 			normal = {
-				{Type = 19,Variant = 0,SubType = {0,1,2,},mul = {4,5,6,7,},is_multi = true,},
-				{Type = 19,Variant = 2,SubType = 0,mul = {4,5,6,7,},is_multi = true,special = function(pos) local q = Isaac.Spawn(809,0,0,pos,Vector(0,0),nil) end,},
-				{Type = 79,Variant = 0,SubType = {0,1,2,},myspecial = function(ent) local n_entity = Isaac.GetRoomEntities() local chains = auxi.getothers(n_entity,79,20,nil) for u,v in pairs(chains) do v:Remove() end end,},
-				{Type = 79,Variant = 1,SubType = 0,},
-				{Type = 79,Variant = 2,SubType = 0,},
-				{Type = 237,Variant = 1,SubType = {0,1,2,},},
-				{Type = 237,Variant = 2,SubType = 0,},
-				{Type = 261,Variant = 0,SubType = {0,1,2,},},
-				{Type = 261,Variant = 1,SubType = 0,},
-				{Type = 404,Variant = 0,SubType = {0,1,2,},},
-				{Type = 405,Variant = 0,SubType = {0,1,2,},},
-				{Type = 902,Variant = 0,SubType = 0,},
-				{Type = 914,Variant = 0,SubType = 0,},
-				{Type = 917,Variant = 0,SubType = 0,},
-				{Type = 918,Variant = 0,SubType = 0,mul = {3,4,5,6,7,},is_multi = true,},
-				{Type = 28,Variant = 0,SubType = {0,1,2,},mul = {3,4,5,},is_multi = true,},
-				{Type = 28,Variant = 1,SubType = 0,mul = {3,4,5,},is_multi = true,},
-				{Type = 28,Variant = 2,SubType = {0,1,},mul = {3,},is_multi = true,},
-				{Type = 36,Variant = 0,SubType = {0,1,},},
-				{Type = 99,Variant = 0,SubType = {0,1,2,},is_multi = true,},
-				{Type = 262,Variant = 0,SubType = {0,1,2,},},
-				{Type = 263,Variant = 0,SubType = {0,1,2,},},
-				{Type = 402,Variant = 0,SubType = {0,1,},},
-				{Type = 270,Variant = 0,SubType = 0,},
-				{Type = 74,Variant = 0,SubType = 0,},
-				{Type = 75,Variant = 0,SubType = 0,},
-				{Type = 76,Variant = 0,SubType = 0,},
-				{Type = 413,Variant = 0,SubType = 0,},
-				{Type = 910,Variant = 0,SubType = 0,},
-				{Type = 910,Variant = 1,SubType = 0,},
-				{Type = 910,Variant = 2,SubType = 0,},
-				{Type = 911,Variant = 0,SubType = 0,},		--有点特殊
-				{Type = 407,Variant = 0,SubType = 0,},
-				{Type = 84,Variant = 0,SubType = 0,},		--问题不大
-				{Type = 273,Variant = 0,SubType = 0,},
-				{Type = 406,Variant = 0,SubType = 0,},
-				{Type = 406,Variant = 1,SubType = 0,},
-				--{Type = 906,Variant = 0,SubType = 0,only_spawn = true,},
-				{Type = 903,Variant = 0,SubType = 0,only_spawn = true,},
-				{Type = 921,Variant = 0,SubType = 0,special = function(pos) local rnd = math.random(3) + 2 for i = 1,rnd do local q = Isaac.Spawn(889,0,0,pos,Vector(0,0),nil) local d2 = q:GetData() d2.has_been_checked_by_Danger = true q.SpawnerType = 10001 end end,},
+				{Type = 19,Variant = 0,SubType = {0,1,2,},level = 1,mul = {4,5,6,7,},is_multi = true,},
+				{Type = 19,Variant = 2,SubType = 0,level = 2.5,mul = {4,5,6,7,},is_multi = true,special = function(pos) local q = Isaac.Spawn(809,0,0,pos,Vector(0,0),nil) end,},
+				{Type = 79,Variant = 0,SubType = {0,1,2,},level = 1,myspecial = function(ent) local n_entity = Isaac.GetRoomEntities() local chains = auxi.getothers(n_entity,79,20,nil) for u,v in pairs(chains) do v:Remove() end end,},
+				{Type = 79,Variant = 1,SubType = 0,level = 1,},
+				{Type = 79,Variant = 2,SubType = 0,level = 2,},
+				{Type = 237,Variant = 1,SubType = {0,1,2,},level = 1,},
+				{Type = 237,Variant = 2,SubType = 0,level = 1,},
+				{Type = 261,Variant = 0,SubType = {0,1,2,},level = 1,},
+				{Type = 261,Variant = 1,SubType = 0,level = 1,},
+				{Type = 404,Variant = 0,SubType = {0,1,2,},level = 1,},
+				{Type = 405,Variant = 0,SubType = {0,1,2,},level = 1,},
+				{Type = 902,Variant = 0,SubType = 0,level = 1.5,},
+				{Type = 914,Variant = 0,SubType = 0,level = 1.5,},
+				{Type = 917,Variant = 0,SubType = 0,level = 1.5,},
+				{Type = 918,Variant = 0,SubType = 0,level = 1.5,mul = {3,4,5,6,7,},is_multi = true,},
+				{Type = 28,Variant = 0,SubType = {0,1,2,},level = 2,mul = {3,4,5,},is_multi = true,},
+				{Type = 28,Variant = 1,SubType = 0,level = 1,mul = {3,4,5,},is_multi = true,},
+				{Type = 28,Variant = 2,SubType = {0,1,},level = 1,mul = {3,},is_multi = true,},
+				{Type = 36,Variant = 0,SubType = {0,1,},level = 2,},
+				{Type = 99,Variant = 0,SubType = {0,1,2,},level = 2,is_multi = true,},
+				{Type = 262,Variant = 0,SubType = {0,1,2,},level = 2,},
+				{Type = 263,Variant = 0,SubType = {0,1,2,},level = 3,},
+				{Type = 402,Variant = 0,SubType = {0,1,},level = 3,},
+				{Type = 270,Variant = 0,SubType = 0,level = 4,},
+				{Type = 74,Variant = 0,SubType = 0,level = 4,},
+				{Type = 75,Variant = 0,SubType = 0,level = 1,},
+				{Type = 76,Variant = 0,SubType = 0,level = 1,},
+				{Type = 413,Variant = 0,SubType = 0,level = 4,},
+				{Type = 910,Variant = 0,SubType = 0,level = 4.5,},
+				{Type = 910,Variant = 1,SubType = 0,level = 1,},
+				{Type = 910,Variant = 2,SubType = 0,level = 4.5,},
+				{Type = 911,Variant = 0,SubType = 0,level = 4.5,},		--有点特殊
+				{Type = 407,Variant = 0,SubType = 0,level = 6,},
+				{Type = 84,Variant = 0,SubType = 0,level = 5,},		--问题不大
+				{Type = 273,Variant = 0,SubType = 0,level = 5,},
+				{Type = 406,Variant = 0,SubType = 0,level = 6,},
+				{Type = 406,Variant = 1,SubType = 0,level = 1,},
+				--{Type = 906,Variant = 0,SubType = 0,level = 2.5,only_spawn = true,},
+				{Type = 903,Variant = 0,SubType = 0,level = 3.5,only_spawn = true,},
+				{Type = 921,Variant = 0,SubType = 0,level = 2.5,special = function(pos) local rnd = math.random(3) + 2 for i = 1,rnd do local q = Isaac.Spawn(889,0,0,pos,Vector(0,0),nil) local d2 = q:GetData() d2.has_been_checked_by_Danger = true q.SpawnerType = 10001 end end,},
 			},
 			jumpable = {
-				{Type = 20,Variant = 0,SubType = {0,1,2,},is_multi = true,},
-				{Type = 100,Variant = 0,SubType = {0,1,2,},},
-				{Type = 100,Variant = 1,SubType = 0,},
-				{Type = 68,Variant = 0,SubType = {0,1,2,},},
-				{Type = 68,Variant = 1,SubType = {0,1,},},
-				{Type = 264,Variant = 0,SubType = {0,1,2,},},
-				{Type = 916,Variant = 0,SubType = 0,},
-				{Type = 900,Variant = 0,SubType = 0,},
-				{Type = 43,Variant = 0,SubType = {0,1,},},
-				{Type = 43,Variant = 1,SubType = 0,},
-				{Type = 69,Variant = 0,SubType = 0,},
-				{Type = 69,Variant = 1,SubType = 0,mul = 2},
-				{Type = 265,Variant = 0,SubType = {0,1,2,},},
-				{Type = 410,Variant = 0,SubType = 0,is_multi = true,},		--这个会一次生成2个哦！
+				{Type = 20,Variant = 0,SubType = {0,1,2,},level = 1,is_multi = true,},
+				{Type = 100,Variant = 0,SubType = {0,1,2,},level = 1,},
+				{Type = 100,Variant = 1,SubType = 0,level = 2,},
+				{Type = 68,Variant = 0,SubType = {0,1,2,},level = 2,},
+				{Type = 68,Variant = 1,SubType = {0,1,},level = 3,},
+				{Type = 264,Variant = 0,SubType = {0,1,2,},level = 2,},
+				{Type = 916,Variant = 0,SubType = 0,level = 2,},
+				{Type = 900,Variant = 0,SubType = 0,level = 3,},
+				{Type = 43,Variant = 0,SubType = {0,1,},level = 3,},
+				{Type = 43,Variant = 1,SubType = 0,level = 1,},
+				{Type = 69,Variant = 0,SubType = 0,level = 3,},
+				{Type = 69,Variant = 1,SubType = 0,level = 4,mul = 2},
+				{Type = 265,Variant = 0,SubType = {0,1,2,},level = 3,},
+				{Type = 410,Variant = 0,SubType = 0,level = 3,is_multi = true,},		--这个会一次生成2个哦！
 			},
 			hideable = {
-				{Type = 62,Variant = 0,SubType = {0,1,},is_multi = true,},
-				{Type = 62,Variant = 1,SubType = 0,is_multi = true,},
-				{Type = 62,Variant = 2,SubType = {0,1,},is_multi = true,},
-				{Type = 401,Variant = 0,SubType = {0,1,},},
-				{Type = 411,Variant = 0,SubType = 0,},
-				{Type = 269,Variant = 0,SubType = {0,1,2,},},
-				{Type = 269,Variant = 1,SubType = 0,},
+				{Type = 62,Variant = 0,SubType = {0,1,},level = 1,is_multi = true,},
+				{Type = 62,Variant = 1,SubType = 0,level = 4,is_multi = true,},
+				{Type = 62,Variant = 2,SubType = {0,1,},level = 2,is_multi = true,},
+				{Type = 401,Variant = 0,SubType = {0,1,},level = 2,},
+				{Type = 411,Variant = 0,SubType = 0,level = 2,},
+				{Type = 269,Variant = 0,SubType = {0,1,2,},level = 2,},
+				{Type = 269,Variant = 1,SubType = 0,level = 2.5,},
 			},
 			flyable = {
-				{Type = 19,Variant = 1,SubType = {0,1,2,3},mul = {3,4,5,6,7,8,9,},is_multi = true,},
-				{Type = 63,Variant = 0,SubType = {0,1,},},
-				{Type = 64,Variant = 0,SubType = {0,1,},},
-				{Type = 65,Variant = 0,SubType = {0,1,},},
-				{Type = 65,Variant = 1,SubType = 0,},
-				{Type = 66,Variant = 0,SubType = {0,1,},},
-				{Type = 67,Variant = 0,SubType = {0,1,2,},},
-				{Type = 67,Variant = 1,SubType = {0,1,2,},},
-				{Type = 908,Variant = 0,SubType = 0,},
-				{Type = 260,Variant = 0,SubType = {0,1,2,},},
-				{Type = 901,Variant = 0,SubType = 0,},
-				{Type = 913,Variant = 0,SubType = 0,},
-				{Type = 71,Variant = 0,SubType = {0,1,},},
-				{Type = 71,Variant = 1,SubType = 0,},
-				{Type = 72,Variant = 0,SubType = {0,1,},},
-				{Type = 72,Variant = 1,SubType = 0,},
-				{Type = 73,Variant = 0,SubType = {0,1,},},
-				{Type = 73,Variant = 1,SubType = 0,},
-				{Type = 267,Variant = 0,SubType = 0,},
-				{Type = 403,Variant = 0,SubType = {0,1,},},
-				{Type = 409,Variant = 0,SubType = 0,},
-				{Type = 268,Variant = 0,SubType = 0,},
-				{Type = 274,Variant = 0,SubType = 0,only_spawn = true,special_work = function(ent)
+				{Type = 19,Variant = 1,SubType = {0,1,2,3},level = 2,mul = {3,4,5,6,7,8,9,},is_multi = true,},
+				{Type = 63,Variant = 0,SubType = {0,1,},level = 1,},
+				{Type = 64,Variant = 0,SubType = {0,1,},level = 2,},
+				{Type = 65,Variant = 0,SubType = {0,1,},level = 3,},
+				{Type = 65,Variant = 1,SubType = 0,level = 4,},
+				{Type = 66,Variant = 0,SubType = {0,1,},level = 4,},
+				{Type = 67,Variant = 0,SubType = {0,1,2,},level = 1,},
+				{Type = 67,Variant = 1,SubType = {0,1,2,},level = 2,},
+				{Type = 908,Variant = 0,SubType = 0,level = 1,},
+				{Type = 260,Variant = 0,SubType = {0,1,2,},level = 1,},
+				{Type = 901,Variant = 0,SubType = 0,level = 1.5,},
+				{Type = 913,Variant = 0,SubType = 0,level = 1.5,},
+				{Type = 71,Variant = 0,SubType = {0,1,},level = 2,},
+				{Type = 71,Variant = 1,SubType = 0,level = 1,},
+				{Type = 72,Variant = 0,SubType = {0,1,},level = 1,},
+				{Type = 72,Variant = 1,SubType = 0,level = 1,},
+				{Type = 73,Variant = 0,SubType = {0,1,},level = 1,},
+				{Type = 73,Variant = 1,SubType = 0,level = 1,},
+				{Type = 267,Variant = 0,SubType = 0,level = 2,},
+				{Type = 403,Variant = 0,SubType = {0,1,},level = 2,},
+				{Type = 409,Variant = 0,SubType = 0,level = 2,},
+				{Type = 268,Variant = 0,SubType = 0,level = 3,},
+				{Type = 274,Variant = 0,SubType = 0,level = 6,only_spawn = true,special_work = function(ent)
 					ent.State = 3
 				end,should_set_pit = true,},
-				{Type = 275,Variant = 0,SubType = 0,only_spawn = true,special_work = function(ent)
+				{Type = 275,Variant = 0,SubType = 0,level = 6,only_spawn = true,special_work = function(ent)
 					ent.State = 3
 				end,should_set_pit = true,},
-				{Type = 97,Variant = 0,SubType = {0,1,},},			--会生成心脏
-				{Type = 904,Variant = 0,SubType = 0,},
-				{Type = 905,Variant = 0,SubType = 0,},
-				{Type = 920,Variant = 0,SubType = 0,},
-				{Type = 78,Variant = 0,SubType = 0,},
-				{Type = 78,Variant = 0,SubType = 1,},
-				{Type = 78,Variant = 1,SubType = 0,},
-				{Type = 78,Variant = 1,SubType = 1,},
-				{Type = 101,Variant = 0,SubType = 0,},
-				{Type = 101,Variant = 1,SubType = 0,},
-				{Type = 266,Variant = 0,SubType = 0,},
-				{Type = 909,Variant = 0,SubType = 0,},
-				{Type = 911,Variant = 2,SubType = 0,},			--没问题
-				{Type = 912,Variant = 0,SubType = 0,only_spawn = true,pre_special_work = function()
+				{Type = 97,Variant = 0,SubType = {0,1,},level = 3,},			--会生成心脏
+				{Type = 904,Variant = 0,SubType = 0,level = 3.5,},
+				{Type = 905,Variant = 0,SubType = 0,level = 3.5,},
+				{Type = 920,Variant = 0,SubType = 0,level = 3.5,},
+				{Type = 78,Variant = 0,SubType = 0,level = 4,},
+				{Type = 78,Variant = 0,SubType = 1,level = 4,},
+				{Type = 78,Variant = 1,SubType = 0,level = 1,},
+				{Type = 78,Variant = 1,SubType = 1,level = 1,},
+				{Type = 101,Variant = 0,SubType = 0,level = 4,},
+				{Type = 101,Variant = 1,SubType = 0,level = 1,},
+				{Type = 266,Variant = 0,SubType = 0,level = 4,},
+				{Type = 909,Variant = 0,SubType = 0,level = 4.5,},
+				{Type = 911,Variant = 2,SubType = 0,level = 4.5,},			--没问题
+				{Type = 912,Variant = 0,SubType = 0,level = 6,only_spawn = true,pre_special_work = function()
 					local level = Game():GetLevel()
 					local room = Game():GetRoom()
 					local listindex = level:GetCurrentRoomDesc().ListIndex
 					save.elses.alldoorsinfo = save.elses.alldoorsinfo or {}
 					if save.elses.alldoorsinfo[listindex] == nil then
 						save.elses.alldoorsinfo[listindex] = {}
-						for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do 
+						for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 							if room:IsDoorSlotAllowed(slot) then
 								local door = room:GetDoor(slot)
 								if door then
@@ -551,13 +551,13 @@ local item = {
 					end
 					--l local room = Game():GetRoom() for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do local door = room:GetDoor(slot) if door then door:SetType(16) door:Init(1) door.TargetRoomIndex = 84 end end
 				end,should_remakeroom = true,should_set_clear = true,},
-				{Type = 912,Variant = 10,SubType = 0,},	
-				{Type = 102,Variant = 0,SubType = 0,},
-				{Type = 102,Variant = 1,SubType = 0,},
-				{Type = 102,Variant = 2,SubType = 0,},
-				{Type = 84,Variant = 10,SubType = 0,special = function(pos) local mul = math.random(3) for i = 1,mul do local q = Isaac.Spawn(84,10,0,pos,Vector(0,0),nil) local d2 = q:GetData() d2.has_been_checked_by_Danger = true q.SpawnerType = 10001 end end,},
-				{Type = 412,Variant = 0	,SubType = 0,nonly_spawn = true,hard = true,},
-				{Type = 919,Variant = 0,SubType = 0,fill_in = true,should_transmit = true,should_set_clear = true,pre_special_work = function()
+				{Type = 912,Variant = 10,SubType = 0,level = 6,},
+				{Type = 102,Variant = 0,SubType = 0,level = 5,},
+				{Type = 102,Variant = 1,SubType = 0,level = 1,},
+				{Type = 102,Variant = 2,SubType = 0,level = 6,},
+				{Type = 84,Variant = 10,SubType = 0,level = 5,special = function(pos) local mul = math.random(3) for i = 1,mul do local q = Isaac.Spawn(84,10,0,pos,Vector(0,0),nil) local d2 = q:GetData() d2.has_been_checked_by_Danger = true q.SpawnerType = 10001 end end,},
+				{Type = 412,Variant = 0	,SubType = 0,level = 6,nonly_spawn = true,hard = true,},
+				{Type = 919,Variant = 0,SubType = 0,level = 3.5,fill_in = true,should_transmit = true,should_set_clear = true,pre_special_work = function()
 					local level = Game():GetLevel()
 					local room = Game():GetRoom()
 					local listindex = level:GetCurrentRoomDesc().ListIndex
@@ -573,31 +573,31 @@ local item = {
 						end
 					end
 				end},
-				{Type = 950,Variant = 0,SubType = 0,only_spawn = true,hard = true,special_work = function(ent)
+				{Type = 950,Variant = 0,SubType = 0,level = 6,only_spawn = true,hard = true,special_work = function(ent)
 					local d = ent:GetData()
 					d.danger_kill_dogma = true
 				end,should_transmit = true,should_set_clear = true,},
-				{Type = 950,Variant = 2,SubType = 0,only_spawn = true,hard = true,special_work = function(ent)
+				{Type = 950,Variant = 2,SubType = 0,level = 6,only_spawn = true,hard = true,special_work = function(ent)
 					local d = ent:GetData()
 					d.danger_help_with_idle = true
 				end},
-				{Type = 951,Variant = 0,SubType = 0,hard = true,only_spawn = true,},
-				{Type = 951,Variant = 10,SubType = 0,},
-				{Type = 951,Variant = 20,SubType = 0,},
-				{Type = 951,Variant = 30,SubType = 0,},
-				{Type = 951,Variant = 40,SubType = 0,},
-				{Type = 81,Variant = 0,SubType = 0,is_multi = true,},
-				{Type = 81,Variant = 1,SubType = 0,},
-				{Type = 82,Variant = 0,SubType = 0,special = function(pos) local mul = math.random(3) for i = 1,mul do local q = Isaac.Spawn(83,0,0,pos,Vector(0,0),nil) local d2 = q:GetData() d2.has_been_checked_by_Danger = true q.SpawnerType = 10001 end end},
-				{Type = 271,Variant = 0,SubType = 0,},
-				{Type = 271,Variant = 1,SubType = 0,},
-				{Type = 272,Variant = 0,SubType = 0,},
-				{Type = 272,Variant = 1,SubType = 0,},
-				{Type = 19,Variant = 3,SubType = 0,mul = {3,4,5,6,7,},is_multi = true,special = function(pos) local q = Isaac.Spawn(809,0,0,pos,Vector(0,0),nil) end,},
-				{Type = 45,Variant = 10,SubType = 3,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos) 
+				{Type = 951,Variant = 0,SubType = 0,level = 6,hard = true,only_spawn = true,},
+				{Type = 951,Variant = 10,SubType = 0,level = 5,},
+				{Type = 951,Variant = 20,SubType = 0,level = 5,},
+				{Type = 951,Variant = 30,SubType = 0,level = 5,},
+				{Type = 951,Variant = 40,SubType = 0,level = 5,},
+				{Type = 81,Variant = 0,SubType = 0,level = 3,is_multi = true,},
+				{Type = 81,Variant = 1,SubType = 0,level = 3,},
+				{Type = 82,Variant = 0,SubType = 0,level = 1,special = function(pos) local mul = math.random(3) for i = 1,mul do local q = Isaac.Spawn(83,0,0,pos,Vector(0,0),nil) local d2 = q:GetData() d2.has_been_checked_by_Danger = true q.SpawnerType = 10001 end end},
+				{Type = 271,Variant = 0,SubType = 0,level = 2,},
+				{Type = 271,Variant = 1,SubType = 0,level = 3,},
+				{Type = 272,Variant = 0,SubType = 0,level = 1,},
+				{Type = 272,Variant = 1,SubType = 0,level = 3,},
+				{Type = 19,Variant = 3,SubType = 0,level = 2.5,mul = {3,4,5,6,7,},is_multi = true,special = function(pos) local q = Isaac.Spawn(809,0,0,pos,Vector(0,0),nil) end,},
+				{Type = 45,Variant = 10,SubType = 3,level = 3,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos)
 					local room = Game():GetRoom()
 					local n_entity = Isaac.GetRoomEntities()
-					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do 
+					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 						if room:IsDoorSlotAllowed(slot) then
 							local pos = room:GetDoorSlotPosition(slot)
 							local should_spawn = true
@@ -608,18 +608,18 @@ local item = {
 								end
 							end
 							if should_spawn then
-								local q = Isaac.Spawn(45,0,3,pos,Vector(0,0),nil) 
-								local d2 = q:GetData() 
+								local q = Isaac.Spawn(45,0,3,pos,Vector(0,0),nil)
+								local d2 = q:GetData()
 								d2.has_been_checked_by_Danger = true
 								d2.fixed_position = pos
 							end
 						end
 					end
 				end,hard = true,},
-				{Type = 45,Variant = 10,SubType = 2,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos) 
+				{Type = 45,Variant = 10,SubType = 2,level = 3,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos)
 					local room = Game():GetRoom()
 					local n_entity = Isaac.GetRoomEntities()
-					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do 
+					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 						if room:IsDoorSlotAllowed(slot) then
 							local pos = room:GetDoorSlotPosition(slot)
 							local should_spawn = true
@@ -630,18 +630,18 @@ local item = {
 								end
 							end
 							if should_spawn then
-								local q = Isaac.Spawn(45,0,2,pos,Vector(0,0),nil) 
-								local d2 = q:GetData() 
+								local q = Isaac.Spawn(45,0,2,pos,Vector(0,0),nil)
+								local d2 = q:GetData()
 								d2.has_been_checked_by_Danger = true
 								d2.fixed_position = pos
 							end
 						end
 					end
 				end,hard = true,},
-				{Type = 45,Variant = 10,SubType = 1,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos) 
+				{Type = 45,Variant = 10,SubType = 1,level = 3,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos)
 					local room = Game():GetRoom()
 					local n_entity = Isaac.GetRoomEntities()
-					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do 
+					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 						if room:IsDoorSlotAllowed(slot) then
 							local pos = room:GetDoorSlotPosition(slot)
 							local should_spawn = true
@@ -652,18 +652,18 @@ local item = {
 								end
 							end
 							if should_spawn then
-								local q = Isaac.Spawn(45,0,1,pos,Vector(0,0),nil) 
-								local d2 = q:GetData() 
+								local q = Isaac.Spawn(45,0,1,pos,Vector(0,0),nil)
+								local d2 = q:GetData()
 								d2.has_been_checked_by_Danger = true
 								d2.fixed_position = pos
 							end
 						end
 					end
 				end,hard = true,},
-				{Type = 45,Variant = 10,SubType = 0,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos) 
+				{Type = 45,Variant = 10,SubType = 0,level = 3,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos)
 					local room = Game():GetRoom()
 					local n_entity = Isaac.GetRoomEntities()
-					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do 
+					for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 						if room:IsDoorSlotAllowed(slot) then
 							local pos = room:GetDoorSlotPosition(slot)
 							local should_spawn = true
@@ -674,8 +674,8 @@ local item = {
 								end
 							end
 							if should_spawn then
-								local q = Isaac.Spawn(45,0,0,pos,Vector(0,0),nil) 
-								local d2 = q:GetData() 
+								local q = Isaac.Spawn(45,0,0,pos,Vector(0,0),nil)
+								local d2 = q:GetData()
 								d2.has_been_checked_by_Danger = true
 								d2.fixed_position = pos
 							end
@@ -684,15 +684,15 @@ local item = {
 				end,hard = true,},
 			},
 			special = {
-				--{Type = 906,Variant = 0,SubType = 0,},
-				--{Type = 907,Variant = 0,SubType = 0,},
-				--{Type = 903,Variant = 0,SubType = 0,},
+				--{Type = 906,Variant = 0,SubType = 0,level = 2.5,},
+				--{Type = 907,Variant = 0,SubType = 0,level = 2.5,},
+				--{Type = 903,Variant = 0,SubType = 0,level = 3.5,},
 				--l local room = Game():GetRoom() print(room:IsPositionInRoom(room:GetGridPosition(20),0))
 				--l local room = Game():GetRoom() print(room:GetGridWidth().." "..room:GetGridHeight())
 				--l local room = Game():GetRoom() local gent = room:GetGridEntity(20) if gent == nil then local succ = room:SpawnGridEntity(20,GridEntityType.GRID_DECORATION,0,room:GetSpawnSeed(),0) if succ then grid = room:GetGridEntity(20) end end if gent then print(gent.CollisionClass) end
 			},
 			water = {
-				{Type = 62,Variant = 3,SubType = 0,},
+				{Type = 62,Variant = 3,SubType = 0,level = 1.5,},
 			},
 		},
 	},
@@ -1200,7 +1200,7 @@ local item = {
 					{Type = 450,Variant = 20,level = 3,},		--异眼
 					{Type = 450,Variant = 13,level = 2,},		--降鬼
 					{Type = 666,Variant = 100,level = 2,},		--引虫
-					{Type = 666,Variant = 101,level = 2,},		--吸虫 
+					{Type = 666,Variant = 101,level = 2,},		--吸虫
 					{Type = 829,Variant = 450,level = 3,},		--爆炸地鼠
 				},
 				flyable = {
@@ -1246,7 +1246,7 @@ local item = {
 					{Type = 130,Variant = 40,SubType = {0,1,},level = 3,},		--鸦鸦
 					{Type = 130,Variant = 70,level = 3,},		--沙袋
 					{Type = 130,Variant = 80,level = 3,},		--灾夜
-					--130.81	
+					--130.81
 					{Type = 140,Variant = 0,level = 1,},		--蜜蜂眼
 					{Type = 150,Variant = 2,level = 2,},		--孵化蝇巢
 					{Type = 150,Variant = 11,level = 4,},		--飞镰刀
@@ -1462,12 +1462,12 @@ local item = {
 					{Type = 180,Variant = 111,level = 3,},		--污染2
 					{Type = 180,Variant = 121,level = 1,},		--招核2
 					{Type = 180,Variant = 160,level = 2,},		--水头
-					{Type = 180,Variant = 180,SubType = {0,1,2,3,4,5,},level = 3,special = function(pos) 
-						local room = Game():GetRoom() 
-						local mul = math.random(3) - 1 
-						for i = 1,mul do local pos = room:GetRandomPosition(20) local q = Isaac.Spawn(44,1820,0,pos,Vector(0,0),nil) end 
-						local mul = math.random(3) - 1 
-						for i = 1,mul do local rnd = math.random(5) - 1 local pos = room:GetRandomPosition(20) local q = Isaac.Spawn(44,1810,rnd,pos,Vector(0,0),nil) end 
+					{Type = 180,Variant = 180,SubType = {0,1,2,3,4,5,},level = 3,special = function(pos)
+						local room = Game():GetRoom()
+						local mul = math.random(3) - 1
+						for i = 1,mul do local pos = room:GetRandomPosition(20) local q = Isaac.Spawn(44,1820,0,pos,Vector(0,0),nil) end
+						local mul = math.random(3) - 1
+						for i = 1,mul do local rnd = math.random(5) - 1 local pos = room:GetRandomPosition(20) local q = Isaac.Spawn(44,1810,rnd,pos,Vector(0,0),nil) end
 					end},		--沙皇		--不动衍生物了
 					{Type = 180,Variant = 200,level = 3,},		--巨胖
 					{Type = 180,Variant = 210,level = 2,},		--线人
@@ -1511,13 +1511,13 @@ local item = {
 					{Type = 666,Variant = 160,SubType = {0,1,},level = 1,},		--蜂后
 					{Type = 666,Variant = 190,level = 2,},		--蜂怪
 					{Type = 750,Variant = 60,level = 4,},		--掘墓人
-					
+
 					{Type = 67,Variant = 1,SubType = 3,},
 					{Type = 908,Variant = 0,SubType = 1,level = 1,},		--金大可爱
-					{Type = 45,Variant = 10,SubType = 96,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos) 
+					{Type = 45,Variant = 10,SubType = 96,should_delay = true,special_morph = {Variant = 0,},center_pos = true,special = function(pos)
 						local room = Game():GetRoom()
 						local n_entity = Isaac.GetRoomEntities()
-						for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do 
+						for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 							if room:IsDoorSlotAllowed(slot) then
 								local pos = room:GetDoorSlotPosition(slot)
 								local should_spawn = true
@@ -1528,8 +1528,8 @@ local item = {
 									end
 								end
 								if should_spawn then
-									local q = Isaac.Spawn(45,0,0,pos,Vector(0,0),nil) 
-									local d2 = q:GetData() 
+									local q = Isaac.Spawn(45,0,0,pos,Vector(0,0),nil)
+									local d2 = q:GetData()
 									d2.has_been_checked_by_Danger = true
 									d2.fixed_position = pos
 								end
@@ -1645,8 +1645,8 @@ local function get_multiple(stb)
 		if #stb > 0 then
 			ret = stb[math.random(#stb)]
 		end
-	elseif stb ~= nil then 
-		ret = stb 
+	elseif stb ~= nil then
+		ret = stb
 	end
 	return ret
 end
@@ -1746,16 +1746,16 @@ end
 
 function item.spawn_it_now(ent,info,should_protect,specialwork)
 	local mul = get_multiple(info.data.mul) or 1
-	local room = Game():GetRoom() 
+	local room = Game():GetRoom()
 	if mul == 0 then mul = 1 end
-	local pos = ent.Position or room:GetRandomPosition(20) 
+	local pos = ent.Position or room:GetRandomPosition(20)
 	local tg_mxhp = ent.MaxHitPoints
 	local should_transmit = nil
 	local should_remakeroom = nil
 	if info.data.pre_special_work then info.data.pre_special_work() end
 	for i = 1,mul do
-		if info.data.ignore_place then 
-			pos = room:GetRandomPosition(20) 
+		if info.data.ignore_place then
+			pos = room:GetRandomPosition(20)
 		end
 		local tp = ent.Type
 		local vr = ent.Variant
@@ -1841,6 +1841,22 @@ end
 
 function item.check_and_morph_ent(ent,should_protect,params)
 	params = params or {}
+	local function filter_candidates_by_level(sel, min_level, max_level)
+		if min_level == nil and max_level == nil then
+			return sel
+		end
+		local filtered = {}
+		for _, info in ipairs(sel) do
+			local level = info.level
+			-- 显式等级硬筛选：无 level 或非 number 的条目直接排除，便于暴露漏标
+			if type(level) == "number"
+				and (min_level == nil or level >= min_level)
+				and (max_level == nil or level <= max_level) then
+				filtered[#filtered + 1] = info
+			end
+		end
+		return filtered
+	end
 	local name_info = item.check_data(ent)
 	if name_info and not auxi.check_if_any(name_info.data.only_spawn,ent) then
 		local dir = item.get_morph_dir(name_info.i2)
@@ -1850,16 +1866,26 @@ function item.check_and_morph_ent(ent,should_protect,params)
 			local sel = nil
 			for u,v in pairs(dir) do
 				if item.original_info[name_info.i1][v] and #(item.original_info[name_info.i1][v]) > 0 then
-					table.insert(stag,#stag + 1,{wei = #item.original_info[name_info.i1][v],sel = item.original_info[name_info.i1][v],})
-					tot_wei = tot_wei + #item.original_info[name_info.i1][v]
+					-- 等级范围在构造候选时即硬过滤；空池不进入加权，也不得回退未过滤池
+					local pool = filter_candidates_by_level(
+						item.original_info[name_info.i1][v],
+						params.min_level,
+						params.max_level
+					)
+					if #pool > 0 then
+						table.insert(stag,#stag + 1,{wei = #pool,sel = pool,})
+						tot_wei = tot_wei + #pool
+					end
 				end
 			end
-			tot_wei = math.random(tot_wei)
-			for u,v in pairs(stag) do
-				tot_wei = tot_wei - v.wei
-				if tot_wei <= 0 then
-					sel = v.sel
-					break
+			if tot_wei > 0 then
+				tot_wei = math.random(tot_wei)
+				for u,v in pairs(stag) do
+					tot_wei = tot_wei - v.wei
+					if tot_wei <= 0 then
+						sel = v.sel
+						break
+					end
 				end
 			end
 			if sel then
@@ -1878,9 +1904,9 @@ function item.check_and_morph_ent(ent,should_protect,params)
 				if target_info.pre_special_work then target_info.pre_special_work() end
 				local signon = nil
 				for i = 1,mul do
-					if target_info.ignore_place then 
-						local room = Game():GetRoom() 
-						pos = room:GetRandomPosition(20) 
+					if target_info.ignore_place then
+						local room = Game():GetRoom()
+						pos = room:GetRandomPosition(20)
 					end
 					local tp = get_multiple(target_info.Type)
 					local vr = get_multiple(target_info.Variant)
@@ -1961,9 +1987,9 @@ function item.check_and_keep_ent(ent,should_protect,params)
 				if target_info.should_remakeroom then should_remakeroom = true end
 				if target_info.should_transmit then should_transmit = true end
 				for i = 1,mul do
-					if target_info.ignore_place then 
-						local room = Game():GetRoom() 
-						pos = room:GetRandomPosition(20) 
+					if target_info.ignore_place then
+						local room = Game():GetRoom()
+						pos = room:GetRandomPosition(20)
 					end
 					local q = Isaac.Spawn(get_multiple(target_info.Type),get_multiple(target_info.Variant),get_multiple(target_info.SubType),pos,ent.Velocity,nil):ToNPC()
 					if ent:IsChampion() then

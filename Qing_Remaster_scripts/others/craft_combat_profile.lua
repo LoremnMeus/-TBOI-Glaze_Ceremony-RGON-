@@ -2,6 +2,53 @@
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local dev_env = require("Qing_Remaster_scripts.core.dev_environment")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+
+--- Profile executor: never invents Attack. Prefer attack_ctx / attack / Peek / fire_mode → untracked.
+local function profile_fire_opts(context, reason, extra)
+	context = context or {}
+	extra = extra or {}
+	local opts
+	if type(context.attack_ctx) == "table" and context.attack_ctx.mode then
+		opts = auxi.copy(context.attack_ctx)
+	elseif context.attack then
+		opts = {
+			mode = "inherit",
+			attack = context.attack,
+			emitter = context.emitter or context.source,
+			role = context.role or "derived",
+			reason = reason,
+		}
+	else
+		opts = attack_holder.CopyFireContext(reason)
+	end
+	if not opts then
+		local mode = context.fire_mode
+		if mode == "inherit" or mode == "untracked" or mode == "new_attack" then
+			opts = {
+				mode = mode,
+				attack = context.attack,
+				emitter = context.emitter or context.source,
+				role = context.role or "derived",
+				reason = reason,
+			}
+		else
+			opts = {
+				mode = "untracked",
+				reason = reason .. "_orphan",
+				emitter = context.emitter or context.source,
+				role = context.role or "derived",
+			}
+		end
+	end
+	for k, v in pairs(extra) do
+		opts[k] = v
+	end
+	if opts.reason == nil then
+		opts.reason = reason
+	end
+	return opts
+end
 
 local M = {
 	own_key = "Craft_Combat_Profile_",
@@ -15,7 +62,7 @@ local M = {
 		speed = 1,
 	},
 	TARGET_BASE = {
-		-- serial display: 空行01号 / 空怖01号
+		-- serial display: 空行01号 / AF01（Air Terror 保留供旧档显示，当前不可新造）
 		[enums.Items.Air_Flight] = {zh = "空行", en = "AF"},
 		[enums.Items.Air_Terror] = {zh = "空怖", en = "AT"},
 	},
@@ -777,6 +824,27 @@ M.STAT_DELTA = {
 	[732] = {damage = 1}, -- Mom's Ring
 }
 
+-- Mod collectible static combat stats (Flight profile; not player EvaluateItems).
+-- Player CACHE often uses get_damage_multiplier(player). Flight does NOT inherit character
+-- damage multipliers — STAT_DELTA values are Isaac damage units on the independent profile.
+-- Nihilistic Artificial Eye: player = +0.33 × character damage multiplier × copies;
+-- Blueprint = +0.33 damage × recipe copies (no holder character multiplier).
+if enums.Items.Nihilistic_Artificial_Eye and enums.Items.Nihilistic_Artificial_Eye > 0 then
+	M.STAT_DELTA[enums.Items.Nihilistic_Artificial_Eye] = {damage = 0.33}
+end
+-- Pageant Cross-dresser: +2 Luck × copies (costume/visual not inherited).
+if enums.Items.Pageant_Cross_dresser and enums.Items.Pageant_Cross_dresser > 0 then
+	M.STAT_DELTA[enums.Items.Pageant_Cross_dresser] = {luck = 2}
+end
+-- Hunger Burger: +1 Damage / +0.3 Speed × copies (hearts / mini-burger spawn not inherited).
+if enums.Items.Hunger_Burger and enums.Items.Hunger_Burger > 0 then
+	M.STAT_DELTA[enums.Items.Hunger_Burger] = {damage = 1, speed = 0.3}
+end
+-- Cursed Mask: +2 Damage × copies. Seija +2 Tears is conditional — not in STAT_DELTA.
+if enums.Items.Cursed_Mask and enums.Items.Cursed_Mask > 0 then
+	M.STAT_DELTA[enums.Items.Cursed_Mask] = {damage = 2}
+end
+
 -- 单眼加成：side 0=左 1=右；不进常驻 STAT_DELTA，开火时按眼睛相位叠加
 -- label 写入描述「特效」行
 M.ONE_EYE = {
@@ -1344,6 +1412,24 @@ M.STAT_AUDIT_EXCLUDE = {
 	[692] = true, -- Sanguine Bond（恶魔房献祭尖刺/奖励，不是 Flight 属性）
 }
 
+--- Explicit Blueprint incompatibilities (not "pending impl").
+--- id → {reason=, zh=, en=}；不注册 EXTRA_IMPL；并入 STAT_AUDIT_EXCLUDE 以免遗漏报警。
+M.CRAFT_EXCLUDED = {}
+
+function M.is_craft_excluded(id)
+	id = tonumber(id)
+	return id ~= nil and M.CRAFT_EXCLUDED[id] ~= nil
+end
+
+function M.register_craft_excluded(id, meta)
+	id = tonumber(id)
+	if not id or id <= 0 then return nil end
+	meta = type(meta) == "table" and meta or {reason = tostring(meta or "excluded")}
+	M.CRAFT_EXCLUDED[id] = meta
+	M.STAT_AUDIT_EXCLUDE[id] = true
+	return meta
+end
+
 -- 飞行器视觉体型（不复用弹体 stats.scale）
 M.BODY_SCALE_MUL = {
 	[12] = 1.25, -- Magic Mushroom
@@ -1405,7 +1491,7 @@ M.CRAFT_FAMILIAR_EXTRAS = {
 	{key = "holy_water", list = "holy_water", zh = "圣水", en = "Holy Water", movement = "projectile"},
 	{key = "hallowed_ground", list = "hallowed_ground", zh = "圣洁之地", en = "Hallowed Ground", movement = "follow"},
 	{key = "my_shadow", list = "my_shadow", zh = "我的影子", en = "My Shadow", movement = "trail"},
-	{key = "shade", list = "shade", zh = "阴影", en = "Shade", movement = "follow"},
+	{key = "shade", list = "shade", zh = "阴影", en = "Shade", movement = "trail"},
 	{key = "king_baby", list = "king_baby", zh = "国王宝宝", en = "King Baby", movement = "follow"},
 	-- 第二组资源宝宝：只改跟随目标
 	{key = "sack_of_pennies", list = "sack_of_pennies", zh = "硬币袋", en = "Sack of Pennies", movement = "follow"},
@@ -1520,6 +1606,7 @@ function M.missing_stat_delta(id)
 	id = tonumber(id)
 	if not id or id <= 0 then return false end
 	if M.STAT_AUDIT_EXCLUDE[id] then return false end
+	if M.is_craft_excluded(id) then return false end
 	if M.is_active_collectible(id) then return false end
 	if M.EXTRA_IMPL[id] then return false end -- 动态/行为已登记
 	if M.is_morph_item(id) then return false end
@@ -1715,7 +1802,7 @@ function M.collectible_matches_audit_tags(id, enabled_map, player)
 end
 
 --- 材料槽条目：number 或 {id/collectible=, source=, prototype_uid=}
---- source: "real" | "audit" | "prototype"
+--- source: "real" | "audit" | "prototype" | "mirror"
 function M.ingredient_id(entry)
 	if type(entry) == "table" then
 		return tonumber(entry.id or entry.collectible)
@@ -1728,11 +1815,32 @@ function M.is_prototype_entry(entry)
 		and entry.prototype_uid ~= nil
 end
 
+function M.is_mirror_entry(entry)
+	return type(entry) == "table" and entry.source == "mirror"
+end
+
+--- 合并专用镜像槽到材料表（_mirror 键供 counts/build_profile 消费）。
+function M.ingredients_with_mirror(ingredients, mirror_module)
+	local out = {}
+	for k, v in pairs(ingredients or {}) do
+		out[k] = v
+	end
+	local id = M.ingredient_id(mirror_module)
+	if id and id ~= 0 then
+		if type(mirror_module) == "table" then
+			out._mirror = mirror_module
+		else
+			out._mirror = {id = id, source = "mirror"}
+		end
+	end
+	return out
+end
+
 --- 单条材料来源。旧档：纯 number + rec.audit=true → 视为 audit。
 function M.ingredient_source(entry, audit_fallback)
 	if type(entry) == "table" then
 		local src = entry.source
-		if src == "prototype" or src == "audit" or src == "real" then
+		if src == "prototype" or src == "audit" or src == "real" or src == "mirror" then
 			return src
 		end
 		if entry.prototype_uid ~= nil then
@@ -1899,6 +2007,8 @@ function M.craft_has_virtual_source_for(rec, collectible_id, opts)
 				elseif not craft_prototype_uid_missing(rec, uid) then
 					return true
 				end
+			elseif src == "mirror" then
+				return true
 			end
 		end
 	end
@@ -1926,7 +2036,7 @@ function M.craft_familiar_material_available(player, rec, collectible_id, opts)
 				elseif not craft_prototype_uid_missing(rec, uid) then
 					return true
 				end
-			elseif src == "real" then
+			elseif src == "real" or src == "mirror" then
 				if miss_n <= 0
 					and player
 					and player.HasCollectible
@@ -1935,6 +2045,16 @@ function M.craft_familiar_material_available(player, rec, collectible_id, opts)
 					return true
 				end
 			end
+		end
+	end
+	local mm = rec.mirror_module
+	if mm and M.ingredient_id(mm) == collectible_id then
+		if miss_n <= 0
+			and player
+			and player.HasCollectible
+			and player:HasCollectible(collectible_id, true)
+		then
+			return true
 		end
 	end
 	return false
@@ -1997,6 +2117,8 @@ function M.source_counts_from_ingredients(ingredients, audit_fallback)
 				bucket.prototype = bucket.prototype + 1
 			elseif src == "audit" then
 				bucket.audit = bucket.audit + 1
+			elseif src == "mirror" then
+				bucket.mirror = (bucket.mirror or 0) + 1
 			else
 				bucket.real = bucket.real + 1
 			end
@@ -3386,6 +3508,63 @@ end
 
 M.bootstrap_legacy_compat_registry()
 
+-- Batch-1 Attack consumer modules (register_compat syncs EXTRA_IMPL / EXTRA_NAME / has_impl).
+-- Names from translations/translate.lua formal Name fields.
+do
+	local function reg_attack_consumer(id, key, zh, en)
+		if not id or id <= 0 then return end
+		M.register_compat({
+			id = id,
+			key = key,
+			zh = zh,
+			en = en,
+			category = "effect",
+			runtime_adapter = "attack_consumer:" .. key,
+		})
+	end
+	reg_attack_consumer(enums.Items.Tech_9, "tech9", "科技IX", "Tech IX")
+	reg_attack_consumer(enums.Items.Assassin_s_Eye, "assassin", "刺杀者之眼", "Assassin's Eye")
+	reg_attack_consumer(enums.Items.Tears_of_Pearl, "pearl", "鲛人之泪", "Tears of Pearl")
+	reg_attack_consumer(enums.Items.Evil_Intervention, "evil_intervention", "邪恶干涉", "Evil Intervention")
+	reg_attack_consumer(enums.Items.Seeker_s_Eye, "seeker", "求索者之眼", "Seeker's Eye")
+	reg_attack_consumer(enums.Items.Gospel, "gospel", "福音", "Gospel")
+end
+
+do
+	local function reg_effect(id, key, zh, en, adapter)
+		if not id or id <= 0 then return end
+		M.register_compat({
+			id = id,
+			key = key,
+			zh = zh,
+			en = en,
+			category = "effect",
+			runtime_adapter = adapter,
+		})
+	end
+	reg_effect(enums.Items.Cursed_Mask, "cursed_mask", "诅咒面具", "Cursed Mask", "craft:cursed_mask_aim")
+	reg_effect(enums.Items.Field, "field", "逆反力场", "Anti-Field", "craft_dynamic:field")
+	reg_effect(enums.Items.Wavering_Eyes, "wavering_eyes", "摇摆之眼", "Wavering Eyes", "craft:wavering_eyes")
+	reg_effect(enums.Items.Procrastination, "procrastination", "拖延症", "Procrastination", "craft_dynamic:procrastination")
+	reg_effect(enums.Items.Aphasia, "aphasia", "失语症", "Aphasia", "craft_dynamic:aphasia")
+	reg_effect(enums.Items.Crown_of_the_glaze, "crown_glaze", "琉璃的冠冕", "Crown of the Glaze", "craft_dynamic:crown_glaze")
+	reg_effect(enums.Items.Tech_14, "tech14", "科技XIV", "Tech XIV", "craft:tech14_path")
+end
+
+-- Book of Voice: active contract DamageMul — not a passive Flight stat.
+if enums.Items.Book_of_Voice and enums.Items.Book_of_Voice > 0 then
+	M.STAT_AUDIT_EXCLUDE[enums.Items.Book_of_Voice] = true
+end
+
+-- Blaststone: full player input / charge / recoil / independent effect attack — not Flight-compatible.
+if enums.Items.Blaststone and enums.Items.Blaststone > 0 then
+	M.register_craft_excluded(enums.Items.Blaststone, {
+		reason = "player_controlled_attack",
+		zh = "玩家专属蓄力/位移攻击系统，不适用于飞行器。",
+		en = "Player-controlled charge/recoil attack; not applicable to Air Flight.",
+	})
+end
+
 --- 制造宝宝审计短名（独立「宝宝」行；不挤占特效）
 function M.familiar_labels(extras, zh)
 	local labels = {}
@@ -4452,7 +4631,7 @@ function M.apply_tear_stats(ent, profile, dmg_mul, tear_flags, opts)
 	end
 end
 
--- ---------- 制造命名：空行/空怖 + 附加型号 ----------
+-- ---------- 制造命名：空行 + 附加型号（TARGET_BASE 仍可扩展其他底盘前缀）----------
 local ROMAN_VAL = {I = 1, V = 5, X = 10, L = 50, C = 100, D = 500, M = 1000}
 local _hanzi_pinyin = nil
 local NAME_STOP = {
@@ -5134,7 +5313,11 @@ function M.spawn_craft_brimstone(opts)
 	local dmg_mul = opts.damage_mul
 	if dmg_mul == nil then dmg_mul = 1 end
 	local source = air or player
-	local laser = player:FireBrimstone(dir, source, dmg_mul)
+	local laser = attack_holder.FireBrimstone(player, dir, profile_fire_opts(opts, "craft_spawn_brimstone", {
+		source_entity = source,
+		damage_multiplier = dmg_mul,
+		emitter = air or opts.emitter,
+	}))
 	if not laser then return nil, var end
 	laser = laser:ToLaser() or laser
 	laser.Parent = air or laser.Parent
@@ -5505,7 +5688,11 @@ local function spawn_haemo_sword_tear_child(profile, position, direction, player
 	local ang = (math.random(1200) / 10) - 60
 	local spd = 3 + (math.random(1000) / 1000) * (shotspeed * 10)
 	local vel = auxi.get_by_rotate(dir, ang) * spd
-	local q = player:FireTear(position, vel, false, true, false)
+	local q = attack_holder.FireTear(player, position, vel, profile_fire_opts(context, "craft_haemo_sword_child", {
+		can_be_eye = false,
+		no_tracer = true,
+		can_trigger_streak_end = false,
+	}))
 	if not q then return nil end
 	local want = TearVariant.SWORD_BEAM or 47
 	if q.ChangeVariant and q.Variant ~= want then
@@ -5565,7 +5752,11 @@ local function spawn_haemo_tear_children(profile, position, direction, player, c
 		local ang = (math.random(1200) / 10) - 60
 		local spd = 3 + (math.random(1000) / 1000) * (shotspeed * 10)
 		local vel = auxi.get_by_rotate(dir, ang) * spd
-		local q = player:FireTear(position, vel, false, true, false)
+		local q = attack_holder.FireTear(player, position, vel, profile_fire_opts(context, "craft_haemo_tear_child", {
+			can_be_eye = false,
+			no_tracer = true,
+			can_trigger_streak_end = false,
+		}))
 		if q then
 			if q.ChangeVariant then q:ChangeVariant(TearVariant.BLOOD) end
 			q.CollisionDamage = child_dmg()
@@ -5607,6 +5798,10 @@ local function spawn_haemo_brim_burst(profile, position, direction, player, cont
 			position = position,
 			position_offset = Vector(0, 0),
 			timeout = 9,
+			attack = context.attack,
+			attack_ctx = context.attack_ctx,
+			fire_mode = context.fire_mode,
+			emitter = context.emitter or air,
 		})
 		if q then
 			q.Parent = air or player
@@ -5629,7 +5824,11 @@ local function spawn_haemo_tech_burst(profile, position, direction, player, cont
 	local count = tonumber(forced_count) or M.haemo_roll_mode_count("tech")
 	for _ = 1, count do
 		local shot = auxi.MakeVector(math.random() * 360)
-		local q = player:FireTechLaser(position, 0, shot, false, true)
+		local q = attack_holder.FireTechLaser(player, position, shot, profile_fire_opts(context, "craft_haemo_tech_burst", {
+			offset_id = 0,
+			left_eye = false,
+			one_hit = true,
+		}))
 		if q then
 			q.CollisionDamage = parent_dmg
 			M.apply_flag_mask(q, profile)
@@ -5649,7 +5848,10 @@ local function spawn_haemo_techx_burst(profile, position, direction, player, con
 	for _ = 1, count do
 		local rad = base_r * (0.55 + math.random() * 0.9) -- 探针约 22..80
 		local vel = auxi.MakeVector(math.random() * 360) * (0.8 + math.random() * 1.4)
-		local q = player:FireTechXLaser(position, vel, rad, player, 1)
+		local q = attack_holder.FireTechXLaser(player, position, vel, rad, profile_fire_opts(context, "craft_haemo_techx_burst", {
+			source_entity = player,
+			damage_multiplier = 1,
+		}))
 		if q then
 			q.CollisionDamage = parent_dmg
 			M.apply_flag_mask(q, profile)
@@ -5675,7 +5877,9 @@ local function spawn_haemo_bomb_burst(profile, position, direction, player, cont
 		local ang = math.random() * 360
 		local spd = 3 + math.random() * 3 -- ≈3..6
 		local vel = auxi.MakeVector(ang) * spd
-		local q = player:FireBomb(position, vel, player)
+		local q = attack_holder.FireBomb(player, position, vel, profile_fire_opts(context, "craft_haemo_bomb_burst", {
+			source_entity = player,
+		}))
 		if q then
 			q.ExplosionDamage = bomb_dmg
 			-- 探针：首帧 PO.Y=-3；之后由 Bomb_holder 按 vy+=0.8 积分上飞
@@ -5797,7 +6001,11 @@ function M.try_fire_haemo_sword_beam(profile, player, position, direction, damag
 	if roll >= chance then return nil end
 	local dir = direction
 	if not dir or dir:Length() < 0.01 then dir = Vector(10, 0) end
-	local q = player:FireTear(position, dir, true, true, true)
+	local q = attack_holder.FireTear(player, position, dir, profile_fire_opts(context, "craft_haemo_sword_beam", {
+		can_be_eye = true,
+		no_tracer = true,
+		can_trigger_streak_end = true,
+	}))
 	if not q then return nil end
 	if damage then q.CollisionDamage = damage end
 	q.FallingAcceleration = 0.8

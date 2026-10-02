@@ -61,6 +61,32 @@ function item.reveal_near(pos, radius, parent)
 	return item.enemy_near(pos, radius) or item.player_near(pos, radius, parent)
 end
 
+--- Place / reuse a Tech XIV pointer on owner player's shared grid network.
+--- source_ent: player, Abyss locust, or Craft Flight — Position only; Parent stays player.
+function item.try_place_pointer(player, source_ent)
+	if not player or not source_ent then return nil end
+	local room = Game():GetRoom()
+	local gidx = room:GetGridIndex(source_ent.Position)
+	local pd = player:GetData()
+	pd[item.own_key.."effect"] = pd[item.own_key.."effect"] or {}
+	local old = pd[item.own_key.."effect"][gidx]
+	if auxi.check_all_exists(old) then
+		return old
+	end
+	local q = Isaac.Spawn(
+		EntityType.ENTITY_EFFECT,
+		enums.Entities.Tech_14_pointer,
+		0,
+		source_ent.Position,
+		Vector.Zero,
+		player
+	):ToEffect()
+	pd[item.own_key.."effect"][gidx] = q
+	q:GetData()[item.own_key.."Pos"] = room:GetGridPosition(gidx)
+	q.Parent = player
+	return q
+end
+
 function item.apply_vis(ent, vis)
 	local s = ent:GetSprite()
 	local col = auxi.copy_color(s.Color)
@@ -160,17 +186,7 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
 	if auxi.has_have_coll(player,item.entity) then
-		local room = Game():GetRoom()
-		local d = player:GetData()
-		local gidx = room:GetGridIndex(player.Position)
-		d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}
-		if auxi.check_all_exists(d[item.own_key.."effect"][gidx]) ~= true then
-			local q = Isaac.Spawn(1000,enums.Entities.Tech_14_pointer,0,player.Position,Vector(0,0),player):ToEffect()
-			local d2 = q:GetData()
-			d[item.own_key.."effect"][gidx] = q
-			d2[item.own_key.."Pos"] = room:GetGridPosition(gidx)
-			q.Parent = player
-		end
+		item.try_place_pointer(player, player)
 	end
 end,
 })
@@ -179,18 +195,8 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_FAMILIAR_U
 Function = function(_,ent)
 	if ent.Type == 3 and ent.Variant == FamiliarVariant.ABYSS_LOCUST and ent.SubType == item.entity then
 		if ent.State == -1 then
-			local room = Game():GetRoom()
 			local player = auxi.check_spawner_player(ent)
-			local d = player:GetData()
-			local gidx = room:GetGridIndex(ent.Position)
-			d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}
-			if auxi.check_all_exists(d[item.own_key.."effect"][gidx]) ~= true then
-				local q = Isaac.Spawn(1000,enums.Entities.Tech_14_pointer,0,ent.Position,Vector(0,0),player):ToEffect()
-				local d2 = q:GetData()
-				d[item.own_key.."effect"][gidx] = q
-				d2[item.own_key.."Pos"] = room:GetGridPosition(gidx)
-				q.Parent = player
-			end
+			item.try_place_pointer(player, ent)
 		end
 	end
 end,

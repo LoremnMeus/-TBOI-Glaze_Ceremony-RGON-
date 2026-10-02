@@ -1,5 +1,6 @@
--- 里小青控制带宽：容量/单机成本/编队顺序/启动态的唯一查询入口。
--- 内部半格整数：基础容量 3 → 6 units，基础飞行器 1 → 2 units。
+-- 控制带宽：容量/单机成本/编队顺序/启动态的唯一查询入口。
+-- 内部半格整数：UNIT_PER_SLOT=2；单机基础占用 1 槽 → 2 units。
+-- 容量：里小青基础 3 槽；其他蓝图持有者基础 1 槽。全角色统一走 wanted+capacity 分配。
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
@@ -10,7 +11,8 @@ local item = {
 	post_ToCall = {},
 	own_key = "Craft_Bandwidth_",
 	UNIT_PER_SLOT = 2,
-	BASE_CAPACITY_SLOTS = 3,
+	BASE_CAPACITY_SLOTS = 3, -- 里小青基础容量（槽）
+	BASE_CAPACITY_SLOTS_OTHER = 1, -- 其他角色基础容量（槽）
 	BASE_CRAFT_SLOTS = 1,
 	FORMATION_CRUISE = 0,
 	FORMATION_GUARD = 1,
@@ -145,12 +147,17 @@ local function tutorial_capacity_bonus(player)
 end
 
 function item.get_capacity_units(player)
-	local cap = item.BASE_CAPACITY_SLOTS * item.UNIT_PER_SLOT
+	local slots
+	if is_spwq(player) then
+		slots = item.BASE_CAPACITY_SLOTS
+	else
+		slots = item.BASE_CAPACITY_SLOTS_OTHER or 1
+	end
 	local bonus = tutorial_capacity_bonus(player)
 	if bonus > 0 then
-		cap = cap + bonus * item.UNIT_PER_SLOT
+		slots = slots + bonus
 	end
-	return cap
+	return slots * item.UNIT_PER_SLOT
 end
 
 function item.get_capacity(player)
@@ -260,28 +267,21 @@ local function build_snapshot(player)
 	local standby = {}
 	local cap = item.get_capacity_units(player)
 	local used = 0
-	local spwq = is_spwq(player)
 	for i = 1, #order do
 		local uid = order[i]
 		local k = uid_key(uid)
 		local rec = rec_by_uid[k]
-		if not spwq then
+		local cost = item.get_craft_cost_units(player, rec)
+		local want = bucket.wanted_active[k]
+		if want == nil then want = true end
+		-- 超容量只影响 effective，不得改写 wanted（Render 只读）。
+		if want == true and used + cost <= cap then
 			effective[k] = true
 			active[#active + 1] = uid
-			used = used + item.get_craft_cost_units(player, rec)
+			used = used + cost
 		else
-			local cost = item.get_craft_cost_units(player, rec)
-			local want = bucket.wanted_active[k]
-			if want == nil then want = true end
-			-- 超容量只影响 effective，不得改写 wanted（Render 只读）。
-			if want == true and used + cost <= cap then
-				effective[k] = true
-				active[#active + 1] = uid
-				used = used + cost
-			else
-				effective[k] = false
-				standby[#standby + 1] = uid
-			end
+			effective[k] = false
+			standby[#standby + 1] = uid
 		end
 	end
 	bucket.effective_active = effective
@@ -331,7 +331,6 @@ end
 
 function item.is_active(player, craft_uid)
 	if not player or craft_uid == nil then return true end
-	if not is_spwq(player) then return true end
 	local snap = item.get_snapshot(player)
 	return snap.effective_active[uid_key(craft_uid)] == true
 end

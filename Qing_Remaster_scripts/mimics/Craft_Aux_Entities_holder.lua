@@ -1,9 +1,9 @@
 -- 批次 4 + 三位一体盾：400 命运长枪 / 243 三位一体盾 / 693 苍蝇军团 / 702 复仇之火
 -- 全部挂 Flight / craft_uid；禁止临时 AddCollectible。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
-local dev_env = require("Qing_Remaster_scripts.core.dev_environment")
 
 local item = {
 	ToCall = {},
@@ -71,16 +71,9 @@ local function get_orbital()
 	return require("Qing_Remaster_scripts.mimics.Craft_Orbital_holder")
 end
 
-local function venge_probe_trace(event, fam, extra)
-	local Probe = dev_env.require_probe("Qing_Remaster_scripts.others.vengeful_craft_lifecycle_probe")
-	if Probe and Probe.trace then
-		Probe.trace(event, fam, extra)
-	end
-end
-
 local function craft_uid_of(air)
 	if not air then return nil end
-	return air:GetData()[get_blueprint().own_key.."craft_uid"]
+	return CraftIdentity.get_uid(air)
 end
 
 local function air_for_seed(air_seed)
@@ -198,7 +191,7 @@ local function list_player_flights(player)
 		if air and auxi.check_all_exists(air) then
 			local p = auxi.check_spawner_player(air)
 			if p and GetPtrHash(p) == GetPtrHash(player) then
-				local profile = air:GetData()[Air.own_key.."craft_profile"]
+				local profile = CraftIdentity.get_profile(air)
 				local uid = craft_uid_of(air)
 				if profile and uid then
 					out[#out + 1] = {air = air, profile = profile, uid = tostring(uid)}
@@ -585,10 +578,8 @@ local function purge_excess_venge(player, limit)
 		if pick_rank <= 1 then
 			local Orb = get_orbital()
 			if Orb.clear_pending_orbital then Orb.clear_pending_orbital(pick) end
-			venge_probe_trace("lua_remove", pick, {reason = "purge_excess", rank = pick_rank})
 			if pick:Exists() then pick:Remove() end
 		else
-			venge_probe_trace("purge_excess_release", pick, {rank = pick_rank})
 			release_venge_wisp(pick, player, pick_rank >= 3)
 		end
 	end
@@ -714,7 +705,6 @@ local function purge_unmanaged_venge(player)
 		local fam = ent:ToFamiliar()
 		if fam and fam:Exists() and not is_craft_venge_entity(fam) and venge_player_match(fam, player) then
 			if familiar_vanilla_ready(fam) then
-				venge_probe_trace("lua_remove", fam, {reason = "purge_unmanaged"})
 				fam:Remove()
 			end
 		end
@@ -822,7 +812,6 @@ local function reconcile_venge_for_share(share, player)
 			if owned then
 				-- 超额原版魂火由 purge 处理
 			else
-				venge_probe_trace("lua_remove", fam, {reason = "leftover_unassigned"})
 				fam:Remove()
 			end
 		end
@@ -838,14 +827,6 @@ local function reconcile_vengeful(player, flights)
 		if count_of(row.profile, IDS.VENGEFUL) > 0 then has_any = true break end
 	end
 	if not has_any then
-		venge_probe_trace("reconcile", nil, {
-			owned = truly_owns_venge(player) and true or false,
-			total = 0,
-			stock = stock.vengeful,
-			flight_n = #flights,
-			world_n = count_player_venge_wisps(player),
-			has_any = false,
-		})
 		for _, row in ipairs(flights) do
 			clear_venge_for_air(row.air.InitSeed, row.uid, player)
 		end
@@ -867,13 +848,6 @@ local function reconcile_vengeful(player, flights)
 	if owned then
 		total = math.max(0, math.min(cap, world_n))
 	end
-	venge_probe_trace("reconcile", nil, {
-		owned = owned and true or false,
-		total = total,
-		stock = stock.vengeful,
-		flight_n = #flights,
-		world_n = world_n,
-	})
 	local shares = allocate_stock(flights, total, IDS.VENGEFUL)
 	local seen = {}
 	local share_map = {}

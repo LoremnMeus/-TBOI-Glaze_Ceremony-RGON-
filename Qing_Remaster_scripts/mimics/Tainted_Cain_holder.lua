@@ -4,6 +4,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 local item = {
 	post_ToCall = {},
 	ToCall = {},
@@ -28,7 +29,10 @@ Function = function(_,ent,col,low)
 					player:QueueItem(colinfo, ent.Charge, ent.Touched)  -- 旧版本保持QueueItem
 				end
 				player:AnimateCollectible(ent.SubType,"Pickup","PlayerPickupSparkle")
-				auxi.remove_others_option_pickup(ent)
+				option_index_holder.commit_selection(ent, player, {
+					skip_will_collect = true,
+					remove_siblings = true,
+				})
 				auxi.try_start_ambush()
 				ent.SubType = 0
 				local s = ent:GetSprite()

@@ -24,7 +24,7 @@ local item = {
 	words = {
 		zh = {
 			[1] = {
-				"你背叛了我！", 
+				"你背叛了我！",
 				"你背叛了我，混蛋！",
 				"背叛我之人需要惩罚！",
 				"你破坏了我们的爱！",
@@ -36,17 +36,17 @@ local item = {
 				suffix = "的妒火",
 			},
 			[2] = {
-				"你利用了我！", 
-				"你居然利用我们！", 
-				"我们难道不值得珍惜吗！", 
-				"利用他人就要付出代价！",  
+				"你利用了我！",
+				"你居然利用我们！",
+				"我们难道不值得珍惜吗！",
+				"利用他人就要付出代价！",
 				suffix = "的怒火",
 			},
 			[3] = {
-				"我是你唯一的爱人啊！", 
-				"你可不要三心二意哦！", 
-				"其他道具们可以滚了！", 
-				"我是你的唯一！",  
+				"我是你唯一的爱人啊！",
+				"你可不要三心二意哦！",
+				"其他道具们可以滚了！",
+				"我是你的唯一！",
 				suffix = "的爱意",
 				suffix2 = "受到排挤！",
 			},
@@ -63,7 +63,7 @@ local item = {
 				"I hate disloyal people!",
 				"I'm your only lover!",
 				suffix = "'s envy",
-			},		
+			},
 			[2] = {
 				"You exploited me!",
 				"How dare you exploit us!",
@@ -83,6 +83,35 @@ local item = {
 	},
 }
 
+local function get_state()
+	local ret = {}
+	for _, suffix in ipairs({"effect", "pool", "blame", "love"}) do
+		local key = item.own_key .. suffix
+		if type(save.elses[key]) ~= "table" then
+			save.elses[key] = {}
+		end
+		ret[suffix] = save.elses[key]
+	end
+	return ret
+end
+
+local function get_player_state(player)
+	local idx = player and player.GetData and player:GetData().__Index
+	if idx == nil then return nil end
+	local roots = get_state()
+	roots.effect[idx] = roots.effect[idx] or {}
+	roots.blame[idx] = roots.blame[idx] or {}
+	roots.love[idx] = roots.love[idx] or {}
+	return {
+		idx = idx,
+		effect = roots.effect[idx],
+		pool = roots.pool,
+		blame = roots.blame[idx],
+		love = roots.love[idx],
+	}
+end
+
+
 function item.remake_pool()
 	item.pools = {[0] = {},[1] = {},[2] = {},[3] = {},[4] = {},[5] = {},}
 	local itemConfig = Isaac.GetItemConfig()
@@ -94,7 +123,8 @@ function item.remake_pool()
 			table.insert(item.pools[qual],#item.pools[qual] + 1,id)
 		end
 	end
-	for i = 0,4 do if save.elses[item.own_key.."pool"][i] then item.pools[i] = {save.elses[item.own_key.."pool"][i],} end end
+	local st = get_state()
+	for i = 0,4 do if st.pool[i] then item.pools[i] = {st.pool[i],} end end
 end
 
 function item.get_pool(id)
@@ -105,19 +135,20 @@ end
 function item.check_pool(player)
 	player = player or Game():GetPlayer(0)
 	local d = player:GetData()
-	local idx = d.__Index
-	save.elses[item.own_key.."love"][idx] = save.elses[item.own_key.."love"][idx] or {}
-	save.elses[item.own_key.."effect"][idx] = save.elses[item.own_key.."effect"][idx] or {}
-	if #save.elses[item.own_key.."love"][idx] == 0 then
-		if auxi.check_table_not_empty(save.elses[item.own_key.."effect"][idx]) then
+	local st = get_player_state(player)
+	if not st then return end
+	st.love = st.love or {}
+	st.effect = st.effect or {}
+	if #st.love == 0 then
+		if auxi.check_table_not_empty(st.effect) then
 			local itemConfig = Isaac.GetItemConfig()
 			local sz = itemConfig:GetCollectibles().Size
 			for id = 1,sz do
 				local collectible = itemConfig:GetCollectible(id)
 				if (collectible and not collectible.Hidden and not collectible:HasTags(1<<15) and collectible.Type ~= ItemType.ITEM_ACTIVE) and player:HasCollectible(id,true) then
 					local qual = collectible.Quality
-					if save.elses[item.own_key.."effect"][idx][qual] and id ~= save.elses[item.own_key.."effect"][idx][qual] then
-						table.insert(save.elses[item.own_key.."love"][idx],#save.elses[item.own_key.."love"][idx] + 1,{id = save.elses[item.own_key.."effect"][idx][qual],id2 = id,wdid = 3,})
+					if st.effect[qual] and id ~= st.effect[qual] then
+						table.insert(st.love,#st.love + 1,{id = st.effect[qual],id2 = id,wdid = 3,})
 						break
 					end
 				end
@@ -129,7 +160,7 @@ end
 function item.record_over(ent,player)
 	local id = ent.SubType
 	local rd_name = consistance_holder.try_check_entity(ent,item.own_key,true).name
-	record_holder.try_hold(ent,{check = function(et) 
+	record_holder.try_hold(ent,{check = function(et)
 		if et.SubType ~= id then
 			if et.SubType == 0 then
 				return true,"Lost"
@@ -140,11 +171,12 @@ function item.record_over(ent,player)
 		return false,nil
 	end,Function = function(tp,et)
 		local should_blame = false
-		if tp == "Turn" then			
+		if tp == "Turn" then
 			should_blame = true
 		elseif tp == "Lost" then		--变化的场合，必然生效
+			local option_removed = et:GetData()[option_index_holder.own_key.."Remove"] == true
 			local succ = consistance_holder.try_check_entity(et,item.own_key2,nil,{record_subtype = id,})
-			if succ then
+			if option_removed or succ then
 			else
 				should_blame = true
 			end
@@ -153,10 +185,11 @@ function item.record_over(ent,player)
 			player = auxi.check_on_all_exists(player) or Game():GetPlayer(0)
 			local d = player:GetData()
 			local idx = d.__Index
-			save.elses[item.own_key.."blame"][idx] = save.elses[item.own_key.."blame"][idx] or {}
-			table.insert(save.elses[item.own_key.."blame"][idx],#save.elses[item.own_key.."blame"][idx] + 1,{id = id,wdid = 2,})
-			if rd_name then 
-				consistance_holder.try_remove_entity(ent,item.own_key,{names = {rd_name,},}) 
+			local st = get_state()
+			st.blame[idx] = st.blame[idx] or {}
+			table.insert(st.blame[idx],#st.blame[idx] + 1,{id = id,wdid = 2,})
+			if rd_name then
+				consistance_holder.try_remove_entity(ent,item.own_key,{names = {rd_name,},})
 			end
 		end
 	end,})
@@ -171,10 +204,7 @@ Function = function(_,continue)
 		save.elses[item.own_key.."blame"] = {}
 		save.elses[item.own_key.."love"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	save.elses[item.own_key.."pool"] = save.elses[item.own_key.."pool"] or {}
-	save.elses[item.own_key.."blame"] = save.elses[item.own_key.."blame"] or {}
-	save.elses[item.own_key.."love"] = save.elses[item.own_key.."love"] or {}
+	local st = get_state()
 	item.remake_pool()
 end,
 })
@@ -189,29 +219,30 @@ function item.try_take_on_lover(player,ent)
 	local succ = consistance_holder.try_check_entity(ent,item.own_key)
 	if succ then
 		local d = player:GetData()
-		local idx = d.__Index
+		local st = get_player_state(player)
+		if not st then return end
 		local d2 = ent:GetData()
 		local qual = d2._Data[item.own_key].qual or 0
-		save.elses[item.own_key.."effect"][idx] = save.elses[item.own_key.."effect"][idx] or {}
-		save.elses[item.own_key.."blame"][idx] = save.elses[item.own_key.."blame"][idx] or {}
+		st.effect = st.effect or {}
+		st.blame = st.blame or {}
 		for i = 0,4 do
-			if save.elses[item.own_key.."effect"][idx][i] and (i ~= qual or save.elses[item.own_key.."effect"][idx][i] ~= ent.SubType) then 
-				table.insert(save.elses[item.own_key.."blame"][idx],#save.elses[item.own_key.."blame"][idx] + 1,{id = save.elses[item.own_key.."effect"][idx][i],wdid = 1,})
+			if st.effect[i] and (i ~= qual or st.effect[i] ~= ent.SubType) then
+				table.insert(st.blame,#st.blame + 1,{id = st.effect[i],wdid = 1,})
 			end
 		end
-		save.elses[item.own_key.."effect"][idx][qual] = ent.SubType
-		save.elses[item.own_key.."pool"][qual] = ent.SubType
+		st.effect[qual] = ent.SubType
+		st.pool[qual] = ent.SubType
 		item.remake_pool()
 		item.check_pool(player)
 		consistance_holder.try_remove_entity(ent,item.own_key)
 		consistance_holder.try_hold_entity(ent,item.own_key2)
 		local n_entity = Isaac.GetRoomEntities()
-		for u,v in pairs(n_entity) do 
+		for u,v in pairs(n_entity) do
 			if v:ToPickup() and v.Variant == 100 then
 				if v:ToPickup().OptionsPickupIndex == ent.OptionsPickupIndex then
 					consistance_holder.try_remove_entity(v,item.own_key)
 				end
-			end 
+			end
 		end
 	end
 end
@@ -228,15 +259,16 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
 	local d = player:GetData()
-	local idx = d.__Index
-	save.elses[item.own_key.."blame"][idx] = save.elses[item.own_key.."blame"][idx] or {}
-	if #save.elses[item.own_key.."blame"][idx] > 0 then
+	local st = get_player_state(player)
+	if not st then return end
+	st.blame = st.blame or {}
+	if #st.blame > 0 then
 		if player:IsExtraAnimationFinished() then
 			local rng = player:GetCardRNG(item.entity)
 			rng = auxi.rng_for_sake(rng)
 			player:AnimateSad()
 			player:AddBrokenHearts(1)
-			local iifo = save.elses[item.own_key.."blame"][idx][1]
+			local iifo = st.blame[1]
 			local colid = iifo.id
 			local col = Isaac.GetItemConfig():GetCollectible(colid)
 			if col then
@@ -246,15 +278,15 @@ Function = function(_,player)
 				local desc = auxi.random_in_table(wdinfo[iifo.wdid or 1],rng)
 				item_displaying_holder.check_and_description("CardDesc",item.entity,info.Name..wdinfo[iifo.wdid or 1].suffix,desc,player)
 			end
-			table.remove(save.elses[item.own_key.."blame"][idx],1)
+			table.remove(st.blame,1)
 		end
 	end
-	save.elses[item.own_key.."love"][idx] = save.elses[item.own_key.."love"][idx] or {}
-	if #save.elses[item.own_key.."love"][idx] > 0 then
+	st.love = st.love or {}
+	if #st.love > 0 then
 		if player:IsExtraAnimationFinished() then
 			local rng = player:GetCardRNG(item.entity)
 			rng = auxi.rng_for_sake(rng)
-			local iifo = save.elses[item.own_key.."love"][idx][1]
+			local iifo = st.love[1]
 			local colid = iifo.id
 			local colid2 = iifo.id2
 			local col = Isaac.GetItemConfig():GetCollectible(colid)
@@ -281,7 +313,7 @@ Function = function(_,player)
 					item_displaying_holder.check_and_description("CardDesc",item.entity,info2.Name..wdinfo[iifo.wdid or 3].suffix2,nil,player)
 				end,{},15)
 			end
-			table.remove(save.elses[item.own_key.."love"][idx],1)
+			table.remove(st.love,1)
 			item.check_pool(player)
 		end
 	end
@@ -297,15 +329,19 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = nil,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then return end
 	local succ = consistance_holder.try_check_entity(ent,item.own_key)
 	if succ then
-		if Game():GetRoom():GetFrameCount() ~= 0 then
+		local option_removed = ent:GetData()[option_index_holder.own_key.."Remove"] == true
+		if Game():GetRoom():GetFrameCount() ~= 0 and not option_removed then
+			local subtype = ent.SubType
 			delay_buffer.addeffe(function(params)
 				local player = Game():GetPlayer(0)
 				local d = player:GetData()
 				local idx = d.__Index
-				save.elses[item.own_key.."blame"][idx] = save.elses[item.own_key.."blame"][idx] or {}
-				table.insert(save.elses[item.own_key.."blame"][idx],#save.elses[item.own_key.."blame"][idx] + 1,{id = ent.SubType,wdid = 2,})
+				local st = get_state()
+				st.blame[idx] = st.blame[idx] or {}
+				table.insert(st.blame[idx],#st.blame[idx] + 1,{id = subtype,wdid = 2,})
 			end,{},1)
 			consistance_holder.try_remove_entity(ent,item.own_key)
 		end
@@ -315,13 +351,14 @@ end,
 
 table.insert(item.post_ToCall,#item.post_ToCall + 1,{CallBack = ModCallbacks.MC_PRE_GET_COLLECTIBLE, params = nil,
 Function = function(_,pool,decrease,seed)
-	if item.should_trigger == nil and Game():GetFrameCount() > 2 and auxi.HasTable(save.elses[item.own_key.."pool"]) then
+	local st = get_state()
+	if item.should_trigger == nil and Game():GetFrameCount() > 2 and auxi.HasTable(st.pool) then
 		item.should_trigger = true
 		local colid = Game():GetItemPool():GetCollectible(pool,false,seed)
 		local collectible = Isaac.GetItemConfig():GetCollectible(colid)
-		if collectible and save.elses[item.own_key.."pool"][collectible.Quality] then 
+		if collectible and st.pool[collectible.Quality] then
 			item.should_trigger = nil
-			return save.elses[item.own_key.."pool"][collectible.Quality] 
+			return st.pool[collectible.Quality]
 		end
 		item.should_trigger = nil
 	end
@@ -335,7 +372,7 @@ Function = function(_,cardtype,player,useFlags)
 	local idx = d.__Index
 	local rng = player:GetCardRNG(item.entity)
 	rng = auxi.rng_for_sake(rng)
-	
+
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 	else
 		local mul = 1
@@ -343,15 +380,16 @@ Function = function(_,cardtype,player,useFlags)
 		local copy_pool = auxi.deepCopy(item.pools)
 		local ndx = option_index_holder.find_a_new_index()
 		for i = 1,mul do
-			for j = 0,4 do 
+			for j = 0,4 do
 				local id = auxi.random_on_table(1,#copy_pool[j],rng)
 				local colid = copy_pool[j][id]
 				if colid then
 					if #copy_pool[j] > 1 then table.remove(copy_pool[j],id) end
-					unique_holder.Hold_for_missing(true)
-					local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(player.Position + i * Vector(0,40) + (j - 2) * Vector(40,0),10,true),Vector(0,0),ent):ToPickup()
-					auxi.self_morph(q,{5,100,colid,})
-					unique_holder.Hold_for_missing()
+					local q = unique_holder.with_missing(33, function()
+						local q = Isaac.Spawn(5,100,colid,room:FindFreePickupSpawnPosition(player.Position + i * Vector(0,40) + (j - 2) * Vector(40,0),10,true),Vector(0,0),player):ToPickup()
+						auxi.self_morph(q,{5,100,colid,})
+						return q
+					end)
 					q.OptionsPickupIndex = ndx
 					local d2 = q:GetData()
 					consistance_holder.try_hold_over_entity(q,item.own_key)

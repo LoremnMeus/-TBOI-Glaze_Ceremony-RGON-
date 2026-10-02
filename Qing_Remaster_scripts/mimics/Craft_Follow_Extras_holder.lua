@@ -407,18 +407,65 @@ register(FamiliarVariant.MY_SHADOW or 131, {
 	trail_priority = 40,
 })
 
--- 468 Shade：严格跟随 Flight（不进波比链）；自绘飞行器三层黑白剪影；接触成长走原版 AI
+-- 468 Shade：位移走共用 trail_follow；剪影朝向是阴影专属——
+-- 回放与延迟位相同时刻的 Flight Sprite.Rotation + Transfer 帧。
+-- 禁止：拷当前帧、叠 Entity.SpriteRotation、改 Scale、omega 平滑（update+render 会双推乱转）。
 local SHADE_AIR_ANM2 = "gfx/familiar/Airs/Qing_Air.anm2"
-local SHADE_LAYER_BLACK = Color(0, 0, 0, 1)
-local SHADE_LAYER_WHITE = Color(1, 1, 1, 1)
 local SHADE_SHADOW_FALLBACK = 11
+
+local function shade_black_color()
+	return auxi.table2color({R = 0, G = 0, B = 0, A = 1, RC = 1, GC = 1, BC = 1, AC = 1, RO = 0, GO = 0, BO = 0})
+end
 
 local function shade_bind(fam)
 	if not fam then return nil end
 	return fam:GetData()[H.own_key.."bind"]
 end
 
-local function ensure_shade_sprite(fam, air)
+--- 仅阴影：按延迟采样回放飞行器朝向（其它轨迹宝宝不走这条）
+local function apply_shade_pose(spr, pose, air_fallback)
+	if not spr then return end
+	local anim = "View"
+	local frame = 0
+	local flip_x = false
+	local rotation = 0
+	local overlay, overlay_frame = nil, 0
+	if type(pose) == "table" and (pose.anim or pose.rotation ~= nil or pose.x or pose.X) then
+		anim = pose.anim or anim
+		frame = tonumber(pose.frame) or 0
+		flip_x = pose.flip_x == true
+		rotation = tonumber(pose.rotation) or 0
+		overlay = pose.overlay
+		overlay_frame = tonumber(pose.overlay_frame) or 0
+	elseif air_fallback then
+		-- 轨迹未热身：临时跟当前机体（仅此一帧兜底）
+		local src = air_fallback:GetSprite()
+		if src then
+			anim = src:GetAnimation() or anim
+			frame = src:GetFrame() or 0
+			flip_x = src.FlipX == true
+			rotation = tonumber(src.Rotation) or 0
+		end
+	end
+	if spr:GetAnimation() ~= anim then
+		spr:Play(anim, true)
+	end
+	if spr.SetFrame then
+		spr:SetFrame(anim, frame)
+	end
+	if overlay and overlay ~= "" and spr.SetOverlayFrame then
+		pcall(function() spr:SetOverlayFrame(overlay, overlay_frame) end)
+	elseif spr.RemoveOverlay then
+		pcall(function() spr:RemoveOverlay() end)
+	end
+	spr.FlipX = flip_x
+	spr.FlipY = false
+	-- Transfer 俯仰在帧里；朝向只复写 Sprite.Rotation。禁止再乘 Scale/Entity.SpriteRotation。
+	spr.Rotation = rotation
+	spr.Scale = Vector(1, 1)
+end
+
+local function ensure_shade_sprite(fam, pose, air)
 	local d = fam:GetData()
 	local spr = d[item.own_key.."shade_spr"]
 	if not spr then
@@ -426,21 +473,7 @@ local function ensure_shade_sprite(fam, air)
 		spr:Load(SHADE_AIR_ANM2, true)
 		d[item.own_key.."shade_spr"] = spr
 	end
-	local src = air and air:GetSprite()
-	if src then
-		local anim = src:GetAnimation() or "View"
-		if d[item.own_key.."shade_anim"] ~= anim then
-			spr:Play(anim, true)
-			d[item.own_key.."shade_anim"] = anim
-		end
-		if spr.SetFrame then
-			spr:SetFrame(anim, src:GetFrame() or 0)
-		end
-		spr.FlipX = src.FlipX
-		spr.FlipY = src.FlipY
-		spr.Rotation = src.Rotation or 0
-		spr.Scale = src.Scale or Vector(1, 1)
-	end
+	apply_shade_pose(spr, pose, air)
 	return spr
 end
 
@@ -468,7 +501,23 @@ register(FamiliarVariant.SHADE or 106, {
 	keep_vanilla_ai = true,
 	soft_rebind = true,
 	exclude_from_formation = true,
-	strict_follow = true,
+	trail_follow = true,
+	trail_priority = 45, -- 介于 my_shadow(40) 与 obsessed_fan(50) 之间
+	acquire = function(_adapter, fam, bind)
+		-- 重装：贴当前 Flight，禁止沿用旧轨迹远端硬钉
+		if fam and bind and bind.air and auxi.check_all_exists(bind.air) then
+			fam.Position = Vector(bind.air.Position.X, bind.air.Position.Y)
+			fam.Velocity = Vector.Zero
+		end
+		local d = fam and fam:GetData()
+		if d then
+			d[item.own_key.."disp_angle"] = nil
+		end
+		if bind then
+			bind.trail_pose = nil
+			bind.trail_warmed = false
+		end
+	end,
 	update = function(_adapter, ctx)
 		local fam = ctx.familiar
 		if not fam then return end
@@ -477,7 +526,7 @@ register(FamiliarVariant.SHADE or 106, {
 			d[item.own_key.."shadow_size"] = fam.GetShadowSize and fam:GetShadowSize() or SHADE_SHADOW_FALLBACK
 		end
 		if fam.SetShadowSize then fam:SetShadowSize(0) end
-		if ctx.air then ensure_shade_sprite(fam, ctx.air) end
+		-- 剪影只在 PRE_RENDER 更新，避免与渲染各推一次朝向
 	end,
 	release = function(_adapter, fam)
 		local d = fam and fam:GetData()
@@ -485,8 +534,8 @@ register(FamiliarVariant.SHADE or 106, {
 		local sz = tonumber(d[item.own_key.."shadow_size"]) or SHADE_SHADOW_FALLBACK
 		if fam.SetShadowSize then fam:SetShadowSize(sz) end
 		d[item.own_key.."shade_spr"] = nil
-		d[item.own_key.."shade_anim"] = nil
 		d[item.own_key.."shadow_size"] = nil
+		d[item.own_key.."disp_angle"] = nil
 	end,
 })
 
@@ -499,13 +548,16 @@ table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
 		if bind.adapter_name ~= "shade" then return end
 		local Selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
 		if not Selector.is_owner(fam, Selector.BLUEPRINT) then return end
-		local spr = ensure_shade_sprite(fam, bind.air)
+		-- trail_pose 与位移同一延迟相位；热身前用当前机体兜底
+		local pose = bind.trail_pose
+		local spr = ensure_shade_sprite(fam, pose, (not bind.trail_warmed) and bind.air or nil)
 		local pos = shade_screen_pos(fam, offset)
-		spr.Color = SHADE_LAYER_BLACK
+		local black = shade_black_color()
+		spr.Color = black
 		spr:RenderLayer(0, pos, Vector.Zero, Vector.Zero)
 		spr:RenderLayer(1, pos, Vector.Zero, Vector.Zero)
-		spr.Color = SHADE_LAYER_WHITE
 		spr:RenderLayer(2, pos, Vector.Zero, Vector.Zero)
+		spr.Color = auxi.table2color({R = 1, G = 1, B = 1, A = 1, RC = 0, GC = 0, BC = 0, AC = 0})
 		return false
 	end,
 })

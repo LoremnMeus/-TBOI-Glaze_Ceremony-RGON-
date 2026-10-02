@@ -5,8 +5,8 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Laser_holder = require("Qing_Remaster_scripts.mimics.Laser_holder")
-local tear_trigger_holder = require("Qing_Remaster_scripts.callbacks.tear_trigger_holder")
-local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder") 
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -14,8 +14,38 @@ local item = {
 	post_ToCall = {},
 	entity = enums.Items.Evil_Intervention,
 	own_key = "Item_Evil_Intervention_",
+	consumer_key = "evil_intervention",
 	tear_sprite = "gfx/mimics/Evil_Intervention/Evil_I_Tear.anm2",
 }
+
+local function player_has_evil(player)
+	return player and auxi.has_have_coll(player, item.entity)
+end
+
+--- Player inventory Evil Intervention, OR Craft Attack whose recipe includes it.
+local function attack_can_use_evil(player, attack, source)
+	source = source or (attack and attack.source)
+	if not player or not source then
+		return false
+	end
+	if attack_holder.classifier.IsPlayerAttackSource(source) then
+		return player_has_evil(player)
+	end
+	return attack_holder.classifier.SourceCanConsume(source, item.consumer_key, player, attack)
+end
+
+local function craft_or_player_luck(player, attack, source)
+	source = source or (attack and attack.source)
+	local luck = (player and player.Luck) or 0
+	if attack_holder.classifier.IsIndependentMimicSource(source) then
+		local prof, fam = attack_holder.classifier.GetCraftProfileFromSource(source)
+		local ok_air, air = pcall(require, "Qing_Remaster_scripts.items.Item_Air_Flight")
+		if ok_air and air and fam then
+			luck = air.get_effective_luck(fam, prof)
+		end
+	end
+	return luck
+end
 
 function item.have_Ev_I_tear()
 	local n_entity = Isaac.GetRoomEntities()
@@ -33,7 +63,15 @@ end
 
 function item.fire_fetus_tear(player,pos,vel,params)
 	params = params or {}
-	local q = auxi.fire_fetus(nil,player,pos,vel,true,true,{dmg = params.dmg,tearflags = params.tearflags,should_not_sound = params.should_not_sound,})
+	local q = auxi.fire_fetus(nil,player,pos,vel,true,true,{
+		dmg = params.dmg,
+		tearflags = params.tearflags,
+		should_not_sound = params.should_not_sound,
+		attack_ctx = params.attack_ctx,
+		attack = params.attack,
+		fire_mode = params.fire_mode or (params.attack_ctx == nil and params.attack == nil and "untracked") or nil,
+		reason = params.reason or "evil_intervention_fetus",
+	})
 	item.load_tear_sprite(q)
 	q.TearFlags = q.TearFlags | BitSet128(1<<0,0) | BitSet128(1<<1,0)
 	return q
@@ -50,56 +88,77 @@ function item.fire_Ev_I_tear(q,pos,vel,player)
 	return q
 end
 
---table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_FIRE_TRIGGER, params = nil,
---Function = function(_,tp,ent,pos,player,dir)
---	if tear_trigger_holder.framecheck(tp,ent,player) then
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_FIRE_TRIGGER_IN_FRAME, params = nil,
-Function = function(_,tp,ent,pos,player,dir)
-		if player and (auxi.has_have_coll(player,item.entity)) and unique_holder.quest_signal_hash(item.own_key) ~= true then
-			if auxi.check_rand(player.Luck,20,5,7) then
-				if tp == "Tear" then 
-					local q = ent
-					local d = ent:GetData()
-					if d.Ignore_me_flag == nil then
-						if not d.Dont_Remove then q = item.fire_Ev_I_tear(ent,nil,nil,player)
-						else q = item.fire_Ev_I_tear(nil,ent.Position,ent.Velocity,player) end
-					end
-				else
-					local mulinfo = tear_trigger_holder.multi_check(tp,ent,player)
-					local rounded = mulinfo.rounded
-					if dir == nil or dir:Length() < 0.01 then rounded = true end
-					local ddir = tear_trigger_holder.dir_info_check(tp,ent,dir)
-					for i = 1,mulinfo.cnt do
-						local tdir = tear_trigger_holder.dir_info_check(tp,ent,dir)
-						if rounded then tdir = auxi.get_by_rotate(ddir,i * 360/mulinfo.cnt) end
-						item.fire_Ev_I_tear(nil,pos or ent.Position,tdir * player.ShotSpeed * 10,player)
-					end
-				end
-			end
-		end
---	end
-end,
-})
---[[
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_FIRE_TEAR, params = nil,
-Function = function(_,ent)
-	local room = Game():GetRoom()
-	local s = ent:GetSprite()
+local function sample_shot_dir(event)
+	local dir = event and event.direction
+	if dir and dir:Length() > 0.01 then return dir end
+	local ent = event and event.member
+	if ent and ent.Velocity and ent.Velocity:Length() > 0.01 then return ent.Velocity end
+	return Vector(1, 0)
+end
+
+local function inherit_conversion_opts(event, ent, reason)
+	if event and event.attack then
+		return {
+			mode = "inherit",
+			attack = event.attack,
+			emitter = ent,
+			role = "derived",
+			reason = reason or "evil_intervention_conversion",
+		}
+	end
+	attack_holder.warn_missing_parent_once(
+		"evil_intervention_conversion",
+		"Evil Intervention conversion without parent Attack; FireTear falls back to untracked."
+	)
+	return {
+		mode = "untracked",
+		reason = (reason or "evil_intervention_conversion") .. "_orphan",
+	}
+end
+
+local warned_evil_orphan_burst = false
+local function warn_evil_orphan_burst()
+	local env = require("Qing_Remaster_scripts.core.dev_environment")
+	if env.is_public_release and env.is_public_release() then return end
+	if warned_evil_orphan_burst then return end
+	warned_evil_orphan_burst = true
+	Isaac.DebugString("[Qing AttackHolder] Evil Intervention carrier lost parent Attack; death burst falls back to untracked.")
+end
+
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_ATTACK_DPS_SAMPLE, params = nil,
+Function = function(_, event)
+	local player = event and event.player
+	local ent = event and event.member
+	local attack = event and event.attack
+	local source = event and event.attack_source or (attack and attack.source)
+	if not attack_can_use_evil(player, attack, source) or not ent then return end
+	if unique_holder.quest_signal_hash(item.own_key) == true then return end
+	if not auxi.check_rand(craft_or_player_luck(player, attack, source), 20, 5, 7) then return end
 	local d = ent:GetData()
-	if d[item.own_key.."counter"] == nil and d.Ignore_me_flag == nil then
-		d[item.own_key.."counter"] = {}
-		local player = auxi.check_spawner_player(ent)
-		if player and (auxi.has_have_coll(player,item.entity)) then
-			if auxi.check_rand(player.Luck,30,10,5) then
-				local q = ent
-				if not d.Dont_Remove then q = item.fire_Ev_I_tear(ent,nil,nil,player)
-				else q = item.fire_Ev_I_tear(nil,ent.Position,ent.Velocity,player) end
-			end
+	local is_tear = ent.Type == EntityType.ENTITY_TEAR
+	if is_tear then
+		if not d.Dont_Remove then
+			item.fire_Ev_I_tear(ent, nil, nil, player)
+		else
+			-- Keep original tear; spawn a bound Evil Tear as derived member.
+			local q = attack_holder.FireTear(player, ent.Position, ent.Velocity, inherit_conversion_opts(event, ent, "evil_intervention_conversion_copy"))
+			if q then item.fire_Ev_I_tear(q, nil, nil, player) end
 		end
+		return
+	end
+	-- Non-tear sample: FireTear inherit so death burst can resolve parent Attack.
+	local tdir = sample_shot_dir(event):Normalized() * player.ShotSpeed * 10
+	local q = attack_holder.FireTear(
+		player,
+		event.position or ent.Position,
+		tdir,
+		inherit_conversion_opts(event, ent, "evil_intervention_conversion")
+	)
+	if q then
+		item.fire_Ev_I_tear(q, nil, nil, player)
 	end
 end,
 })
---]]
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_TEAR_UPDATE, params = nil,
 Function = function(_,ent)
 	local s = ent:GetSprite()
@@ -128,18 +187,54 @@ Function = function(_,ent)
 				ent.TearFlags = ent.TearFlags & ~(BitSet128(1<<2,0)|BitSet128(0,1<<(114-64)))
 			end
 		end
-		if ent:IsDead() then 
+		if ent:IsDead() then
 			local player = auxi.check_spawner_player(ent)
+			local parent_attack = select(1, attack_holder.GetAttackForMember(ent))
+			if not parent_attack then
+				warn_evil_orphan_burst()
+			end
 			unique_holder.signal_hash(item.own_key,true)
 			for i = 1,(d[item.own_key.."effect"].tear or 0) do
-				local q = player:FireTear(ent.Position,auxi.random_r() * player.ShotSpeed * 10,true,true,true)
+				local vel = auxi.random_r() * player.ShotSpeed * 10
+				if parent_attack then
+					attack_holder.FireTear(player, ent.Position, vel, {
+						mode = "inherit",
+						attack = parent_attack,
+						emitter = ent,
+						role = "derived",
+						reason = "evil_intervention_burst",
+					})
+				else
+					attack_holder.FireTear(player, ent.Position, vel, {
+						mode = "untracked",
+						reason = "evil_intervention_burst_orphan",
+					})
+				end
 			end
 			local cnt2 = 3 * math.ceil(d[item.own_key.."effect"].laser or 0)
 			for i = 1,cnt2 do
-				local q = player:FireBrimstone(auxi.random_r(),nil,0.5)
-				q.DisableFollowParent = true
-				q.TearFlags = q.TearFlags & ~(BitSet128(1<<19,0))
-				q.Position = ent.Position
+				local q
+				if parent_attack then
+					q = attack_holder.FireBrimstone(player, auxi.random_r(), {
+						mode = "inherit",
+						attack = parent_attack,
+						emitter = ent,
+						role = "derived",
+						reason = "evil_intervention_brim",
+						damage_multiplier = 0.5,
+					})
+				else
+					q = attack_holder.FireBrimstone(player, auxi.random_r(), {
+						mode = "untracked",
+						reason = "evil_intervention_brim_orphan",
+						damage_multiplier = 0.5,
+					})
+				end
+				if q then
+					q.DisableFollowParent = true
+					q.TearFlags = q.TearFlags & ~(BitSet128(1<<19,0))
+					q.Position = ent.Position
+				end
 			end
 			unique_holder.signal_hash(item.own_key,nil)
 		end
@@ -153,6 +248,7 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_L
 Function = function(_,v)
 	if v.SubType == 0 and auxi.check_spawner_player(v) == nil and Laser_holder.is_new_laser(v) and auxi.check_all_exists(v:GetData()[item.own_key.."Linker"]) ~= true and item.have_Ev_I_tear() then
 		local ep = EntityLaser.CalculateEndPoint(v.Position,auxi.get_by_rotate(Vector(1,0),v.Angle),v.PositionOffset,v.Parent,0)
+		local n_entity = Isaac.GetRoomEntities()
 		local n_tear = auxi.getothers(n_entity,2)
 		for uu,vv in pairs(n_tear) do if vv:GetData()[item.own_key.."effect"] then
 			if auxi.on_laser_path(v:ToLaser(),vv.Position,{margin = vv.Size + v.Size,ep = ep,}) then

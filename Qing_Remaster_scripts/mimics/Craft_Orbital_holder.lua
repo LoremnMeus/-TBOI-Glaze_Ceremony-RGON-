@@ -4,6 +4,7 @@
 -- 审阅：orbital_on_hurt_implementation_review.md
 -- 运动：blueprint_eid_length_and_orbit_review.md §1（AddToOrbit + GetOrbitPosition）
 local enums = require("Qing_Remaster_scripts.core.enums")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Familiar_Control_Selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
@@ -157,13 +158,6 @@ end
 
 local function get_air_mod()
 	return require("Qing_Remaster_scripts.items.Item_Air_Flight")
-end
-
-local function venge_probe_trace(event, fam, extra)
-	local Probe = dev_env.require_probe("Qing_Remaster_scripts.others.vengeful_craft_lifecycle_probe")
-	if Probe and Probe.trace then
-		Probe.trace(event, fam, extra)
-	end
 end
 
 local function dbg(key)
@@ -744,7 +738,7 @@ end
 
 local function air_uid(air)
 	local bp = get_blueprint()
-	return air and air:GetData()[bp.own_key.."craft_uid"]
+	return CraftIdentity.get_uid(air)
 end
 
 local function uid_str(uid)
@@ -761,7 +755,7 @@ function item.get_air_combat_state(air, player)
 	if Air.is_standby and Air.is_standby(air) then return "inactive" end
 	player = player or auxi.check_spawner_player(air)
 	local bp = get_blueprint()
-	local uid = d[bp.own_key.."craft_uid"]
+	local uid = CraftIdentity.get_uid(air)
 	if uid and player and bp.is_craft_broken and bp.is_craft_broken(player, uid) then
 		return "degraded"
 	end
@@ -982,12 +976,6 @@ local function queue_orbital_bind(fam, air, player, meta)
 			fam = fam, air = air, player = player, meta = meta,
 			queued_frame = frame,
 		}
-		if fam.Variant == (FamiliarVariant.WISP or 206) then
-			venge_probe_trace("queue_pending", fam, {
-				kind_meta = meta and meta.kind,
-				queued_frame = frame,
-			})
-		end
 	else
 		row.fam = fam
 		row.air = air
@@ -1032,13 +1020,6 @@ local function spawn_orbital(variant, air, player, meta)
 		if fam.ClearEntityFlags and EntityFlag.FLAG_APPEAR then
 			fam:ClearEntityFlags(EntityFlag.FLAG_APPEAR)
 		end
-	end
-	if variant == (FamiliarVariant.WISP or 206) then
-		venge_probe_trace("spawn_orbital", fam, {
-			synthetic = meta.synthetic,
-			subtype = subtype,
-			cleared_appear = not (ad and ad.preserve_vanilla_appear),
-		})
 	end
 	return queue_orbital_bind(fam, air, player, meta)
 end
@@ -1131,13 +1112,6 @@ bind_existing_orbital = function(fam, air, player, meta)
 	end
 	rebuild_orbit_layout(air)
 	commit_pending_snaps_for_air(air)
-	if fam.Variant == (FamiliarVariant.WISP or 206) then
-		venge_probe_trace("bind_existing", fam, {
-			kind = kind,
-			synthetic = bind.synthetic,
-			reason = meta.trace_reason,
-		})
-	end
 	return fam
 end
 
@@ -1246,7 +1220,6 @@ local function release_reserved_orbital(fam, opts)
 		synthetic = false
 	end
 	if synthetic and fam:Exists() then
-		venge_probe_trace("release_remove", fam, {reason = opts.reason or "reserved", pending_only = true})
 		fam:Remove()
 	end
 end
@@ -1441,12 +1414,6 @@ release_fam = function(fam, opts)
 		if ad and ad.release then
 			pcall(ad.release, fam, bind, opts.reason or "release")
 		end
-		if fam.Variant == (FamiliarVariant.WISP or 206) then
-			venge_probe_trace("release_remove", fam, {
-				reason = opts.reason or "release",
-				synthetic = true,
-			})
-		end
 		set_bind(fam, nil)
 		fam:Remove()
 		return
@@ -1455,13 +1422,6 @@ release_fam = function(fam, opts)
 		local ad = adapter_of(bind, fam)
 		if ad and ad.release then
 			pcall(ad.release, fam, bind, opts.reason or "release")
-		end
-		if fam.Variant == (FamiliarVariant.WISP or 206) then
-			venge_probe_trace("release_unbind", fam, {
-				reason = opts.reason or "release",
-				synthetic = false,
-				immediate = true,
-			})
 		end
 		restore_vanilla_orbit(fam, bind)
 		set_bind(fam, nil)
@@ -1751,8 +1711,8 @@ function item.sync_air_flight(air, player, profile)
 		local other = ent:ToFamiliar()
 		local owner = other and auxi.check_spawner_player(other)
 		if other and owner and auxi.check_for_the_same(owner, player) then
-			local ouid = other:GetData()[bp.own_key.."craft_uid"]
-			local oprof = other:GetData()[Air.own_key.."craft_profile"]
+			local ouid = CraftIdentity.get_uid(other)
+			local oprof = CraftIdentity.get_profile(other)
 			if ouid and oprof then
 				local mu = item.meat_bandage_units(player, oprof, MEAT_ID)
 				local bu = item.meat_bandage_units(player, oprof, BANDAGE_ID)
@@ -2319,28 +2279,6 @@ table.insert(item.pre_ToCall, {
 	params = nil,
 	Function = function(_, fam)
 		if fam and bind_data(fam) then track_active(fam) end
-		if fam and fam.Variant == (FamiliarVariant.WISP or 206)
-			and fam.SubType == (CollectibleType.COLLECTIBLE_VENGEFUL_SPIRIT or 702) then
-			local d = fam:GetData()
-			local skip = nil
-			if pending_craft_orbital(fam) then
-				skip = "pending_allow_ai"
-			elseif not controlled_by_orbital(fam) then
-				skip = "not_controlled"
-			elseif not Familiar_Control_Selector.is_owner(fam, item.CONTROLLER) then
-				skip = "not_owner"
-			elseif not familiar_vanilla_ready(fam) then
-				skip = "not_ready_allow_ai"
-			elseif keeps_vanilla_ai(fam) then
-				skip = "keep_vanilla_ai"
-			else
-				skip = "skip_ai"
-			end
-			if d[item.own_key.."pre_skip_state"] ~= skip then
-				d[item.own_key.."pre_skip_state"] = skip
-				venge_probe_trace("pre_familiar", fam, {pre_state = skip})
-			end
-		end
 		if not controlled_by_orbital(fam) then return end
 		if not Familiar_Control_Selector.is_owner(fam, item.CONTROLLER) then return end
 		if not familiar_vanilla_ready(fam) then return end
@@ -2755,7 +2693,7 @@ local function register_legacy_and_batch1()
 		layout_ring = "middle", orbit_layer = 1, position_offset_mode = "air_relative",
 		base_dps_fn = function(air, _bind)
 			local Air = get_air_mod()
-			local prof = air and air:GetData()[Air.own_key.."craft_profile"]
+			local prof = air and CraftIdentity.get_profile(air)
 			local dmg = (prof and prof.stats and tonumber(prof.stats.damage)) or 3.5
 			return 1.5 * dmg
 		end,
@@ -2845,7 +2783,7 @@ local function register_legacy_and_batch1()
 		end,
 		base_dps_fn = function(air, _bind)
 			local Air = get_air_mod()
-			local prof = air and air:GetData()[Air.own_key.."craft_profile"]
+			local prof = air and CraftIdentity.get_profile(air)
 			local player = auxi.check_spawner_player(air)
 			local fd = (prof and prof.stats and tonumber(prof.stats.damage))
 				or (player and tonumber(player.Damage)) or 3.5

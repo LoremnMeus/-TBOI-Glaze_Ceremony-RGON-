@@ -6,6 +6,12 @@ local item = {
 }
 
 if EID then
+local eid_font_fallback = require("Qing_Remaster_scripts.translations.eid_font_fallback")
+local font_fallback_ok, font_fallback_error = eid_font_fallback.install(EID)
+if not font_fallback_ok and font_fallback_error and EID.WriteErrorMsg then
+	EID:WriteErrorMsg("[Qing Remaster] EID Chinese font fallback: " .. font_fallback_error)
+end
+
 local translations = include("Qing_Remaster_scripts.translations.translate")
 local languages = {"en_us", "zh_cn"}
 

@@ -6,6 +6,7 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local dropping_holder = require("Qing_Remaster_scripts.others.Dropping_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
 local displaying_data2 = require("Qing_Remaster_scripts.translations.data2")
+local save_elses_access = require("Qing_Remaster_scripts.auxiliary.save_elses_access")
 
 local item = {
 	ToCall = {},
@@ -211,6 +212,74 @@ local item = {
 	},
 }
 
+local function get_buff_root()
+	local key = item.own_key .. "buff"
+	if type(save.elses[key]) ~= "table" then
+		save.elses[key] = {}
+	end
+	return save.elses[key]
+end
+
+-- Route roots: target table + nowconter scalar.
+-- A: target missing + counter==1 => empty route.
+-- B: counter advanced (>1) without target => invariant failure (never invent {}).
+local function get_route_state()
+	local target_key = item.own_key .. "target"
+	local counter_key = item.own_key .. "nowconter"
+	local target = save.elses[target_key]
+	local counter = save.elses[counter_key]
+
+	if counter == nil then
+		counter = 1
+		save.elses[counter_key] = counter
+	elseif type(counter) ~= "number" then
+		save_elses_access.state_invariant_fail("Item_Mental_Hypnosis invalid route counter")
+		return nil, nil
+	end
+
+	if target == nil then
+		if counter == 1 then
+			target = {}
+			save.elses[target_key] = target
+		else
+			save_elses_access.state_invariant_fail(
+				"Item_Mental_Hypnosis invariant broken: advanced counter without target route"
+			)
+			return nil, nil
+		end
+	elseif type(target) ~= "table" then
+		save_elses_access.state_invariant_fail("Item_Mental_Hypnosis invalid target state")
+		return nil, nil
+	end
+
+	return target, counter
+end
+
+local function route_target()
+	local target = get_route_state()
+	return target
+end
+
+local function route_counter()
+	local _, counter = get_route_state()
+	return counter
+end
+
+local function set_route_counter(value)
+	save.elses[item.own_key.."nowconter"] = value
+end
+
+local function get_or_create_player_buff(idx)
+	local root = get_buff_root()
+	local state = root[idx]
+	if type(state) ~= "table" then
+		state = {}
+		root[idx] = state
+	end
+	return state
+end
+
+
 function item.is_secret_room_type(roomtype)
 	return roomtype == RoomType.ROOM_SECRET
 end
@@ -252,28 +321,29 @@ end
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
 	local idx = player:GetData().__Index
-	save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-	if idx and save.elses[item.own_key.."buff"][idx] then
+	local buff_root = get_buff_root()
+	local buff = buff_root[idx]
+	if idx and buff then
 		if cacheFlag == CacheFlag.CACHE_DAMAGE then
-			player.Damage = player.Damage + (save.elses[item.own_key.."buff"][idx].damage or 0) * auxi.get_damage_multiplier(player)
+			player.Damage = player.Damage + (buff.damage or 0) * auxi.get_damage_multiplier(player)
 		end
 		if cacheFlag == CacheFlag.CACHE_FIREDELAY then
-			player.MaxFireDelay = auxi.TearsUp(player.MaxFireDelay , auxi.get_mxdelay_multiplier(player) * (save.elses[item.own_key.."buff"][idx].tear or 0))
+			player.MaxFireDelay = auxi.TearsUp(player.MaxFireDelay , auxi.get_mxdelay_multiplier(player) * (buff.tear or 0))
 		end
 		if cacheFlag == CacheFlag.CACHE_SHOTSPEED then
-			player.ShotSpeed = player.ShotSpeed + (save.elses[item.own_key.."buff"][idx].shotspeed or 0)
+			player.ShotSpeed = player.ShotSpeed + (buff.shotspeed or 0)
 		end
 		if cacheFlag == CacheFlag.CACHE_RANGE then
-			player.TearRange = player.TearRange + (save.elses[item.own_key.."buff"][idx].range or 0)
+			player.TearRange = player.TearRange + (buff.range or 0)
 		end
 		if cacheFlag == CacheFlag.CACHE_SPEED then
-			player.MoveSpeed = player.MoveSpeed + (save.elses[item.own_key.."buff"][idx].speed or 0)
+			player.MoveSpeed = player.MoveSpeed + (buff.speed or 0)
 		end
 		if cacheFlag == CacheFlag.CACHE_LUCK then
-			player.Luck = player.Luck + (save.elses[item.own_key.."buff"][idx].luck or 0)
+			player.Luck = player.Luck + (buff.luck or 0)
 		end
 		if cacheFlag == CacheFlag.CACHE_SIZE then
-			player.SpriteScale = player.SpriteScale * (save.elses[item.own_key.."buff"][idx].size or 1)
+			player.SpriteScale = player.SpriteScale * (buff.size or 1)
 		end
 	end
 end,
@@ -313,8 +383,10 @@ Function = function(_)
 		end
 		save.elses[item.own_key.."target"] = auxi.randomTable(tbl,rng)
 		late_tbl = auxi.randomTable(late_tbl,rng)
-		for u,v in pairs(late_tbl) do item.insert_late_secret_room(save.elses[item.own_key.."target"],v,rng) end
-		for u,v in pairs(rd) do table.insert(save.elses[item.own_key.."target"],#save.elses[item.own_key.."target"] + 1,v) end
+		local target, counter = get_route_state()
+		if not target then return end
+		for u,v in pairs(late_tbl) do item.insert_late_secret_room(target,v,rng) end
+		for u,v in pairs(rd) do table.insert(target,#target + 1,v) end
 	end
 end,
 })
@@ -324,10 +396,10 @@ Function = function(_,name)
 	if name == "Qing_HelpfulShader" and Game():GetHUD():IsVisible() then
 		local player = auxi.have_player_has_collectible(item.entity)
 		if player then
-			if save.elses[item.own_key.."nowconter"] then
-				save.elses[item.own_key.."target"] = save.elses[item.own_key.."target"] or {}
-				local total = (#save.elses[item.own_key.."target"])
-				if total > 0 and save.elses[item.own_key.."nowconter"] <= total then
+			local target, counter = get_route_state()
+			if target and counter then
+				local total = (#target)
+				if total > 0 and counter <= total then
 					local s = Sprite()
 					s:Load("gfx/mimics/Mental_Hypnosis/Black_Map_ui_inventory.anm2",true)
 					s:Play("Idle",true)
@@ -337,27 +409,27 @@ Function = function(_,name)
 						s.Color = Color(1,1,1,1)
 					end
 					s:Render(item.offset + Vector(6,6),Vector(0,0),Vector(0,0))
-					for i = 1,(#save.elses[item.own_key.."target"]) do
-						if i < save.elses[item.own_key.."nowconter"] then
+					for i = 1,(#target) do
+						if i < counter then
 						else
 							if item.now_render[i] == nil then
 								local s = Sprite()
 								s:Load("gfx/mimics/Mental_Hypnosis/Black_Map_map_icons.anm2",true)
-								local name = auxi.GetNameByRoomType(save.elses[item.own_key.."target"][i])
-								if auxi.IsAmbushBoss() and save.elses[item.own_key.."target"][i] == 11 then
+								local name = auxi.GetNameByRoomType(target[i])
+								if auxi.IsAmbushBoss() and target[i] == 11 then
 									name = "BossAmbushRoom"
 								end
 								s:Play("Icon"..name,true)
-								item.now_render[i] = {sprite = s,pos = item.offset + (i - save.elses[item.own_key.."nowconter"])*item.del_offset,}
+								item.now_render[i] = {sprite = s,pos = item.offset + (i - counter)*item.del_offset,}
 							end
 							local s = item.now_render[i].sprite
-							if item.now_render[i].pos ~= item.offset + (i - save.elses[item.own_key.."nowconter"]) * item.del_offset then
-								item.now_render[i].pos = (item.now_render[i].pos) * 0.9 + (item.offset + (i - save.elses[item.own_key.."nowconter"])*item.del_offset) * 0.1
+							if item.now_render[i].pos ~= item.offset + (i - counter) * item.del_offset then
+								item.now_render[i].pos = (item.now_render[i].pos) * 0.9 + (item.offset + (i - counter)*item.del_offset) * 0.1
 							end
 							if Game():IsPaused() == true then
-								s.Color = Color(1,1,1,0.3 * (total - i + save.elses[item.own_key.."nowconter"])/total)
+								s.Color = Color(1,1,1,0.3 * (total - i + counter)/total)
 							else
-								s.Color = Color(1,1,1,1 * (total - i + save.elses[item.own_key.."nowconter"])/total)
+								s.Color = Color(1,1,1,1 * (total - i + counter)/total)
 							end
 							s:Render(item.now_render[i].pos,Vector(0,0),Vector(0,0))
 						end
@@ -408,34 +480,33 @@ local function reward(player)
 		table.insert(tg,#tg + 1,{name = "dip",weigh = 2})
 		local stag = auxi.random_in_weighed_table(tg,rng)
 		local Buff_holder_counter = 0
-		save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-		save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
+		local buff = get_or_create_player_buff(idx)
 		if stag.name == "dmg" then
-			save.elses[item.own_key.."buff"][idx].damage = (save.elses[item.own_key.."buff"][idx].damage or 0) + 0.5
+			buff.damage = (buff.damage or 0) + 0.5
 			Buff_holder_counter = 1
 			stat_cache = STAT_CACHE_FLAGS[1]
 		elseif stag.name == "tear" then
-			save.elses[item.own_key.."buff"][idx].tear = (save.elses[item.own_key.."buff"][idx].tear or 0) + 0.35
+			buff.tear = (buff.tear or 0) + 0.35
 			Buff_holder_counter = 2
 			stat_cache = STAT_CACHE_FLAGS[2]
 		elseif stag.name == "shotspeed" then
-			save.elses[item.own_key.."buff"][idx].shotspeed = (save.elses[item.own_key.."buff"][idx].shotspeed or 0) + 0.15
+			buff.shotspeed = (buff.shotspeed or 0) + 0.15
 			Buff_holder_counter = 3
 			stat_cache = STAT_CACHE_FLAGS[3]
 		elseif stag.name == "range" then
-			save.elses[item.own_key.."buff"][idx].range = (save.elses[item.own_key.."buff"][idx].range or 0) + 40
+			buff.range = (buff.range or 0) + 40
 			Buff_holder_counter = 4
 			stat_cache = STAT_CACHE_FLAGS[4]
 		elseif stag.name == "luck" then
-			save.elses[item.own_key.."buff"][idx].luck = (save.elses[item.own_key.."buff"][idx].luck or 0) + 1
+			buff.luck = (buff.luck or 0) + 1
 			Buff_holder_counter = 6
 			stat_cache = STAT_CACHE_FLAGS[6]
 		elseif stag.name == "speed" then
-			save.elses[item.own_key.."buff"][idx].speed = (save.elses[item.own_key.."buff"][idx].speed or 0) + 0.15
+			buff.speed = (buff.speed or 0) + 0.15
 			Buff_holder_counter = 5
 			stat_cache = STAT_CACHE_FLAGS[5]
 		elseif stag.name == "size" then
-			save.elses[item.own_key.."buff"][idx].size = (save.elses[item.own_key.."buff"][idx].size or 1) * 0.9
+			buff.size = (buff.size or 1) * 0.9
 			Buff_holder_counter = 7
 			stat_cache = STAT_CACHE_FLAGS[7]
 		elseif stag.name == "money" then
@@ -537,34 +608,33 @@ local function punish(player)
 		table.insert(tg,#tg + 1,{name = "goldentrollbomb",weigh = 4})
 		local stag = auxi.random_in_weighed_table(tg,rng)
 		local Buff_holder_counter = 0
-		save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-		save.elses[item.own_key.."buff"][idx] = save.elses[item.own_key.."buff"][idx] or {}
+		local buff = get_or_create_player_buff(idx)
 		if stag.name == "dmg" then
-			save.elses[item.own_key.."buff"][idx].damage = (save.elses[item.own_key.."buff"][idx].damage or 0) - 0.2
+			buff.damage = (buff.damage or 0) - 0.2
 			Buff_holder_counter = 1
 			stat_cache = STAT_CACHE_FLAGS[1]
 		elseif stag.name == "tear" then
-			save.elses[item.own_key.."buff"][idx].tear = (save.elses[item.own_key.."buff"][idx].tear or 0) - 0.2
+			buff.tear = (buff.tear or 0) - 0.2
 			Buff_holder_counter = 2
 			stat_cache = STAT_CACHE_FLAGS[2]
 		elseif stag.name == "shotspeed" then
-			save.elses[item.own_key.."buff"][idx].shotspeed = (save.elses[item.own_key.."buff"][idx].shotspeed or 0) - 0.1
+			buff.shotspeed = (buff.shotspeed or 0) - 0.1
 			Buff_holder_counter = 3
 			stat_cache = STAT_CACHE_FLAGS[3]
 		elseif stag.name == "range" then
-			save.elses[item.own_key.."buff"][idx].range = (save.elses[item.own_key.."buff"][idx].range or 0) - 20
+			buff.range = (buff.range or 0) - 20
 			Buff_holder_counter = 4
 			stat_cache = STAT_CACHE_FLAGS[4]
 		elseif stag.name == "luck" then
-			save.elses[item.own_key.."buff"][idx].luck = (save.elses[item.own_key.."buff"][idx].luck or 0) - 0.5
+			buff.luck = (buff.luck or 0) - 0.5
 			Buff_holder_counter = 6
 			stat_cache = STAT_CACHE_FLAGS[6]
 		elseif stag.name == "speed" then
-			save.elses[item.own_key.."buff"][idx].speed = (save.elses[item.own_key.."buff"][idx].speed or 0) - 0.1
+			buff.speed = (buff.speed or 0) - 0.1
 			Buff_holder_counter = 5
 			stat_cache = STAT_CACHE_FLAGS[5]
 		elseif stag.name == "size" then
-			save.elses[item.own_key.."buff"][idx].size = (save.elses[item.own_key.."buff"][idx].size or 1) * 1.12
+			buff.size = (buff.size or 1) * 1.12
 			Buff_holder_counter = 7
 			stat_cache = STAT_CACHE_FLAGS[7]
 		elseif stag.name == "money10" then
@@ -588,7 +658,7 @@ local function punish(player)
 			end
 		elseif stag.name == "luckycoin" then
 			player:AddCoins(-1)
-			save.elses[item.own_key.."buff"][idx].luck = (save.elses[item.own_key.."buff"][idx].luck or 0) - 1
+			buff.luck = (buff.luck or 0) - 1
 			stat_cache = STAT_CACHE_FLAGS[6]
 			dropping_holder.try_drop(player.Position,nil,{load_name = "gfx/005.026_lucky penny.anm2",})
 		elseif stag.name == "trollbomb" then
@@ -631,10 +701,11 @@ Function = function(_)
 	local tp = desc.Data.Type
 	local player = auxi.have_player_has_collectible(item.entity)
 	if player then
+		local target, counter = get_route_state()
+		if not target then return end
 		if item.ignore_roomtype[desc.Data.Type] ~= true and desc.SafeGridIndex > 0 and room:IsFirstVisit() == true then
-			if save.elses[item.own_key.."nowconter"] then
-				if #save.elses[item.own_key.."target"] > 0 and save.elses[item.own_key.."nowconter"] <= (#save.elses[item.own_key.."target"]) then
-					if tp == (save.elses[item.own_key.."target"][save.elses[item.own_key.."nowconter"]] or -1) then
+			if #target > 0 and counter <= #target then
+				if tp == (target[counter] or -1) then
 						for playerNum = 1, Game():GetNumPlayers() do
 							local player = Game():GetPlayer(playerNum - 1)
 							if auxi.has_have_coll(player,item.entity) then
@@ -657,8 +728,7 @@ Function = function(_)
 							end
 						end
 					end
-					save.elses[item.own_key.."nowconter"] = (save.elses[item.own_key.."nowconter"] or 1) + 1
-				end
+					set_route_counter(counter + 1)
 			end
 		end
 	end
@@ -673,9 +743,8 @@ Function = function(_,continue)
 		save.elses[item.own_key.."target"] = {}
 		save.elses[item.own_key.."nowconter"] = 1
 	end
-	save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
-	save.elses[item.own_key.."target"] = save.elses[item.own_key.."target"] or {}
-	save.elses[item.own_key.."nowconter"] = save.elses[item.own_key.."nowconter"] or 1
+	get_buff_root()
+	get_route_state()
 end,
 })
 

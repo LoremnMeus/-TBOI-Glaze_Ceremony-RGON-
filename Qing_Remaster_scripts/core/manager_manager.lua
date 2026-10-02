@@ -15,6 +15,7 @@ function manager.Init(mod)
 	modReference = mod
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.core.others_manager"))
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.core.enemy_manager"))
+	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.core.boss_manager"))
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.core.player_manager"))
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.core.item_manager"))
 	table.insert(manager.items,#manager.items + 1,require("Qing_Remaster_scripts.core.pickup_manager"))

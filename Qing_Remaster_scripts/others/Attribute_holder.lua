@@ -1,12 +1,31 @@
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 
-local item = {ToCall = {}, own_key = "Attribute_holder_", state_key = "Attribute_holder_V2", descriptors = {},
+local item = {ToCall = {}, pre_ToCall = {}, post_ToCall = {}, own_key = "Attribute_holder_", state_key = "Attribute_holder_V2", descriptors = {},
 	debug = {probe_enabled = false, last_report = nil, error_count = 0}}
 local remove_probe_observer = nil
+local drop_observers = {}
 
 function item.set_remove_probe_observer(observer)
 	remove_probe_observer = type(observer) == "function" and observer or nil
 end
+
+--- drop_entity 尝试执行前回调。ctx = {ent, states, reason, extra}；返回 true 取消本次 drop。
+function item.add_drop_observer(observer)
+	if type(observer) == "function" then drop_observers[#drop_observers + 1] = observer end
+end
+
+function item.clear_drop_observers()
+	drop_observers = {}
+end
+
+item.drop_reasons = {
+	INVALID = "invalid",
+	IDENTITY_MISMATCH = "identity_mismatch",
+	GRID_STALE = "grid_stale",
+	ENTITY_REMOVE = "entity_remove",
+	DROP_ALL = "drop_all",
+	STALE_WRAPPER = "stale_wrapper",
+}
 -- 禁止弱键：Isaac 实体 userdata 仅被弱表引用时，任意分配触发的 GC 会清掉 active 条目，
 -- 但 GetData 里的 claim / saga token 仍在 → FREEZE/Position 不再每帧回写，NO_SPRITE 却可能残留。
 -- 强键必须在重开/实体指针复用时 drop：否则旧 FREEZE/Position claim 会套到新准星等 Effect 上。
@@ -31,6 +50,13 @@ local function valid(ent)
 	if type(ent.Exists) == "function" then local ok, v = pcall(ent.Exists, ent); if not ok or not v then return false end end
 	if type(ent.IsDead) == "function" then local ok, v = pcall(ent.IsDead, ent); if ok and v then return false end end
 	return true
+end
+
+--- Exists() 仍为 true 的死亡实体（Anna 黑洞内继续缩小吞噬）仍需每帧回写 claim。
+local function entity_exists(ent)
+	if ent == nil then return false end
+	local ok, v = pcall(function() return ent.Exists and ent:Exists() end)
+	return ok and v == true
 end
 
 --- 实体身份指纹：强表跨重开后 userdata 指针可被引擎复用，Exists() 仍为 true。
@@ -127,6 +153,41 @@ local function top(attr)
 	for _, claim in pairs(attr.claims) do if not best or claim.order > best.order then best = claim end end
 	return best
 end
+local function resolve_wanted(ent, attr)
+	if attr.combine then
+		local values = {}
+		for _, claim in pairs(attr.claims) do
+			local ok, value = eval(claim.value, ent)
+			if ok then
+				values[#values + 1] = {
+					value = value,
+					order = claim.order,
+				}
+			end
+		end
+		if #values == 0 then
+			return nil
+		end
+		table.sort(values, function(a, b)
+			return a.order < b.order
+		end)
+		local ok, wanted = pcall(attr.combine, attr.origin, values, ent)
+		if not ok then
+			item.debug.error_count = item.debug.error_count + 1
+			return nil
+		end
+		return wanted
+	end
+	local claim = top(attr)
+	if not claim then
+		return nil
+	end
+	local ok, wanted = eval(claim.value, ent)
+	if not ok then
+		return nil
+	end
+	return wanted
+end
 local function protected(attr)
 	for _, claim in pairs(attr.claims) do if claim.protect then return true end end
 	return false
@@ -165,8 +226,8 @@ local function sync_origin(ent, name, attr)
 	if ok and attr.has_last and not equal(current, attr.last_applied, attr.comparer) and not protected(attr) then attr.origin = copy(current, attr.copier) end
 end
 local function apply(ent, name, attr)
-	local claim = top(attr); if not claim then return false end
-	local ok, wanted = eval(claim.value, ent); if not ok then return false end
+	local wanted = resolve_wanted(ent, attr)
+	if wanted == nil then return false end
 	local got, current = get(ent, name, attr)
 	if got and not equal(current, wanted, attr.comparer) then set(ent, name, attr, wanted) end
 	attr.last_applied, attr.has_last = copy(wanted, attr.copier), true
@@ -183,7 +244,19 @@ local function cleanup(ent, bind, s)
 		identities[canonical] = nil
 	end end
 end
-local function drop_entity(ent, states)
+local function notify_drop(ent, states, reason, extra)
+	for i = 1, #drop_observers do
+		local ok, cancel = pcall(drop_observers[i], {ent = ent, states = states, reason = reason, extra = extra})
+		if ok and cancel == true then return true end
+	end
+	return false
+end
+
+--- @return boolean dropped  true=已丢弃；false=被观察者取消或无可丢状态
+local function drop_entity(ent, states, reason, extra)
+	if states == nil or not next(states) then return false end
+	reason = reason or "unknown"
+	if notify_drop(ent, states, reason, extra) then return false end
 	for _, s in pairs(states) do
 		for _, attr in pairs(s.attrs) do
 			for token in pairs(attr.claims) do live_tokens[tostring(token)] = nil end
@@ -194,6 +267,45 @@ local function drop_entity(ent, states)
 	active[ent] = nil
 	unindex_identity(ent, identities[ent])
 	identities[ent] = nil
+	return true
+end
+
+local function apply_active_states(ent, states)
+	if ent.IsGrid then
+		for _, s in pairs(states) do
+			for name, attr in pairs(s.attrs) do
+				sync_origin(ent, name, attr)
+				apply(ent, name, attr)
+			end
+		end
+	else
+		for _, s in pairs(states) do
+			for name, attr in pairs(s.attrs) do
+				sync_origin(ent, name, attr)
+				apply(ent, name, attr)
+			end
+		end
+	end
+end
+
+local function resolve_active_states(ent)
+	if ent == nil then return nil, nil end
+	local states = active[ent]
+	if states then return ent, states end
+	local bind = binder(ent)
+	if not bind then return nil, nil end
+	local canonical = canonical_by_binder[bind]
+	if canonical and active[canonical] then return ent, active[canonical] end
+	return nil, nil
+end
+
+--- 对单个实体立即回写当前 claim（wrapper 可与 active 键不同，经 binder canonical 解析）。
+function item.apply_entity_attributes(ent)
+	if not entity_exists(ent) then return false end
+	local _, states = resolve_active_states(ent)
+	if not states then return false end
+	apply_active_states(ent, states)
+	return true
 end
 
 local function drop_removed_entity(removed)
@@ -219,8 +331,9 @@ local function drop_removed_entity(removed)
 					end
 				end
 			end
-			drop_entity(ent, states)
-			dropped = dropped + 1
+			if drop_entity(ent, states, item.drop_reasons.ENTITY_REMOVE, {removed = removed}) then
+				dropped = dropped + 1
+			end
 		end
 	end
 	if remove_probe_observer then pcall(remove_probe_observer, id, dropped, attrs, claims) end
@@ -230,7 +343,7 @@ end
 --- 丢弃全部活动 claim（重开/退出局）。强表跨局残留 + userdata 复用会导致新实体被旧 FREEZE/Position 冻住。
 function item.drop_all()
 	for ent, states in pairs(active) do
-		drop_entity(ent, states)
+		drop_entity(ent, states, item.drop_reasons.DROP_ALL)
 	end
 	active = {}
 	identities = {}
@@ -248,18 +361,21 @@ function item.try_hold_attribute(ent, name, change_to, params)
 	-- 指针复用：拒绝在身份已变的 userdata 上继续挂旧 binder
 	if identities[ent] and not identity_matches(ent, identities[ent]) then
 		local stale = active[ent]
-		if stale then drop_entity(ent, stale) end
+		if stale then drop_entity(ent, stale, item.drop_reasons.STALE_WRAPPER) end
 	end
 	local bind = binder(ent); local s = state(ent, bind, true); if not s then return nil end
 	local attr = s.attrs[name]
 	if not attr then
 		attr = {claims = {}, getter = params.toget, setter = params.tochange, comparer = params.tocompare,
-			copier = params.copy, descriptor_key = params.descriptor_key}
+			copier = params.copy, descriptor_key = params.descriptor_key, combine = params.combine}
 		local ok, origin = get(ent, name, attr); if not ok then cleanup(ent, bind, s); return nil end
 		attr.origin = copy(origin, attr.copier); s.attrs[name] = attr
 	else
 		if attr.descriptor_key and params.descriptor_key and attr.descriptor_key ~= params.descriptor_key then
 			item.debug.error_count = item.debug.error_count + 1; return nil
+		end
+		if params.combine and not attr.combine then
+			attr.combine = params.combine
 		end
 		sync_origin(ent, name, attr)
 	end
@@ -286,10 +402,17 @@ end
 function item.assign_attribute()
 	for ent, states in pairs(active) do
 		if not valid(ent) then
-			drop_entity(ent, states)
+			if not drop_entity(ent, states, item.drop_reasons.INVALID) then
+				if entity_exists(ent) then apply_active_states(ent, states) end
+			end
 		elseif not ent.IsGrid and identities[ent] and not identity_matches(ent, identities[ent]) then
 			-- 重开/生成后指针复用：旧 claim 不得施加到新实体（典型：准星 Effect 被冻在出生点）
-			drop_entity(ent, states)
+			if not drop_entity(ent, states, item.drop_reasons.IDENTITY_MISMATCH) then
+				unindex_identity(ent, identities[ent])
+				identities[ent] = read_identity(ent)
+				index_identity(ent, identities[ent])
+				apply_active_states(ent, states)
+			end
 		elseif ent.IsGrid then
 			-- visit_epoch / room_key 失效或 get_grid 为空：停止 apply，避免跨房 Open
 			local grid_ok = false
@@ -298,22 +421,12 @@ function item.assign_attribute()
 				grid_ok = ok and g ~= nil
 			end
 			if not grid_ok then
-				drop_entity(ent, states)
+				drop_entity(ent, states, item.drop_reasons.GRID_STALE)
 			else
-				for _, s in pairs(states) do
-					for name, attr in pairs(s.attrs) do
-						sync_origin(ent, name, attr)
-						apply(ent, name, attr)
-					end
-				end
+				apply_active_states(ent, states)
 			end
 		else
-			for _, s in pairs(states) do
-				for name, attr in pairs(s.attrs) do
-					sync_origin(ent, name, attr)
-					apply(ent, name, attr)
-				end
-			end
+			apply_active_states(ent, states)
 		end
 	end
 end
@@ -325,9 +438,58 @@ end
 function item.get_effective_value(ent, name, params)
 	params = params or {}
 	local bind = binder(ent); local s = state(ent, bind, false); local attr = s and s.attrs[name]
-	local claim = attr and top(attr); if not claim then return nil, false end
-	local ok, value = eval(claim.value, ent); if not ok then return nil, false end
-	return value, true
+	if not attr then return nil, false end
+	local wanted = resolve_wanted(ent, attr)
+	if wanted == nil then return nil, false end
+	return wanted, true
+end
+--- Anna / Tecro 等外部 token：claim 已被 drop_entity 清掉时返回 false，便于重新 hold。
+function item.has_claim(ent, name, token)
+	if ent == nil or name == nil or token == nil then return false end
+	local bind = binder(ent); local s = state(ent, bind, false); local attr = s and s.attrs[name]
+	return attr ~= nil and attr.claims[token] ~= nil
+end
+--- 外部 GetData token：失效则丢弃并重新 hold。
+function item.ensure_hold_token(ent, store, field, name, change_to, params)
+	if store == nil or field == nil then return nil end
+	local token = store[field]
+	if token and not item.has_claim(ent, name, token) then
+		store[field] = nil
+		token = nil
+	end
+	if token == nil then
+		store[field] = item.try_hold_attribute(ent, name, change_to, params)
+	end
+	return store[field]
+end
+--- 外部 GetData token：rewind 并清字段；无 token 视为成功。
+function item.rewind_hold_token(ent, store, field, name, params)
+	if store == nil or field == nil then return true end
+	local token = store[field]
+	if not token then return true end
+	local ok = item.try_rewind_attribute(ent, name, token, params)
+	store[field] = nil
+	return ok
+end
+--- drop_entity 后 rewind 失败时的兜底：清冻结相关 EntityFlag，可选复位碰撞/位速。
+function item.force_clear_freeze_entity(ent, opts)
+	opts = opts or {}
+	if ent == nil then return end
+	local ok_exists, exists = pcall(ent.Exists, ent)
+	if not ok_exists or not exists then return end
+	ent:ClearEntityFlags(EntityFlag.FLAG_FREEZE)
+	ent:ClearEntityFlags(EntityFlag.FLAG_NO_SPRITE_UPDATE)
+	ent:ClearEntityFlags(EntityFlag.FLAG_NO_QUERY)
+	if opts.zero_velocity then ent.Velocity = Vector(0, 0) end
+	if opts.zero_position_offset then ent.PositionOffset = Vector(0, 0) end
+	if not ent.IsGrid then
+		if opts.grid_collision ~= false then
+			ent.GridCollisionClass = opts.grid_collision or EntityGridCollisionClass.GRIDCOLL_WALLS
+		end
+		if opts.entity_collision ~= false then
+			ent.EntityCollisionClass = opts.entity_collision or EntityCollisionClass.ENTCOLL_ALL
+		end
+	end
 end
 
 local flag_descriptors, sprite_descriptors, data_descriptors = {}, {}, {}
@@ -377,6 +539,32 @@ function item.descriptors.data_field(field)
 	} end
 	return data_descriptors[field]
 end
+--- Composable time-scale / SpeedMultiplier. Claim values are relative modifiers, not final absolutes.
+--- Final = origin × modifier1 × modifier2 × ...
+function item.descriptors.speed_multiplier(options)
+	if not item.descriptors._speed_multiplier then
+		item.descriptors._speed_multiplier = {
+			descriptor_key = "entity_speed_multiplier",
+			toget = function(ent)
+				return ent:GetSpeedMultiplier()
+			end,
+			tochange = function(ent, value)
+				ent:SetSpeedMultiplier(value)
+			end,
+			tocompare = function(a, b)
+				return math.abs((tonumber(a) or 1) - (tonumber(b) or 1)) < 0.0001
+			end,
+			combine = function(origin, claims)
+				local result = tonumber(origin) or 1
+				for i = 1, #claims do
+					result = result * (tonumber(claims[i].value) or 1)
+				end
+				return result
+			end,
+		}
+	end
+	return descriptor_options(item.descriptors._speed_multiplier, options)
+end
 function item.run_self_test()
 	local checks = {}; local function check(n,v) checks[#checks+1]={n=n,v=v==true} end
 	local function fake(v) local e={Value=v,virtual=v,data={}}; function e:GetData() return self.data end; function e:Exists() return true end; function e:IsDead() return false end; return e end
@@ -387,6 +575,24 @@ function item.run_self_test()
 	e=fake(1); a=item.try_hold_attribute(e,"Value",10); e.Value=6; item.assign_attribute(); item.try_rewind_attribute(e,"Value",a); check("external/free",e.Value==6)
 	e=fake(1); a=item.try_hold_attribute(e,"Value",10,{protect=true}); e.Value=6; item.assign_attribute(); item.try_rewind_attribute(e,"Value",a); check("external/protected",e.Value==1)
 	e=fake(3); local p={toget=function(x)return x.virtual end,tochange=function(x,v)x.virtual=v end}; a=item.try_hold_attribute(e,"Virtual",9,p); item.try_rewind_attribute(e,"Virtual",a,p); check("accessor",e.virtual==3); check("duplicate",item.try_rewind_attribute(e,"Virtual",a,p)==false)
+	local mul={
+		descriptor_key="test_mul",
+		toget=function(x) return x.Value end,
+		tochange=function(x,v) x.Value=v end,
+		tocompare=function(x,y) return math.abs((tonumber(x) or 1)-(tonumber(y) or 1))<0.0001 end,
+		combine=function(origin,claims)
+			local result=tonumber(origin) or 1
+			for i=1,#claims do result=result*(tonumber(claims[i].value) or 1) end
+			return result
+		end,
+	}
+	e=fake(0.8); a=item.try_hold_attribute(e,"Value",0.5,mul); check("combine/a",math.abs(e.Value-0.4)<0.0001)
+	b=item.try_hold_attribute(e,"Value",0.6,mul); check("combine/ab",math.abs(e.Value-0.24)<0.0001)
+	item.try_rewind_attribute(e,"Value",b,mul); check("combine/release-b",math.abs(e.Value-0.4)<0.0001)
+	item.try_rewind_attribute(e,"Value",a,mul); check("combine/release-a",math.abs(e.Value-0.8)<0.0001)
+	e=fake(0.8); local depth=0.5; a=item.try_hold_attribute(e,"Value",function() return depth end,mul)
+	depth=0.25; item.assign_attribute(); check("combine/dynamic",math.abs(e.Value-0.2)<0.0001)
+	item.try_rewind_attribute(e,"Value",a,mul)
 	local passed, failures=0,{}; for _,c in ipairs(checks) do if c.v then passed=passed+1 else failures[#failures+1]=c.n end end
 	item.debug.last_report={passed=passed,total=#checks,failures=failures,frame=Game and Game():GetFrameCount() or -1}; return item.debug.last_report
 end
@@ -415,4 +621,35 @@ Function = function(_, ent)
 	drop_removed_entity(ent)
 end,
 })
+
+-- RGON：换房/EvaluateItems 后引擎会在 POST_UPDATE 与渲染之间刷新 SpriteScale 等字段。
+-- 参照 Squiresaga 的 POST_GRID_*_UPDATE 回写：晚序 POST_UPDATE + PRE_*_RENDER 各补一次。
+if REPENTOGON then
+	local function apply_active_late_pass()
+		for ent, states in pairs(active) do
+			if entity_exists(ent) then apply_active_states(ent, states) end
+		end
+	end
+	local function register_pre_render(callback)
+		if not callback then return end
+		table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
+			CallBack = callback,
+			params = nil,
+			priority = 2000,
+			Function = function(_, ent)
+				item.apply_entity_attributes(ent)
+			end,
+		})
+	end
+	register_pre_render(ModCallbacks.MC_PRE_FAMILIAR_RENDER)
+	register_pre_render(ModCallbacks.MC_PRE_NPC_RENDER)
+	table.insert(item.post_ToCall, #item.post_ToCall + 1, {
+		CallBack = ModCallbacks.MC_POST_UPDATE,
+		params = nil,
+		priority = 2000,
+		Function = function()
+			apply_active_late_pass()
+		end,
+	})
+end
 return item

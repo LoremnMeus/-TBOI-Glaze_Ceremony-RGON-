@@ -8,6 +8,7 @@ local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 
 local item = {
 	pickup = enums.Pickups.Glaze_chest,
@@ -244,6 +245,8 @@ Function = function(_,player,cacheFlag)
 end,
 })
 
+-- Player contact only dispatches an available matching key.
+-- It must not open the chest, resolve rewards, or start Ambush.
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_PICKUP_COLLISION, params = item.pickup.Variant,
 Function = function(_,ent, col, low)
     local player = col:ToPlayer()
@@ -437,15 +440,37 @@ Function = function(_,ent)
 end,
 })
 
-function item.try_open(player,ent)
+-- RandomInt(100) → 0..99. Values < chance are glazed; Stage6 (Chest/Dark Room) always duplicate.
+local GLAZED_REWARD_CHANCE = 60
+
+--- Deterministic branch picker for tests / callers: roll in 0..99, stage = LevelStage.
+function item.choose_reward_branch_for_roll(roll, stage)
+	if stage == LevelStage.STAGE6 then
+		return "duplicate"
+	end
+	if (roll or 0) < GLAZED_REWARD_CHANCE then
+		return "glazed"
+	end
+	return "duplicate"
+end
+
+local function choose_reward_branch(ent)
+	local stage = Game():GetLevel():GetStage()
+	if stage == LevelStage.STAGE6 then
+		return "duplicate"
+	end
+	local rng = auxi.rng_for_sake(ent:GetDropRNG())
+	return item.choose_reward_branch_for_roll(rng:RandomInt(100), stage)
+end
+
+--- Reward only. Must not start Ambush; unlock commit owns that.
+function item.resolve_chest_reward(player, ent)
 	if player == nil then player = Game():GetPlayer(0) end
 	if ent == nil then return end
-	local rng = ent:GetDropRNG()
-	rng = auxi.rng_for_sake(rng)
-	local rnd = rng:RandomInt(100)
-	local level = Game():GetLevel()
-	if level:GetStage() == LevelStage.STAGE6 then rnd = 1 end
-	if rnd > 40 then				--生成基础
+	local rng = auxi.rng_for_sake(ent:GetDropRNG())
+	local branch = choose_reward_branch(ent)
+	local reward_pos = Vector(ent.Position.X, ent.Position.Y)
+	if branch == "glazed" then
 		local cnt = rng:RandomInt(4) + 4
 		if glaze_crown.should_empower(player) then cnt = cnt + 4 end
 		local idx = player:GetData().__Index
@@ -478,7 +503,6 @@ function item.try_open(player,ent)
 		if target == nil then target = enums.Items.It_s_a_trick end
 		local q = Isaac.Spawn(5,100,target,ent.Position,Vector(0,0),nil):ToPickup()
 		q:ClearEntityFlags(EntityFlag.FLAG_ITEM_SHOULD_DUPLICATE)
-		local d1 = q:GetData()
 		consistance_holder.try_hold_entity(q,item.own_key,{ignore_subtype = true})
 		local s1 = q:GetSprite()
 		s1:ReplaceSpritesheet(5,"gfx/items/to_item_altar.png")
@@ -487,8 +511,7 @@ function item.try_open(player,ent)
 		consistance_holder.try_remove_entity(ent,item.own_key)
 		ent:Remove()
 	end
-	auxi.try_start_ambush()
-	glaze_crown.notify_pickup(player)
+	glaze_crown.notify_pickup(player, reward_pos)
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = 100,
@@ -519,28 +542,47 @@ Function = function(_,ent)
 				local s2 = v:GetSprite()
 				local d2 = v:GetData()
 				if dis:Length() < 40 and s2:IsFinished("Open") then
-					auxi.remove_others_option_pickup(ent)
-					ent.SubType = 0
-					local player = v:ToFamiliar().Player or Game():GetPlayer(0)
-					local idx = player:GetData().__Index
-					item.try_open(player,ent)
-					s:Play("Open",true)
-					sound_tracker.PlayStackedSound(SoundEffect.SOUND_UNLOCK00,1,1,false,0,2)
 					d._Data = d._Data or {}
 					d._Data[item.own_key] = d._Data[item.own_key] or {}
-					d._Data[item.own_key].remove_this_chest = true
-					consistance_holder.try_hold_entity(ent,item.own_key)
-					
-					if d2[item.own_key.."Waiting"] ~= true and (save.elses[item.own_key.."key_cnt"] or {})[idx] then
-						save.elses[item.own_key.."key_cnt"][idx] = save.elses[item.own_key.."key_cnt"][idx] - 1
-					elseif d2[item.own_key.."Follow"] then
-						if d2[item.own_key.."record"] then
-							d2[item.own_key.."record"].Remove = true
+					if not d._Data[item.own_key].unlock_committed then
+						d._Data[item.own_key].unlock_committed = true
+
+						local player = v:ToFamiliar().Player or Game():GetPlayer(0)
+						local idx = player:GetData().__Index
+						local chest_seed = ent.InitSeed
+
+						-- 1. Confirm this Options/chest selection
+						option_index_holder.commit_selection(ent, player, {
+							skip_will_collect = true,
+							remove_siblings = true,
+						})
+						-- 2. Mark chest unlocked
+						ent.SubType = 0
+						-- 3. Open animation / unlock SFX
+						s:Play("Open",true)
+						sound_tracker.PlayStackedSound(SoundEffect.SOUND_UNLOCK00,1,1,false,0,2)
+						d._Data[item.own_key].remove_this_chest = true
+						consistance_holder.try_hold_entity(ent,item.own_key)
+						-- 4. Resolve reward (no Ambush here)
+						item.resolve_chest_reward(player, ent)
+						-- 5. Unlock completion may activate the room's existing Ambush flow
+						-- (e.g. Challenge Room / Boss Rush). This does not create an Ambush
+						-- in a room that does not support one.
+						auxi.try_start_ambush()
+						-- 6. Consume matching key / clear 1-chest↔1-key task
+						if d2[item.own_key.."Waiting"] ~= true and (save.elses[item.own_key.."key_cnt"] or {})[idx] then
+							save.elses[item.own_key.."key_cnt"][idx] = save.elses[item.own_key.."key_cnt"][idx] - 1
+						elseif d2[item.own_key.."Follow"] then
+							if d2[item.own_key.."record"] then
+								d2[item.own_key.."record"].Remove = true
+							end
 						end
+						clear_task_for_chest(chest_seed)
+						if auxi.check_all_exists(v) then
+							v:Remove()
+						end
+						d[item.own_key.."TgKey"] = nil
 					end
-					-- 无论用跟随钥匙还是房内钥匙：回收该箱登记的任务，保证 1 箱 ↔ 1 钥匙
-					clear_task_for_chest(ent.InitSeed)
-					d[item.own_key.."TgKey"]:Remove()
 				end
 			end
 		end
@@ -650,8 +692,8 @@ end,
 })
 
 glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
-	zh = "辉片满层时开箱额外+4个琉璃掉落",
-	en = "At 5 shards: +4 glazed pickups when opened",
+	zh = "辉片满层时，琉璃掉落分支额外+4个掉落",
+	en = "At 5 shards: +4 pickups when Glaze Chest rolls its glazed-pickup reward",
 })
 
 return item

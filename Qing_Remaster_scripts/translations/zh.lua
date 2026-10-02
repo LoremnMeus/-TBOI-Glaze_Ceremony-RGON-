@@ -201,16 +201,20 @@ item.zh.Collectibles = {
 	[Items.Chasm] = {Name = "天象入渊",Description = "V",Rnd_Special = {Name = "妖痕 · 渊天",Description = "沉沦于此",weigh = 5,},},
 	[Items.Pathetique] = {Name = "悲怆",Description = "它们被迫为我而死",Rnd_Special = {Name = "惨淡之种",Description = "不老不死..",},},
 	[CollectibleType.COLLECTIBLE_BIRTHRIGHT] = {Name = "长子名分",Description = function(info,player)
-		local pt = player:GetPlayerType()
-		if info.Nameinfo[pt] then return info.Nameinfo[pt]
-		else
-			local name = auxi.get_birth_right_name(player) 
-			if name then 
-				local ret = auxi.check_name_data("#"..name.."_BIRTHRIGHT","")
-				if ret ~= "" then return ret end
-			end 
+		if not player then
 			return auxi.random_in_table(info.Rndinfo)
 		end
+		local pt = player:GetPlayerType()
+		local br = static_translations.zh and static_translations.zh.Birthrights and static_translations.zh.Birthrights[pt]
+		if br and type(br.Desc) == "string" and br.Desc ~= "" then
+			return br.Desc
+		end
+		local name = auxi.get_birth_right_name(player)
+		if name then
+			local ret = auxi.check_name_data("#"..name.."_BIRTHRIGHT","")
+			if ret ~= "" then return ret end
+		end
+		return auxi.random_in_table(info.Rndinfo)
 	end,
 	Expeled = true,
 	Rndinfo = {
@@ -224,18 +228,6 @@ item.zh.Collectibles = {
 		"惩戒我！",
 		"责罚我！",
 		"我就是我！",
-	},
-	Nameinfo = {
-		[enums.Players.wq] = "血债应由血偿!",
-		[enums.Players.Spwq] = "额外组件已就位",
-		[enums.Players.Tecro] = "刺痛塑我身",
-		[enums.Players.Tecrorun] = "轻如光明",
-		[enums.Players.Anna] = "血光之灾",
-		[enums.Players.annA] = "神明攻势",
-		[enums.Players.Zeistos] = "所见即所得",
-		[enums.Players.Marriano] = "人格重组",
-		[enums.Players.Autio] = "究天之使",
-		[enums.Players.Lu] = "见令如见我",
 	},},
 }
 
@@ -262,24 +254,21 @@ item.en.Collectibles = {
 	[Items.D773] = {Name = function(v) if save.elses.D773 == nil then save.elses.D773 = 0 end;return "D"..tostring(773 + save.elses.D773) end,Description = function(v) return v.des[math.random(#(v.des))] end,
 	des = {"It's like an oreo.","Higher altitude,Higher level brain.","It's the ultimate mystery.","Life's a crime.","A clown nose is the height of fashion.","Never take anything seriously,unless it's a joke.","I'm a clown GUY!","A fish walks into a bar.","A monkey grabs the banana and runs away.","Help me out of this cage!","I'm a twisted individual.","Fishtastic!","The Dentist Killer of wobbly Road","Cake is dry,not moist.And deceitful.","The end result of an evoluved family line of clowns.",}},
 	[CollectibleType.COLLECTIBLE_BIRTHRIGHT] = {Name = "Birthright",Description = function(info,player)
-		local pt = player:GetPlayerType()
-		if info.Nameinfo[pt] then return info.Nameinfo[pt]
-		else
-			local name = auxi.get_birth_right_name(player) 
-			if name then 
-				local ret = auxi.check_name_data("#"..name.."_BIRTHRIGHT")
-				if ret then return ret end
-			end 
-			return "?" 
+		if not player then
+			return "?"
 		end
-	end,
-	Nameinfo = {
-		[enums.Players.wq] = "Pain has to Pay!",
-		[enums.Players.Spwq] = "Memories...",
-		[enums.Players.Tecro] = "I Sting!",
-		[enums.Players.Tecrorun] = "She is back now",
-		[enums.Players.Anna] = "Bloody disaster",
-	},},
+		local pt = player:GetPlayerType()
+		local br = static_translations.en and static_translations.en.Birthrights and static_translations.en.Birthrights[pt]
+		if br and type(br.Desc) == "string" and br.Desc ~= "" then
+			return br.Desc
+		end
+		local name = auxi.get_birth_right_name(player)
+		if name then
+			local ret = auxi.check_name_data("#"..name.."_BIRTHRIGHT")
+			if ret then return ret end
+		end
+		return "?"
+	end,},
 }
 
 local function attach_static_fallbacks()

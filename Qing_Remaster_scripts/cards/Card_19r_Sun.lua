@@ -103,9 +103,10 @@ Function = function(_,continue)
 end,
 })
 
-function item.spawn_a_ranbow_port(pos,rng,params)
+-- Destination is rolled on portal entry, not at spawn. Floor persistence only stores
+-- position + Tarot Cloth focus; never a permanent target_gidx.
+function item.collect_special_room_candidates(params)
 	params = params or {}
-	local room = Game():GetRoom()
 	local level = Game():GetLevel()
 	local rooms = level:GetRooms()
 	local dimen = auxi.GetDimension()
@@ -114,14 +115,14 @@ function item.spawn_a_ranbow_port(pos,rng,params)
 		local targ = rooms:Get(i - 1)
 		if targ and dimen == auxi.GetDimension(targ) then
 			local desc = level:GetRoomByIdx(targ.SafeGridIndex)
-			if desc then
+			if desc and desc.Data then
 				local tp = desc.Data.Type
-				if tp ~= 1 then 
+				if tp ~= 1 then
 					if params.focus then
-						if desc.VisitedCount ~= 0 then 
-							if desc.Clear ~= true then table.insert(tbl2,#tbl2 + 1,targ.SafeGridIndex) 
+						if desc.VisitedCount ~= 0 then
+							if desc.Clear ~= true then table.insert(tbl2,#tbl2 + 1,targ.SafeGridIndex)
 							else table.insert(tbl3,#tbl3 + 1,targ.SafeGridIndex) end
-						else table.insert(tbl,#tbl + 1,targ.SafeGridIndex) 	end
+						else table.insert(tbl,#tbl + 1,targ.SafeGridIndex) end
 					else table.insert(tbl,#tbl + 1,targ.SafeGridIndex) end
 				end
 			end
@@ -129,30 +130,56 @@ function item.spawn_a_ranbow_port(pos,rng,params)
 	end
 	if #tbl == 0 then tbl = tbl2 end
 	if #tbl == 0 then tbl = tbl3 end
-	local ret = auxi.random_in_table(tbl,rng)
+	return tbl
+end
+
+function item.pick_target_gidx(rng,params)
+	local tbl = item.collect_special_room_candidates(params)
+	if #tbl == 0 then return 84 end
+	if rng then return auxi.random_in_table(tbl,rng) or tbl[1] or 84 end
+	return tbl[1] or 84
+end
+
+function item.spawn_a_ranbow_port(pos,params)
+	params = params or {}
+	-- Placeholder gidx only; PRE_GET_TELEPORT re-rolls before Wizard Trans_to.
 	local p = {info = {id = -1,gidx = 84,tp = 118,},}
-	if ret then p = {info = {id = -1,gidx = ret,tp = 118,},} end
 	local q = card_01_wizard.spawn_a_fool_port(pos,p)
-	q:GetData()[item.own_key.."effect"] = true
+	local d = q:GetData()
+	d[item.own_key.."effect"] = true
+	d[item.own_key.."focus"] = params.focus and true or false
 	local s = q:GetSprite()
 	s:Load("gfx/player/anna/_anna_port.anm2",true)
 	s:Play("Appear",true)
 	return q
 end
 
+-- Before Wizard portal teleport: re-roll destination every entry.
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GET_TELEPORT, params = "portal", priority = -100,
+Function = function(_,player, tp, params)
+	local ent = params.ent
+	if ent == nil then return end
+	local d = ent:GetData()
+	if not d[item.own_key.."effect"] then return end
+	local wiz = card_01_wizard
+	local wiz_info = d[wiz.own_key.."effect"]
+	if not wiz_info then return end
+	local rng = player:GetCardRNG(item.entity)
+	rng = auxi.rng_for_sake(rng)
+	wiz_info.gidx = item.pick_target_gidx(rng,{focus = d[item.own_key.."focus"],})
+end,
+})
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_CARD, params = item.entity,
 Function = function(_,cardtype,player,useFlags)
 	local room = Game():GetRoom()
 	local d = player:GetData()
-	local idx = d.__Index
-	local rng = player:GetCardRNG(item.entity)
-	rng = auxi.rng_for_sake(rng)
-	
+
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 	else
 		local double = false
 		if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then double = true end
-		local q = item.spawn_a_ranbow_port(room:FindFreePickupSpawnPosition(player.Position,10,true),rng,{focus = double,})
+		local q = item.spawn_a_ranbow_port(room:FindFreePickupSpawnPosition(player.Position,10,true),{focus = double,})
 		save.elses[item.own_key.."record"] = save.elses[item.own_key.."record"] or {}
 		local gdx = auxi.get_acceptible_index()
 		save.elses[item.own_key.."record"][gdx] = save.elses[item.own_key.."record"][gdx] or {}
@@ -171,14 +198,12 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_R
 Function = function(_)
 	local gdx = auxi.get_acceptible_index()
 	save.elses[item.own_key.."record"] = save.elses[item.own_key.."record"] or {}
-	local rng = Game():GetPlayer(0):GetCardRNG(item.entity)
-	for u,v in pairs(save.elses[item.own_key.."record"][gdx] or {}) do 
+	for u,v in pairs(save.elses[item.own_key.."record"][gdx] or {}) do
 		local pos = auxi.ProtectVector(v.pos)
-		item.spawn_a_ranbow_port(pos,rng,{focus = v.double,})
+		item.spawn_a_ranbow_port(pos,{focus = v.double,})
 	end
 end,
 })
-
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFECT_RENDER, params = 161,
 Function = function(_,ent)
 	local d = ent:GetData()

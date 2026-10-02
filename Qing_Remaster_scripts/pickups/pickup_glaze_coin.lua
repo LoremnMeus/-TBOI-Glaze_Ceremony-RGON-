@@ -6,6 +6,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
 
 local translations = include("Qing_Remaster_scripts.translations.translate")
@@ -47,7 +48,7 @@ function item.try_collect(player,ent)
 			ent:GetData()[item.own_key.."sound"] = 2
 		end
 	end
-	glaze_crown.notify_pickup(player)
+	glaze_crown.notify_pickup(player, ent and ent.Position)
 	return true
 end
 
@@ -65,7 +66,10 @@ Function = function(_,ent, col, low)
 					ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 					if ent:GetData()[item.own_key.."sound"] ~= 2 then sound_tracker.PlayStackedSound(SoundEffect.SOUND_PENNYPICKUP,1,1,false,0,2)
 					else sound_tracker.PlayStackedSound(SoundEffect.SOUND_DIMEPICKUP,1,1,false,0,2)	end
-					auxi.remove_others_option_pickup(ent)
+					option_index_holder.commit_selection(ent, player, {
+						skip_will_collect = true,
+						remove_siblings = true,
+					})
 					if ent:IsShopItem() then auxi.buy_a_pickup(ent,player)
 					else ent:GetSprite():Play("Collect", true) end
 					return true
@@ -146,7 +150,9 @@ glaze_crown.install_glaze_crown_pickup_eid(item.pickup, {
 	zh = "辉片满层时：90%获得1枚，10%获得15枚",
 	en = "At 5 shards: 90% for 1 coin, 10% for 15",
 }, function(desc)
-	return desc.Entity and item.pickup.special_to_check(desc.Entity)
+	local ent = desc and desc.Entity
+	if not ent or not ent.GetData then return false end
+	return item.pickup.special_to_check(ent)
 end)
 
 return item

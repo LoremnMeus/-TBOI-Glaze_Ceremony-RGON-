@@ -286,12 +286,22 @@ function item.PlayHappy(ent,info)
 	d[item.own_key.."id"] = info.id
 end
 
+local function get_effect_root()
+	local key = item.own_key .. "effect"
+	local root = save.elses[key]
+	if type(root) ~= "table" then
+		root = {}
+		save.elses[key] = root
+	end
+	return root
+end
+
 function item.can_send()
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	local effects = get_effect_root()
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		local idx = player:GetData().__Index
-		if (save.elses[item.own_key.."effect"][idx] or 0) > 0 then return true end
+		if (effects[idx] or 0) > 0 then return true end
 	end
 	return false
 end
@@ -357,21 +367,21 @@ end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then
-	else
+	if not continue then
 		save.elses[item.own_key.."effect"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
+	get_effect_root()
 end,
 })
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
 Function = function(_)
+	local effects = get_effect_root()
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		if auxi.has_have_coll(player,item.entity) then
 			local idx = player:GetData().__Index
-			save.elses[item.own_key.."effect"][idx] = player:GetCollectibleNum(item.entity)
+			effects[idx] = player:GetCollectibleNum(item.entity)
 			player:AddNullCostume(item.costumes)
 		end
 	end
@@ -385,7 +395,8 @@ end,
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_GAIN_COLLECTIBLE, params = item.entity,
 Function = function(_,player,collid,cnt,touched)
 	local idx = player:GetData().__Index
-	save.elses[item.own_key.."effect"][idx] = (save.elses[item.own_key.."effect"][idx] or 0) + cnt
+	local effects = get_effect_root()
+	effects[idx] = (effects[idx] or 0) + cnt
 	player:AddNullCostume(item.costumes)
 end,
 })
@@ -393,9 +404,12 @@ end,
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_LOSE_COLLECTIBLE, params = item.entity,
 Function = function(_,player,collid,cnt,nownum)
 	local idx = player:GetData().__Index
-	if (save.elses[item.own_key.."effect"][idx] or 0) > 0 then
-		save.elses[item.own_key.."effect"][idx] = math.max(0,save.elses[item.own_key.."effect"][idx] - cnt)
-		if save.elses[item.own_key.."effect"][idx] <= 0 then player:TryRemoveNullCostume(item.costumes) end
+	local effects = get_effect_root()
+	local count = effects[idx] or 0
+	if count > 0 then
+		count = math.max(0, count - cnt)
+		effects[idx] = count
+		if count <= 0 then player:TryRemoveNullCostume(item.costumes) end
 	end
 end,
 })
@@ -405,9 +419,12 @@ Function = function(_,ent,amt,flag,source,cooldown)
 	local player = ent:ToPlayer()
 	if amt > 0 and auxi.is_damage_from_enemy(ent,amt,flag,source,cooldown) and player and auxi.has_have_coll(player,item.entity) then
 		local idx = player:GetData().__Index
-		if (save.elses[item.own_key.."effect"][idx] or 0) > 0 then
-			save.elses[item.own_key.."effect"][idx] = save.elses[item.own_key.."effect"][idx] - 1
-			if save.elses[item.own_key.."effect"][idx] <= 0 then player:TryRemoveNullCostume(item.costumes) end
+		local effects = get_effect_root()
+		local count = effects[idx] or 0
+		if count > 0 then
+			count = count - 1
+			effects[idx] = count
+			if count <= 0 then player:TryRemoveNullCostume(item.costumes) end
 			local q = Isaac.Spawn(1000,2,0,player.Position,Vector(0,0),nil):ToEffect()
 			q:GetSprite().Color = Color(1,1,1,1,1,1,1)
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_POT_BREAK_2,1,1.5,false,0,2)
@@ -420,8 +437,10 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player)
 	local d = player:GetData()
 	local idx = d.__Index
+	local effects = get_effect_root()
+	local count = effects[idx] or 0
 	if selection_holder.check_select(player,item.own_key) and player:IsHoldingItem() == false then selection_holder.remove_select(player,item.own_key) end
-	if (save.elses[item.own_key.."effect"][idx] or 0) > 0 then
+	if count > 0 then
 		local succinfo = item.find_target(player)
 		if succinfo then
 			if auxi.check_for_the_same((d[item.own_key.."targ"] or {}).ent,succinfo.ent) ~= true and Game():GetRoom():GetFrameCount() > 5 then
@@ -433,8 +452,9 @@ Function = function(_,player)
 				consistance_holder.try_hold_entity(succinfo.ent,item.own_key)
 				player:AnimateCollectible(item.entity,"HideItem","PlayerPickup")
 				selection_holder.remove_select(player,item.own_key)
-				save.elses[item.own_key.."effect"][idx] = save.elses[item.own_key.."effect"][idx] - 1
-				if save.elses[item.own_key.."effect"][idx] <= 0 then player:TryRemoveNullCostume(item.costumes) end
+				count = count - 1
+				effects[idx] = count
+				if count <= 0 then player:TryRemoveNullCostume(item.costumes) end
 			end
 		elseif player:IsHoldingItem() and selection_holder.check_select(player,item.own_key) then
 			player:AnimateCollectible(item.entity,"HideItem","PlayerPickup")

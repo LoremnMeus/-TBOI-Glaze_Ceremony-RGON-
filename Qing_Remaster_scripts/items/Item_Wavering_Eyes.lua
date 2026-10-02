@@ -74,9 +74,17 @@ local function waver_amplitude(gaze)
 	return math.min(item.WAVER_MAX_ANGLE, math.floor((gaze or 0) / 2) * item.WAVER_PER_TWO_GAZE)
 end
 
+function item.waver_amplitude(gaze)
+	return waver_amplitude(gaze)
+end
+
 local function tears_bonus(gaze)
 	local tier = math.floor((gaze or 0) / 3)
 	return tier > 0 and 0.5 * tier ^ 0.5 or 0
+end
+
+function item.tears_bonus_from_gaze(gaze)
+	return tears_bonus(gaze)
 end
 
 local function defocus_ratio(player)
@@ -105,6 +113,103 @@ local function gaze_tear_color(gaze, defocus)
 	return col
 end
 
+function item.color_from_state(gaze, defocus)
+	return gaze_tear_color(gaze, defocus)
+end
+
+function item.flags_from_gaze(gaze)
+	local mask = BitSet128(0, 0)
+	gaze = gaze or 0
+	for threshold, info in pairs(item.buff_offsets) do
+		if gaze >= threshold and info.flag then
+			mask = mask | info.flag
+		end
+	end
+	return mask
+end
+
+--- Per-craft independent Wavering state on Blue_Print rec.dynamic.
+function item.ensure_craft_state(rec)
+	if not rec then
+		return {gaze = 0, defocus = 0, phase = 0}
+	end
+	rec.dynamic = rec.dynamic or {}
+	local st = rec.dynamic.wavering
+	if type(st) ~= "table" then
+		st = {gaze = 0, defocus = 0, phase = 0}
+		rec.dynamic.wavering = st
+	end
+	st.gaze = tonumber(st.gaze) or 0
+	st.defocus = tonumber(st.defocus) or 0
+	st.phase = tonumber(st.phase) or 0
+	return st
+end
+
+function item.add_craft_hit(state)
+	if type(state) ~= "table" then return end
+	state.gaze = (tonumber(state.gaze) or 0) + 1
+	state.defocus = math.max(0, (tonumber(state.defocus) or 0) - item.HIT_RECOVERY)
+end
+
+function item.add_craft_miss(state)
+	if type(state) ~= "table" then return end
+	state.defocus = (tonumber(state.defocus) or 0) + item.MISS_GAIN
+	if state.defocus >= item.DEFOCUS_MAX then
+		state.gaze = 0
+		state.defocus = 0
+	end
+end
+
+local function resolve_craft_state_from_tear(tear)
+	local d = tear and tear:GetData()
+	if not d or not d[item.own_key .. "craft"] then
+		return nil, nil, nil
+	end
+	local ok_air, Air = pcall(require, "Qing_Remaster_scripts.items.Item_Air_Flight")
+	local air = d[item.own_key .. "craft_air"]
+	if not air and ok_air and Air and Air.own_key then
+		air = d[Air.own_key .. "craft_air"]
+	end
+	if not air then return nil, nil, nil end
+	local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
+	local uid = CraftIdentity.get_uid(air)
+	local player = auxi.check_spawner_player(air)
+	if not uid or not player then return nil, nil, nil end
+	local bp = require("Qing_Remaster_scripts.items.Item_Blue_Print")
+	local rec = bp.find_craft and bp.find_craft(player, uid)
+	if not rec then return nil, nil, nil end
+	return item.ensure_craft_state(rec), air, player
+end
+
+--- Stamp / bend a Craft tear for Wavering Eyes (owner remains this module).
+function item.on_craft_tear_fire(tear, air, player, craft_prof)
+	if not tear or not air or not craft_prof then return end
+	local id = item.entity
+	if not id or id <= 0 then return end
+	local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+	if CraftProfile.count_of(craft_prof.counts, id) <= 0 then return end
+	local bp = require("Qing_Remaster_scripts.items.Item_Blue_Print")
+	local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
+	local uid = CraftIdentity.get_uid(air)
+	local rec = uid and bp.find_craft and bp.find_craft(player, uid)
+	local state = item.ensure_craft_state(rec)
+	local d = tear:GetData()
+	d[item.own_key .. "waver"] = true
+	d[item.own_key .. "craft"] = true
+	d[item.own_key .. "craft_air"] = air
+	state.phase = (tonumber(state.phase) or 0) + math.rad(item.WAVER_PHASE_STEP)
+	local offset = math.sin(state.phase) * waver_amplitude(state.gaze)
+	local spd = tear.Velocity:Length()
+	if spd > 0.01 then
+		tear.Velocity = auxi.MakeVector(tear.Velocity:GetAngleDegrees() + offset) * spd
+	end
+	local flags = item.flags_from_gaze(state.gaze)
+	if flags ~= BitSet128(0, 0) then
+		tear.TearFlags = (tear.TearFlags or BitSet128(0, 0)) | flags
+	end
+	tear.Color = gaze_tear_color(state.gaze, state.defocus)
+end
+
 local function nearest_enemy(pos, radius)
 	local best
 	local best_dist = radius
@@ -131,8 +236,8 @@ local function lerp_angle_deg(cur, tgt, t)
 	return cur + diff * t
 end
 
-local function apply_soft_homing(tear, player)
-	local gaze = item.get_gaze(player)
+local function apply_soft_homing(tear, gaze)
+	gaze = gaze or 0
 	if gaze < item.SOFT_HOMING_GAZE or gaze >= item.HOMING_GAZE then
 		return
 	end
@@ -150,8 +255,8 @@ local function apply_soft_homing(tear, player)
 	tear.Velocity = auxi.MakeVector(ang) * spd
 end
 
-local function apply_tear_visual(tear, player)
-	local gaze = item.get_gaze(player)
+local function apply_tear_visual(tear, gaze)
+	gaze = gaze or 0
 	if gaze < item.HOMING_GAZE then
 		return
 	end
@@ -249,6 +354,15 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_TEAR_UPDATE, params = nil,
 Function = function(_, tear)
+	local d = tear:GetData()
+	if d[item.own_key .. "craft"] then
+		local state = resolve_craft_state_from_tear(tear)
+		if state then
+			apply_soft_homing(tear, state.gaze)
+			apply_tear_visual(tear, state.gaze)
+		end
+		return
+	end
 	if tear.SpawnerType ~= 1 or not tear.Parent then
 		return
 	end
@@ -256,22 +370,31 @@ Function = function(_, tear)
 	if not player or not auxi.has_have_coll(player, item.entity) then
 		return
 	end
-	local d = tear:GetData()
 	if not d[item.own_key.."waver"] then
 		return
 	end
-	apply_soft_homing(tear, player)
-	apply_tear_visual(tear, player)
+	local gaze = item.get_gaze(player)
+	apply_soft_homing(tear, gaze)
+	apply_tear_visual(tear, gaze)
 end,
 })
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_PRE_TEAR_COLLISION, params = nil,
 Function = function(_, ent, col)
+	local d = ent:GetData()
+	if d[item.own_key .. "craft"] then
+		if col and col:IsVulnerableEnemy() and col:IsActiveEnemy()
+			and d[item.own_key.."waver"] and not d[item.own_key.."waver_hit"] then
+			d[item.own_key.."waver_hit"] = true
+			local state = resolve_craft_state_from_tear(ent)
+			if state then item.add_craft_hit(state) end
+		end
+		return
+	end
 	if ent.SpawnerType == 1 and ent.Parent then
 		local player = ent.Parent:ToPlayer()
 		if player and col:IsVulnerableEnemy() and col:IsActiveEnemy() then
 			if auxi.has_have_coll(player, item.entity) then
-				local d = ent:GetData()
 				if d[item.own_key.."waver"] and not d[item.own_key.."waver_hit"] then
 					d[item.own_key.."waver_hit"] = true
 					item.add_waver_eye_charge(player)
@@ -286,10 +409,15 @@ table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {CallBack = ModCallbacks.MC_
 Function = function(_, ent)
 	if ent.Type == 2 then
 		local d = ent:GetData()
-		if d[item.own_key.."waver"] and not d[item.own_key.."waver_hit"] and ent.Parent then
-			local player = ent.Parent:ToPlayer()
-			if player and auxi.has_have_coll(player, item.entity) then
-				item.clear_waver_eye_charge(player)
+		if d[item.own_key.."waver"] and not d[item.own_key.."waver_hit"] then
+			if d[item.own_key .. "craft"] then
+				local state = resolve_craft_state_from_tear(ent)
+				if state then item.add_craft_miss(state) end
+			elseif ent.Parent then
+				local player = ent.Parent:ToPlayer()
+				if player and auxi.has_have_coll(player, item.entity) then
+					item.clear_waver_eye_charge(player)
+				end
 			end
 		end
 	end

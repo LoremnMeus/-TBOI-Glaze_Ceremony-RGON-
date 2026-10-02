@@ -1388,7 +1388,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_REN
 Function = function()
 	local panel = item.panel
 	if not panel then return end
-	if REPENTOGON and Game():IsPauseMenuOpen() then return end
+	if auxi.is_pause_menu_open() then return end
 	local player = panel.player
 	if not player or not player:Exists() then
 		close_panel_lua()

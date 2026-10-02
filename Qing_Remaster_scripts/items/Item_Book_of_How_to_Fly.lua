@@ -8,6 +8,7 @@ local player_offset_holder = require("Qing_Remaster_scripts.callbacks.player_off
 local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
 local Laser_holder = require("Qing_Remaster_scripts.mimics.Laser_holder")
 local Akeldama_holder = require("Qing_Remaster_scripts.mimics.Akeldama_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -47,7 +48,12 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 		if auxi.should_do_belial(player) then
 			Laser_holder.set_remove(true)
 			item.SetLaser = true
-			local q = player:FireTear(player.Position,Vector(0,0),true,true,true) --Isaac.Spawn(2,1,0,player.Position,Vector(0,0),player):ToTear()
+			local q = attack_holder.FireTear(player, player.Position, Vector(0, 0), {
+				mode = "untracked",
+				can_be_eye = true,
+				no_tracer = true,
+				can_trigger_streak_end = true,
+			}) --Isaac.Spawn(2,1,0,player.Position,Vector(0,0),player):ToTear()
 			q.Scale = 1.5
 			q:ResetSpriteScale()
 			q.FallingAcceleration = math.max(q.FallingAcceleration,0.1)

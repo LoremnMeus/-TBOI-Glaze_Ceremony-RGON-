@@ -58,7 +58,7 @@ Function = function(_,ent)
 	local s = ent:GetSprite()
 	if d[item.own_key.."effect"] and ent.State ~= 3 then
 		local players = Isaac.FindInRadius(ent.Position,40,EntityPartition.PLAYER)
-		if #players > 0 then ent:TakeDamage(1,DamageFlag.DAMAGE_EXPLOSION,EntityRef(v),0) end
+		if #players > 0 then ent:TakeDamage(1,DamageFlag.DAMAGE_EXPLOSION,EntityRef(players[1]),0) end
 	end
 	if d[item.own_key.."effect2"] then
 		s.Color = auxi.AddColor(Color(1,1,1,1),Color(1,1,1,0),math.min(1,ent.FrameCount/30),math.max(0,1 - ent.FrameCount/30))

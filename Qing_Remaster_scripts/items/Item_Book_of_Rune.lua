@@ -28,6 +28,19 @@ local item = {
 }
 auxi.add_to_seija(item.entity)
 
+if ModCallbacks.MC_POST_ADD_COLLECTIBLE then
+	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ADD_COLLECTIBLE, params = item.entity,
+	Function = function(_,collid,charge,first_time,slot,var_data,player)
+		if not first_time or not player then return end
+		local rng = auxi.rng_for_sake(player:GetCollectibleRNG(item.entity))
+		local id = Game():GetItemPool():GetCard(rng:GetSeed(),false,true,true)
+		rng:Next()
+		local room = Game():GetRoom()
+		Isaac.Spawn(EntityType.ENTITY_PICKUP,PickupVariant.PICKUP_TAROTCARD,id,room:FindFreePickupSpawnPosition(player.Position,10,true),Vector.Zero,player)
+	end,
+	})
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = item.entity,
 Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 	local ret = true

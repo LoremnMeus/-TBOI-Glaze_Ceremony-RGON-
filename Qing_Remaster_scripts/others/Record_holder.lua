@@ -5,7 +5,12 @@ local item = {
 	holder_buffer = {},
 	by_token = {},
 	next_token = 0,
-	debug = {check_errors = 0, function_errors = 0},
+	debug = {
+		check_errors = 0,
+		function_errors = 0,
+		remove_triggers = 0,
+		turn_triggers = 0,
+	},
 }
 
 local function entity_exists(ent)
@@ -41,6 +46,11 @@ Function = function(_)
 			end
 		end
 		if not dropped and should_trigger then
+			if trigger_type == "Remove" then
+				item.debug.remove_triggers = (item.debug.remove_triggers or 0) + 1
+			else
+				item.debug.turn_triggers = (item.debug.turn_triggers or 0) + 1
+			end
 			local keep = false
 			if type(params.Function) == "function" then
 				local ok, ret = pcall(params.Function, trigger_type, ent)
@@ -73,6 +83,40 @@ function item.release(token)
 	end
 	item.by_token[token] = nil
 	return false
+end
+
+--- Morph / SUPERSEDE：显式切断 watcher，不等下一帧轮询猜 Remove。
+--- same GetPtrHash 仍可能；业务应在 release 后为新 lifetime 重新 try_hold。
+function item.release_entity(ent, key)
+	if not ent then return 0 end
+	local count = 0
+	for i = #item.holder_buffer, 1, -1 do
+		local record = item.holder_buffer[i]
+		local same = auxi.check_for_the_same(record.ent, ent)
+		local key_match = key == nil or record.key == key
+		if same and key_match then
+			remove_index(i)
+			count = count + 1
+		end
+	end
+	return count
+end
+
+function item.get_debug_snapshot()
+	return {
+		active_watchers = #item.holder_buffer,
+		remove_triggers = item.debug.remove_triggers or 0,
+		turn_triggers = item.debug.turn_triggers or 0,
+		check_errors = item.debug.check_errors or 0,
+		function_errors = item.debug.function_errors or 0,
+	}
+end
+
+function item.reset_debug_stats()
+	item.debug.check_errors = 0
+	item.debug.function_errors = 0
+	item.debug.remove_triggers = 0
+	item.debug.turn_triggers = 0
 end
 
 function item.clear()

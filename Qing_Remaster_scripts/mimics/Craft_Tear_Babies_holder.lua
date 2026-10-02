@@ -1,5 +1,6 @@
 -- §16.7 第一批：普通泪弹射手 adapter 注册表
 -- 数值按 wiki.gg Repentance+；冷却按实测 30Hz 逻辑帧换算
+local g = require("Qing_Remaster_scripts.core.globals")
 local Craft_Familiar_holder = require("Qing_Remaster_scripts.mimics.Craft_Familiar_holder")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
 local CraftTearColors = require("Qing_Remaster_scripts.others.craft_tear_color_data")
@@ -378,6 +379,10 @@ local function spawn_owned_fly(fam, player, craft_uid, slot)
 end
 
 local function clear_fly_slots_matching(ent)
+	-- Function-level guard: other callers must not reintroduce FindByType during teardown.
+	if not g.is_gameplay_world_active() then
+		return
+	end
 	if not ent then return end
 	local seed = ent.InitSeed
 	local ptr = GetPtrHash(ent)
@@ -464,9 +469,20 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 })
 
 table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_PRE_GAME_EXIT,
+	params = nil,
+	Function = function(_)
+		fly_reclaim_until_frame = -1
+	end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE,
 	params = EntityType.ENTITY_FAMILIAR,
 	Function = function(_, ent)
+		if not g.is_gameplay_world_active() then
+			return
+		end
 		if not ent or ent.Variant ~= FLY_VARIANT then return end
 		clear_fly_slots_matching(ent)
 	end,

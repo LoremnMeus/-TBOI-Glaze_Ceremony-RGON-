@@ -10,8 +10,9 @@ local item = {
 	entity = enums.Items.Colorblindness,
 	own_key = "Item_Colorblindness_",
 	range = 82,
-	hover_time = 20,
-	rate_cooldown = 18,
+	-- Hover / cooldown tick on MC_POST_PLAYER_UPDATE (60 Hz).
+	hover_time = 40,
+	rate_cooldown = 36,
 	flying_items = {},
 	pending_pool_items = {},
 	start_ban_flights = {},
@@ -179,58 +180,32 @@ local function dislike_collectible(player,pickup)
 	spawn_ban_flight(id,pickup.Position,pickup.Position - player.Position)
 end
 
-local function physical_ctrl(ctrlid)
-	return Input.IsButtonPressed(Keyboard.KEY_LEFT_CONTROL,ctrlid) or Input.IsButtonPressed(Keyboard.KEY_RIGHT_CONTROL,ctrlid)
-end
-
-local function keyboard_modifier(ctrlid)
-	return physical_ctrl(ctrlid) or Input.IsActionPressed(ButtonAction.ACTION_DROP,ctrlid)
-end
-
-local function controller_modifier(ctrlid)
-	return Input.IsActionPressed(ButtonAction.ACTION_DROP,ctrlid)
-end
+-- Single vote-action vocabulary. Gameplay + suppression + HUD highlights all read this.
+-- Detection never uses Keyboard.KEY_*; remaps of Drop/Bomb/PillCard are respected.
+local VOTE_ACTIONS = {
+	modifier = ButtonAction.ACTION_DROP,
+	like = ButtonAction.ACTION_BOMB,
+	dislike = ButtonAction.ACTION_PILLCARD,
+}
 
 local function get_vote_input(player)
 	local ctrlid = player.ControllerIndex
-	local d = player:GetData()
-	local e_pressed = Input.IsButtonPressed(Keyboard.KEY_E,ctrlid)
-	local q_pressed = Input.IsButtonPressed(Keyboard.KEY_Q,ctrlid)
-	local shoot_right_pressed = Input.IsActionPressed(ButtonAction.ACTION_SHOOTRIGHT,ctrlid)
-	local shoot_left_pressed = Input.IsActionPressed(ButtonAction.ACTION_SHOOTLEFT,ctrlid)
-	local e_triggered = e_pressed and not d[item.own_key.."key_e_was_pressed"]
-	local q_triggered = q_pressed and not d[item.own_key.."key_q_was_pressed"]
-	local shoot_right_triggered = shoot_right_pressed and not d[item.own_key.."shoot_right_was_pressed"]
-	local shoot_left_triggered = shoot_left_pressed and not d[item.own_key.."shoot_left_was_pressed"]
-	d[item.own_key.."key_e_was_pressed"] = e_pressed or nil
-	d[item.own_key.."key_q_was_pressed"] = q_pressed or nil
-	d[item.own_key.."shoot_right_was_pressed"] = shoot_right_pressed or nil
-	d[item.own_key.."shoot_left_was_pressed"] = shoot_left_pressed or nil
-	if keyboard_modifier(ctrlid) then
-		if e_triggered then return "like" end
-		if q_triggered then return "dislike" end
+	if not Input.IsActionPressed(VOTE_ACTIONS.modifier, ctrlid) then return end
+	if Input.IsActionTriggered(VOTE_ACTIONS.like, ctrlid) then
+		return "like"
 	end
-	if controller_modifier(ctrlid) then
-		if shoot_right_triggered then return "like" end
-		if shoot_left_triggered then return "dislike" end
+	if Input.IsActionTriggered(VOTE_ACTIONS.dislike, ctrlid) then
+		return "dislike"
 	end
 end
 
 local function get_input_state(player)
 	local ctrlid = player.ControllerIndex
-	local state = {
-		keyboard = physical_ctrl(ctrlid) or Input.IsButtonPressed(Keyboard.KEY_E,ctrlid) or Input.IsButtonPressed(Keyboard.KEY_Q,ctrlid),
-		controller = controller_modifier(ctrlid) or Input.IsActionPressed(ButtonAction.ACTION_SHOOTRIGHT,ctrlid) or Input.IsActionPressed(ButtonAction.ACTION_SHOOTLEFT,ctrlid),
-		ctrl = keyboard_modifier(ctrlid),
-		key_like = Input.IsButtonPressed(Keyboard.KEY_E,ctrlid),
-		key_dislike = Input.IsButtonPressed(Keyboard.KEY_Q,ctrlid),
-		drop = Input.IsActionPressed(ButtonAction.ACTION_DROP,ctrlid),
-		shoot_like = Input.IsActionPressed(ButtonAction.ACTION_SHOOTRIGHT,ctrlid),
-		shoot_dislike = Input.IsActionPressed(ButtonAction.ACTION_SHOOTLEFT,ctrlid),
+	return {
+		modifier = Input.IsActionPressed(VOTE_ACTIONS.modifier, ctrlid),
+		like = Input.IsActionPressed(VOTE_ACTIONS.like, ctrlid),
+		dislike = Input.IsActionPressed(VOTE_ACTIONS.dislike, ctrlid),
 	}
-	if state.controller and not state.keyboard then state.mode = "controller"
-	else state.mode = "keyboard" end
-	return state
 end
 
 local function update_hover_state(player,target)
@@ -247,6 +222,28 @@ local function update_hover_state(player,target)
 		d[item.own_key.."hover"] = 0
 	end
 	if (d[item.own_key.."cooldown"] or 0) > 0 then d[item.own_key.."cooldown"] = d[item.own_key.."cooldown"] - 1 end
+end
+
+local function tick_player_vote(player)
+	if player_has_item(player) ~= true or player:AreControlsEnabled() ~= true then
+		update_hover_state(player,nil)
+		player:GetData()[item.own_key.."has_target"] = nil
+		return
+	end
+	local target = find_target(player)
+	update_hover_state(player,target)
+	local d = player:GetData()
+	d[item.own_key.."has_target"] = target ~= nil
+	if target and (d[item.own_key.."cooldown"] or 0) <= 0 then
+		local vote = get_vote_input(player)
+		if vote == "like" then
+			like_collectible(player,target)
+			d[item.own_key.."cooldown"] = item.rate_cooldown
+		elseif vote == "dislike" then
+			dislike_collectible(player,target)
+			d[item.own_key.."cooldown"] = item.rate_cooldown
+		end
+	end
 end
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
@@ -272,21 +269,20 @@ end,
 
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_INPUT_ACTION, params = nil,
 Function = function(_,ent,hook,action)
-	if action ~= ButtonAction.ACTION_DROP and action ~= ButtonAction.ACTION_BOMB and action ~= ButtonAction.ACTION_PILLCARD and action ~= ButtonAction.ACTION_SHOOTLEFT and action ~= ButtonAction.ACTION_SHOOTRIGHT then return end
+	if action ~= VOTE_ACTIONS.modifier and action ~= VOTE_ACTIONS.like and action ~= VOTE_ACTIONS.dislike then return end
 	if ent == nil then return end
 	local player = ent:ToPlayer()
 	if player == nil or player_has_item(player) ~= true then return end
 	local d = player:GetData()
 	if d[item.own_key.."has_target"] ~= true then return end
 	local ctrlid = player.ControllerIndex
+	local modifier_pressed = Input.IsActionPressed(VOTE_ACTIONS.modifier, ctrlid)
+	local like_pressed = Input.IsActionPressed(VOTE_ACTIONS.like, ctrlid)
+	local dislike_pressed = Input.IsActionPressed(VOTE_ACTIONS.dislike, ctrlid)
 	local should_block = false
-	if action == ButtonAction.ACTION_DROP and (physical_ctrl(ctrlid) or Input.IsButtonPressed(Keyboard.KEY_E,ctrlid) or Input.IsButtonPressed(Keyboard.KEY_Q,ctrlid) or Input.IsActionPressed(ButtonAction.ACTION_SHOOTLEFT,ctrlid) or Input.IsActionPressed(ButtonAction.ACTION_SHOOTRIGHT,ctrlid)) then
+	if action == VOTE_ACTIONS.modifier and (like_pressed or dislike_pressed) then
 		should_block = true
-	elseif action == ButtonAction.ACTION_BOMB and keyboard_modifier(ctrlid) then
-		should_block = true
-	elseif action == ButtonAction.ACTION_PILLCARD and keyboard_modifier(ctrlid) then
-		should_block = true
-	elseif (action == ButtonAction.ACTION_SHOOTLEFT or action == ButtonAction.ACTION_SHOOTRIGHT) and Input.IsActionPressed(ButtonAction.ACTION_DROP,ctrlid) then
+	elseif (action == VOTE_ACTIONS.like or action == VOTE_ACTIONS.dislike) and modifier_pressed then
 		should_block = true
 	end
 	if should_block then
@@ -327,46 +323,26 @@ Function = function(_,pickup)
 end,
 })
 
+-- Global VFX / start-of-run ban flights only. Interactive vote sampling is on PLAYER_UPDATE.
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
 Function = function()
-	if #item.start_ban_flights > 0 then
-		local player = Game():GetPlayer(0)
-		if player then
-			for i,id in ipairs(item.start_ban_flights) do
-				local angle = i * 53
-				spawn_ban_flight(id,player.Position + auxi.get_by_rotate(nil,angle,26),auxi.get_by_rotate(nil,angle,1))
-			end
-			item.start_ban_flights = {}
+	if #item.start_ban_flights <= 0 then return end
+	local player = Game():GetPlayer(0)
+	if player then
+		for i,id in ipairs(item.start_ban_flights) do
+			local angle = i * 53
+			spawn_ban_flight(id,player.Position + auxi.get_by_rotate(nil,angle,26),auxi.get_by_rotate(nil,angle,1))
 		end
-	end
-	for playerNum = 1,Game():GetNumPlayers() do
-		local player = Game():GetPlayer(playerNum - 1)
-		if player_has_item(player) and player:AreControlsEnabled() then
-			local target = find_target(player)
-			update_hover_state(player,target)
-			local d = player:GetData()
-			d[item.own_key.."has_target"] = target ~= nil
-			if target and (d[item.own_key.."cooldown"] or 0) <= 0 then
-				local vote = get_vote_input(player)
-				if vote == "like" then
-					like_collectible(player,target)
-					d[item.own_key.."cooldown"] = item.rate_cooldown
-				elseif vote == "dislike" then
-					dislike_collectible(player,target)
-					d[item.own_key.."cooldown"] = item.rate_cooldown
-				end
-			end
-		else
-			update_hover_state(player,nil)
-			player:GetData()[item.own_key.."has_target"] = nil
-		end
+		item.start_ban_flights = {}
 	end
 end,
 })
 
-local function render_text_centered(text,pos,r,g,b,a)
-	Isaac.RenderText(text,pos.X - #text * 3,pos.Y,r,g,b,a)
-end
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
+Function = function(_,player)
+	tick_player_vote(player)
+end,
+})
 
 local function render_prompt_token(text,pos,pressed,base_color,alpha)
 	local color = base_color or {1,1,1}
@@ -374,24 +350,16 @@ local function render_prompt_token(text,pos,pressed,base_color,alpha)
 	Isaac.RenderText(text,pos.X,pos.Y,color[1] * mult,color[2] * mult,color[3] * mult,alpha)
 end
 
-local function render_keyboard_prompt(pos,state,alpha)
-	render_prompt_token("CTRL",pos + Vector(-39,-10),state.ctrl,{1,1,1},alpha)
-	render_prompt_token("+",pos + Vector(-8,-10),state.ctrl,{1,1,1},alpha)
-	render_prompt_token("Q",pos + Vector(5,-10),state.key_dislike,{1,0.35,0.35},alpha)
+-- Display-only default keyboard hint (CTRL + Q / E) for all devices.
+-- Gameplay remains ButtonAction-based and remap-aware; do not branch on ControllerIndex here.
+local function render_vote_prompt(pos,state,alpha)
+	render_prompt_token("CTRL",pos + Vector(-39,-10),state.modifier,{1,1,1},alpha)
+	render_prompt_token("+",pos + Vector(-8,-10),state.modifier,{1,1,1},alpha)
+	render_prompt_token("Q",pos + Vector(5,-10),state.dislike,{1,0.35,0.35},alpha)
 	render_prompt_token("/",pos + Vector(18,-10),false,{1,1,1},alpha)
-	render_prompt_token("E",pos + Vector(29,-10),state.key_like,{0.35,1,0.45},alpha)
-	render_prompt_token("-",pos + Vector(-24,0),state.key_dislike,{1,0.25,0.25},alpha)
-	render_prompt_token("+",pos + Vector(22,0),state.key_like,{0.25,1,0.35},alpha)
-end
-
-local function render_controller_prompt(pos,state,alpha)
-	render_prompt_token("DROP",pos + Vector(-39,-10),state.drop,{1,1,1},alpha)
-	render_prompt_token("+",pos + Vector(-8,-10),state.drop,{1,1,1},alpha)
-	render_prompt_token("<",pos + Vector(5,-10),state.shoot_dislike,{1,0.35,0.35},alpha)
-	render_prompt_token("/",pos + Vector(18,-10),false,{1,1,1},alpha)
-	render_prompt_token(">",pos + Vector(29,-10),state.shoot_like,{0.35,1,0.45},alpha)
-	render_prompt_token("-",pos + Vector(-24,0),state.shoot_dislike,{1,0.25,0.25},alpha)
-	render_prompt_token("+",pos + Vector(22,0),state.shoot_like,{0.25,1,0.35},alpha)
+	render_prompt_token("E",pos + Vector(29,-10),state.like,{0.35,1,0.45},alpha)
+	render_prompt_token("-",pos + Vector(-24,0),state.dislike,{1,0.25,0.25},alpha)
+	render_prompt_token("+",pos + Vector(22,0),state.like,{0.25,1,0.35},alpha)
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_RENDER, params = nil,
@@ -403,12 +371,7 @@ Function = function()
 			local alpha = math.min(1,(d[item.own_key.."hover"] or 0) / item.hover_time)
 			local bob = math.sin(Isaac.GetFrameCount() / 8) * 2
 			local pos = Isaac.WorldToScreen(player.Position + Vector(0,-58 - alpha * 12 + bob)) - Game().ScreenShakeOffset
-			local state = get_input_state(player)
-			if state.mode == "controller" then
-				render_controller_prompt(pos,state,alpha)
-			else
-				render_keyboard_prompt(pos,state,alpha)
-			end
+			render_vote_prompt(pos,get_input_state(player),alpha)
 		end
 	end
 	for i = #item.flying_items,1,-1 do

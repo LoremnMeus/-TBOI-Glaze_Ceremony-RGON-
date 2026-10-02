@@ -69,7 +69,16 @@ Function = function(_,ent)
 	local veldir = ent.Velocity
 	local tgs = auxi.getothers(9,nil,nil,nil,function(et) if (et.Position - ent.Position):Length() < 200 then return true else return false end end)
 	for i = #tgs,1,-1 do local v = tgs[i] if (v.Position - ent.Position):Length() < 20 then 
-		local q = Isaac.Spawn(2,0,0,v.Position,Vector(0,0),player):ToTear() q.FallingAcceleration = v:ToProjectile().FallingAccel q.Height = auxi.offset2height(Vector(0,auxi.height2offset(v:ToProjectile().Height,v:ToProjectile().FallingAccel)),q.FallingAcceleration) q.TearFlags = BitSet128(1<<31,0) q:GetSprite().Color = Color(1,1,1,1,0.5,0.5,0) q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE q:Update()
+		local proj = v:ToProjectile()
+		local q = Isaac.Spawn(2,0,0,v.Position,Vector(0,0),player):ToTear()
+		q.FallingAcceleration = proj.FallingAccel
+		-- 敌弹画面 Y 必须用弹幕公式；再按泪弹公式写回 Tear.Height
+		local visual_y = auxi.height2offset_projectile(proj.Height, proj.FallingAccel)
+		q.Height = auxi.offset2height(Vector(0, visual_y), q.FallingAcceleration)
+		q.TearFlags = BitSet128(1<<31,0)
+		q:GetSprite().Color = Color(1,1,1,1,0.5,0.5,0)
+		q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+		q:Update()
 		v:Remove() end end
 	if auxi.check_all_exists(d[item.own_key.."effect"].target) ~= true then d[item.own_key.."effect"].target = nil end
 	local target = d[item.own_key.."effect"].target 

@@ -6,6 +6,7 @@ local input_holder = require("Qing_Remaster_scripts.others.Input_holder")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -219,7 +220,11 @@ local function apply_spawn_brim_visual(laser, tmpl)
 end
 
 local function setup_fire_brim(player,ent,start_angle,timeout,dmg)
-	local q = player:FireBrimstone(auxi.MakeVector(start_angle),player,1):ToLaser()
+	local q = attack_holder.FireBrimstone(player, auxi.MakeVector(start_angle), {
+		mode = "untracked",
+		Source = player,
+		damage_multiplier = 1,
+	}):ToLaser()
 	q.Parent = ent
 	q.ParentOffset = Vector.Zero
 	q.Position = ent.Position
@@ -505,7 +510,10 @@ Function = function(_,ent,col,low)
 			d[item.own_key.."counter"] = 10 * 30
 			local rd = auxi.random_0()
 			for i = 1,4 do
-				local q = player:FireBrimstone(auxi.get_by_rotate(ent.Velocity,i * 90),nil,0.5)
+				local q = attack_holder.FireBrimstone(player, auxi.get_by_rotate(ent.Velocity, i * 90), {
+					mode = "untracked",
+					damage_multiplier = 0.5,
+				})
 				q.MaxDistance = 50
 				q.Parent = ent
 				q:SetActiveRotation(0,180 * rd,10 * rd,false)

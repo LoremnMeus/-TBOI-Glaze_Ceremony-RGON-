@@ -5,6 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Bomb_holder = require("Qing_Remaster_scripts.mimics.Bomb_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -76,7 +77,11 @@ Function = function(_,ent)
 			ent.PositionOffset = ent.PositionOffset * 0.7 + (auxi.screentop2pos(ent.Position) - ent.Position + Vector(0,d[item.own_key.."effect"].floatrate or 30)) * 0.3
 			if s:IsFinished("Appear") then s:Play("Charge",true) end
 			if s:IsEventTriggered("Fire") then
-				local q = player:FireBrimstone(Vector(0,1),nil,auxi.choose(0.25,0.25,0.5,0.5,0.5,1,1,2))
+				local q = attack_holder.FireBrimstone(player, Vector(0, 1), {
+					mode = "untracked",
+					reason = "shangrila_brim",
+					damage_multiplier = auxi.choose(0.25, 0.25, 0.5, 0.5, 0.5, 1, 1, 2),
+				})
 				q.CollisionDamage = 0 q:SetTimeout(15) q.Mass = 0 q.PositionOffset = Vector(0,0) q.TearFlags = BitSet128(0,0)
 				q.DisableFollowParent = true
 				d[item.own_key.."effect"].linker = q
@@ -104,7 +109,13 @@ Function = function(_,ent)
 				for i = 1,cnt do 
 					local dir = 90 + i * 360/cnt + s.Rotation
 					if auxi.check_all_exists(d[item.own_key.."effect"]["linker"..tostring(i)]) ~= true then
-						local q = player:FireTechLaser(ent.Position,1,auxi.MakeVector(dir),false,true) q.Parent = ent q.PositionOffset = Vector(0,0) q:SetTimeout(120) q.OneHit = false q.MaxDistance = 40 * (d[item.own_key.."effect"].leg or 1.5) q.TearFlags = BitSet128(0,0)
+						local q = attack_holder.FireTechLaser(player, ent.Position, auxi.MakeVector(dir), {
+							mode = "untracked",
+							reason = "shangrila_tech",
+							offset_id = 1,
+							one_hit = true,
+						})
+						q.Parent = ent q.PositionOffset = Vector(0,0) q:SetTimeout(120) q.OneHit = false q.MaxDistance = 40 * (d[item.own_key.."effect"].leg or 1.5) q.TearFlags = BitSet128(0,0)
 						d[item.own_key.."effect"]["linker"..tostring(i)] = q
 					end
 					local q = d[item.own_key.."effect"]["linker"..tostring(i)]

@@ -633,11 +633,15 @@ Function = function(_,ent)
 			ent.PositionOffset = ent.Parent.PositionOffset
 		end
 		if ent.Parent.EntityCollisionClass == EntityCollisionClass.ENTCOLL_NONE then
-			d[item.own_key.."entitycollisionclass_succ2"] = d[item.own_key.."entitycollisionclass_succ2"] or Attribute_holder.try_hold_attribute(ent,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
-		else Attribute_holder.try_rewind_attribute(ent,"EntityCollisionClass",d[item.own_key.."entitycollisionclass_succ2"]) d[item.own_key.."entitycollisionclass_succ2"] = nil end
+			Attribute_holder.ensure_hold_token(ent, d, item.own_key.."entitycollisionclass_succ2", "EntityCollisionClass", EntityCollisionClass.ENTCOLL_NONE)
+		elseif not Attribute_holder.rewind_hold_token(ent, d, item.own_key.."entitycollisionclass_succ2", "EntityCollisionClass") then
+			Attribute_holder.force_clear_freeze_entity(ent, {grid_collision = false})
+		end
 	else
 		if d[item.own_key.."Posoffset"] then ent.PositionOffset = d[item.own_key.."Posoffset"] d[item.own_key.."Posoffset"] = nil end
-		if d[item.own_key.."entitycollisionclass_succ2"] then Attribute_holder.try_rewind_attribute(ent,"EntityCollisionClass",d[item.own_key.."entitycollisionclass_succ2"]) d[item.own_key.."entitycollisionclass_succ2"] = nil end
+		if not Attribute_holder.rewind_hold_token(ent, d, item.own_key.."entitycollisionclass_succ2", "EntityCollisionClass") then
+			Attribute_holder.force_clear_freeze_entity(ent, {grid_collision = false})
+		end
 	end
 	for i = 1,1 do if d[item.own_key.."Doll"] then
 		local info = ent:GetData()[item.own_key.."Doll"] 
@@ -685,7 +689,7 @@ Function = function(_,ent)
 				d[item.own_key.."Linker"] = d[item.own_key.."Linker"] or item.spawn_shadow_link(ent.Position,{Target = ent,main = true,})
 				local d2 = d[item.own_key.."Linker"]:GetData()
 				if ent.FrameCount > 5 then d2[item.own_key.."MoveOver"] = 1 end
-				d[item.own_key.."freeze_succ"] = d[item.own_key.."freeze_succ"] or Attribute_holder.try_hold_attribute(ent,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+				d[item.own_key.."freeze_succ"] = Attribute_holder.ensure_hold_token(ent, d, item.own_key.."freeze_succ", "EntityFlag_FLAG_FREEZE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
 			end
 		end
 	end end
@@ -838,8 +842,8 @@ Function = function(_,ent)
 			local d2 = targ:GetData()
 			targ.PositionOffset = ent.Position - targ.Position
 			if targ.PositionOffset:Length() > 10 then 
-				d2[item.own_key.."entitycollisionclass_succ"] = d2[item.own_key.."entitycollisionclass_succ"] or Attribute_holder.try_hold_attribute(targ,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
-				d2[item.own_key.."gridcollisionclass_succ"] = d2[item.own_key.."gridcollisionclass_succ"] or Attribute_holder.try_hold_attribute(targ,"GridCollisionClass",EntityGridCollisionClass.GRIDCOLL_NONE)
+				Attribute_holder.ensure_hold_token(targ, d2, item.own_key.."entitycollisionclass_succ", "EntityCollisionClass", EntityCollisionClass.ENTCOLL_NONE)
+				Attribute_holder.ensure_hold_token(targ, d2, item.own_key.."gridcollisionclass_succ", "GridCollisionClass", EntityGridCollisionClass.GRIDCOLL_NONE)
 				targ:GetSprite().Color = auxi.AddColor(Color(1,1,1,1),Color(-1,-1,-1,0),1,targ.PositionOffset:Length()/250)
 			end
 			if (d[item.own_key.."MoveOver"] or 0) == 1 then
@@ -900,9 +904,11 @@ Function = function(_,ent)
 					ent.Velocity = dir:Normalized() * math.min(20,dir:Length() * 0.4)
 				end
 				if targ.PositionOffset:Length() < 10 and (d2[item.own_key.."entitycollisionclass_succ"] or d2[item.own_key.."freeze_succ"]) then
-					Attribute_holder.try_rewind_attribute(targ,"EntityFlag_FLAG_FREEZE",d2[item.own_key.."freeze_succ"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) d2[item.own_key.."freeze_succ"] = nil
-					Attribute_holder.try_rewind_attribute(targ,"EntityCollisionClass",d2[item.own_key.."entitycollisionclass_succ"]) d2[item.own_key.."entitycollisionclass_succ"] = nil
-					Attribute_holder.try_rewind_attribute(targ,"GridCollisionClass",d2[item.own_key.."gridcollisionclass_succ"]) d2[item.own_key.."gridcollisionclass_succ"] = nil
+					local failed = false
+					if not Attribute_holder.rewind_hold_token(targ, d2, item.own_key.."freeze_succ", "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then failed = true end
+					if not Attribute_holder.rewind_hold_token(targ, d2, item.own_key.."entitycollisionclass_succ", "EntityCollisionClass") then failed = true end
+					if not Attribute_holder.rewind_hold_token(targ, d2, item.own_key.."gridcollisionclass_succ", "GridCollisionClass") then failed = true end
+					if failed then Attribute_holder.force_clear_freeze_entity(targ) end
 					d2[item.own_key.."Counter"] = auxi.choose(3,4,5,6,7,8)
 				end
 			end

@@ -5,6 +5,9 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local dropping_holder = require("Qing_Remaster_scripts.others.Dropping_holder")
 local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
+local gui = require("Qing_Remaster_scripts.auxiliary.gui")
+local ui = require("Qing_Remaster_scripts.auxiliary.ui")
+local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
 
 local item = {
 	ToCall = {},
@@ -296,15 +299,20 @@ Function = function(_,continue)
 end,
 })
 
-if EID then
-	EID:addDescriptionModifier("qing_book_of_future_progress", function(desc)
-		return desc.ObjType == 5 and desc.ObjVariant == 100 and desc.ObjSubType == item.entity and item.get_progress() > 0
-	end, function(desc)
-		-- 跨局保存的累计品质决定本次仍需抽取的动态数值；静态说明继续由 translate.lua 提供。
-		local remaining = item.goal - item.get_progress()
-		desc.Name = "{{ColorSilver}}-"..tostring(remaining).."{{CR}} "..(desc.Name or "")
-		return desc
-	end)
-end
+-- 主动槽左上角：逃逸后保存的累计品质（有进度才显示）
+local progress_font = Font()
+progress_font:Load("font/luaminioutlined.fnt")
+
+table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.POST_SLOT_RENDER, params = "Active",
+Function = function(_, player, tp, cid, slot)
+	if cid ~= item.entity then return end
+	local progress = item.get_progress()
+	if progress <= 0 then return end
+	local pos = ui.PlayerActiveUIPos(player, slot, auxi.GetPlayerOrder(player), cid)
+	local alpha = slot_render_holder.get_alpha()
+	local col = Color(0.75 * alpha, 0.75 * alpha, 0.85 * alpha, 1)
+	gui.draw_ch(pos + Vector(-16, -16), tostring(progress), 1, 1, auxi.Color_2_KColor(col), true, progress_font)
+end,
+})
 
 return item

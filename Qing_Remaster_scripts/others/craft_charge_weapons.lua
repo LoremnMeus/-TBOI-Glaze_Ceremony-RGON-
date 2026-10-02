@@ -9,6 +9,7 @@
 -- 激光 PO：只跟 Flight.PositionOffset（枪口相对高度 0），见 flight_muzzle_position_offset.md。
 -- 597：不攻击时蓄积、攻击时消耗并临时提高射速；需独立蓄力条。
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
 
@@ -74,7 +75,7 @@ end
 local function craft_uid_of(air)
 	if not air then return nil end
 	local bp = get_blueprint()
-	return air:GetData()[bp.own_key.."craft_uid"]
+	return CraftIdentity.get_uid(air)
 end
 
 local function flight_damage(profile, player)
@@ -591,7 +592,7 @@ table.insert(item.ToCall, {
 	Function = function(_, fam)
 		local Air = get_air_mod()
 		if not fam or not Air or fam.Variant ~= Air.familiar then return end
-		local craft_prof = fam:GetData()[Air.own_key.."craft_profile"]
+		local craft_prof = CraftIdentity.get_profile(fam)
 		if craft_prof then
 			item.render_flight_bars(fam, craft_prof)
 		end

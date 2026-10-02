@@ -35,7 +35,31 @@ local item = {
 		[CollectibleType.COLLECTIBLE_VOODOO_HEAD] = {id = CollectibleType.COLLECTIBLE_VOODOO_HEAD,weigh = 2,},
 		[CollectibleType.COLLECTIBLE_DECAP_ATTACK] = {id = CollectibleType.COLLECTIBLE_DECAP_ATTACK,weigh = 2,},
 	},
+	pending_golden_friend = {},
 }
+
+local friend_titles = {
+	[CollectibleType.COLLECTIBLE_CRICKETS_HEAD] = {zh = "小狗朋友",en = "Puppy Friend"},
+	[CollectibleType.COLLECTIBLE_TAMMYS_HEAD] = {zh = "塔米朋友",en = "Tammy Friend"},
+	[CollectibleType.COLLECTIBLE_BOBS_ROTTEN_HEAD] = {zh = "鲍勃朋友",en = "Bob Friend"},
+	[CollectibleType.COLLECTIBLE_STEVEN] = {zh = "史蒂文朋友",en = "Steven Friend"},
+	[CollectibleType.COLLECTIBLE_GUPPYS_HEAD] = {zh = "嗝屁猫朋友",en = "Guppy Friend"},
+	[CollectibleType.COLLECTIBLE_ABEL] = {zh = "亚伯朋友",en = "Abel Friend"},
+	[CollectibleType.COLLECTIBLE_GOAT_HEAD] = {zh = "山羊朋友",en = "Goat Friend"},
+	[CollectibleType.COLLECTIBLE_FATES_REWARD] = {zh = "命运朋友",en = "Fate Friend"},
+	[CollectibleType.COLLECTIBLE_HEAD_OF_THE_KEEPER] = {zh = "店主朋友",en = "Keeper Friend"},
+	[CollectibleType.COLLECTIBLE_VOODOO_HEAD] = {zh = "巫毒朋友",en = "Voodoo Friend"},
+	[CollectibleType.COLLECTIBLE_DECAP_ATTACK] = {zh = "断头朋友",en = "Decap Friend"},
+}
+
+local function friend_feedback(pos,collectible)
+	local poof = Isaac.Spawn(EntityType.ENTITY_EFFECT,EffectVariant.POOF01,0,pos,Vector.Zero,nil)
+	if poof then poof:GetSprite().Color = Color(1,0.65,0.85,0.85,0.25,0.05,0.2) end
+	SFXManager():Play(SoundEffect.SOUND_POWERUP1,0.85,0,false,1.08)
+	local nearest,best
+	for i = 0,Game():GetNumPlayers()-1 do local p=Game():GetPlayer(i) if p:HasCollectible(item.entity) then local dis=(p.Position-pos):Length() if not best or dis<best then nearest,best=p,dis end end end
+	if nearest then nearest:AnimateHappy() end
+end
 
 local function choose_random_chest(rng)
 	local total_weight = 0
@@ -99,6 +123,7 @@ local function spawn_chest_collectible(pos,collectible,seed)
 	if has_fresh_collectible_near(pos,collectible) then return end
 	local spawn_pos = room:FindFreePickupSpawnPosition(pos,10,true)
 	Isaac.Spawn(EntityType.ENTITY_PICKUP,PickupVariant.PICKUP_COLLECTIBLE,collectible,spawn_pos,Vector(0,0),nil)
+	friend_feedback(spawn_pos,collectible)
 end
 
 local function spawn_random_chests(player)
@@ -123,7 +148,20 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_GET_COLLECTIBLE, params = nil,
 Function = function(_,pool,decrease,seed)
 	if auxi.have_player_has_collectible(item.entity) and pool == ItemPoolType.POOL_GOLDEN_CHEST and Game():GetFrameCount() > 5 then
-		return get_head_collectible(auxi.seed_rng(seed),decrease)
+		local collectible = get_head_collectible(auxi.seed_rng(seed),decrease)
+		if collectible and collectible ~= 0 then item.pending_golden_friend[collectible] = Game():GetFrameCount() end
+		return collectible
+	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = PickupVariant.PICKUP_COLLECTIBLE,
+Function = function(_,pickup)
+	local frame = item.pending_golden_friend[pickup.SubType]
+	-- 金箱子的物品池选择早于开箱动画完成，不能只保留 3 帧。
+	if frame and Game():GetFrameCount() - frame >= 0 and Game():GetFrameCount() - frame <= 90 then
+		item.pending_golden_friend[pickup.SubType] = nil
+		friend_feedback(pickup.Position,pickup.SubType)
 	end
 end,
 })
@@ -145,6 +183,7 @@ Function = function(_,pickup,should_advance)
 	if not auxi.have_player_has_collectible(item.entity) then return end
 	local collectible = get_cached_chest_collectible(pickup)
 	if collectible == nil or collectible == 0 then return end
+	item.pending_golden_friend[collectible] = Game():GetFrameCount()
 	local loot_list = LootList()
 	local rng = get_chest_loot_rng(pickup)
 	loot_list:PushEntry(EntityType.ENTITY_PICKUP,PickupVariant.PICKUP_COLLECTIBLE,collectible,rng:GetSeed(),rng)
@@ -170,6 +209,18 @@ Function = function(_,ent)
 	delay_buffer.addeffe(function(params)
 		spawn_chest_collectible(params.pos,params.collectible,params.seed)
 	end,{pos = pos,collectible = collectible,seed = seed,},1)
+end,
+})
+
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_DESCRIPT_ITEM, params = "Item",
+Function = function(_,player,tp,id,value)
+	local title = friend_titles[id]
+	if title and player and player:HasCollectible(item.entity) then
+		local language = Options and Options.Language or "en"
+		value.Name = (language == "zh" or language == "zh_cn") and title.zh or title.en
+		value.Description = (language == "zh" or language == "zh_cn") and "找到新朋友了！" or "A new friend!"
+		return value
+	end
 end,
 })
 

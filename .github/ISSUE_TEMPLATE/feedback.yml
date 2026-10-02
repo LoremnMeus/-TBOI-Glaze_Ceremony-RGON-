@@ -1,0 +1,40 @@
+name: Feature / Balance / General Feedback
+description: Suggestions about items, characters, numbers, UI, text, story, compatibility, or Wiki mistakes.
+title: "[Feedback] "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        GitHub Issues is the main public channel for play feedback during Alpha, not only program bugs.
+
+        Current public story scope is **Prologue only** (alpha-0.1). Chapter 1 is still in development.
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      options:
+        - Item experience
+        - Character experience
+        - Numbers / balance
+        - UI
+        - Text / translation
+        - Story
+        - Compatibility
+        - Wiki error
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: mod_version
+    attributes:
+      label: Mod version
+      placeholder: alpha-0.1.0
+    validations:
+      required: false
+  - type: textarea
+    id: details
+    attributes:
+      label: Feedback
+    validations:
+      required: true

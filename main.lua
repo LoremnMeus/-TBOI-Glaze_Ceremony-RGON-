@@ -1,5 +1,7 @@
-local item = RegisterMod("QING_REBIRTH",1)
-item.Version = "1.0.3"
+local Version = require("Qing_Remaster_scripts.core.version")
+
+local item = RegisterMod("QING_REBIRTH", 1)
+item.Version = Version.project
 ___QING_REBIRTH___ = {MOD = item,}		--如果需要唯一标识符，请使用该变量
 
 -- math.random 是整个 Lua 环境共享的非确定随机流；必须在任何业务模块加载前播种。
@@ -61,9 +63,9 @@ require("Qing_Remaster_scripts.core.preload_manager").Init()
 local manager = require("Qing_Remaster_scripts.core.manager_manager") manager.Init(item)
 
 if Options.Language == "zh" then
-	print("[琉璃圣典：应许之地] 已加载 (v"..item.Version..")")
+	print("[琉璃圣典：应许之地] 已加载 ("..item.Version..")")
 else
-	print("[Glaze Ceremony: Promised Land] Loaded (v"..item.Version..")")
+	print("[Glaze Ceremony: Promised Land] Loaded ("..item.Version..")")
 end
 
 
@@ -72,7 +74,8 @@ end
 --l local player = Game():GetPlayer(0) local q = Isaac.Spawn(1000, EffectVariant.GENERIC_TRACER, 0, Vector(200,200), Vector(0,0), player):ToEffect() q:FollowParent(player) q.LifeSpan = 10 q.TargetPosition = Vector(100,100)		--瞄准轨迹
 --l local ent = Isaac.Spawn(20, 0, 0, Vector(200,200),Vector(0,0), nil) local player = Game():GetPlayer(0) local q = Isaac.Spawn(865, 10, 0, Vector(200,200),Vector(0,0), nil) q.Parent = player q.Target = ent local s = q:GetSprite() for i = 0,1 do s:ReplaceSpritesheet(i,"gfx/effects/linkers/dark_linker.png") end s:LoadGraphics()		--连接线
 --l local e1 = Isaac.Spawn(1000,2338,0,Vector(200,0),Vector(0,0),nil) local e2 = Isaac.Spawn(1000,2338,0,Vector(200,400),Vector(0,0),nil) local q = Isaac.Spawn(865, 10, 0, Vector(200,200),Vector(0,0), nil) q.Parent = e1 q.Target = e2 local s = q:GetSprite() for i = 0,1 do s:ReplaceSpritesheet(i,"gfx/effects/linkers/dark_linker.png") end s:LoadGraphics()
---l local entities = Isaac.GetRoomEntities() for _,entity in pairs(entities) do if entity.Type == 1000 then print(entity.Type.."-"..entity.Variant.."-"..entity.SubType) end end
+--l local entities = Isaac.GetRoomEntities() for _,entity in pairs(entities) do if entity.Type == 5 then print(entity.Type.."-"..entity.Variant.."-"..entity.SubType) end end
+--l local entities = Isaac.GetRoomEntities() local t= nil for _,entity in pairs(entities) do if entity.Type == 3 then t = entity end end
 --l local desc = Game():GetLevel():GetRoomByIdx(84) desc.Data.Type = 5
 --l local desc = Game():GetCurrentRoomDesc()
 --l local hw = RegisterMod("HelloWord",1) hw:AddCallback(ModCallbacks.MC_PRE_ROOM_ENTITY_SPAWN, function(_,tp,vr,st,gid,seed) print(seed) end)
@@ -92,9 +95,9 @@ end
 function item:Init(continued)
 	if continued then
 		if Options.Language == "zh" then
-			print("[琉璃圣典：应许之地] 已继续 (v"..item.Version..")")
+			print("[琉璃圣典：应许之地] 已继续 ("..item.Version..")")
 		else
-			print("[Glaze Ceremony: Promised Land] Continued (v"..item.Version..")")
+			print("[Glaze Ceremony: Promised Land] Continued ("..item.Version..")")
 		end
 	end
 end

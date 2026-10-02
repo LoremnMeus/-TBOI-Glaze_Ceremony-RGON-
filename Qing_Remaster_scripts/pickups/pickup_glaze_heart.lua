@@ -7,6 +7,7 @@ local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local glaze_curse = require("Qing_Remaster_scripts.pickups.pickup_glaze_curse")
 local Heart_holder = require("Qing_Remaster_scripts.mimics.Heart_holder")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 
 local item = {
 	pickup = enums.Pickups.Glaze_heart,
@@ -90,7 +91,7 @@ function item.try_collect(player,ent,toHeal)
 		toplay.id = SoundEffect.SOUND_SUPERHOLY
 	else return nil end
 	sound_tracker.PlayStackedSound(toplay.id,toplay.vol,toplay.pit,false,0,2)
-	glaze_crown.notify_pickup(player)
+	glaze_crown.notify_pickup(player, ent and ent.Position)
 	return true
 end
 
@@ -110,7 +111,10 @@ Function = function(_,ent, col, low)
 			if should_collect == true then
 				glaze_curse.cast_a_glaze(player,ent)ent.Velocity = Vector(0,0)
 				ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-				auxi.remove_others_option_pickup(ent)
+				option_index_holder.commit_selection(ent, player, {
+					skip_will_collect = true,
+					remove_siblings = true,
+				})
 				if ent:IsShopItem() then auxi.buy_a_pickup(ent,player)
 				else ent:GetSprite():Play("Collect", true) end
 				return true

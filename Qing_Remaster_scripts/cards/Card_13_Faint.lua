@@ -72,7 +72,7 @@ Function = function(_,ent,col,low)
 					delay_buffer.addeffe(function(params)
 						local n_entity = Isaac.GetRoomEntities()
 						for u,v in pairs(n_entity) do
-							if v.Type == 5 and ent.Variant == 380 then
+							if v.Type == 5 and v.Variant == 380 then
 								if consistance_holder.try_check_entity(v,item.own_key) then v:Remove() end
 							end
 						end
@@ -123,13 +123,14 @@ Function = function(_,cardtype,player,useFlags)
 		s:Load("gfx/cards/cd13_Faint_Bed.anm2",true)
 		s:Play("Appear",true)
 		q.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-		local d = q:GetData()
+		local player_data = player:GetData()
+		local bed_data = q:GetData()
 		consistance_holder.try_hold_entity(q,item.own_key)
-		if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then d[item.own_key.."effect2"] = true end
+		if player_data.tarot_cloth_used and player_data.tarot_cloth_used == cardtype then bed_data[item.own_key.."effect2"] = true end
 		if rng:RandomInt(1000) > 800 then
 			s:ReplaceSpritesheet(0,"gfx/effects/isaacbed_barren.png")
 			s:LoadGraphics()
-			d[item.own_key.."effect3"] = true
+			bed_data[item.own_key.."effect3"] = true
 		end
 	end
 end,

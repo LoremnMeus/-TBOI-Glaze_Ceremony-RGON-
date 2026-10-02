@@ -5,7 +5,6 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
-local glaze_enemy = require("Qing_Remaster_scripts.pickups.pickup_glaze_enemy")
 
 local item = {
 	familiar = {Variant = 73,SubType = 0,},
@@ -16,14 +15,10 @@ local item = {
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_FAMILIAR_COLLISION, params = item.familiar.Variant,
 Function = function(_,ent, col, low)
 	if ent.Variant == item.familiar.Variant then
-		local should_glaze = glaze_crown.any_infect()
 		local d = ent:GetData()
 		if d.is_glazed_familiar and d.is_glazed_familiar == true then
 			if col:IsVulnerableEnemy() and col:IsActiveEnemy() and (not col:HasEntityFlags(EntityFlag.FLAG_FRIENDLY)) and col:CanShutDoors() == true then
 				col:AddFreeze(EntityRef(ent),90)
-				if should_glaze then
-					glaze_enemy.Make_Glazed_Enemy(col)
-				end
 				d.is_glazed_familiar = false
 			end
 		end
@@ -34,14 +29,10 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_FAMILIAR_COLLISION, params = item.familiar2.Variant,
 Function = function(_,ent, col, low)
 	if ent.Variant == item.familiar2.Variant then
-		local should_glaze = glaze_crown.any_infect()
 		local d = ent:GetData()
 		if d.is_glazed_familiar and d.is_glazed_familiar == true then
 			if col:IsVulnerableEnemy() and col:IsActiveEnemy() and not col:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) and col:CanShutDoors() == true then
 				col:AddFreeze(EntityRef(ent),60)
-				if should_glaze then
-					glaze_enemy.Make_Glazed_Enemy(col)
-				end
 				d.is_glazed_familiar = false
 			end
 		end

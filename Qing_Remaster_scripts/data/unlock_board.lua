@@ -6,11 +6,11 @@ return {
 	boss_columns = {
 		{
 			key = "GlazeNormal",
-			label = "琉璃（普通）",
+			label = "琉璃王子（普通）",
 		},
 		{
 			key = "GlazeHard",
-			label = "琉璃（困难）",
+			label = "琉璃王子（困难）",
 		},
 		{
 			key = "ZeisNormal",
@@ -291,7 +291,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：琉璃王子（结局2）
+			-- 解锁条件：琉璃王子
 			["custom_col_1784813595360"] = {
 				{
 					uid = "Glaze_Mushroom",
@@ -332,12 +332,12 @@ return {
 			-- 解锁条件：究极贪婪
 			["Greedier"] = {
 				{
-					uid = "Giant_Punch",
-					id = "10",
-					enum_key = "Giant_Punch",
-					name = "Giant Punch",
-					kind = "passive",
-					content_type = "Item",
+					uid = "card:Oblivion",
+					id = "2435",
+					enum_key = "Oblivion",
+					name = "0 - Oblivion",
+					kind = "card",
+					content_type = "Card",
 				},
 			},
 		},
@@ -431,10 +431,10 @@ return {
 			-- 解锁条件：贪婪模式
 			["GreedMode"] = {
 				{
-					uid = "Fate_s_Draw",
-					id = "45",
-					enum_key = "Fate_s_Draw",
-					name = "Fate's Draw",
+					uid = "Qing_s_Faceted_Market_Diamond",
+					id = "167",
+					enum_key = "Qing_Faceted_Market_Diamond",
+					name = "Qing's Faceted Market Diamond",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -472,14 +472,6 @@ return {
 			-- 解锁条件：死寂
 			["Hush"] = {
 				{
-					uid = "Philosopher_s_stone",
-					id = "97",
-					enum_key = "Philosopher_s_stone",
-					name = "Philosopher's stone",
-					kind = "active",
-					content_type = "Item",
-				},
-				{
 					uid = "card:Qing_s_Soul",
 					id = "2360",
 					enum_key = "Qing_s_Soul",
@@ -488,7 +480,7 @@ return {
 					content_type = "Card",
 				},
 			},
-			-- 解锁条件：琉璃王子（结局2）
+			-- 解锁条件：琉璃王子
 			["custom_col_1784813595360"] = {
 				{
 					uid = "More_Options",
@@ -502,12 +494,12 @@ return {
 			-- 解锁条件：究极贪婪
 			["Greedier"] = {
 				{
-					uid = "Apocalypse",
-					id = "30",
-					enum_key = "Tianyi",
-					name = "Apocalypse",
-					kind = "passive",
-					content_type = "Item",
+					uid = "card:Oblivion_r",
+					id = "2436",
+					enum_key = "Oblivion_r",
+					name = "0 - Oblivion?",
+					kind = "card",
+					content_type = "Card",
 				},
 			},
 			-- 解锁条件：全标记
@@ -565,7 +557,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：琉璃王子（结局2）
+			-- 解锁条件：琉璃王子
 			["custom_col_1784813595360"] = {
 				{
 					uid = "Glaze_Mirror",
@@ -613,6 +605,17 @@ return {
 					id = "141",
 					enum_key = "Kaitian",
 					name = "Kaitian",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：精神错乱
+			["Delirium"] = {
+				{
+					uid = "Mental_Disorder",
+					id = "117",
+					enum_key = "Mental_Disorder",
+					name = "Mental Disorder",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -683,6 +686,17 @@ return {
 					content_type = "Card",
 				},
 			},
+			-- 解锁条件：阿莱斯特
+			["custom_col_1788544736302"] = {
+				{
+					uid = "card:Hierophant_r",
+					id = "2407",
+					enum_key = "Hierophant_r",
+					name = "V - The Hierophant?",
+					kind = "card",
+					content_type = "Card",
+				},
+			},
 		},
 		-- 模组角色：annA
 		["annA"] = {
@@ -738,6 +752,17 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：撒旦
+			["Satan"] = {
+				{
+					uid = "Giant_Punch",
+					id = "10",
+					enum_key = "Giant_Punch",
+					name = "Giant Punch",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：Boss Rush
 			["BossRush"] = {
 				{
@@ -790,6 +815,17 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：阿莱斯特
+			["custom_col_1788544736302"] = {
+				{
+					uid = "card:Emperor_r",
+					id = "2406",
+					enum_key = "Emperor_r",
+					name = "IV - The Emperor?",
+					kind = "card",
+					content_type = "Card",
+				},
+			},
 		},
 		-- 模组角色：Tecro
 		["Tecro"] = {
@@ -800,6 +836,17 @@ return {
 					id = "120",
 					enum_key = "Ritual_Sting",
 					name = "Ritual Sting",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：琉璃王子
+			["custom_col_1784813595360"] = {
+				{
+					uid = "Philosopher_s_stone",
+					id = "97",
+					enum_key = "Philosopher_s_stone",
+					name = "Philosopher's stone",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -823,6 +870,17 @@ return {
 					enum_key = "Book_of_Rune",
 					name = "Book of Rune",
 					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：死寂
+			["Hush"] = {
+				{
+					uid = "Perhaps_Chosen",
+					id = "173",
+					enum_key = "Perhaps_Chosen",
+					name = "Perhaps Chosen",
+					kind = "passive",
 					content_type = "Item",
 				},
 			},
@@ -870,17 +928,6 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：贪婪模式
-			["GreedMode"] = {
-				{
-					uid = "Qing_s_Faceted_Market_Diamond",
-					id = "167",
-					enum_key = "Qing_Faceted_Market_Diamond",
-					name = "Qing's Faceted Market Diamond",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
 			-- 解锁条件：祸兽
 			["Beast"] = {
 				{
@@ -903,7 +950,18 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：六使徒（结局3）
+			-- 解锁条件：撒旦
+			["Satan"] = {
+				{
+					uid = "Pendulum_Star",
+					id = "54",
+					enum_key = "Pendulum_Star",
+					name = "Pendulum Star",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：六使徒
 			["custom_col_1784816386034"] = {
 				{
 					uid = "trinket:Puncture_Symbol",
@@ -923,6 +981,17 @@ return {
 					name = "Tecrorun",
 					kind = "player",
 					content_type = "Player",
+				},
+			},
+			-- 解锁条件：阿莱斯特
+			["custom_col_1788544736302"] = {
+				{
+					uid = "card:Hierophant",
+					id = "2385",
+					enum_key = "Hierophant",
+					name = "V - The Hierophant",
+					kind = "card",
+					content_type = "Card",
 				},
 			},
 		},
@@ -1068,7 +1137,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：六使徒（结局3）
+			-- 解锁条件：六使徒
 			["custom_col_1784816386034"] = {
 				{
 					uid = "trinket:Transition_Symbol",
@@ -1222,7 +1291,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：六使徒（结局3）
+			-- 解锁条件：六使徒
 			["custom_col_1784816386034"] = {
 				{
 					uid = "trinket:Adhesive_Symbol",
@@ -1233,20 +1302,28 @@ return {
 					content_type = "Trinket",
 				},
 			},
+			-- 解锁条件：阿莱斯特
+			["custom_col_1788544736302"] = {
+				{
+					uid = "card:Lure",
+					id = "2391",
+					enum_key = "Lure",
+					name = "XI - Lure",
+					kind = "card",
+					content_type = "Card",
+				},
+				{
+					uid = "card:Lure_r",
+					id = "2413",
+					enum_key = "Lure_r",
+					name = "XI - Lure?",
+					kind = "card",
+					content_type = "Card",
+				},
+			},
 		},
 		-- 模组角色：Anna
 		["Anna"] = {
-			-- 解锁条件：琉璃王子（结局2）
-			["custom_col_1784813595360"] = {
-				{
-					uid = "Pendulum_Star",
-					id = "54",
-					enum_key = "Pendulum_Star",
-					name = "Pendulum Star",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
 			-- 解锁条件：超级撒旦
 			["MegaSatan"] = {
 				{
@@ -1313,6 +1390,17 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：精神错乱
+			["Delirium"] = {
+				{
+					uid = "Destiny_Anchor",
+					id = "127",
+					enum_key = "Destiny_Anchor",
+					name = "Destiny Anchor",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：???
 			["BlueBaby"] = {
 				{
@@ -1335,7 +1423,18 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：六使徒（结局3）
+			-- 解锁条件：祸兽
+			["Beast"] = {
+				{
+					uid = "Apocalypse",
+					id = "30",
+					enum_key = "Tianyi",
+					name = "Apocalypse",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：六使徒
 			["custom_col_1784816386034"] = {
 				{
 					uid = "trinket:Hoarding_Symbol",
@@ -1355,6 +1454,17 @@ return {
 					name = "annA",
 					kind = "player",
 					content_type = "Player",
+				},
+			},
+			-- 解锁条件：阿莱斯特
+			["custom_col_1788544736302"] = {
+				{
+					uid = "card:Emperor",
+					id = "2384",
+					enum_key = "Emperor",
+					name = "IV - The Emperor",
+					kind = "card",
+					content_type = "Card",
 				},
 			},
 		},
@@ -1481,7 +1591,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：六使徒（结局3）
+			-- 解锁条件：六使徒
 			["custom_col_1784816386034"] = {
 				{
 					uid = "trinket:Straining_Symbol",
@@ -1602,6 +1712,17 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：Boss Rush
+			["BossRush"] = {
+				{
+					uid = "Fate_s_Draw",
+					id = "45",
+					enum_key = "Fate_s_Draw",
+					name = "Fate's Draw",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：祸兽
 			["Beast"] = {
 				{
@@ -1613,7 +1734,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：六使徒（结局3）
+			-- 解锁条件：六使徒
 			["custom_col_1784816386034"] = {
 				{
 					uid = "trinket:Allocation_Symbol",
@@ -1668,7 +1789,7 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：琉璃王子（结局2）
+			-- 解锁条件：琉璃王子
 			["custom_col_1784813595360"] = {
 				{
 					uid = "It_s_a_trick",
@@ -1758,6 +1879,17 @@ return {
 					content_type = "Card",
 				},
 			},
+			-- 解锁条件：精神错乱
+			["Delirium"] = {
+				{
+					uid = "Paranoia",
+					id = "118",
+					enum_key = "Paranoia",
+					name = "Paranoia",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：母亲
 			["Mother"] = {
 				{
@@ -1836,7 +1968,7 @@ return {
 	boss_unlocks = {
 		-- 原版角色：以撒
 		["Isaac"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "card:Glaze_dice_shard",
@@ -1845,17 +1977,6 @@ return {
 					name = "Glazed Dice Shard",
 					kind = "card",
 					content_type = "Card",
-				},
-			},
-			-- 模组 Boss 击破标记：琉璃（困难）
-			["GlazeHard"] = {
-				{
-					uid = "Paranoia",
-					id = "118",
-					enum_key = "Paranoia",
-					name = "Paranoia",
-					kind = "passive",
-					content_type = "Item",
 				},
 			},
 			-- 模组 Boss 击破标记：泽伊斯（普通）
@@ -1883,7 +2004,7 @@ return {
 		},
 		-- 原版角色：抹大拉
 		["Magdalene"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Heart",
@@ -1919,7 +2040,7 @@ return {
 		},
 		-- 原版角色：该隐
 		["Cain"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Key",
@@ -1944,14 +2065,6 @@ return {
 			-- 模组 Boss 击破标记：阿莱斯特
 			["custom_col_1785574945065"] = {
 				{
-					uid = "card:Hierophant",
-					id = "2385",
-					enum_key = "Hierophant",
-					name = "V - The Hierophant",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
 					uid = "card:Adjustment",
 					id = "2388",
 					enum_key = "Adjustment",
@@ -1963,7 +2076,7 @@ return {
 		},
 		-- 原版角色：犹大
 		["Judas"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Enemy",
@@ -1988,14 +2101,6 @@ return {
 			-- 模组 Boss 击破标记：阿莱斯特
 			["custom_col_1785574945065"] = {
 				{
-					uid = "card:Emperor",
-					id = "2384",
-					enum_key = "Emperor",
-					name = "IV - The Emperor",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
 					uid = "card:Art_r",
 					id = "2418",
 					enum_key = "Art_r",
@@ -2007,7 +2112,7 @@ return {
 		},
 		-- 原版角色：???
 		["BlueBaby"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Poop",
@@ -2016,17 +2121,6 @@ return {
 					name = "Glaze big poop",
 					kind = "pickup",
 					content_type = "Pickup",
-				},
-			},
-			-- 模组 Boss 击破标记：琉璃（困难）
-			["GlazeHard"] = {
-				{
-					uid = "Destiny_Anchor",
-					id = "127",
-					enum_key = "Destiny_Anchor",
-					name = "Destiny Anchor",
-					kind = "active",
-					content_type = "Item",
 				},
 			},
 			-- 模组 Boss 击破标记：泽伊斯（普通）
@@ -2054,7 +2148,7 @@ return {
 		},
 		-- 原版角色：夏娃
 		["Eve"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Bomb",
@@ -2106,7 +2200,7 @@ return {
 		},
 		-- 原版角色：参孙
 		["Samson"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Chest",
@@ -2135,14 +2229,6 @@ return {
 					id = "2387",
 					enum_key = "Chariot",
 					name = "VII - Chariot",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
-					uid = "card:Lure",
-					id = "2391",
-					enum_key = "Lure",
-					name = "XI - Lure",
 					kind = "card",
 					content_type = "Card",
 				},
@@ -2200,7 +2286,7 @@ return {
 		},
 		-- 原版角色：伊甸
 		["Eden"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Grabbag",
@@ -2209,17 +2295,6 @@ return {
 					name = "Glaze grabbag",
 					kind = "pickup",
 					content_type = "Pickup",
-				},
-			},
-			-- 模组 Boss 击破标记：琉璃（困难）
-			["GlazeHard"] = {
-				{
-					uid = "Mental_Disorder",
-					id = "117",
-					enum_key = "Mental_Disorder",
-					name = "Mental Disorder",
-					kind = "passive",
-					content_type = "Item",
 				},
 			},
 			-- 模组 Boss 击破标记：泽伊斯（普通）
@@ -2297,7 +2372,7 @@ return {
 		},
 		-- 原版角色：店主
 		["Keeper"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Coin",
@@ -2333,7 +2408,7 @@ return {
 		},
 		-- 原版角色：亚玻伦
 		["Apollyon"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Spider",
@@ -2399,7 +2474,7 @@ return {
 		},
 		-- 原版角色：伯大尼
 		["Bethany"] = {
-			-- 模组 Boss 击破标记：琉璃（普通）
+			-- 模组 Boss 击破标记：琉璃王子（普通）
 			["GlazeNormal"] = {
 				{
 					uid = "pickup:Glaze_Battery",
@@ -2491,14 +2566,6 @@ return {
 			-- 模组 Boss 击破标记：阿莱斯特
 			["custom_col_1785574945065"] = {
 				{
-					uid = "card:Hierophant_r",
-					id = "2407",
-					enum_key = "Hierophant_r",
-					name = "V - The Hierophant?",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
 					uid = "card:Adjustment_r",
 					id = "2410",
 					enum_key = "Adjustment_r",
@@ -2517,14 +2584,6 @@ return {
 					id = "2394",
 					enum_key = "Art",
 					name = "XIV - Art",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
-					uid = "card:Emperor_r",
-					id = "2406",
-					enum_key = "Emperor_r",
-					name = "IV - The Emperor?",
 					kind = "card",
 					content_type = "Card",
 				},
@@ -2583,14 +2642,6 @@ return {
 					id = "2409",
 					enum_key = "Chariot_r",
 					name = "VII - The Chariot?",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
-					uid = "card:Lure_r",
-					id = "2413",
-					enum_key = "Lure_r",
-					name = "XI - Lure?",
 					kind = "card",
 					content_type = "Card",
 				},
@@ -2762,17 +2813,12 @@ return {
 		},
 		{
 			key = "DefeatGlaze",
-			label = "击败Glaze",
+			label = "击败琉璃王子",
 			category = "Others",
 		},
 		{
 			key = "DefeatZennith",
 			label = "击败zennith",
-			category = "Others",
-		},
-		{
-			key = "custom_event_1785574291152",
-			label = "击败乞丐国王",
 			category = "Others",
 		},
 		{
@@ -2875,7 +2921,7 @@ return {
 					content_type = "Card",
 				},
 			},
-			-- 特殊解锁条件：击败Glaze
+			-- 特殊解锁条件：击败琉璃王子
 			["DefeatGlaze"] = {
 				{
 					uid = "Crown_of_the_Glaze",
@@ -2899,16 +2945,8 @@ return {
 					note = "击败Zenith女士后解锁",
 				},
 			},
-			-- 特殊解锁条件：击败乞丐国王
+			-- 特殊解锁条件：custom_event_1785574291152
 			["custom_event_1785574291152"] = {
-				{
-					uid = "A_Shard_of_Coin",
-					id = "16",
-					enum_key = "A_Shard_Of_Coin",
-					name = "A Shard of Coin",
-					kind = "passive",
-					content_type = "Item",
-				},
 			},
 			-- 特殊解锁条件：用尽恶魔胸针
 			["custom_event_1786539528390"] = {
@@ -2988,6 +3026,14 @@ return {
 			},
 			-- 特殊解锁条件：挑战：不为人知
 			["Invisible"] = {
+				{
+					uid = "Zero_Presence",
+					id = "174",
+					enum_key = "Zero_Presence",
+					name = "Zero Presence",
+					kind = "passive",
+					content_type = "Item",
+				},
 			},
 			-- 特殊解锁条件：挑战：卢浮宫难题
 			["Louvre_puzzle"] = {

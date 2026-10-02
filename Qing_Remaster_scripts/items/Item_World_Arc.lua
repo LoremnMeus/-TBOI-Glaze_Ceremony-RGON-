@@ -5,7 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Imitate_item_holder = require("Qing_Remaster_scripts.callbacks.imitate_item_holder")
-local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder") 
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local item = {
 	ToCall = {},
@@ -44,6 +44,9 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 	local ret = true
 	local d = player:GetData()
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then		--由于提前移除所以不会触发
+		local idx = d.__Index
+		save.elses[item.own_key.."Record"] = save.elses[item.own_key.."Record"] or {}
+		save.elses[item.own_key.."Record"][idx] = save.elses[item.own_key.."Record"][idx] or {}
 		local colid = auxi.random_in_table(item.Item_list,rng)
 		table.insert(save.elses[item.own_key.."Record"][idx],#save.elses[item.own_key.."Record"][idx] + 1,colid)
 		d[item.own_key.."Record"] = d[item.own_key.."Record"] or {}
@@ -78,7 +81,7 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 		end
 		local sgid = auxi.random_in_table(tgs,rng)
 		save.elses[item.own_key.."Find"][sgid] = (save.elses[item.own_key.."Find"][sgid] or 0) + 1
-		if auxi.should_spawn_wisp(player) then 
+		if auxi.should_spawn_wisp(player) then
 			local colid = auxi.random_in_table(item.Item_list,rng)
 			player:AddItemWisp(colid,player.Position,true)
 		end
@@ -92,7 +95,7 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.MC_EVA
 Function = function(_,player,colid,value)
 	local d = player:GetData()
 	local idx = d.__Index
-	if save.elses[item.own_key.."Record"] and save.elses[item.own_key.."Record"][idx] then 
+	if save.elses[item.own_key.."Record"] and save.elses[item.own_key.."Record"][idx] then
 		for u,v in pairs(save.elses[item.own_key.."Record"][idx]) do value[v] = (value[v] or 0) + 1 end
 	end
 end,
@@ -143,15 +146,15 @@ Function = function(_)
 	local level = Game():GetLevel()
 	local room = Game():GetRoom()
 	local desc = level:GetCurrentRoomDesc()
-	local lsid = desc.ListIndex 
+	local lsid = desc.ListIndex
 	if lsid >= 0 and desc.SafeGridIndex >= 0 then
 		if (save.elses[item.own_key.."Find"] or {})[lsid] then
-			unique_holder.Hold_for_missing(true) 
-			for i = 1,(save.elses[item.own_key.."Find"][lsid] or 0) do 
-				local q = Isaac.Spawn(5,100,item.entity,room:FindFreePickupSpawnPosition(room:GetRandomPosition(0),10,true),Vector(0,0),nil):ToPickup()
-				auxi.self_morph(q,{5,100,item.entity,})
-			end
-			unique_holder.Hold_for_missing() 
+			unique_holder.with_missing(33, function()
+				for i = 1,(save.elses[item.own_key.."Find"][lsid] or 0) do
+					local q = Isaac.Spawn(5,100,item.entity,room:FindFreePickupSpawnPosition(room:GetRandomPosition(0),10,true),Vector(0,0),nil):ToPickup()
+					auxi.self_morph(q,{5,100,item.entity,})
+				end
+			end)
 			save.elses[item.own_key.."Find"][lsid] = nil
 		end
 	end

@@ -44,22 +44,26 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 		local tg = auxi.get_nearest(n_item)
 		if tg then
 			local succ = true
-			if auxi.should_do_Seija(player) and rng:RandomFloat() > 0.5 then succ = false end
+			if auxi.should_do_Seija(player) and rng:RandomFloat() < 0.75 then succ = false end
 			if succ then
 				for u,v in pairs(n_item) do if u ~= tg.tu then v:AddEntityFlags(EntityFlag.FLAG_NO_QUERY) end end
-				save.elses[item.own_key.."record"] = tg.tg.SubType
-				auxi.self_morph(tg.tg)
-				for i = 1,5 do player:UseCard(81,1|(1<<8)) end
-				local q = Isaac.Spawn(1000,16,2,tg.tg.Position,Vector(0,0),player)
+				local pickup = tg.tg:ToPickup()
+				auxi.self_morph(pickup)
+				-- RGON：直接写入轮换序列；无 API 时才回退以撒的魂石 + PRE_GET_COLLECTIBLE
+				if not item.apply_follow_cycle(pickup) then
+					save.elses[item.own_key.."record"] = pickup.SubType
+					for i = 1,5 do player:UseCard(81,1|(1<<8)) end
+					save.elses[item.own_key.."record"] = nil
+				end
+				local q = Isaac.Spawn(1000,16,2,pickup.Position,Vector(0,0),player)
 				for u,v in pairs(item.light_info) do
-					local q = Isaac.Spawn(1000,EffectVariant.CRACK_THE_SKY,0,tg.tg.Position + v.pos,Vector(0,0),player):ToEffect()
+					local q = Isaac.Spawn(1000,EffectVariant.CRACK_THE_SKY,0,pickup.Position + v.pos,Vector(0,0),player):ToEffect()
 					local s = q:GetSprite()
 					s.Scale = v.Scale
 					s.Color = v.Color
 					s.Rotation = v.Rotation
 					if u == 3 then q:GetData()[item.own_key.."effect"] = {} end
 				end
-				save.elses[item.own_key.."record"] = nil
 				for u,v in pairs(n_item) do v:ClearEntityFlags(EntityFlag.FLAG_NO_QUERY) end
 			else
 				local room = Game():GetRoom()
@@ -133,6 +137,27 @@ function item.get_follow_list(id)
 		cnt = cnt - 1
 	end
 	return id
+end
+
+--- 从当前底座向前回溯 5 个合法道具 id，写入 RGON CollectibleCycle。
+--- 禁止 TryInitOptionCycle：会从道具池自动填槽。成功返回 true。
+function item.apply_follow_cycle(pickup)
+	if not REPENTOGON or not pickup or not pickup.AddCollectibleCycle then
+		return false
+	end
+	local ids = {}
+	local cur = pickup.SubType
+	for _ = 1, 5 do
+		cur = item.get_follow_list(cur)
+		ids[#ids + 1] = cur
+	end
+	if pickup.RemoveCollectibleCycle then
+		pickup:RemoveCollectibleCycle()
+	end
+	for _, cid in ipairs(ids) do
+		pickup:AddCollectibleCycle(cid)
+	end
+	return true
 end
 
 if EID then

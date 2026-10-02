@@ -1,8 +1,8 @@
 <pocketitems>
 	<card type="object" pickup="2359" id="2359" description="Looking for Assimilation" name="Glazed Dice Shard" announcer="400" announcerdelay="3" mimiccharge="8" hud="Glazed Dice Shard"/>
-	<card type="rune" pickup="2360" id="2360" description="Namely Safe" name="Qing's Soul" mimiccharge="4" hud="Qing's Soul" />
-	<card type="object" pickup="2375" id="2375" description="Granting one meal" name="Round trip Rail Ticket" mimiccharge="3" hud="Round trip Rail Ticket"/>
-	<card type="object" pickup="2376" id="2376" description="Welcome again!" name="One way Rail Ticket" mimiccharge="2" hud="One way Rail Ticket" hidden="true"/>
+	<card type="rune" pickup="2360" id="2360" description="Safe, for now" name="Qing's Soul" mimiccharge="4" hud="Qing's Soul" />
+	<card type="object" pickup="2375" id="2375" description="Room and board included!" name="Round trip Rail Ticket" mimiccharge="3" hud="Round trip Rail Ticket"/>
+	<card type="object" pickup="2376" id="2376" description="Take me home!" name="One way Rail Ticket" mimiccharge="2" hud="One way Rail Ticket" hidden="true"/>
 	
 	<card type="tarot" pickup="2378" id="2378" description="May you lose more" name="0 - The Fool" announcer="375" announcerdelay="10" mimiccharge="3" hud="The Fool_"/>
 	<card type="tarot" pickup="2378" id="2379" description="I Will Congeal" name="I - The Witch" mimiccharge="2" hud="The Witch_"/>
@@ -57,14 +57,16 @@
 	<card type="tarot" pickup="2378" id="2426" description="Your long night is coming" name="XIX - The Eclipse" mimiccharge="3" hud="The Eclipse"/>
 	<card type="tarot_reverse" pickup="2379" id="2427" description="Polar Day Reaches Again" name="XIX - The Eclipse?" mimiccharge="6" hud="The Eclipse r"/>
 	
-	<card type="rune" pickup="2421" id="2428" description="I Hate" name="Tecro's Soul" mimiccharge="3" hud="Tecro's Soul" />
-	<card type="rune" pickup="2422" id="2429" description="I Want" name="Anna's Soul" mimiccharge="6" hud="Anna's Soul" />
-	<card type="rune" pickup="2423" id="2430" description="I Know" name="Zeis's Soul" mimiccharge="6" hud="Zeis's Soul" />
+	<card type="rune" pickup="2421" id="2428" description="Envy..." name="Tecro's Soul" mimiccharge="3" hud="Tecro's Soul" />
+	<card type="rune" pickup="2422" id="2429" description="Desire..." name="Anna's Soul" mimiccharge="6" hud="Anna's Soul" />
+	<card type="rune" pickup="2423" id="2430" description="Knowledge..." name="Zeis's Soul" mimiccharge="6" hud="Zeis's Soul" />
 	
-	<card type="tarot" pickup="2378" id="2431" description="From the well" name="XXI - The Profound" mimiccharge="3" hud="The Profound"/>
-	<card type="tarot_reverse" pickup="2379" id="2432" description="No sky nor moon" name="XXI - The Profound?" mimiccharge="12" hud="The Profound r"/>
-	<card type="tarot" pickup="2378" id="2433" description="Deity ceremony" name="V - The Sting" mimiccharge="6" hud="The Sting"/>
+	<card type="tarot" pickup="2378" id="2431" description="Something rises from the well" name="XXI - The Profound" mimiccharge="3" hud="The Profound"/>
+	<card type="tarot_reverse" pickup="2379" id="2432" description="No moonlight reaches these depths" name="XXI - The Profound?" mimiccharge="12" hud="The Profound r"/>
+	<card type="tarot" pickup="2378" id="2433" description="Invocation ritual" name="V - The Sting" mimiccharge="6" hud="The Sting"/>
 	<card type="tarot_reverse" pickup="2379" id="2434" description="Fall to abyss" name="V - The Sting?" mimiccharge="2" hud="The Sting r"/>
+	<card type="tarot" pickup="2378" id="2435" description="Don't forget what this is" name="0 - Oblivion" mimiccharge="12" hud="The Oblivion"/>
+	<card type="tarot_reverse" pickup="2379" id="2436" description="Unlimited Void!" name="0 - Oblivion?" mimiccharge="12" hud="The Oblivion r"/>
 	<!--
 	<card type="tarot" pickup="2378" id="2378" description="Power of balance" name="VIII - Adjustment" mimiccharge="2" hud="Adjustment"/>
 	<card type="tarot" pickup="2378" id="2379" description="Inspire their inner beast" name="XI - Lure" mimiccharge="3" hud="Lure"/>

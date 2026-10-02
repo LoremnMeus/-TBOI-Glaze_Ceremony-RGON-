@@ -165,16 +165,26 @@ function item.fire_delay_laser(pos,dir,params)
 	return q
 end
 
---- 独立生成跟随父体的 Tech X 环（不走 player:FireTechXLaser，避免玩家硫磺火等改写形态）
---- SubType 3 = Ring Follow Parent；Variant THIN_RED = 普通科技环
-function item.fire_follow_techx_ring(params)
+--- Spawn follow-parent tech ring (THIN_RED + RING_FOLLOW_PARENT by default).
+--- Not Tech-X-only: also used for Tech Sword companion rings and similar.
+--- Optional Attack bind: params.attack / params.attack_ctx / params.emitter.
+--- Missing parent + params.expected_attack → untracked (no new_attack); BindMember skipped.
+function item.fire_follow_tech_ring(params)
 	params = params or {}
 	local pos = params.pos or Vector(0, 0)
 	local parent = params.parent
 	local source = params.source or parent
-	local q = Isaac.Spawn(EntityType.ENTITY_LASER, LaserVariant.THIN_RED, 3, pos, Vector(0, 0), source):ToLaser()
-	q.Variant = LaserVariant.THIN_RED
-	q.SubType = 3
+	local variant = params.variant
+	if variant == nil then
+		variant = (LaserVariant and LaserVariant.THIN_RED) or 2
+	end
+	local subtype = params.subtype
+	if subtype == nil then
+		subtype = (LaserSubType and LaserSubType.LASER_SUBTYPE_RING_FOLLOW_PARENT) or 3
+	end
+	local q = Isaac.Spawn(EntityType.ENTITY_LASER, variant, subtype, pos, Vector(0, 0), source):ToLaser()
+	q.Variant = variant
+	q.SubType = subtype
 	if parent then q.Parent = parent end
 	q.Radius = params.radius or 40
 	q.CollisionDamage = params.dmg or 3.5
@@ -185,8 +195,44 @@ function item.fire_follow_techx_ring(params)
 	end
 	q:SetTimeout(params.timeout or 9999)
 	if params.shrink ~= nil then q.Shrink = params.shrink end
+	if params.color then
+		q.Color = params.color
+	end
+	if params.tear_flags ~= nil and q.TearFlags ~= nil then
+		q.TearFlags = params.tear_flags
+	end
+
+	local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+	local attack = params.attack
+	if not attack and params.attack_ctx then
+		attack = params.attack_ctx.attack
+		if not attack and params.attack_ctx.attack_id then
+			attack = attack_holder.GetAttack(params.attack_ctx.attack_id)
+		end
+	end
+	if not attack and params.emitter then
+		attack = select(1, attack_holder.GetAttackForMember(params.emitter))
+	end
+	if not attack and parent then
+		attack = select(1, attack_holder.GetAttackForMember(parent))
+	end
+	if attack and attack.active and not attack.ending then
+		attack_holder.BindMember(attack, q, {
+			role = (params.attack_ctx and params.attack_ctx.role) or "derived",
+			reason = (params.attack_ctx and params.attack_ctx.reason) or "laser_follow_tech_ring",
+			allow_sealed = true,
+		})
+	elseif params.expected_attack then
+		attack_holder.warn_missing_parent_once(
+			"laser_follow_tech_ring",
+			"follow tech ring emitted without parent Attack; left unbound (untracked)."
+		)
+	end
 	return q
 end
+
+-- Legacy name kept for Air Flight / Bomb callers.
+item.fire_follow_techx_ring = item.fire_follow_tech_ring
 
 function item.ProtectLaser(ent)
 	ent:GetData()[item.own_key.."ProtectRecord"] = {} for u,v in pairs(item.records) do ent:GetData()[item.own_key.."ProtectRecord"][u] = ent[u] end

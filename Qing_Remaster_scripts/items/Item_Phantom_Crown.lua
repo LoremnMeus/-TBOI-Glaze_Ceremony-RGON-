@@ -129,7 +129,7 @@ Function = function(_,player)
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
+table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_NEW_ROOM, params = nil,
 Function = function(_)
 	for playerNum = 1,Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)

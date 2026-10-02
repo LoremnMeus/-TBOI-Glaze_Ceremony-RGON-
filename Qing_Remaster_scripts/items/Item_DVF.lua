@@ -69,10 +69,7 @@ local append_room_id_log
 
 -- 仅暂停菜单打开时旁路 shader；房间切换时 IsPaused() 也会为 true，绝不能用来关特效
 local function menu_paused()
-	if REPENTOGON and Game().IsPauseMenuOpen then
-		return Game():IsPauseMenuOpen()
-	end
-	return false
+	return auxi.shader_effect_idle() or auxi.is_pause_menu_open()
 end
 
 local function clear_stale_hub_door_indices(effect)
@@ -1029,8 +1026,8 @@ local function get_pending()
 end
 
 get_squash = function()
-	if item.squash then return item.squash end
-	item.squash = save.elses[item.own_key.."squash"]
+	-- 禁止每帧从 save.elses 懒加载：小退清掉 item.squash 后，若 elses 被存档快照写回，
+	-- 会把 black=1 的 squash 重新挂上，造成菜单/局外永久黑屏。
 	return item.squash
 end
 
@@ -2000,8 +1997,26 @@ Function = function(_)
 end,
 })
 
+-- 小退/退出后菜单仍会跑 GET_SHADER_PARAMS；不消 squash 会把 black=1 挂到非暂停画面
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_PRE_GAME_EXIT, params = nil,
+Function = function(_)
+	set_squash(nil)
+	clear_pending()
+	auxi.set_shader_effect_idle(true)
+end,
+})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_GAME_END, params = nil,
+Function = function(_)
+	set_squash(nil)
+	clear_pending()
+	auxi.set_shader_effect_idle(true)
+end,
+})
+
 table.insert(item.myToCall, {CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_, continue)
+	auxi.set_shader_effect_idle(false)
 	item._door_log_session = nil
 	ensure_door_log_session()
 	append_dvf_door_log({
@@ -2013,13 +2028,12 @@ Function = function(_, continue)
 		note = continue and "continue" or "new_run",
 		continue = continue and true or false,
 	})
+	-- 续关也不恢复中途黑幕；避免上一局 hold/travel 的 black=1 进局即黑
+	save.elses[item.own_key.."squash"] = nil
+	item.squash = nil
 	if not continue then
 		save.elses[item.own_key.."effect"] = nil
 		save.elses[item.own_key.."pending"] = nil
-		save.elses[item.own_key.."squash"] = nil
-		item.squash = nil
-	else
-		item.squash = save.elses[item.own_key.."squash"]
 	end
 	item.foil_ent = nil
 	item.redirect_frame = nil

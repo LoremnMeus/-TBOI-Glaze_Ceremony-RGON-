@@ -58,14 +58,29 @@ local item = {
 	},
 }
 
+-- Kill maps may be absent after Hourglass / rewind wholesale restore.
+local function get_kill_state()
+	local key = item.own_key .. "Kill"
+	if type(save.elses[key]) ~= "table" then
+		save.elses[key] = {}
+	end
+	return save.elses[key]
+end
+
+local function get_kill2_state()
+	local key = item.own_key .. "Kill2"
+	if type(save.elses[key]) ~= "table" then
+		save.elses[key] = {}
+	end
+	return save.elses[key]
+end
+
 function item.Kill_room(slot)
 	local room = Game():GetRoom()
 	local level = Game():GetLevel()
 	local door = room:GetDoor(slot)
 	if door and level:GetRoomByIdx(door.TargetRoomIndex) then
 		local desc = level:GetRoomByIdx(door.TargetRoomIndex)
-		save.elses[item.own_key.."Kill2"] = save.elses[item.own_key.."Kill2"] or {}
-		local ridx = auxi.get_acceptible_index(desc.SafeGridIndex)
 		if desc.Data then
 			if desc.ClearCount > 0 then return end
 			local spawns = desc.Data.Spawns
@@ -131,21 +146,20 @@ end,
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
-	if continue then
-	else
+	if not continue then
 		save.elses[item.own_key.."Kill"] = {}
 		save.elses[item.own_key.."Kill2"] = {}
 	end
-	save.elses[item.own_key.."Kill"] = save.elses[item.own_key.."Kill"] or {}
-	save.elses[item.own_key.."Kill2"] = save.elses[item.own_key.."Kill2"] or {}
+	get_kill_state()
+	get_kill2_state()
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_ROOM_ENTITY_SPAWN, params = nil,
 Function = function(_,tp,vr,st)
 	local ridx = auxi.get_acceptible_index()
-	save.elses[item.own_key.."Kill2"] = save.elses[item.own_key.."Kill2"] or {}
-	if save.elses[item.own_key.."Kill2"][ridx] then return {999,enums.Entities.Remover,0} end
+	local kill2 = get_kill2_state()
+	if kill2[ridx] then return {999,enums.Entities.Remover,0} end
 end,
 })
 
@@ -154,7 +168,7 @@ Function = function(_,rng,pos)
 	if Game():GetRoom():GetType() == 5 then
 		for playerNum = 1, Game():GetNumPlayers() do
 			local player = Game():GetPlayer(playerNum - 1)
-			for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do 
+			for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do
 				 if player:GetActiveItem(slot) == item.entity and auxi.should_real_charge(player,slot) then
 					player:SetActiveCharge(player:GetActiveCharge(slot) + player:GetBatteryCharge(slot) + auxi.get_charge_from_room(),slot)
 					sound_tracker.PlayStackedSound(SoundEffect.SOUND_ITEMRECHARGE,1,1,false,0,2)
@@ -165,7 +179,7 @@ Function = function(_,rng,pos)
 		for playerNum = 1, Game():GetNumPlayers() do
 			local player = Game():GetPlayer(playerNum - 1)
 			if player:GetPlayerType() == enums.Players.Anna then
-				for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do 
+				for slot = ActiveSlot.SLOT_PRIMARY, ActiveSlot.SLOT_POCKET do
 					 if player:GetActiveItem(slot) == item.entity and auxi.should_real_charge(player,slot) then
 						player:SetActiveCharge(player:GetActiveCharge(slot) + player:GetBatteryCharge(slot) + auxi.get_charge_from_room(),slot)
 						sound_tracker.PlayStackedSound(SoundEffect.SOUND_ITEMRECHARGE,1,1,false,0,2)
@@ -181,8 +195,8 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_E
 Function = function(_,ent)
 	if Game():GetRoom():GetFrameCount() == item.delayer[ent.Type] or -1 and not item.ignorers[ent.Type] then
 		local ridx = auxi.get_acceptible_index()
-		save.elses[item.own_key.."Kill"] = save.elses[item.own_key.."Kill"] or {}
-		if save.elses[item.own_key.."Kill"][ridx] then ent:Remove() return end
+		local kill = get_kill_state()
+		if kill[ridx] then ent:Remove() return end
 	end
 end,
 })
@@ -190,8 +204,8 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
 	local ridx = auxi.get_acceptible_index()
-	save.elses[item.own_key.."Kill"] = save.elses[item.own_key.."Kill"] or {}
-	local succ = save.elses[item.own_key.."Kill"][ridx]
+	local kill = get_kill_state()
+	local succ = kill[ridx]
 	if succ then
 		local room = Game():GetRoom()
 		for i = 1,room:GetGridSize() do
@@ -200,11 +214,11 @@ Function = function(_)
 		end
 		room:Update()
 	end
-	save.elses[item.own_key.."Kill"][ridx] = nil
+	kill[ridx] = nil
 	if succ then
 		local room = Game():GetRoom()
 		if room:IsCurrentRoomLastBoss() or (room:GetType() == 5 and auxi.get_acceptible_level() == 9) then
-			local info = item.level_info[auxi.get_acceptible_level()] 
+			local info = item.level_info[auxi.get_acceptible_level()]
 			if info == "Both" then
 				room:SpawnGridEntity(room:GetGridIndex(room:GetCenterPos()) - 1,GridEntityType.GRID_TRAPDOOR,0,1,0)
 				local q = Isaac.Spawn(1000,39,0,room:GetCenterPos() + Vector(40,0),Vector(0,0),nil)
@@ -285,12 +299,14 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 						local q = Isaac.Spawn(1000,enums.Entities.Calamity_ball,0,player.Position,Vector(0,0),nil):ToEffect()
 						local d = q:GetData()
 						local desc = level:GetRoomByIdx(door.TargetRoomIndex)
-						if desc then 
+						if desc then
 							desc.Clear = true
 							local ridx = auxi.get_acceptible_index(desc.SafeGridIndex)
-							save.elses[item.own_key.."Kill"][ridx] = true
-							if save.elses[item.own_key.."Kill2"][ridx] ~= true then d[item.own_key.."Funct"] = function() item.Kill_room(slot) end end
-							save.elses[item.own_key.."Kill2"][ridx] = true
+							local kill = get_kill_state()
+							local kill2 = get_kill2_state()
+							kill[ridx] = true
+							if kill2[ridx] ~= true then d[item.own_key.."Funct"] = function() item.Kill_room(slot) end end
+							kill2[ridx] = true
 							ret = true
 						end
 					end
@@ -335,23 +351,23 @@ Function = function(_,player)
 		if d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] == nil then d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] = Attribute_holder.try_hold_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK)) end
 		if d[item.own_key.."EntityCollision"] == nil then d[item.own_key.."EntityCollision"] = Attribute_holder.try_hold_attribute(player,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)	end
 		if d[item.own_key.."AnnaKiller"].counter == item.moveoffset.mx - 1 then Screen_Filter.add_filter(10) end
-		if d[item.own_key.."AnnaKiller"].counter > item.moveoffset.mx then 
+		if d[item.own_key.."AnnaKiller"].counter > item.moveoffset.mx then
 			local desc = Game():GetLevel():GetRoomByIdx(d[item.own_key.."AnnaKiller"].sgid or -1)
-			if desc then 
+			if desc then
 				Room_holder.Trans_to(desc.SafeGridIndex, -1, RoomTransitionAnim.FADE, player,-1,{On_Arrive = function() 	--d[item.own_key.."AnnaKiller"].dir
 					for playerNum = 1, Game():GetNumPlayers() do
 						local player = Game():GetPlayer(playerNum - 1)
 						player.Position = Game():GetRoom():GetCenterPos()
-						if player:GetData()[item.own_key.."AnnaKiller2"] then 
-							player:GetData()[item.own_key.."AnnaKiller2"].Activate = true 
+						if player:GetData()[item.own_key.."AnnaKiller2"] then
+							player:GetData()[item.own_key.."AnnaKiller2"].Activate = true
 							local s = auxi.load_item(item.entity)
 							player:AnimatePickup(s,true,"LiftItem")
 						end
 					end
 				end,})
-				d[item.own_key.."AnnaKiller2"] = {sel = auxi.choose(1,2,3,4,5,6),} 
+				d[item.own_key.."AnnaKiller2"] = {sel = auxi.choose(1,2,3,4,5,6),}
 			end
-			d[item.own_key.."AnnaKiller"] = nil 
+			d[item.own_key.."AnnaKiller"] = nil
 		end
 	end
 	if d[item.own_key.."AnnaKiller2"] and d[item.own_key.."AnnaKiller2"].Activate then
@@ -360,11 +376,11 @@ Function = function(_,player)
 		d[item.own_key.."AnnaKiller2"].counter = (d[item.own_key.."AnnaKiller2"].counter or 0) + 1
 		local tgpos = player.Position + player_offset_holder.GetPlayerOffset(player) + auxi.mul_t(player.SpriteScale,item.scaler)
 		local rng = player:GetCollectibleRNG(item.entity)
-		if d[item.own_key.."AnnaKiller2"].counter == 45 then 
+		if d[item.own_key.."AnnaKiller2"].counter == 45 then
 			if d[item.own_key.."AnnaKiller2"].sel == 1 then
 				d[item.own_key.."Brimstones"] = d[item.own_key.."Brimstones"] or {}
 				local cnt = auxi.choose(12,16,20,24)
-				for i = 1,cnt do 
+				for i = 1,cnt do
 					local q = Isaac.Spawn(7,1,0,player.Position,Vector(0,0),player):ToLaser()
 					q.PositionOffset = player_offset_holder.GetPlayerOffset(player) + auxi.mul_t(player.SpriteScale,item.scaler)
 					q.CollisionDamage = player.Damage
@@ -374,7 +390,7 @@ Function = function(_,player)
 			if d[item.own_key.."AnnaKiller2"].sel == 4 then
 				d[item.own_key.."Brimstones"] = d[item.own_key.."Brimstones"] or {}
 				local cnt = auxi.choose(6,8,10,12)
-				for i = 1,cnt do 
+				for i = 1,cnt do
 					local q = Isaac.Spawn(7,5,0,player.Position,Vector(0,0),player):ToLaser()
 					q.PositionOffset = player_offset_holder.GetPlayerOffset(player) + auxi.mul_t(player.SpriteScale,item.scaler)
 					q.CollisionDamage = player.Damage
@@ -387,11 +403,11 @@ Function = function(_,player)
 			local tgs = auxi.getenemies()
 			for u,v in pairs(tgs) do Attribute_holder.try_hold_and_rewind_attribute(v,"EntityFlag_FLAG_FEAR",true,30 * 30,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FEAR)) end
 		end
-		if d[item.own_key.."AnnaKiller2"].counter >= 45 and d[item.own_key.."AnnaKiller2"].counter <= 30 * 14 + 15 then 
+		if d[item.own_key.."AnnaKiller2"].counter >= 45 and d[item.own_key.."AnnaKiller2"].counter <= 30 * 14 + 15 then
 			if d[item.own_key.."AnnaKiller2"].sel == 2 then auxi.launch_Missile(room:GetRandomPosition(0),Vector(0,0),nil,{player = player,}) end
 			if d[item.own_key.."AnnaKiller2"].sel == 4 then Isaac.Spawn(1000,19,0,room:GetRandomPosition(0),Vector(0,0),player) end
-			if d[item.own_key.."AnnaKiller2"].sel == 1 then 
-				local q = Isaac.Spawn(1000,19,0,room:GetRandomPosition(0),Vector(0,0),player) 
+			if d[item.own_key.."AnnaKiller2"].sel == 1 then
+				local q = Isaac.Spawn(1000,19,0,room:GetRandomPosition(0),Vector(0,0),player)
 				local d2 = q:GetData()
 				d2[item.own_key.."Brim"] = {}
 				local s2 = q:GetSprite()
@@ -399,9 +415,9 @@ Function = function(_,player)
 				s2:Play("Spotlight",true)
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BLOOD_LASER_LARGE,1,1,false,0,2)
 			end
-			if d[item.own_key.."AnnaKiller2"].sel == 6 and d[item.own_key.."AnnaKiller2"].counter % 5 == 1 then 
+			if d[item.own_key.."AnnaKiller2"].sel == 6 and d[item.own_key.."AnnaKiller2"].counter % 5 == 1 then
 				local cnt = auxi.choose(3,4,5,6)
-				for i = 1,cnt do 
+				for i = 1,cnt do
 					local q = Card_16r_Tower.fire_fake_rocks(player,tgpos,rng)
 					q.DepthOffset = -(player_offset_holder.GetPlayerOffset(player) + auxi.mul_t(player.SpriteScale,item.scaler)).Y + 5
 					q.Velocity = auxi.MakeVector(i/cnt*360 + d[item.own_key.."AnnaKiller2"].counter * 2.7) * 5
@@ -409,18 +425,21 @@ Function = function(_,player)
 					q.GridCollisionClass = 0
 				end
 			end
-			if d[item.own_key.."AnnaKiller2"].sel == 5 and d[item.own_key.."AnnaKiller2"].counter % 5 == 1 then 
+			if d[item.own_key.."AnnaKiller2"].sel == 5 and d[item.own_key.."AnnaKiller2"].counter % 5 == 1 then
 				local cnt = auxi.choose(3,4,5,6)
-				for i = 1,cnt do 
-					auxi.fire_knife(tgpos,auxi.MakeVector(i/cnt*360 + d[item.own_key.."AnnaKiller2"].counter * 2.7),player.Damage * 10,nil,{player = player,cooldown = 60,Accerate = 1.5,}) 
+				for i = 1,cnt do
+					auxi.fire_knife(tgpos,auxi.MakeVector(i/cnt*360 + d[item.own_key.."AnnaKiller2"].counter * 2.7),player.Damage * 10,nil,{player = player,cooldown = 60,Accerate = 1.5,})
 				end
 			end
-			if d[item.own_key.."AnnaKiller2"].sel == 2 and d[item.own_key.."AnnaKiller2"].counter % 5 == 1 then 
+			if d[item.own_key.."AnnaKiller2"].sel == 2 and d[item.own_key.."AnnaKiller2"].counter % 5 == 1 then
 				local cnt = auxi.choose(3,4,5,6)
 				local pos = player.Position + player_offset_holder.GetPlayerOffset(player) + auxi.mul_t(player.SpriteScale,item.scaler)
 				if room:IsPositionInRoom(pos,0) then
-					for i = 1,cnt do 
-						local q = auxi.fire_rocket(pos,auxi.MakeVector(i/cnt*360 + d[item.own_key.."AnnaKiller2"].counter * 2.7),player,{}) 
+					for i = 1,cnt do
+						local q = auxi.fire_rocket(pos,auxi.MakeVector(i/cnt*360 + d[item.own_key.."AnnaKiller2"].counter * 2.7),player,{
+							fire_mode = "untracked",
+							reason = "calamity_anna_killer_rocket",
+						})
 					end
 				end
 			end
@@ -428,10 +447,10 @@ Function = function(_,player)
 		--l local n_entity = Isaac.GetRoomEntities() for u,v in pairs(n_entity) do if v.Type == 4 then print(v:ToBomb().Flags) end end
 		--l local auxi = require("Qing_Remaster_scripts.auxiliary.functions") local q = auxi.fire_rocket(Vector(200,200),Vector(1,0),Game():GetPlayer(0)) print(q.Flags)
 		--l local room = Game():GetRoom() local size = room:GetGridSize() for i = 0,size - 1 do local gent = room:GetGridEntity(i) if gent and gent:GetType() == GridEntityType.GRID_WALL and room:IsPositionInRoom(room:GetGridPosition(i),0) == false then gent.CollisionClass = 0 end end
-		if d[item.own_key.."AnnaKiller2"].counter >= 45 and d[item.own_key.."AnnaKiller2"].counter <= 30 * 14 then 
+		if d[item.own_key.."AnnaKiller2"].counter >= 45 and d[item.own_key.."AnnaKiller2"].counter <= 30 * 14 then
 			if d[item.own_key.."AnnaKiller2"].sel == 3 then Isaac.Spawn(1000,29,0,room:GetRandomPosition(0),Vector(0,0),player) end
 		end
-		for i = #(d[item.own_key.."Brimstones"] or {}),1,-1 do 
+		for i = #(d[item.own_key.."Brimstones"] or {}),1,-1 do
 			local v = d[item.own_key.."Brimstones"][i]
 			if auxi.check_all_exists(v.ent) then
 				local ang = (v.id * 360/(#d[item.own_key.."Brimstones"]) + d[item.own_key.."AnnaKiller2"].counter * 2)
@@ -451,7 +470,7 @@ Function = function(_,player)
 			for u,v in pairs(d[item.own_key.."Brimstones"] or {}) do v.ent:SetTimeout(1) end
 			d[item.own_key.."Brimstones"] = nil
 			Game():GetRoom():MamaMegaExplosion(player.Position)
-			delay_buffer.addeffe(function() 
+			delay_buffer.addeffe(function()
 				local tgs = auxi.getenemies()
 				for u,v in pairs(tgs) do auxi.safely_kill(v) end
 			end,{},3)
@@ -491,13 +510,13 @@ Function = function(_,ent)
 	local s = ent:GetSprite()
 	if s:IsFinished("Idle") then s:Play("Rotate",true) end
 	if s:IsFinished("Rotate") then s:Play("Fly",true) end
-	if s:IsPlaying("Fly") or s:IsPlaying("Rotate") then 
+	if s:IsPlaying("Fly") or s:IsPlaying("Rotate") then
 		d[item.own_key.."Vel"] = math.min(20,(d[item.own_key.."Vel"] or 0) + 1)
-		s.Offset = s.Offset + Vector(0,-d[item.own_key.."Vel"]) 
-		if s.Offset.Y < -400 then 
+		s.Offset = s.Offset + Vector(0,-d[item.own_key.."Vel"])
+		if s.Offset.Y < -400 then
 			auxi.check_if_any(d[item.own_key.."Funct"])
-			ent:Remove() 
-			return 
+			ent:Remove()
+			return
 		end
 	end
 end,
@@ -546,7 +565,7 @@ Function = function(_,ent)
 	if d[item.own_key.."Burst"] and ent:IsDead() then
 		d[item.own_key.."Burst"] = nil
 		local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
-		local q = Isaac.Spawn(1000,19,0,ent.Position,Vector(0,0),player) 
+		local q = Isaac.Spawn(1000,19,0,ent.Position,Vector(0,0),player)
 		local d2 = q:GetData()
 		d2[item.own_key.."Brim"] = {}
 		local s2 = q:GetSprite()
@@ -563,7 +582,7 @@ Function = function(_,ent,col,low)
 	if d[item.own_key.."Burst"] then
 		d[item.own_key.."Burst"] = nil
 		local player = auxi.check_spawner_player(ent) or Game():GetPlayer(0)
-		local q = Isaac.Spawn(1000,19,0,ent.Position,Vector(0,0),player) 
+		local q = Isaac.Spawn(1000,19,0,ent.Position,Vector(0,0),player)
 		local d2 = q:GetData()
 		d2[item.own_key.."Brim"] = {}
 		local s2 = q:GetSprite()
@@ -588,9 +607,9 @@ Function = function(_,ent,col,low)
 	if ent.Type == 3 and ent.Variant == FamiliarVariant.ABYSS_LOCUST and ent.SubType == item.entity then
 		local player = auxi.check_spawner_player(ent)
 		local d = ent:GetData()
-		if (d[item.own_key.."counter"] or 0) <= 0 and auxi.isenemies(col) and ent.State == -1 then 
+		if (d[item.own_key.."counter"] or 0) <= 0 and auxi.isenemies(col) and ent.State == -1 then
 			d[item.own_key.."counter"] = 15 * 30
-			local q = Isaac.Spawn(1000,19,0,ent.Position,Vector(0,0),player) 
+			local q = Isaac.Spawn(1000,19,0,ent.Position,Vector(0,0),player)
 			local d2 = q:GetData()
 			d2[item.own_key.."Brim"] = {}
 			local s2 = q:GetSprite()

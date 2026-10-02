@@ -39,25 +39,36 @@ local item = {
 	},
 }
 
+
+local function get_effect_root()
+	local key = item.own_key .. "effect"
+	local root = save.elses[key]
+	if type(root) ~= "table" then
+		root = {}
+		save.elses[key] = root
+	end
+	return root
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
 	if continue then
+		get_effect_root()
 	else
 		save.elses[item.own_key.."effect"] = {}
 		save.elses[item.own_key.."effect2"] = nil
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
 end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
+	local effects = get_effect_root()
 	local d = player:GetData()
 	local idx = d.__Index
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	if save.elses[item.own_key.."effect"][idx] then
-		if (save.elses[item.own_key.."effect"][idx] or 0) > 0 then
-			save.elses[item.own_key.."effect"][idx] = (save.elses[item.own_key.."effect"][idx] or 0) - 1
+	if effects[idx] then
+		if (effects[idx] or 0) > 0 then
+			effects[idx] = (effects[idx] or 0) - 1
 			if (d[item.own_key.."counter"] or 0) > 0 then d[item.own_key.."counter"] = d[item.own_key.."counter"] - 1
 			else
 				local dir = auxi.ggdir(player,false,true)
@@ -80,8 +91,8 @@ Function = function(_,player)
 					d[item.own_key.."counter"] = player.MaxFireDelay * 3
 				end
 			end
-		elseif save.elses[item.own_key.."effect"][idx] <= 0 then
-			save.elses[item.own_key.."effect"][idx] = nil
+		elseif effects[idx] <= 0 then
+			effects[idx] = nil
 			local itemConfig = Isaac.GetItemConfig()
 			for u,v in pairs(item.costumes) do
 				player:RemoveCostume(itemConfig:GetCollectible(v))
@@ -94,6 +105,7 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_CARD, params = item.entity,
 Function = function(_,cardtype,player,useFlags)
+	local effects = get_effect_root()
 	local room = Game():GetRoom()
 	local d = player:GetData()
 	local idx = d.__Index
@@ -103,10 +115,9 @@ Function = function(_,cardtype,player,useFlags)
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 	else
 		if idx then
-			save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
 			local tm = 30 * 60
 			if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then save.elses[item.own_key.."effect2"] = true else save.elses[item.own_key.."effect2"] = nil end
-			save.elses[item.own_key.."effect"][idx] = (save.elses[item.own_key.."effect"][idx] or 0) + tm
+			effects[idx] = (effects[idx] or 0) + tm
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_MOM_VOX_EVILLAUGH,1,1,false,0,2)
 			local itemConfig = Isaac.GetItemConfig()
 			for u,v in pairs(item.costumes) do
@@ -159,7 +170,7 @@ Nil_holder.register("card_02r_priestess_hand", {
 						d.follower:GetSprite().Offset = auxi.check_lerp(fr,item.Priestess_hand_info[1]).offset
 					end
 					if fr == 14 then
-						d.follower:AddEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_CHARM)
+						d.follower:AddEntityFlags(EntityFlag.FLAG_FRIENDLY | EntityFlag.FLAG_PERSISTENT | EntityFlag.FLAG_CHARM)
 						local room = Game():GetRoom()
 						local pos = room:GetRandomPosition(0)
 						if d.follower.GridCollisionClass ~= EntityGridCollisionClass.GRIDCOLL_NONE then pos = room:FindFreeTilePosition(pos,10) end
@@ -178,8 +189,9 @@ Nil_holder.register("card_02r_priestess_hand", {
 				else
 					if fr == 4 then
 						if d3[item.own_key.."FREEZE"] then
-							Attribute_holder.try_rewind_attribute(d.follower,"EntityFlag_FLAG_FREEZE",d3[item.own_key.."FREEZE"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-							d3[item.own_key.."FREEZE"] = nil
+							if not Attribute_holder.rewind_hold_token(d.follower, d3, item.own_key.."FREEZE", "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then
+								Attribute_holder.force_clear_freeze_entity(d.follower)
+							end
 						end
 					end
 				end
@@ -193,7 +205,7 @@ Nil_holder.register("card_02r_priestess_hand", {
 				local ti = 3 * 30
 				d[item.own_key.."counter"] = ti
 				s:Play("Grab",true)
-				d3[item.own_key.."FREEZE"] = d3[item.own_key.."FREEZE"] or Attribute_holder.try_hold_attribute(d.follower,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+				Attribute_holder.ensure_hold_token(d.follower, d3, item.own_key.."FREEZE", "EntityFlag_FLAG_FREEZE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
 			end
 		else
 			if s:IsFinished("JumpDown") then
@@ -219,8 +231,9 @@ Nil_holder.register("card_02r_priestess_drop", {
 			end
 			if s:IsFinished("JumpDown") then
 				if d3[item.own_key.."FREEZE"] then
-					Attribute_holder.try_rewind_attribute(d.follower,"EntityFlag_FLAG_FREEZE",d3[item.own_key.."FREEZE"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-					d3[item.own_key.."FREEZE"] = nil
+					if not Attribute_holder.rewind_hold_token(d.follower, d3, item.own_key.."FREEZE", "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then
+						Attribute_holder.force_clear_freeze_entity(d.follower)
+					end
 					if ent.TargetPosition:Length() > 20 then ent.TargetPosition = ent.Position end
 				end
 			end

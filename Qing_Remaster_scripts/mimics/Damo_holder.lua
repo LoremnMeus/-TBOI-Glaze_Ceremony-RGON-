@@ -2,6 +2,9 @@ local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local enemy_death_guard = require("Qing_Remaster_scripts.auxiliary.enemy_death_guard")
+-- Enemy lethal/death-interception semantics are owned by
+-- auxiliary/enemy_death_guard.lua.
 
 local item = {
 	pre_ToCall = {},
@@ -29,7 +32,8 @@ end
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = nil,
 Function = function(_,ent,amt,flag,source,cooldown)
 	local d = ent:GetData()
-	if auxi.check_all_exists(d[item.own_key.."effect"]) and amt > ent.HitPoints then
+	if auxi.check_all_exists(d[item.own_key.."effect"])
+	and enemy_death_guard.can_intercept_current_death(ent, amt, flag) then
 		ent:TakeDamage(ent.HitPoints - 1,0,EntityRef(player),0)
 		d[item.own_key.."Kill"] = true
 		return false

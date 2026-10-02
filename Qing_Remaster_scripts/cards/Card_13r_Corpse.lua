@@ -19,6 +19,19 @@ local item = {
 	own_key = "Thoth_cd13r_Cor_",
 }
 
+local function get_state_roots()
+	local ret = {}
+	for _, suffix in ipairs({"effect", "effect2", "effect3", "multi"}) do
+		local key = item.own_key .. suffix
+		if type(save.elses[key]) ~= "table" then
+			save.elses[key] = {}
+		end
+		ret[suffix] = save.elses[key]
+	end
+	return ret
+end
+
+
 local HEART_HOLD = item.own_key.."heart"
 local POISON_FADE_TIMEOUT = 15
 -- 距腐心过远则不复用（打包盒拆出常见）；绑定时始终瞬移贴心
@@ -192,10 +205,7 @@ Function = function(_,continue)
 		save.elses[item.own_key.."effect3"] = {}
 		save.elses[item.own_key.."multi"] = {}
 	end
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	save.elses[item.own_key.."effect2"] = save.elses[item.own_key.."effect2"] or {}
-	save.elses[item.own_key.."effect3"] = save.elses[item.own_key.."effect3"] or {}
-	save.elses[item.own_key.."multi"] = save.elses[item.own_key.."multi"] or {}
+	local roots = get_state_roots()
 end,
 })
 
@@ -205,8 +215,8 @@ Function = function(_,player,cacheFlag)
 	local idx = d.__Index
 	if idx ~= nil then
 		if cacheFlag == CacheFlag.CACHE_SIZE then
-			save.elses[item.own_key.."multi"] = save.elses[item.own_key.."multi"] or {}
-			local mul = save.elses[item.own_key.."multi"][idx]
+			local roots = get_state_roots()
+			local mul = roots.multi[idx]
 			if mul then
 				player.SpriteScale = player.SpriteScale * mul
 			end
@@ -297,35 +307,35 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYE
 Function = function(_,player)
 	local d = player:GetData()
 	local idx = d.__Index
-	save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-	if save.elses[item.own_key.."effect"][idx] then
-		save.elses[item.own_key.."multi"][idx] = (save.elses[item.own_key.."multi"][idx] or 1) * 0.9 + 3 * 0.1
-		if math.abs(save.elses[item.own_key.."multi"][idx] - 3) > 0.03 then
+	local roots = get_state_roots()
+	if roots.effect[idx] then
+		roots.multi[idx] = (roots.multi[idx] or 1) * 0.9 + 3 * 0.1
+		if math.abs(roots.multi[idx] - 3) > 0.03 then
 		else
-			if save.elses[item.own_key.."multi"][idx] ~= 3 then
-				save.elses[item.own_key.."multi"][idx] = 3
-				save.elses[item.own_key.."effect"][idx] = nil
+			if roots.multi[idx] ~= 3 then
+				roots.multi[idx] = 3
+				roots.effect[idx] = nil
 			end
 		end
 		player:AddCacheFlags(CacheFlag.CACHE_SIZE)
 		d.should_evaluate_on_update_once = true
-	elseif save.elses[item.own_key.."multi"][idx] then
-		if save.elses[item.own_key.."effect2"][idx] then
-			save.elses[item.own_key.."multi"][idx] = (save.elses[item.own_key.."multi"][idx] or 1) * 0.95 + 1 * 0.05
-			if math.abs(save.elses[item.own_key.."multi"][idx] - 1) > 0.02 then
+	elseif roots.multi[idx] then
+		if roots.effect2[idx] then
+			roots.multi[idx] = (roots.multi[idx] or 1) * 0.95 + 1 * 0.05
+			if math.abs(roots.multi[idx] - 1) > 0.02 then
 			else
-				save.elses[item.own_key.."effect2"][idx] = nil
-				save.elses[item.own_key.."effect3"][idx] = nil
-				save.elses[item.own_key.."multi"][idx] = nil
+				roots.effect2[idx] = nil
+				roots.effect3[idx] = nil
+				roots.multi[idx] = nil
 			end
 		else
-			save.elses[item.own_key.."multi"][idx] = (save.elses[item.own_key.."multi"][idx] or 1) - 0.03
+			roots.multi[idx] = (roots.multi[idx] or 1) - 0.03
 			local rng = player:GetCardRNG(item.entity)
 			rng = auxi.rng_for_sake(rng)
 			if Game():GetFrameCount() % 5 == 2 then
 				local should_shoot = false
 				local mxn = 100
-				if save.elses[item.own_key.."effect3"][idx] then mxn = 250 end
+				if roots.effect3[idx] then mxn = 250 end
 				if player:GetHearts() > 2 or ((player:GetSoulHearts() > 0 or player:GetBoneHearts() > 0) and player:GetHearts() > 0) then
 					player:AddHearts(-2)
 					should_shoot = true
@@ -337,14 +347,14 @@ Function = function(_,player)
 					if dir:Length() < 0.01 then dir = player.Velocity:Normalized() end
 					dir = - dir
 					local pos = player.Position + dir * 15
-					local vel = dir * (10 + math.random(1000)/1000 * 3) + auxi.MakeVector(math.random(360)) * math.random(1000)/1000 * (2 + math.random(1000)/1000 * 2)
+					local vel = dir * (10 + rng:RandomFloat() * 3) + auxi.MakeVector(rng:RandomFloat() * 360) * rng:RandomFloat() * (2 + rng:RandomFloat() * 2)
 					local q = Isaac.Spawn(EntityType.ENTITY_PICKUP,PickupVariant.PICKUP_HEART,HeartSubType.HEART_ROTTEN,pos,vel,player):ToPickup()
 					q:Morph(EntityType.ENTITY_PICKUP,PickupVariant.PICKUP_HEART,HeartSubType.HEART_ROTTEN,true,true,true)
 					local s = q:GetSprite()
 					local hd = q:GetData()
 					s:SetLastFrame()
 					hd[item.own_key.."effect"] = true
-					local height = -20 + math.random(1000)/1000 * (-25)
+					local height = -20 - rng:RandomFloat() * 25
 					q.PositionOffset = Vector(0,height)
 					for i = 1,20 do
 						delay_buffer.addeffe(function(params)
@@ -357,11 +367,11 @@ Function = function(_,player)
 					consistance_holder.try_hold_entity(q,HEART_HOLD)
 					ensure_poison_cloud(q, player)
 				end
-				Game():Fart(player.Position,64 * save.elses[item.own_key.."multi"][idx],player,(save.elses[item.own_key.."multi"][idx] + 1) * 0.5,0)
+				Game():Fart(player.Position,64 * roots.multi[idx],player,(roots.multi[idx] + 1) * 0.5,0)
 			end
-			if save.elses[item.own_key.."multi"][idx] > 0.8 then
+			if roots.multi[idx] > 0.8 then
 			else
-				save.elses[item.own_key.."effect2"][idx] = true
+				roots.effect2[idx] = true
 			end
 		end
 		player:AddCacheFlags(CacheFlag.CACHE_SIZE)
@@ -375,16 +385,16 @@ Function = function(_,cardtype,player,useFlags)
 	local d = player:GetData()
 	local idx = d.__Index
 
+	local roots = get_state_roots()
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 	else
 		if d.tarot_cloth_used and d.tarot_cloth_used == cardtype then
-			save.elses[item.own_key.."effect3"][idx] = true
+			roots.effect3[idx] = true
 		end
 		player:AddCacheFlags(CacheFlag.CACHE_SIZE)
 		player:GetData().should_evaluate_on_update_once = true
-		save.elses[item.own_key.."effect"] = save.elses[item.own_key.."effect"] or {}
-		save.elses[item.own_key.."effect"][idx] = true
-		save.elses[item.own_key.."effect2"][idx] = nil
+		roots.effect[idx] = true
+		roots.effect2[idx] = nil
 	end
 end,
 })

@@ -105,7 +105,13 @@ local function brain_explode(fam, player, bind, adapter)
 		flags = flags | TearFlags.TEAR_POISON
 	end
 	if player and profile then
-		local bomb = player:FireBomb(pos, Vector.Zero, player)
+		local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+		-- 脑浆 timed explode：自主爆炸，不计入 craft fire round Once
+		local bomb = attack_holder.FireBomb(player, pos, Vector.Zero, {
+			mode = "untracked",
+			reason = "craft_brain_explode",
+			source_entity = player,
+		})
 		if bomb then
 			bomb.ExplosionDamage = dmg
 			if bomb.RadiusMultiplier ~= nil then

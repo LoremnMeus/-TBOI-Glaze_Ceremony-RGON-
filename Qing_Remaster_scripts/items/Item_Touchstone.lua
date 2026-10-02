@@ -19,7 +19,6 @@ function item.GetModeState(state)
 		maxDelay = 0,
 		state = 0,
 		delayPenalty = nil,
-		uses = 0,
 		bookOfBelial = false,
 	}
 	return state.flags[item.mode_id]
@@ -58,7 +57,7 @@ function item.FireQingAttack(player,state,input)
 		list.brimstone = math.max(list.brimstone or 0,1)
 	end
 	local weap = auxi.get_weapon(player)
-	local attack_params = auxi.get_Qing_multishots(player,list,{allowrand = true,extraTearsFallback = mode_state.uses or 0})
+	local attack_params = auxi.get_Qing_multishots(player,list,{allowrand = true})
 	for i = #attack_params,1,-1 do
 		local info = attack_params[i]
 		local dir = auxi.MakeVector(info.dir + gdir:GetAngleDegrees()) * math.max(0.6,math.min(3,0.7 * player.ShotSpeed + 0.3 + math.log(player.TearRange/260)))
@@ -124,38 +123,18 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, 
 Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 	item.SetActive(player,true)
 	local state = custom_attack_manager.GetState(player)
-	local use_count = 1
 	if state then
-		local old_mode_state = state.flags and state.flags[item.mode_id]
-		use_count = (old_mode_state and old_mode_state.uses or 0) + 1
 		state.flags[item.mode_id] = nil
 	end
 	custom_attack_manager.SwitchMode(player,item.mode_id,"touchstone_use")
 	state = custom_attack_manager.GetState(player)
 	if state then
 		local mode_state = item.GetModeState(state)
-		mode_state.uses = use_count
-		mode_state.bookOfBelial = true
+		mode_state.bookOfBelial = auxi.should_do_belial(player)
 	end
 	return true
 end,
 })
-
-if ModCallbacks.MC_EVALUATE_MULTI_SHOT_PARAMS then
-	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_MULTI_SHOT_PARAMS,
-	Function = function(_,player,multiShotParams,weaponType)
-		if weaponType ~= WeaponType.WEAPON_TEARS or not item.IsActive(player) or not multiShotParams then return end
-		local state = custom_attack_manager.GetState(player)
-		local mode_state = state and item.GetModeState(state)
-		local uses = mode_state and mode_state.uses or 0
-		if uses <= 0 then return end
-		local ok,num = pcall(function() return multiShotParams:GetNumTears() end)
-		if not ok then return end
-		multiShotParams:SetNumTears(math.max(1,num + uses))
-		return multiShotParams
-	end,
-	})
-end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_FAMILIAR_UPDATE, params = FamiliarVariant.ABYSS_LOCUST,
 Function = function(_,ent)

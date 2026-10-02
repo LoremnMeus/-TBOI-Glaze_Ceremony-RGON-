@@ -8,6 +8,7 @@ local Unlocker = require("Qing_Remaster_scripts.core.unlock_manager")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
 local glaze_crown = require("Qing_Remaster_scripts.items.Item_Crown_of_the_Glaze")
+local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
 
 local item = {
 	pickup = enums.Pickups.Glaze_big_poop,
@@ -49,7 +50,7 @@ function item.try_collect(player,ent)
 			target:SetPoopSpell(slot or 5,copy)
 		end
 	end
-	glaze_crown.notify_pickup(player)
+	glaze_crown.notify_pickup(player, ent and ent.Position)
 	return true
 end
 
@@ -74,7 +75,10 @@ Function = function(_,ent, col, low)
 				ent.Velocity = Vector(0,0)
 				ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_BATTERYDISCHARGE,1,1,false,0,2)
-				auxi.remove_others_option_pickup(ent)
+				option_index_holder.commit_selection(ent, player, {
+					skip_will_collect = true,
+					remove_siblings = true,
+				})
 				if ent:IsShopItem() then auxi.buy_a_pickup(ent,player)
 				else ent:GetSprite():Play("Collect", true) end
 				return true

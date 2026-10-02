@@ -31,15 +31,30 @@ local item = {
 -- opts: {
 --   color, color_fn, scale_fn, exclusive,
 --   glaze=true 使用琉璃化闪烁/跳动,
---   dogma_chromatic=true / rainbow_cellular=true（或显式 shader=）,
+--   dogma_chromatic=true / rainbow_cellular=true / rainbow_roll=true（或显式 shader=）,
 --   rainbow_seed=0..1 基础种子（可与 collectible id 再混合）,
+--   rainbow_alpha=0..1 可选，默认 0.58,
+--   rainbow_lum_low / rainbow_lum_high：roll 有效灰度区间（Colorize.g/b）,
+--   rainbow_spatial_angle / rainbow_spatial_density：roll 色带方向与密度（打包进 Colorize.r）,
+--   rainbow_speed / rainbow_direction：roll 时间转速与正反（混入 Colorize.a）,
+--   rainbow_gray_hue_weight / rainbow_bend / rainbow_shape_contrast：ColorOffset.rgb（Roll v3）,
 --   shader="shaders/..." RGON Sprite:SetCustomShader（相对 resources/）,
 --   source_item=collectibleId 或 source_icon="{{CollectibleN}}" 供 EID 名字后标注来源
 -- }
 item.DOGMA_CHROMATIC_SHADER = "shaders/qing_dogma_chromatic"
 item.RAINBOW_CELLULAR_SHADER = "shaders/qing_rainbow_cellular"
--- 完整彩虹 Hue 一圈：1200 帧 ≈ 40s（30 FPS）
+item.RAINBOW_ROLL_SHADER = "shaders/qing_rainbow_roll"
+-- cellular：完整 Hue 一圈 1200 帧 ≈ 40s（30 FPS），避免 HUD 太躁
 item.RAINBOW_PHASE_CYCLE_FRAMES = 1200
+-- roll：连续轮转应更明显；240 帧 ≈ 8s 一圈（30 FPS）
+item.RAINBOW_ROLL_PHASE_CYCLE_FRAMES = 240
+
+item.RAINBOW_DENSITY_LEVELS = {
+	0.25, 0.40, 0.60, 0.80,
+	1.00, 1.25, 1.50, 1.75,
+	2.00, 2.30, 2.60, 3.00,
+	3.50, 4.00, 5.00, 6.00,
+}
 
 function item.dogma_shader_time()
 	return (Game():GetFrameCount() % 10000) / 10000
@@ -52,26 +67,197 @@ function item.make_dogma_chromatic_color(alpha,glitch)
 	return Color(1,1,1,alpha,0,0,0,glitch,0,0,item.dogma_shader_time())
 end
 
-function item.rainbow_shader_phase()
-	local cycle = math.max(1, math.floor(tonumber(item.RAINBOW_PHASE_CYCLE_FRAMES) or 1200))
+function item.rainbow_shader_phase(cycle_override)
+	local cycle = math.max(
+		1,
+		math.floor(tonumber(cycle_override) or tonumber(item.RAINBOW_PHASE_CYCLE_FRAMES) or 1200)
+	)
 	return (Game():GetFrameCount() % cycle) / cycle
 end
 
---- Colorize.r=seed，Colorize.a=phase（与 dogma 传时通道一致；Offset 保持 0）
---- 必须经 SetColorize 写入；仅靠构造函数多余参数在部分路径上不会每帧推进 phase。
-function item.make_rainbow_cellular_color(alpha,seed)
-	alpha = alpha or 0.58
-	seed = tonumber(seed) or 0.37
+local function normalize_rainbow_seed(seed, default)
+	seed = tonumber(seed) or default or 0.37
 	seed = seed % 1
 	if seed < 0 then seed = seed + 1 end
-	local phase = item.rainbow_shader_phase()
-	local col = Color(1,1,1,alpha,0,0,0)
+	return seed
+end
+
+local function normalize_rainbow_lum_range(lum_low, lum_high)
+	lum_low = tonumber(lum_low)
+	lum_high = tonumber(lum_high)
+	if not lum_low or not lum_high or lum_high <= lum_low then
+		return 0, 0
+	end
+	lum_low = math.max(0, math.min(1, lum_low))
+	lum_high = math.max(0, math.min(1, lum_high))
+	if lum_high <= lum_low then
+		return 0, 0
+	end
+	return lum_low, lum_high
+end
+
+local function angle_to_index(angle_deg)
+	angle_deg = tonumber(angle_deg) or 0
+	angle_deg = angle_deg % 360
+	if angle_deg < 0 then angle_deg = angle_deg + 360 end
+	return math.floor(angle_deg / 22.5 + 0.5) % 16
+end
+
+local function density_to_index(value)
+	value = tonumber(value) or 1.0
+	local best_index = 0
+	local best_dist = math.huge
+	local levels = item.RAINBOW_DENSITY_LEVELS
+	for i = 1, #levels do
+		local dist = math.abs(value - levels[i])
+		if dist < best_dist then
+			best_dist = dist
+			best_index = i - 1
+		end
+	end
+	return best_index
+end
+
+local function pack_rainbow_spatial(angle_deg, density)
+	local packed = angle_to_index(angle_deg) * 16 + density_to_index(density)
+	return packed / 255
+end
+
+--- cellular：Colorize.r=seed，a=phase（忽略 g/b）
+function item.make_rainbow_color(alpha, seed, cycle_frames, lum_low, lum_high)
+	alpha = alpha or 0.58
+	seed = normalize_rainbow_seed(seed, 0.37)
+	local phase = item.rainbow_shader_phase(cycle_frames)
+	lum_low, lum_high = normalize_rainbow_lum_range(lum_low, lum_high)
+	local col = Color(1, 1, 1, alpha, 0, 0, 0)
 	if col.SetColorize then
-		col:SetColorize(seed,0,0,phase)
+		col:SetColorize(seed, lum_low, lum_high, phase)
 	else
-		col = Color(1,1,1,alpha,0,0,0,seed,0,0,phase)
+		col = Color(1, 1, 1, alpha, 0, 0, 0, seed, lum_low, lum_high, phase)
 	end
 	return col
+end
+
+function item.make_rainbow_cellular_color(alpha, seed)
+	return item.make_rainbow_color(alpha, seed, item.RAINBOW_PHASE_CYCLE_FRAMES, nil, nil)
+end
+
+--- roll 时间相位：seed / speed / direction 在 Lua 侧合成；标题菜单可 use_wall_time
+function item.rainbow_roll_phase(seed, speed, direction, use_wall_time)
+	local cycle = math.max(1, math.floor(tonumber(item.RAINBOW_ROLL_PHASE_CYCLE_FRAMES) or 240))
+	seed = normalize_rainbow_seed(seed, 0.37)
+	speed = tonumber(speed) or 1.0
+	direction = tonumber(direction) or 1
+	if direction < 0 then
+		direction = -1
+	else
+		direction = 1
+	end
+
+	local time_phase
+	if use_wall_time and Isaac.GetTime then
+		-- 与 Game 30Hz 等价：cycle 帧 ≈ cycle/30 秒一圈（speed=1）
+		local period_sec = cycle / 30
+		time_phase = ((Isaac.GetTime() / 1000) / period_sec) * speed * direction
+	else
+		time_phase = (Game():GetFrameCount() / cycle) * speed * direction
+	end
+
+	local phase = time_phase + seed * 0.61803398875
+	phase = phase % 1
+	if phase < 0 then phase = phase + 1 end
+	return phase
+end
+
+local function clamp01(v, default)
+	v = tonumber(v)
+	if v == nil then return default end
+	if v < 0 then return 0 end
+	if v > 1 then return 1 end
+	return v
+end
+
+local function pack_rainbow_roll_color(
+	alpha,
+	phase,
+	lum_low,
+	lum_high,
+	spatial_angle,
+	spatial_density,
+	gray_hue_weight,
+	bend_weight,
+	shape_contrast
+)
+	alpha = alpha or 0.58
+	phase = tonumber(phase) or 0
+	phase = phase % 1
+	if phase < 0 then phase = phase + 1 end
+	lum_low, lum_high = normalize_rainbow_lum_range(lum_low, lum_high)
+	local packed_spatial = pack_rainbow_spatial(spatial_angle or 0, spatial_density or 1.0)
+	-- 默认复现旧常量：GRAY_HUE≈0.28、ANGLE_SPAN=0.03、SHAPE_GAMMA=1.20
+	gray_hue_weight = clamp01(gray_hue_weight, 0.47)
+	bend_weight = clamp01(bend_weight, 0.15)
+	shape_contrast = clamp01(shape_contrast, 0.40)
+	local col = Color(1, 1, 1, alpha, gray_hue_weight, bend_weight, shape_contrast)
+	if col.SetColorize then
+		col:SetColorize(packed_spatial, lum_low, lum_high, phase)
+	else
+		col = Color(1, 1, 1, alpha, gray_hue_weight, bend_weight, shape_contrast, packed_spatial, lum_low, lum_high, phase)
+	end
+	return col
+end
+
+function item.make_rainbow_roll_color(
+	alpha,
+	seed,
+	lum_low,
+	lum_high,
+	spatial_angle,
+	spatial_density,
+	speed,
+	direction,
+	gray_hue_weight,
+	bend_weight,
+	shape_contrast,
+	use_wall_time
+)
+	local phase = item.rainbow_roll_phase(seed, speed, direction, use_wall_time)
+	return pack_rainbow_roll_color(
+		alpha,
+		phase,
+		lum_low,
+		lum_high,
+		spatial_angle,
+		spatial_density,
+		gray_hue_weight,
+		bend_weight,
+		shape_contrast
+	)
+end
+
+--- 直接编码已锁定的 rainbow phase（时停/Freeze）；禁止再反推 seed
+function item.make_rainbow_roll_color_from_phase(
+	alpha,
+	phase,
+	lum_low,
+	lum_high,
+	spatial_angle,
+	spatial_density,
+	gray_hue_weight,
+	bend_weight,
+	shape_contrast
+)
+	return pack_rainbow_roll_color(
+		alpha,
+		phase,
+		lum_low,
+		lum_high,
+		spatial_angle,
+		spatial_density,
+		gray_hue_weight,
+		bend_weight,
+		shape_contrast
+	)
 end
 
 function item.rainbow_seed_for_collectible(base_seed,collectible_id)
@@ -103,6 +289,45 @@ function item.clear_sprite_shader(sprite)
 	end
 end
 
+function item.apply_rainbow_roll_visual(
+	sprite,
+	alpha,
+	seed,
+	lum_low,
+	lum_high,
+	spatial_angle,
+	spatial_density,
+	speed,
+	direction,
+	gray_hue_weight,
+	bend_weight,
+	shape_contrast,
+	use_wall_time
+)
+	if not sprite then return end
+	item.apply_sprite_shader(sprite, item.RAINBOW_ROLL_SHADER)
+	sprite.Color = item.make_rainbow_roll_color(
+		alpha or 1,
+		seed or 0.37,
+		lum_low,
+		lum_high,
+		spatial_angle,
+		spatial_density,
+		speed,
+		direction,
+		gray_hue_weight,
+		bend_weight,
+		shape_contrast,
+		use_wall_time
+	)
+end
+
+function item.apply_rainbow_cellular_visual(sprite, alpha, seed)
+	if not sprite then return end
+	item.apply_sprite_shader(sprite, item.RAINBOW_CELLULAR_SHADER)
+	sprite.Color = item.make_rainbow_cellular_color(alpha or 1, seed or 0.37)
+end
+
 function item.register_provider(provider,opts)
 	if type(provider) ~= "function" then return end
 	opts = opts or {}
@@ -122,26 +347,56 @@ function item.register_provider(provider,opts)
 			return sc
 		end
 	end
+	local rainbow_alpha = tonumber(opts.rainbow_alpha) or 0.58
 	if opts.dogma_chromatic then
 		opts.shader = opts.shader or item.DOGMA_CHROMATIC_SHADER
 		color_fn = color_fn or function()
 			if REPENTOGON then
 				return item.make_dogma_chromatic_color(0.58,0)
 			end
-			-- 无 RGON 时退回靛紫 Colorize
 			return Color(1,1,1,0.58,0,0,0,1.55,0.9,2.5,1)
 		end
-	end
-	if opts.rainbow_cellular then
+	elseif opts.rainbow_roll then
+		opts.shader = opts.shader or item.RAINBOW_ROLL_SHADER
+		local base_seed = tonumber(opts.rainbow_seed) or 0.37
+		local lum_low = tonumber(opts.rainbow_lum_low)
+		local lum_high = tonumber(opts.rainbow_lum_high)
+		local spatial_angle = tonumber(opts.rainbow_spatial_angle) or 0
+		local spatial_density = tonumber(opts.rainbow_spatial_density) or 1.0
+		local speed = tonumber(opts.rainbow_speed) or 1.0
+		local direction = tonumber(opts.rainbow_direction) or 1
+		local gray_hue_weight = opts.rainbow_gray_hue_weight
+		local bend_weight = opts.rainbow_bend
+		local shape_contrast = opts.rainbow_shape_contrast
+		color_fn = color_fn or function(collectible_id)
+			if REPENTOGON then
+				local seed = item.rainbow_seed_for_collectible(base_seed, collectible_id)
+				return item.make_rainbow_roll_color(
+					rainbow_alpha,
+					seed,
+					lum_low,
+					lum_high,
+					spatial_angle,
+					spatial_density,
+					speed,
+					direction,
+					gray_hue_weight,
+					bend_weight,
+					shape_contrast,
+					false
+				)
+			end
+			return Color(1,1,1,rainbow_alpha,0,0,0,2.1,0.7,2.3,1)
+		end
+	elseif opts.rainbow_cellular then
 		opts.shader = opts.shader or item.RAINBOW_CELLULAR_SHADER
 		local base_seed = tonumber(opts.rainbow_seed) or 0.37
 		color_fn = color_fn or function(collectible_id)
 			if REPENTOGON then
 				local seed = item.rainbow_seed_for_collectible(base_seed,collectible_id)
-				return item.make_rainbow_cellular_color(0.58,seed)
+				return item.make_rainbow_cellular_color(rainbow_alpha, seed)
 			end
-			-- 无 RGON：高饱和品红/青 Colorize 兜底
-			return Color(1,1,1,0.58,0,0,0,2.2,0.55,2.4,1)
+			return Color(1,1,1,rainbow_alpha,0,0,0,2.2,0.55,2.4,1)
 		end
 	end
 	item.providers[#item.providers + 1] = {
@@ -154,7 +409,6 @@ function item.register_provider(provider,opts)
 		source_card = opts.source_card,
 		glaze = opts.glaze == true,
 		shader = opts.shader,
-		-- ghost=true / ghost_fn() -> Vector：主图标后画一层半透明错位残影（精神失序等）
 		ghost = opts.ghost == true or type(opts.ghost_fn) == "function",
 		ghost_fn = type(opts.ghost_fn) == "function" and opts.ghost_fn or nil,
 		ghost_alpha = tonumber(opts.ghost_alpha) or 0.2,

@@ -38,8 +38,12 @@ function item.revive_player(player,tp)
 		end
 	end
 	player:SetMinDamageCooldown(60)
-	if d[item.own_key.."entitycollision_succ"] then Attribute_holder.try_rewind_attribute(player,"EntityCollisionClass",d[item.own_key.."entitycollision_succ"]) d[item.own_key.."entitycollision_succ"] = nil end
-	if d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] then Attribute_holder.try_rewind_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"],Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK)) d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] = nil end
+	if not Attribute_holder.rewind_hold_token(player, d, item.own_key.."entitycollision_succ", "EntityCollisionClass") then
+		Attribute_holder.force_clear_freeze_entity(player, {grid_collision = false, entity_collision = EntityCollisionClass.ENTCOLL_PLAYER})
+	end
+	if not Attribute_holder.rewind_hold_token(player, d, item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK", "ENTITY_FLAG_NO_DAMAGE_BLINK", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK)) then
+		player:ClearEntityFlags(EntityFlag.FLAG_NO_DAMAGE_BLINK)
+	end
 	player:StopExtraAnimation()
 	if d[item.own_key.."effect"].info and d[item.own_key.."effect"].info.on_revive then d[item.own_key.."effect"].info.on_revive(player,tp) end
 	d[item.own_key.."effect"] = nil
@@ -52,8 +56,8 @@ Function = function(_,player)
     if d[item.own_key.."effect"] then
         player.Velocity = Vector(0,0)
         player:SetMinDamageCooldown(60)
-		d[item.own_key.."entitycollision_succ"] = d[item.own_key.."entitycollision_succ"] or Attribute_holder.try_hold_attribute(player,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
-		d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] = d[item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK"] or Attribute_holder.try_hold_attribute(player,"ENTITY_FLAG_NO_DAMAGE_BLINK",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK))
+		Attribute_holder.ensure_hold_token(player, d, item.own_key.."entitycollision_succ", "EntityCollisionClass", EntityCollisionClass.ENTCOLL_NONE)
+		Attribute_holder.ensure_hold_token(player, d, item.own_key.."ENTITY_FLAG_NO_DAMAGE_BLINK", "ENTITY_FLAG_NO_DAMAGE_BLINK", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_DAMAGE_BLINK))
 		player:AddControlsCooldown(math.max(0,3 - player.ControlsCooldown))
 		d[item.own_key.."effect"].counter = (d[item.own_key.."effect"].counter or 0) + 1
 		if d[item.own_key.."effect"].info and d[item.own_key.."effect"].info.on_revive_update then d[item.own_key.."effect"].info.on_revive_update(player,d[item.own_key.."effect"].counter) end

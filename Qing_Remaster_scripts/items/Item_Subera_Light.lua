@@ -6,6 +6,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local player_offset_holder = require("Qing_Remaster_scripts.callbacks.player_offset_holder")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
+local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 
 local item = {
 	ToCall = {},
@@ -212,7 +213,11 @@ Function = function(_,ent)
 			local dir = auxi.get_by_rotate(nil,ii * 60 + gdir - 90)
 			local tg = d[item.own_key.."tg"]
 			if auxi.check_all_exists(tg) then dir = (tg.Position - pos):Normalized() end
-			local q = player:FireBrimstone(dir,nil,0.3)
+			local q = attack_holder.FireBrimstone(player, dir, {
+				mode = "untracked",
+				reason = "subera_light_brim",
+				damage_multiplier = 0.3,
+			})
 			q.Variant = 5
 			q.Parent = nil
 			d[item.own_key.."record"][i].brim = q

@@ -34,6 +34,7 @@ local item = {
 		[enums.Players.Spwq] = {
 			costumes = {
 				{id = enums.Costumes.SPWQinghair,},
+				{id = enums.Costumes.QingHead,},
 			},
 			Description = {
 				loader = {

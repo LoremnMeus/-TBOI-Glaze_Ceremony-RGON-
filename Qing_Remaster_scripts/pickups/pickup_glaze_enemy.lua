@@ -71,6 +71,7 @@ end,
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = nil,
 Function = function(_,ent)
+	if not g.is_gameplay_world_active() then return end
 	local d = ent:GetData()
 	local room = Game():GetRoom()
 	if d[item.own_key.."effect"] and room:IsFirstVisit() and ent:CanShutDoors() then

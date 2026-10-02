@@ -992,7 +992,7 @@ end
 
 local function tutorial_world_text_blocked()
 	if Game():IsPaused() then return true end
-	if REPENTOGON and Game().IsPauseMenuOpen and Game():IsPauseMenuOpen() then return true end
+	if auxi.is_pause_menu_open() then return true end
 	return false
 end
 

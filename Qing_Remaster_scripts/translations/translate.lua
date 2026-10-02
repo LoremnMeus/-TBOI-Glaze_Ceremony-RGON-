@@ -28,9 +28,9 @@ item.Collectibles = {
         xmlId = 1,
         zh = {
             Name = "暗之六面",
-            Desc = "灭于未知",
+            Desc = "湮灭于未知",
             Description = "{{BlackHeart}} +1黑心"..
-            "#!!! 变为魂心角色"..
+            "#!!! 将普通生命体系变为魂心体系"..
             "#{{Damage}} 按黑心数量增加攻击"..
             "#{{BlackHeart}} 击杀敌人逐渐将魂心染成黑心，或填满半黑心"..
             "#{{DevilRoom}} {{BlackHeart}} 黑心可以等价代替{{Heart}}红心进行恶魔交易",
@@ -40,7 +40,7 @@ item.Collectibles = {
             Name = "Darkness",
             Desc = "Buried in the past.",
             Description = "{{BlackHeart}} +1 Black Heart"..
-            "#!!! Changes your health type to soul hearts"..
+            "#!!! Converts standard health into a soul-heart system"..
             "#{{Damage}} Damage up based on black hearts"..
             "#{{BlackHeart}} Kills gradually stain soul hearts into black hearts, or fill half black heart"..
             "#{{DevilRoom}} {{BlackHeart}} Black hearts can replace red-heart devil deal costs",
@@ -55,16 +55,14 @@ item.Collectibles = {
         zh = {
             Name = "无名刃·弑金",
             Desc = "借来我的刀法",
-            Description = "#{{Player"..Players.wq.."}} 使用后，本房间内攻击方式变为青的刀法"..
-            "#重复使用使攻击次数+1",
+            Description = "#{{Player"..Players.wq.."}} 使用后，本房间内攻击方式变为青的刀法",
             AbyssSynic = "蝗虫命中敌人后发动刺击",
             BookOfBelial = "使用后，青的刀法额外视为拥有硫磺火",
         },
         en = {
             Name = "Touchstone",
             Desc = "Borrow my blade",
-            Description = "#{{Player"..Players.wq.."}} on use, replaces your attack with Qing's blade style for the current room"..
-            "#Repeated uses grant +1 attack count",
+            Description = "#{{Player"..Players.wq.."}} On use, replaces your attack with Qing's blade style for the current room",
             AbyssSynic = "Locust that stab at enemies",
             BookOfBelial = "On use, Qing's blade style additionally counts as having Brimstone",
         },
@@ -77,14 +75,16 @@ item.Collectibles = {
         zh = {
             Name = "青的帽子",
             Desc = "太大了！",
-            Description = "阻挡来自脑袋上的眼泪攻击"..
-            "#站在跳起来的敌人身体下方造成伤害",
+            Description = "头上的帽子会阻挡接触到它的敌方弹幕"..
+            "#攻击时将帽子向前掷出，沿途清除附近弹幕"..
+            "#命中敌人后将其罩住并减速，同时继续阻挡周围弹幕",
         },
         en = {
             Name = "Qing's Hat",
             Desc = "It's too big!",
-            Description = "Blocks damage from projectiles falling from above."..
-            "#Standing under the jumping enemy's body to inflict damage.",
+            Description = "The hat blocks enemy projectiles that touch it while worn"..
+            "#Firing throws it forward, clearing nearby projectiles along its path"..
+            "#Enemies hit are covered and slowed while the hat continues blocking nearby projectiles",
         },
     },
     [4] = {
@@ -100,7 +100,7 @@ item.Collectibles = {
         },
         en = {
             Name = "Tech IX",
-            Desc = "Skipped...But why?",
+            Desc = "Skipped, looped, returned.",
             Description = "Attacks have a chance to add a Technology laser or Tech X ring",
             AbyssSynic = "Locusts have a chance to spawn with a Tech X ring.",
         },
@@ -113,13 +113,13 @@ item.Collectibles = {
         zh = {
             Name = "刺杀者之眼",
             Desc = "彗星袭月",
-            Description = "角色的眼泪学会刺杀",
+            Description = "泪弹会伺机刺向附近的敌人",
             AbyssSynic = "蝗虫学会暗杀",
         },
         en = {
             Name = "Assassin's Eye",
             Desc = "Savour the Dark",
-            Description = "Tears assassinate enemies when getting closed",
+            Description = "Tears will seize openings to strike nearby enemies",
             AbyssSynic = "Locust assassinates enemies when closed",
         },
     },
@@ -152,15 +152,15 @@ item.Collectibles = {
         zh = {
             Name = "淘金热",
             Desc = "发光的不都是金子",
-            Description = "进入新房间时，普通岩石有概率变成愚人金块"..
-            "#破坏{{ColorGold}}愚人金块{{CR}}时，33%概率生成2~4只黄金蜘蛛",
+            Description = "进入新房间时，部分岩石会变成{{ColorGold}}愚人金{{CR}}"..
+            "#摧毁愚人金可能发现硬币、特殊奖励，或受惊逃走的老鼠",
             AbyssSynic = "金色蝗虫，命中敌人时小概率施加点金",
         },
         en = {
             Name = "Gold Rush",
             Desc = "All that glitters...",
-            Description = "Entering a new room gives normal rocks a chance to become fool's gold"..
-            "#Destroying {{ColorGold}}fool's gold{{CR}} has a 33% chance to spawn 2-4 golden spiders",
+            Description = "Entering a new room can turn some rocks into {{ColorGold}}fool's gold{{CR}}"..
+            "#Destroying fool's gold may uncover coins, special finds, or startled fleeing rats",
             AbyssSynic = "Golden locust with a small chance to turn enemies gold on hit",
         },
     },
@@ -191,19 +191,19 @@ item.Collectibles = {
             Name = "监视",
             Desc = "老大哥在看着你",
             Description = "{{Speed}} 移速不会低于1.5"..
-            "#{{Warning}} 停滞过久会被锁定射击"..
-            "#靠近的敌人也会被锁定射击",
-            SeijaBuff = "防爆"..
-            "#射击全屏敌人",
+            "#{{Warning}} 低速时展开逐渐扩大的监视域，锁定自身与附近敌人"..
+            "#锁定完成后爆炸，伤害为{{Damage}}攻击力 ×4 +20"..
+            "#地上的监视也会锁定附近目标并开火",
+            SeijaBuff = "监视范围扩展至全房间，并免疫监视造成的爆炸",
         },
         en = {
             Name = "The Watcher",
             Desc = "Big Brother is watching",
-            Description = "{{Speed}} Minimum speed is 1.5"..
-            "#{{Warning}} Standing still too long marks and shoots you"..
-            "#Nearby enemies are also marked and shot",
-            SeijaBuff = "Immune to explosion"..
-            "#All enemies will be shot",
+            Description = "{{Speed}} Move speed cannot fall below 1.5"..
+            "#{{Warning}} Moving slowly expands a watch zone that locks onto you and nearby enemies"..
+            "#Full locks explode for {{Damage}} Damage ×4 +20"..
+            "#While on the ground, The Watcher also locks onto nearby targets and fires",
+            SeijaBuff = "Watch range becomes room-wide and Watcher explosions cannot hurt you",
         },
     },
     [10] = {
@@ -214,15 +214,15 @@ item.Collectibles = {
         zh = {
             Name = "巨大化",
             Desc = "神※拳※粉※碎",
-            Description = "↑ 总血量低于生命上限时，角色变大，攻击翻倍"..
-            "#↓ 总血量高于生命上限时，角色变小，攻击减半",
+            Description = "↑ 生命未满时，角色巨大化，攻击翻倍"..
+            "#↓ 满血后拥有额外生命时，角色缩小，攻击减半",
             AbyssSynic = "稍大的蝗虫",
         },
         en = {
             Name = "Giant Punch",
             Desc = "God-o-hand-o-Crash!",
-            Description = "↑ Double damage when your total hearts are less than heart containers"..
-            "#↓ Half damage when more than it",
+            Description = "↑ While below normal full health, grow larger and deal double damage"..
+            "#↓ While holding health beyond normal capacity, shrink and deal half damage",
         },
     },
     [11] = {
@@ -261,16 +261,16 @@ item.Collectibles = {
         zh = {
             Name = "小青最好的朋友",
             Desc = "那么，你真的有朋友吗？",
-            Description = "{{Chest}} 生成2个随机箱子"..
-            "#{{GoldenChest}} 金箱子改为开出头部相关道具"..
-            "#{{Chest}} 普通箱子也有小概率开出这些道具",
+            Description = "{{Chest}} 拾取时生成2个随机箱子"..
+            "#{{GoldenChest}} 金箱开出道具时，会改为随机“朋友”"..
+            "#{{Chest}} 普通箱与刺箱有10%概率开出“朋友”",
         },
         en = {
             Name = "My Best Friend",
             Desc = "Do you really have a friend?",
-            Description = "{{Chest}} Spawns 2 random chests"..
-            "#{{GoldenChest}} Golden chests give head-themed items instead"..
-            "#{{Chest}} Regular and spiked chests have a small chance to give head-themed items",
+            Description = "{{Chest}} Spawns 2 random chests on pickup"..
+            "#{{GoldenChest}} Golden Chest collectibles become random “friends”"..
+            "#{{Chest}} Normal and Spiked Chests have a 10% chance to contain a “friend”",
         },
     },
     [13] = {
@@ -282,15 +282,15 @@ item.Collectibles = {
             Name = "超级炸弹",
             Desc = "口袋里的末日",
             Description = "{{Bomb}} +5超大炸弹"..
-            "#{{Timer}} 无超大炸弹时，1个炸弹闲置20秒后成长为超大炸弹"..
-            "#{{Collectible483}} 无主动时，超大炸弹闲置2分钟后成长为妈咪炸弹",
+            "#{{Timer}} 没有超大炸弹时，20秒未使用炸弹会使1枚炸弹成长为超大炸弹"..
+            "#{{Collectible483}} 主主动槽为空时，2分钟未使用炸弹会使1枚超大炸弹成长为妈咪炸弹",
         },
         en = {
             Name = "Super Bombs",
             Desc = "My pocket doomsday",
             Description = "{{Bomb}} +5 Giga Bombs"..
             "#{{Timer}} With no Giga Bombs, leave bombs unused for 20 seconds to grow 1 into a Giga Bomb"..
-            "#{{Collectible483}} With no active item, leave a Giga Bomb unused for 2 minutes to grow it into Mama Mega",
+            "#{{Collectible483}} With the primary active slot empty, leave bombs unused for 2 minutes to grow 1 Giga Bomb into Mama Mega",
         },
     },
     [14] = {
@@ -301,16 +301,16 @@ item.Collectibles = {
         zh = {
             Name = "硫磺激流",
             Desc = "唯有燃烧",
-            Description = "带有硫磺火柱的火箭跟班"..
-            "#{{BrimstoneCurse}} 被火箭炸到的敌人对硫磺火脆弱",
-            AbyssSynic = "移速较快，命中后造成硫磺火脆弱的蝗虫",
+            Description = "生成不断穿行于战场的硫磺火箭"..
+            "#火箭高速掠过敌人，并在身后留下短暂的硫磺火航迹",
+            AbyssSynic = "高速飞行时留下短暂硫磺火航迹的蝗虫",
         },
         en = {
             Name = "Brimstream",
             Desc = "Devil's trick.",
-            Description = "Spawn a rocket baby with wake of brimstone."..
-            "#{{BrimstoneCurse}} Enemies being exploded will be fragile to brimstone",
-            AbyssSynic = "Locust that is fast and deals fragile to brimstone.",
+            Description = "Spawns a brimstone rocket that repeatedly crosses the battlefield"..
+            "#It streaks through enemies at high speed and leaves a brief damaging brimstone trail",
+            AbyssSynic = "A locust that leaves a brief brimstone trail while flying quickly",
         },
     },
     [15] = {
@@ -321,30 +321,26 @@ item.Collectibles = {
         zh = {
             Name = "琉璃的冠冕",
             Desc = "破碎之前，你即为王",
-            Description = "提高琉璃化掉落物的生成概率"..
-            "#拾取琉璃化掉落物会为冠冕增加1层辉片，最多5层"..
-            "#{{Damage}} 1层：+0.6攻击"..
-            "#2层：攻击命中时有概率产生琉璃折射"..
-            "#{{Luck}} 3层：+1幸运，并强化琉璃效果的触发率"..
-            "#4层：攻击有概率使敌人琉璃化"..
-            "#5层：完成冠冕，强化琉璃化掉落物，并免疫琉璃化敌人的碰撞伤害"..
-            "#{{Warning}} 受伤时冠冕破碎并失去全部辉片"..
-            "#根据失去的辉片数量向四周释放琉璃碎片",
-            SeijaNerf = "琉璃化掉落生成率提升减弱，碎冠伤害减半，且不再强化琉璃效果触发率",
+            Description = "↑ 提高琉璃化掉落物的生成概率"..
+            "#拾取琉璃掉落时冠冕获得1层辉片，最多5层"..
+            "#{{Damage}} 每层辉片提供+0.3攻击"..
+            "#{{Luck}} 每层辉片提供+1幸运"..
+            "#3层：泪弹攻击有概率化为琉璃冠冕弹（主核+4辉片）"..
+            "#5层：完成冠冕，强化琉璃掉落，并免疫琉璃化敌人的接触伤害"..
+            "#{{Warning}} 受伤时冠冕破碎，根据原辉片数向四周释放琉璃碎片",
+            SeijaNerf = "碎冠时，每层辉片额外失去半颗心",
         },
         en = {
             Name = "Crown of the glaze",
             Desc = "A king, until it shatters",
-            Description = "Increases the chance of glazed pickups"..
+            Description = "↑ Increases the chance of glazed pickups"..
             "#Picking up glazed pickups adds 1 Crown shard, up to 5"..
-            "#{{Damage}} 1 shard: +0.6 Damage"..
-            "#2 shards: Hits may split into glazed refraction tears"..
-            "#{{Luck}} 3 shards: +1 Luck, and glazed effect chances are boosted"..
-            "#4 shards: Attacks may glaze normal enemies"..
+            "#{{Damage}} Each shard grants +0.3 Damage"..
+            "#{{Luck}} Each shard grants +1 Luck"..
+            "#3 shards: Tear attacks may become a glazed crown shot (core + 4 shards)"..
             "#5 shards: Completes the crown, empowers glazed pickups, and blocks glazed enemy contact damage"..
-            "#{{Warning}} Taking damage shatters the crown and removes all shards"..
-            "#Fires glaze fragments based on lost shards",
-            SeijaNerf = "Weaker glazed pickup bonus, half shatter damage, and no glazed-effect chance bonus",
+            "#{{Warning}} Taking damage shatters the crown and fires glaze fragments based on lost shards",
+            SeijaNerf = "On shatter, lose half a heart for each shard held",
         },
     },
     [16] = {
@@ -355,13 +351,14 @@ item.Collectibles = {
         zh = {
             Name = "铸币之余",
             Desc = "金玉所成，必先自晦",
-            Description = "有谶曰：金玉所成，必先自晦 "..
-            "#剧情道具 "..
-            "#在主线中拾取此道具将立刻与乞丐国王再战，胜利会获得硬币作为奖励",
+            Description = "#{{Warning}} 当前版本暂不可用"..
+            "#旧剧情素材，现阶段不会在正常流程中生成",
         },
         en = {
             Name = "A Shard of Coin",
             Desc = "Those who shared Pennies have been in pieces",
+            Description = "#{{Warning}} Not currently available"..
+            "#Legacy story material; it does not spawn during normal progression in this version",
         },
     },
     [17] = {
@@ -372,12 +369,14 @@ item.Collectibles = {
         zh = {
             Name = "琉璃之残",
             Desc = "晦明五色，必损于光",
-            Description = "有谶曰：晦明五色，必损于光 "..
-            "#剧情道具",
+            Description = "#{{Warning}} 当前版本暂不可用"..
+            "#旧剧情素材，现阶段不会在正常流程中生成",
         },
         en = {
             Name = "A Shard of Glaze",
             Desc = "Those who honored Pride have been in pieces",
+            Description = "#{{Warning}} Not currently available"..
+            "#Legacy story material; it does not spawn during normal progression in this version",
         },
     },
     [18] = {
@@ -388,12 +387,14 @@ item.Collectibles = {
         zh = {
             Name = "流焰之华",
             Desc = "光结岩熔，必逢碎体",
-            Description = "有谶曰：光结岩熔，必逢碎体 "..
-            "#剧情道具",
+            Description = "#{{Warning}} 当前版本暂不可用"..
+            "#旧剧情素材，现阶段不会在正常流程中生成",
         },
         en = {
             Name = "A Shard of Lava",
             Desc = "Those who ingested Heat have been in pieces",
+            Description = "#{{Warning}} Not currently available"..
+            "#Legacy story material; it does not spawn during normal progression in this version",
         },
     },
     [19] = {
@@ -404,12 +405,14 @@ item.Collectibles = {
         zh = {
             Name = "鲜肉之渣",
             Desc = "体遍万物，必破心神",
-            Description = "有谶曰：体遍万物，必破心神 "..
-            "#剧情道具",
+            Description = "#{{Warning}} 当前版本暂不可用"..
+            "#旧剧情素材，现阶段不会在正常流程中生成",
         },
         en = {
             Name = "A Shard of Meat",
             Desc = "Those who valued Life have been in pieces",
+            Description = "#{{Warning}} Not currently available"..
+            "#Legacy story material; it does not spawn during normal progression in this version",
         },
     },
     [20] = {
@@ -420,12 +423,14 @@ item.Collectibles = {
         zh = {
             Name = "岩田之蚀",
             Desc = "神归至诚，必开飞金",
-            Description = "有谶曰：神归至诚，必开飞金 "..
-            "#剧情道具",
+            Description = "#{{Warning}} 当前版本暂不可用"..
+            "#旧剧情素材，现阶段不会在正常流程中生成",
         },
         en = {
             Name = "A Shard of Rock",
             Desc = "Those who desired Eternal have been in pieces",
+            Description = "#{{Warning}} Not currently available"..
+            "#Legacy story material; it does not spawn during normal progression in this version",
         },
     },
     [21] = {
@@ -473,14 +478,14 @@ item.Collectibles = {
         zh = {
             Name = "小黄鸭",
             Desc = "鸭！鸭！鸭鸭鸭！！",
-            Description = "每个未清理的房间随机生成3只小黄鸭"..
-            "#向其注入眼泪使之爆开",
+            Description = "进入未清理房间时，每份道具生成3只小黄鸭"..
+            "#小黄鸭受到7次攻击后爆开并环射泪弹",
         },
         en = {
             Name = "Little Duck",
             Desc = "Quack, quack, quack!",
-            Description = "Spawns 3 little ducks in each uncleared room"..
-            "#Feed them tears until they burst",
+            Description = "Entering an uncleared room spawns 3 ducks per copy"..
+            "#Ducks burst after 7 hits and fire a ring of tears",
         },
     },
     [24] = {
@@ -508,19 +513,21 @@ item.Collectibles = {
         },
     },
     [25] = {
-        Name = "飞行界域者",
+        Name = "空御一号-标准型",
         id = Items.Air_Terror,
         type = "passive",
         xmlId = 26,
         zh = {
-            Name = "飞行界域者",
+            Name = "空御一号-标准型",
             Desc = "敌人已锁定！",
-            Description = "自动巡航的小跟班，快速收集敌弹并短暂留下{{Collectible331}}伤害性光环",
+            Description = "自动巡航，追逐并拦截附近的敌方弹幕"..
+            "#拦截后将其转化为竖直落下的{{Collectible331}} 神性泪弹，下落时留下伤害光环",
         },
         en = {
-            Name = "Air Terror",
+            Name = "Air Guard 01 - Standard",
             Desc = "Hello...Again?",
-            Description = "An automatic cruising familiar quickly collects enemy bullets and briefly leaves a {{Collectible331}} damage halo.",
+            Description = "Cruises automatically, chases and intercepts nearby enemy projectiles"..
+            "#Converts them into falling {{Collectible331}} Godhead tears that leave a damaging aura",
         },
     },
     [26] = {
@@ -531,14 +538,16 @@ item.Collectibles = {
         zh = {
             Name = "琉璃的蘑菇",
             Desc = "我是…嗝……琉璃？",
-            Description = "{{EmptyHeart}} +1血上限 "..
-            "#{{Collectible12}} 向头目房道具池内增加一个大蘑菇",
+            Description = "{{Heart}} +1心之容器"..
+            "#{{BossRoom}} Boss道具池底座有20%被菌丝侵蚀并变为{{Collectible12}} 魔法蘑菇"..
+            "#本局最多触发一次",
         },
         en = {
             Name = "Glaze Mushroom",
             Desc = "I Feel...Glazed..uh?",
-            Description = "{{Heart}} +1 full red heart container."..
-            "#{{Collectible12}} Add a Magic Mushroom into the boss itempool",
+            Description = "{{Heart}} +1 Heart container"..
+            "#{{BossRoom}} Boss-pool pedestals have a 20% chance to be overgrown into {{Collectible12}} Magic Mushroom"..
+            "#Triggers at most once per run",
         },
     },
     [27] = {
@@ -549,30 +558,32 @@ item.Collectibles = {
         zh = {
             Name = "盛装男娘",
             Desc = "超级豪华究极无敌涩涩！",
-            Description = "{{Luck}} 每1个皮肤+0.1幸运"..
-            "#随机获得10个皮肤",
+            Description = "{{Luck}} +2幸运"..
+            "#随机穿上10件装扮",
         },
         en = {
             Name = "Pageant Cross-dresser",
             Desc = "Ultimate grand sexy",
-            Description = "{{Luck}} +0.1 Luck up per costume"..
-            "#↑ Add 10 random costumes",
+            Description = "{{Luck}} +2 Luck"..
+            "#Wear 10 random costumes",
         },
     },
     [28] = {
-        Name = "鸭架",
+        Name = "琉璃之核",
         id = Items.It_s_a_trick,
         type = "active",
         xmlId = 29,
         zh = {
-            Name = "鸭架",
-            Description = "{{Tears}} 射速+0.7",
+            Name = "琉璃之核",
+            Desc = "成为所见之物",
+            Description = "{{Room}} 使用后，本房间获得其伪装道具的效果"..
+            "#每次使用有5%概率永久变为该道具",
         },
         en = {
-            Name = "Wire duck hanger",
-            Desc = "You Are Fooled Again!!",
-            Description = "{{Tears}} +0.7Tears up",
-            Hidden = true,
+            Name = "Glaze Core",
+            Desc = "Become what you see",
+            Description = "{{Room}} On use, gain the disguised item's effect for the room"..
+            "#Each use has a 5% chance to permanently become that item",
         },
     },
     [29] = {
@@ -582,13 +593,15 @@ item.Collectibles = {
         xmlId = 30,
         zh = {
             Name = "世末天依",
-            Description = "{{Chargeable}} 蓄力发射{{Collectible643}} 启示光波的宝宝",
+            Desc = "至少这一次，我们相遇了",
+            Description = "清理房间后，有20%概率遇见来自另一条世界线的天依"..
+            "#在她离开前靠近，会收到一份礼物",
         },
         en = {
-            Name = "Apocalypse",
-            Desc = "Forever and Never",
-            Description = "{{Chargeable}} Spawn a baby familiar that follows Isaac and will charge a shot while firing."..
-            "#Releasing it will fire a {{Collectible643}} light beam.",
+            Name = "World's End Tianyi",
+            Desc = "At least this time, we met",
+            Description = "After clearing a room, there is a 20% chance to encounter a Tianyi from another worldline"..
+            "#Approach her before she leaves to receive a gift",
         },
     },
     [30] = {
@@ -600,7 +613,7 @@ item.Collectibles = {
             Name = "傲慢或是偏见",
             Desc = "我的品味不需要解释",
             Description = "靠近道具时可以评价它"..
-            "#按住Ctrl并按E点赞；按住Ctrl并按Q点踩"..
+            "#{{ButtonRT}} + {{ButtonLB}} 点赞；{{ButtonRT}} + {{ButtonRB}} 点踩"..
             "#{{Collectible}} 点赞：复制一份该道具进入当前道具池"..
             "#{{Warning}} 点踩：该道具从当前局与下一局的道具池中移除",
         },
@@ -608,10 +621,9 @@ item.Collectibles = {
             Name = "Pride or Prejudice",
             Desc = "My taste needs no defense",
             Description = "Approach an item pedestal to judge it"..
-            "#Hold Ctrl and press E to like it; hold Ctrl and press Q to dislike it"..
-            "#Controllers can hold Drop and press Shoot Right/Left"..
-            "#{{Collectible}} Liked items are copied into the current item pool"..
-            "#{{Warning}} Disliked items are removed from this run and the next run's item pools",
+            "#{{ButtonRT}} + {{ButtonLB}} to like; {{ButtonRT}} + {{ButtonRB}} to dislike"..
+            "#{{Collectible}} Like: copy that item into the current item pool"..
+            "#{{Warning}} Dislike: remove it from this run and the next run's item pools",
         },
     },
     [31] = {
@@ -622,16 +634,18 @@ item.Collectibles = {
         zh = {
             Name = "逆反力场",
             Desc = "↑升天↑",
-            Description = "不移动时眼泪向上飘，随后从地面上重新出现 "..
-            "#移动时眼泪加速下落 "..
-            "#{{Tears}} 射速+1",
+            Description = "房间内生成1个{{ColorPurple}}逆反力场{{CR}}"..
+            "#{{Tears}} 站在力场内时射速+1"..
+            "#你的眼泪进入力场后会逐渐停下，并反复升空、重新出现"..
+            "#多个力场彼此连通，被捕获的眼泪可从其他力场中出现",
         },
         en = {
             Name = "Anti-Field",
             Desc = "Those who rise up must be drifting down.",
-            Description = "Standing still provides floating up tears"..
-            "#otherwise tears slowly float down"..
-            "#{{Tears}} +2 Tears up",
+            Description = "Creates an {{ColorPurple}}Anti-Field{{CR}} in the room"..
+            "#{{Tears}} +1 Tears while standing inside the Field"..
+            "#Your tears entering the Field gradually stop, then repeatedly rise and reappear"..
+            "#Multiple Fields are linked; captured tears can emerge from another Field",
         },
     },
     [32] = {
@@ -641,31 +655,17 @@ item.Collectibles = {
         xmlId = 33,
         zh = {
             Name = "缝合针",
-            Desc = "死亡只是线断了",
-            Description = "{{Timer}} 自动充能"..
-            "#使用时缝合附近的敌人，持续数秒"..
-            "#期间死亡的敌人会被强行维持活动一段时间"..
-            "#继续攻击会拆开缝线"..
-            "#缝线断裂时撕裂身体并伤害附近敌人",
-            BookOfBelial = "每有一个敌人进入缝尸状态，本房间获得临时攻击提升",
-            BookOfVirtues = "生成最多一个缝合魂火"..
-            "#每有一个敌人进入缝尸状态，魂火会变大并提高伤害"..
-            "#敌人拆线死亡时，魂火向其位置发动攻击",
-            SeijaBuff = "缝尸持续更久，但受到攻击时缝线会更快断裂",
+            Desc = "那兽像豹，脚如熊足，口如狮口",
+            Description = "分别选择1个{{ColorGreen}}移动部件{{CR}}与{{ColorRed}}攻击部件{{CR}}"..
+            "#将二者缝合为一只友方敌人"..
+            "#移动由前者决定，攻击由后者决定",
         },
         en = {
             Name = "Suture Needle",
-            Desc = "Death is only a broken thread",
-            Description = "{{Timer}} Recharges over time"..
-            "#Sutures nearby enemies for a few seconds"..
-            "#Enemies that die during this window continue moving briefly"..
-            "#Further damage causes their sutures to break faster"..
-            "#When the sutures completely break, their bodies rupture and damage nearby enemies",
-            BookOfBelial = "Gain a temporary damage up whenever an enemy enters the sutured state",
-            BookOfVirtues = "Spawns up to one Suture Wisp"..
-            "#The wisp grows and gains damage whenever an enemy enters the sutured state"..
-            "#When a sutured enemy ruptures, the wisp attacks its position",
-            SeijaBuff = "Sutured enemies persist longer, but damage breaks their sutures much faster",
+            Desc = "The beast was like a leopard, with feet like a bear's and a mouth like a lion's.",
+            Description = "Choose a {{ColorGreen}}movement part{{CR}} and an {{ColorRed}}attack part{{CR}}"..
+            "#Stitch them together into a friendly enemy"..
+            "#The former determines its movement; the latter determines its attacks",
         },
     },
     [33] = {
@@ -676,16 +676,16 @@ item.Collectibles = {
         zh = {
             Name = "更多更多选择！",
             Desc = "当然，也要付出一点代价",
-            Description = "商品二选一 "..
-            "#!!! 商品价格随机提升0-35%",
-            SeijaNerf = "价格翻3倍",
+            Description = "{{Shop}} 商品会额外生成一个二选一选项"..
+            "#{{Warning}} 商品价格随机提高约0–35%",
+            SeijaNerf = "价格变为约三倍",
         },
         en = {
             Name = "More and more Options!",
             Desc = "Also Double Price",
-            Description = "Shop items and devil deals become a selection in two."..
-            "#All shop items will have a higher price, between 100% and 135%.",
-            SeijaNerf = "Triple price",
+            Description = "{{Shop}} Shop items gain an extra either/or choice"..
+            "#{{Warning}} Prices rise randomly by about 0–35%",
+            SeijaNerf = "Prices become about triple",
         },
     },
     [34] = {
@@ -696,12 +696,14 @@ item.Collectibles = {
         zh = {
             Name = "注定一抽",
             Desc = "只要我牌组里还有卡，我始终相信我的牌组！！",
-            Description = "{{Card}} 你持有的所有卡牌均在同种类卡间切换",
+            Description = "持有的卡牌会不断变为同种类的另一张牌"..
+            "#按住{{ButtonRT}}可以暂时锁定当前牌",
         },
         en = {
             Name = "Fate's Draw",
             Desc = "My Drawwww!!!!",
-            Description = "{{Card}} Change your card in hand every 0.2 seconds.",
+            Description = "Held cards keep changing into another card of the same type"..
+            "#Hold {{ButtonRT}} to temporarily lock the current card",
         },
     },
     [35] = {
@@ -712,15 +714,16 @@ item.Collectibles = {
         zh = {
             Name = "小青的纹章",
             Desc = "为它们找个家吧！",
-            Description = "3个造成每15帧7点接触伤害的纹章宝宝 "..
-            "#让宝宝随着子弹发射组织进攻",
+            Description = "生成3个纹章"..
+            "#大多数跟班会沿着你的泪弹轨迹组织进攻"..
+            "#纹章接触敌人造成伤害，并可拦截敌方弹幕",
         },
         en = {
             Name = "Qing's Emblem",
             Desc = "Finally a home for me..",
-            Description = "Spawn 3 emblem familiars that follows Isaac and deals 10 collision damage per second. "..
-            "#Emblem familiar can absorb 1 bullet after dealing collision damage. "..
-            "#Familiars will follow Isaac's tear to move around.",
+            Description = "Spawns 3 emblems"..
+            "#Most familiars organize attacks along your tear paths"..
+            "#Emblems deal contact damage and can block enemy shots",
         },
     },
     [36] = {
@@ -731,21 +734,19 @@ item.Collectibles = {
         zh = {
             Name = "夜之摄取",
             Desc = "长夜生牙",
-            Description = "{{CurseDarkness}} 33%概率使黑暗笼罩房间"..
-            "#{{CurseDarkness}} 蓄力潜入黑暗，发动斩击并反击弹幕"..
-            "#↑ 在黑暗中30%概率免疫攻击"..
-            "#↑ 飞行 "..
-            "#{{Damage}} +1攻击",
+            Description = "↑ 飞行"..
+            "#按住攻击呼唤夜色，松开后发动摄取"..
+            "#夜将你吞下，并重创敌人、吞噬敌方弹幕"..
+            "#{{Warning}} 新房间有概率陷入黑暗，其中摄取更快",
             AbyssSynic = "概率恐惧的蝗虫",
         },
         en = {
             Name = "Ingestion to Night",
             Desc = "The night has teeth",
-            Description = "{{CurseDarkness}} 33% chance for rooms to become pitch black"..
-            "#{{CurseDarkness}} Charge in darkness to unleash slashes and counter projectiles"..
-            "#↑ 30% chance to ignore damage in darkness"..
-            "#↑ Flight"..
-            "#{{Damage}} +1 damage",
+            Description = "↑ Flight"..
+            "#Hold fire to call the night, then release to ingest"..
+            "#The night swallows you, heavily damages enemies, and consumes enemy projectiles"..
+            "#{{Warning}} New rooms may fall into darkness, where ingestion charges faster",
             AbyssSynic = "Locust that can fear enemies",
         },
     },
@@ -778,23 +779,26 @@ item.Collectibles = {
         zh = {
             Name = "恶魔的心智",
             Desc = "他们自愿为我而死",
-            Description = "使用主动标记敌人 "..
-            "#!!! 角色死亡时将取代被标记的敌人，复活并失去数个随机{{Collectible}}道具，不足时增加{{BrokenHeart}}碎心",
-            AbyssSynic = "蝗虫命中敌人也进行标记",
-            BookOfBelial = "复活后依次获得：#前5次：{{Collectible51}}#5-12次：{{Collectible462}}#13次以上：{{Collectible118}}",
-            BookOfVirtues = "每个魂火可以替代一个道具被主动抵消",
-            SeijaBuff = "复活时不消耗道具",
+            Description = "使用后射出恶魔种子，与命中的敌人签订替死契约"..
+            "#受到致死伤害时，由签约敌人代替你死亡"..
+            "#签约敌人死亡时会转化为永久友军"..
+            "#{{Timer}} 每次借命都会使之后的索命伤害增加1整心",
+            AbyssSynic = "蝗虫命中敌人也会与其签约",
+            BookOfBelial = "通过契约复活后，本房间获得临时攻击提升",
+            BookOfVirtues = "消耗魂火可让普通敌对宿主替死后存活；Boss支付的生命减半",
+            SeijaBuff = "通过契约复活不会增加恶魔索命伤害",
         },
         en = {
             Name = "Devil's Heart",
-            Desc = "Stage a Comeback",
-            Description = "Fire devil's mark at enemy"..
-            "#!!! Revive at a live enemy's position that is marked when you die"..
-            "#After that,remove several {{Collectible}}collectibles or add {{BrokenHeart}} broken hearts and kill the enemy",
-            AbyssSynic = "Marking locust",
-            BookOfBelial = "Gain item depending on reviving time：#1-5：{{Collectible51}}#5-12：{{Collectible462}}#More than 13：{{Collectible118}}",
-            BookOfVirtues = "Each wisp replace a collectible to be removed",
-            SeijaBuff = "Revive without removing items",
+            Desc = "They volunteered to die for me",
+            Description = "Use to fire a devil seed and bind the enemy it hits into a death pact"..
+            "#On lethal damage, a contracted enemy dies in your place"..
+            "#Contracted enemies that die instead become permanent friendly servants"..
+            "#{{Timer}} Each borrowed life increases future claim damage by 1 full heart",
+            AbyssSynic = "Locust hits can also bind enemies into contracts",
+            BookOfBelial = "After reviving through a contract, gain a temporary room damage up",
+            BookOfVirtues = "Spend a wisp to let a normal hostile host survive its sacrifice; bosses pay half as much HP",
+            SeijaBuff = "Reviving through a contract does not increase the Devil's claim damage",
         },
     },
     [39] = {
@@ -858,7 +862,7 @@ item.Collectibles = {
             "#{{Damage}} 撞击敌人造成250+5倍角色伤害"..
             "#{{Warning}} 动车会对角色造成5点伤害",
             AbyssSynic = "速度极快的蝗虫",
-            BookOfVirtues = "和平魂火 #角色受到2格心或以上的伤害时，熄灭全部和平魂火，那个伤害被抵消",
+            BookOfVirtues = "和平魂火 #角色受到至少1整心伤害时，熄灭全部和平魂火并抵消该次伤害",
         },
         en = {
             Name = "Hyper Velocity",
@@ -868,7 +872,7 @@ item.Collectibles = {
             "#{{Damage}} Deals 250 + 5x Isaac's damage to enemies"..
             "#{{Warning}} Deals 5 damage to Isaac on collision",
             AbyssSynic = "Very fast locust",
-            BookOfVirtues = "Peace wisps prevent one hit of 2 hearts or more, then all vanish",
+            BookOfVirtues = "Peace wisps block a hit of at least 1 full heart, then all vanish",
         },
     },
     [42] = {
@@ -902,19 +906,23 @@ item.Collectibles = {
         },
     },
     [43] = {
-        Name = "回荡之星",
+        Name = "灵摆之星",
         id = Items.Pendulum_Star,
         type = "passive",
         xmlId = 54,
         zh = {
-            Name = "回荡之星",
-            Desc = "摇晃吧！吾魂之灵摆！",
-            Description = "一对不断晃动的跟班，在最低点对敌人造成每帧3.5点伤害",
+            Name = "灵摆之星",
+            Desc = "刻度设置完毕",
+            Description = "生成一对摆动的灵摆星"..
+            "#穿过两星之间刻度的眼泪会被记录"..
+            "#回摆时，以75%伤害重新释放为具有灵体与跟踪效果的星泪",
         },
         en = {
             Name = "Pendulum Star",
-            Desc = "Pendulum Scale Setting",
-            Description = "Spawn a pair of constantly shaking followers deal 3.5 damage per frame to the enemy at the lowest point.",
+            Desc = "Scale set",
+            Description = "Spawns a pair of swinging pendulum stars"..
+            "#Tears that cross the scale between them are recorded"..
+            "#On the backswing, they are released again at 75% damage as spectral homing star tears",
         },
     },
     [44] = {
@@ -925,7 +933,7 @@ item.Collectibles = {
         zh = {
             Name = "透特之书",
             Desc = "命运只是尚未整理的书页",
-            Description = "{{ThothCard}} 记录获得过的透特牌面"..
+            Description = "{{ThothCard}} 拾取时生成1张透特牌，并记录获得过的透特牌面"..
             "#{{Battery}} 登记新牌面+1启示，使用透特牌+2启示，最多12格"..
             "#消耗3格启示，选择至多3张记录牌面进行占卜"..
             "#进入新战斗房时随机发动一张；每个牌面每层限一次",
@@ -937,7 +945,7 @@ item.Collectibles = {
         en = {
             Name = "Book of Thoth",
             Desc = "Fate is merely a book yet to be put in order.",
-            Description = "{{ThothCard}} Records obtained Thoth faces"..
+            Description = "{{ThothCard}} Spawns 1 Thoth card on pickup; records obtained Thoth faces"..
             "#{{Battery}} Registering a new face +1 Revelation, using a Thoth card +2, up to 12"..
             "#Spend 3 Revelation to read up to 3 recorded faces"..
             "#Entering a new combat room plays one at random; each face once per floor",
@@ -976,19 +984,19 @@ item.Collectibles = {
         xmlId = 57,
         zh = {
             Name = "觅之书",
-            Desc = "视线所及，再无安宁",
-            Description = "使用后，当前房间内资源获取、消耗量翻倍 "..
-            "#金雷、金钥匙对应3个普通基础",
+            Desc = "看见两次",
+            Description = "本房间内基础资源的获得与消耗都会重复一次"..
+            "#{{GoldenBomb}} {{GoldenKey}} 获得时额外转化为3个对应基础资源",
             BookOfBelial = "获得心类资源时额外获得半颗黑心",
-            BookOfVirtues = "获得资源时，自动消耗并将资源量+1的魂火",
+            BookOfVirtues = "每次有效获得资源时，消耗全部觅之书魂火，并按魂火数量额外再复制一次",
         },
         en = {
             Name = "Book of Vision",
-            Desc = "Doubook Vision",
-            Description = "Double all pickup acquisition and consumption in the current room."..
-            "#Extra golden bomb/golden key corresponds to 3 bombs/keys.",
-            BookOfBelial = "Grants heart-type pickups an additional half a black heart.",
-            BookOfVirtues = "Spawn a wisp that automatically extinguish and duplicate the pickup on collision.",
+            Desc = "See twice",
+            Description = "Basic resource gains and spends in this room are applied again"..
+            "#{{GoldenBomb}} {{GoldenKey}} also grant 3 matching basic resources",
+            BookOfBelial = "Gaining heart-type resources also grants half a black heart",
+            BookOfVirtues = "On a resource gain, consume Vision wisps and duplicate once more per wisp",
         },
     },
     [47] = {
@@ -1001,8 +1009,7 @@ item.Collectibles = {
             Desc = "快，毁灭我",
             Description = "{{Battery}} 以0充能获得；充满后可主动呼唤低语"..
             "#低语也会自然响起，并使此书暂时可用"..
-            "#{{Collectible}} 使用后选择接受或拒绝，接受则立即完成交易"..
-            "#每次接受都会让声音更加清晰，并缩短充能",
+            "#每次接受低语都会让声音更加清晰，并缩短充能",
             BookOfBelial = "可加倍接受低语，以更高代价换取更高报酬",
             BookOfVirtues = "回应低语时生成假象魂火，使要求降低一级",
             SeijaBuff = "拒绝低语也会获得小型报酬，并使声音更加清晰",
@@ -1011,9 +1018,8 @@ item.Collectibles = {
             Name = "Book of Voice",
             Desc = "Destroy me. Quickly.",
             Description = "{{Battery}} Obtained at 0 charge; when full, can call a whisper"..
-            "#Whispers also start on their own and temporarily make this book usable"..
-            "#{{Collectible}} Use to accept or refuse; accepting completes the deal immediately"..
-            "#Each accept makes the voice clearer and shortens charge",
+            "#Whispers can also arise on their own, temporarily making the book usable"..
+            "#Each accepted whisper makes the voice clearer and shortens the charge",
             BookOfBelial = "Can double-accept a whisper, paying more for a greater reward",
             BookOfVirtues = "Answering a whisper spawns an illusion wisp that lowers the demand by one tier",
             SeijaBuff = "Refusing a whisper also grants a small reward and makes the voice clearer",
@@ -1027,17 +1033,18 @@ item.Collectibles = {
         zh = {
             Name = "失语症",
             Desc = "名可名，非常名",
-            Description = "!!! 失去表述文字的能力 "..
-            "#无法表述的文字散落在地上 "..
-            "#{{Damage}} 收集文字，每个文字可以让一发眼泪增加2.5点伤害，并暂时提升0.4攻击 "..
-            "#不会影响EID",
+            Description = "大部分普通道具文字会被打乱，并从描述中掉落"..
+            "#拾取文字会暂时提高攻击，并保存为文字弹药"..
+            "#发射泪弹时消耗一个文字，使该泪弹获得额外伤害"..
+            "#不会打乱EID",
         },
         en = {
             Name = "Aphasia",
             Desc = "Hardly can I ever read",
-            Description = "!!! Lose the ability to express words, including most of normal descriptions in the game."..
-            "#Words scattered around"..
-            "#{{Damage}} Picking up words grants bonus damage",
+            Description = "Most normal item text is scrambled, and some characters fall to the floor"..
+            "#Picked-up words briefly raise damage and are stored as word ammo"..
+            "#Firing a tear spends one word and boosts that tear"..
+            "#Does not scramble EID",
         },
     },
     [49] = {
@@ -1048,19 +1055,20 @@ item.Collectibles = {
         zh = {
             Name = "纳兹卡巨画",
             Desc = "神明立于尘埃之上",
-            Description = "从角色的身下开始绘制地缚图线 "..
-            "#踩到的敌人受到伤害 "..
-            "#{{Damage}} 站立在地缚图线上获得速度与攻击倍率提升，最高+100%",
+            Description = "在房间中不断绘制地缚图线"..
+            "#敌人站在线上会持续受到伤害"..
+            "#站在线上时，根据图线浓度提高{{Damage}}攻击与{{Speed}}移速",
             AbyssSynic = "三只蝗虫",
-            SeijaNerf = "只有一条绘制线",
+            SeijaNerf = "只保留一名绘制者，且图线浓度上限降低",
         },
         en = {
             Name = "Nazca",
             Desc = "Earthbound Deity",
-            Description = "Draw nazca lines in the room "..
-            "#{{Damage}} Deal damage to the enemies and grants stats bonus to Isaac",
+            Description = "Keeps drawing earthbound lines across the room"..
+            "#Enemies standing on the lines take damage over time"..
+            "#Standing on denser lines raises {{Damage}} Damage and {{Speed}} Speed",
             AbyssSynic = "Triple locust",
-            SeijaNerf = "Only one draw line",
+            SeijaNerf = "Only one painter, with a lower line density cap",
         },
     },
     [50] = {
@@ -1093,15 +1101,16 @@ item.Collectibles = {
         zh = {
             Name = "痛苦因子",
             Desc = "你的过去由我笼罩",
-            Description = "#{{Chargeable}} 长按蓄力，否则清空蓄力值 "..
-            "#蓄力完成后自动向身后发射因子网 "..
-            "#作为底座道具出现时，在2秒后转化为{{Collectible"..tostring(enums.Items.Wisel).."}}。",
+            Description = "{{Chargeable}} 持续攻击进行蓄力"..
+            "#蓄满后展开由泪弹连接而成的因子网"..
+            "#松开攻击会失去当前蓄力",
         },
         en = {
             Name = "Skiel",
-            Desc = "Your past is lying in pain",
-            Description = "{{Chargeable}} Hold down to charge, or the charge value will be reset"..
-            "#Fire factor network when charged",
+            Desc = "Your past is shrouded by me",
+            Description = "{{Chargeable}} Keep firing to charge"..
+            "#At full charge, release a linked web of tears"..
+            "#Releasing fire resets the current charge",
         },
     },
     [52] = {
@@ -1112,15 +1121,16 @@ item.Collectibles = {
         zh = {
             Name = "绝望因子",
             Desc = "你的现在由我咒缚",
-            Description = "#{{Chargeable}} 反复点击以蓄力，否则逐渐减少蓄力值 "..
-            "#蓄力完成后，向前方发射冲击波纹 "..
-            "#作为底座道具出现时，在2秒后转化为{{Collectible"..tostring(enums.Items.Granel).."}}。",
+            Description = "{{Chargeable}} 反复点按攻击进行蓄力"..
+            "#停止攻击后蓄力逐渐流失"..
+            "#蓄满后向攻击方向连续释放大型冲击波",
         },
         en = {
             Name = "Wisel",
-            Desc = "Your present is immersed in dispair",
-            Description = "{{Chargeable}} Press repeatedly to accumulate power,otherwise lose power gradually "..
-            "#Fire Shooting Waves when charged",
+            Desc = "Your present is bound by me",
+            Description = "{{Chargeable}} Repeatedly tap fire to charge"..
+            "#Charge gradually decays while not firing"..
+            "#At full charge, release a series of large shockwaves",
         },
     },
     [53] = {
@@ -1131,15 +1141,16 @@ item.Collectibles = {
         zh = {
             Name = "泯灭因子",
             Desc = "你的未来由我惩戒",
-            Description = "#{{Chargeable}} 长按蓄力，点按加快蓄力，否则缓缓减少蓄力值 "..
-            "#蓄力完成后向四角喷射火焰 "..
-            "#作为底座道具出现时，在2秒后转化为{{Collectible"..tostring(enums.Items.Skiel).."}}。",
+            Description = "{{Chargeable}} 持续攻击蓄力，反复点按可加快蓄力"..
+            "#停止攻击后蓄力逐渐流失"..
+            "#蓄满后向四周连续喷射大量火焰",
         },
         en = {
             Name = "Granel",
-            Desc = "Your future is trailed in vanishment",
-            Description = "{{Chargeable}} Long press to accumulate power,press repeatedly to accelerate power accumulation "..
-            "#Fire flames in four directions when charged",
+            Desc = "Your future shall be judged by me",
+            Description = "{{Chargeable}} Hold fire to charge; repeated taps charge faster"..
+            "#Charge gradually decays while not firing"..
+            "#At full charge, unleash waves of flames in four directions",
         },
     },
     [54] = {
@@ -1150,22 +1161,22 @@ item.Collectibles = {
         zh = {
             Name = "妖刀·逢魔",
             Desc = "物皆有灵",
-            Description = "举起妖刀，挥向房间中的道具"..
-            "#在面板中花费1{{Coin}}，随机重铸一个前缀和一个后缀"..
-            "#词缀永久绑定该道具，持有时获得对应效果"..
-            "#面板也可永久改写其名字与描述"..
-            "#支持中文输入法"..
-            "#可重复付费重新随机词缀",
-            SeijaNerf = "大幅提升重铸词条的费用",
+            Description = "使用后唤出妖鬼，可调整属性、基础资源及其上限、房间概率"..
+            "#降低数值获得对应灵质；消耗同类灵质提高其他数值"..
+            "#属性、资源与概率灵质彼此独立"..
+            "#天使房概率改分配且不消耗概率灵质",
+            BookOfVirtues = "不生成魂火",
+            SeijaNerf = "抽取时有50%概率不产生灵质",
         },
         en = {
             Name = "Spectral Sword",
             Desc = "Out of its sheath",
-            Description = "Raise the blade and swing at a room item"..
-            "#In the editor, spend 1{{Coin}} to roll one random prefix and suffix"..
-            "#Affixes permanently bind to that item and grant effects while held"..
-            "#The editor can also permanently rewrite its name and description"..
-            "#Affixes can be reforged repeatedly",
+            Description = "Use to summon the oni and adjust stats, basic resources and their caps, and room chances"..
+            "#Lower values to gain matching essence; spend matching essence to raise other values"..
+            "#Stat, resource, and chance essence are separate"..
+            "#Angel Room chance reshapes the Deal split and costs no Chance Essence",
+            BookOfVirtues = "Does not spawn wisps",
+            SeijaNerf = "50% chance for extraction to produce no essence",
         },
     },
     [55] = {
@@ -1176,17 +1187,20 @@ item.Collectibles = {
         zh = {
             Name = "妖刻·白隙",
             Desc = "物皆有间",
-            Description = "#斩开事物的间隙 "..
-            "#在间隙中调整它们的属性 "..
-            "#按下 "..eidButton(ButtonAction and ButtonAction.ACTION_DROP).." 结束属性操作 "..
-            "#按下 "..eidButton(ButtonAction and ButtonAction.ACTION_PILLCARD).." 与 "..eidButton(ButtonAction and ButtonAction.ACTION_MAP).." 在项内切换",
+            Description = "使用后挥刀选择附近的对象，斩开它的“间隙”"..
+            "#在间隙中查看并修改该对象支持的属性"..
+            "#可作用于敌人、掉落物、机关与部分地形"..
+            "#不同对象可修改的内容不同",
             BookOfVirtues = "不生成魂火",
             SeijaNerf = "在修改器中每次移动指针都会降低全属性",
         },
         en = {
             Name = "Squiresaga",
             Desc = "My blade burns",
-            Description = "#Cut out the crevice of an entity #Adjust their attributes in the crevice(ONLY CHINESE) #Press"..eidButton(ButtonAction and ButtonAction.ACTION_DROP).."to end attribute adjusting#Press"..eidButton(ButtonAction and ButtonAction.ACTION_PILLCARD).."and"..eidButton(ButtonAction and ButtonAction.ACTION_MAP).."switch in attributes",
+            Description = "Use to swing the blade and select a nearby object, cutting open its \"gap\""..
+            "#Inspect and modify attributes supported by that object"..
+            "#Works on enemies, pickups, mechanisms, and some grid entities"..
+            "#Available attributes depend on the target",
             BookOfVirtues = "No wisps",
             SeijaNerf = "Lower all stats when moving pointer in the crevice",
         },
@@ -1199,16 +1213,19 @@ item.Collectibles = {
         zh = {
             Name = "妖星·一瞬",
             Desc = "物皆有能",
-            Description = "{{ArrowUp}} 回收利用攻击的剩余能量，对敌人造成伤害并转化为属性提升 "..
-            "#提升达到一定值后，会泄露提升的属性防止过载 "..
-            "#!!! 过量的能量吸收导致零点反转",
+            Description = "回收攻击留下的残余能量"..
+            "#回收的能量会逐渐转化为随机属性提升"..
+            "#能量过高后开始自动泄露"..
+            "#{{Warning}} 严重过载会触发零点反转，使积累的属性反向生效",
             SeijaNerf = "能量不会泄露，即使反转已经发生",
         },
         en = {
             Name = "Moment",
             Desc = "lasrever dlroW",
-            Description = "Recover the remaining energy of all attack methods and convert it into attribute enhancement"..
-            "#!!! Overload will reverse the world for sometime and overturn all attribute enhancement",
+            Description = "Recover residual energy left by your attacks"..
+            "#Recovered energy gradually becomes random stat bonuses"..
+            "#Excess energy is automatically vented"..
+            "#{{Warning}} Severe overload triggers Zero Reversal, reversing the accumulated bonuses",
             SeijaNerf = "The world will reverse forever",
         },
     },
@@ -1220,18 +1237,18 @@ item.Collectibles = {
         zh = {
             Name = "至高之阵",
             Desc = "坠入深不见底的绝望深渊吧",
-            Description = "阻挡每个房间第一次受到的伤害，并出释放冲击波消除弹幕 "..
-            "#在冲击波碰撞的敌人处再次释放冲击波 "..
-            "#{{Chargeable}} 冲击波未被消耗时，可蓄力释放小型冲击波",
+            Description = "每个房间首次受伤时阻挡伤害，并释放扩张的冲击波"..
+            "#冲击波命中敌人后，会从目标处再次扩散"..
+            "#{{Chargeable}} 本房间护盾尚未触发时，持续攻击蓄力可主动释放冲击波",
             AbyssSynic = "蝗虫命中后释放小型冲击波",
             SeijaNerf = "改为每层下层时恢复",
         },
         en = {
             Name = "Lofty",
             Desc = "Bottomless despair abyss",
-            Description = "Block the first damage to each room and release shock wave"..
-            "#Release shock wave again at the enemies touched by the shock wave "..
-            "#{{Chargeable}} Charge to shoot small shock wave before you take damage",
+            Description = "Block the first hit in each room and release an expanding shockwave"..
+            "#Enemies touched by the wave emit another shockwave"..
+            "#{{Chargeable}} While the room's shield is unused, hold fire to charge and release a shockwave",
             AbyssSynic = "Locust with small shock wave",
             SeijaNerf = "Shock wave recovers only once each level",
         },
@@ -1244,12 +1261,16 @@ item.Collectibles = {
         zh = {
             Name = "忒修斯之印",
             Desc = "条款正在改写",
-            Description = "此道具以下效果在触发或下层时逐渐改写",
+            Description = "持有2条会不断改写的条款"..
+            "#完成条款后执行对应结果，并随机改写其中一部分"..
+            "#进入新一层时也会改写1条条款",
         },
         en = {
             Name = "Theseus's Sign",
             Desc = "Terms under revision",
-            Description = "The following effects rewrite after triggering or entering a new floor",
+            Description = "Hold 2 clauses that are continuously rewritten"..
+            "#Completing a clause performs its result and randomly rewrites part of it"..
+            "#Entering a new floor also rewrites 1 clause",
         },
     },
     [59] = {
@@ -1260,18 +1281,18 @@ item.Collectibles = {
         zh = {
             Name = "心变",
             Desc = "一念神魔",
-            Description = "↑ 飞行直到翅膀折断 "..
-            "#{{BlackHeart}} 进入天使房折断恶魔翅膀，生成1个黑心 "..
-            "#{{EternalHeart}} 进入恶魔房折断天使翅膀，生成1个白心 "..
-            "#{{Collectible}} 双翅均折断后，下层生成天使、恶魔房道具各一个，然后恢复双翅",
+            Description = "双翼完整时获得飞行"..
+            "#{{AngelRoom}} 首次进入天使房：折断恶魔翼，生成1个{{BlackHeart}} 黑心"..
+            "#{{DevilRoom}} 首次进入恶魔房：折断天使翼，生成1个{{EternalHeart}} 永恒之心"..
+            "#{{Collectible}} 双翼均折断后，下层生成天使与恶魔道具各1件，并恢复双翼",
         },
         en = {
             Name = "Heart Change",
             Desc = "Demon in body,angel in mind",
-            Description = "↑ Grants flight when two wing exists "..
-            "#Break Devil's wing when entering angel room "..
-            "#Break Angel's wing when entering devil room "..
-            "#Recover both wings when then are broken and spawn 2 item from angel and devil's item pool after entering a new level",
+            Description = "Grants flight while both wings are intact"..
+            "#{{AngelRoom}} First Angel Room visit: break the Devil wing and spawn 1 {{BlackHeart}} Black Heart"..
+            "#{{DevilRoom}} First Devil Room visit: break the Angel wing and spawn 1 {{EternalHeart}} Eternal Heart"..
+            "#{{Collectible}} After both wings break, the next floor spawns 1 Angel and 1 Devil item, then restores both wings",
         },
     },
     [60] = {
@@ -1282,19 +1303,21 @@ item.Collectibles = {
         zh = {
             Name = "罐中雷暴",
             Desc = "你感到有点漏电",
-            Description = "{{Battery}} 将主动充能上限设置为2，溢出的充能以球的形式泄露出来"..
-            "#使用主动时有 当前上限/原上限 概率成功使用"..
-            "#失败：泄露所有充能，上限+2"..
-            "#{{Warning}} 受伤时上限-2",
+            Description = "{{Battery}} 将主主动槽中有充能主动的上限压缩至2格"..
+            "#溢出的充能会泄露为留在房间中的能量球"..
+            "#使用主动时，按当前上限/原始上限的概率正常发动"..
+            "#失败：泄露所有充能并释放雷暴，上限+2"..
+            "#{{Warning}} 受伤时上限-2，并泄露超出新上限的充能",
             AbyssSynic = "蝗虫命中时小概率生成充能球",
         },
         en = {
             Name = "Cable Jar",
             Desc = "Slightly leaky",
-            Description = "{{Battery}} Sets the primary active's charge cap to 2; excess charge leaks out as energy orbs"..
-            "#On use: current cap/base cap chance to succeed"..
-            "#Failure: leak all charge; cap +2"..
-            "#{{Warning}} Taking damage reduces the cap by 2",
+            Description = "{{Battery}} Compresses the charge cap of charged primary actives to 2"..
+            "#Excess charge leaks into energy orbs that remain in the room"..
+            "#On use: current cap/original cap chance to activate normally"..
+            "#Failure: leak all charge in a thunderstorm; cap +2"..
+            "#{{Warning}} Taking damage lowers the cap by 2 and leaks charge above the new cap",
             AbyssSynic = "The locust has a small chance to spawn an energy orb on hit",
         },
     },
@@ -1306,22 +1329,22 @@ item.Collectibles = {
         zh = {
             Name = "福音",
             Desc = "神的国度带着主权临到",
-            Description = "每4次攻击产生{{ColorYellow}}福音攻击{{CR}}"..
+            Description = "每4次攻击，该次攻击成为{{ColorYellow}}福音攻击{{CR}}"..
             "#命中使敌人接受福音，并可向附近敌人传播"..
-            "#击杀目标或持续伤害Boss时降下启示"..
-            "#多次启示后发动最终审判",
+            "#击杀受福音影响的敌人，或持续伤害受影响的Boss，会降下启示"..
+            "#本房间累计6次启示后发动最终启示",
             AbyssSynic = "蝗虫命中敌人时使其接受福音",
-            SeijaNerf = "福音不再传播，改为对原目标降下较弱的黑暗启示",
+            SeijaNerf = "福音不再传播，改为对原目标降下较弱的黑暗启示；最终启示不补全全房",
         },
         en = {
             Name = "Gospel",
-            Desc = "Dogmatical Judgement",
-            Description = "Every 4th attack produces a {{ColorYellow}}Gospel attack{{CR}}"..
+            Desc = "The kingdom of God comes with sovereignty",
+            Description = "Every 4th attack becomes a {{ColorYellow}}Gospel attack{{CR}}"..
             "#Hits make enemies receive the Gospel, which can spread to nearby foes"..
             "#Killing affected enemies or repeatedly damaging affected Bosses invokes Revelation"..
-            "#Repeated Revelations invoke a final Judgement",
+            "#After 6 Revelations in the room, invoke final Revelation",
             AbyssSynic = "Locusts cause hit enemies to receive the Gospel",
-            SeijaNerf = "Gospel no longer spreads, instead invoking a weaker dark Revelation on the original target",
+            SeijaNerf = "Gospel no longer spreads, instead invoking a weaker dark Revelation on the original target; final Revelation does not fill the room",
         },
     },
     [62] = {
@@ -1331,15 +1354,17 @@ item.Collectibles = {
         xmlId = 73,
         zh = {
             Name = "提拉米苏",
-            Desc = "血量上升+道具变得美味",
-            Description = "{{EmptyHeart}} +1血上限 "..
-            "#↑ 属性提升时，额外提供40%逐渐减少的属性增幅量",
+            Desc = "血量上升 + 道具变得美味",
+            Description = "{{EmptyHeart}} +1血上限"..
+            "#获得属性提升时，临时复制其中一部分"..
+            "#复制的属性会逐渐消退；连续触发时效果减弱",
         },
         en = {
             Name = "Tiramisu",
             Desc = "Health Up + Tastes Tasty",
-            Description = "{{EmptyHeart}} +1 Health up "..
-            "#↑ Stats gaining will bring about a fading bonus stats about 40%",
+            Description = "{{EmptyHeart}} +1 Health up"..
+            "#Stat increases temporarily grant part of the same increase again"..
+            "#Copied stats fade over time; rapid triggers weaken the effect",
         },
     },
     [63] = {
@@ -1350,16 +1375,18 @@ item.Collectibles = {
         zh = {
             Name = "直播姬",
             Desc = "成为主播出道吧！",
-            Description = "游戏进入直播模式 "..
-            "#可以实时与弹幕互动 "..
-            "#{{ArrowUp}} 人气值足够会有老板送来礼物，提升属性",
+            Description = "战斗、拾取与消费等行为会触发观众弹幕"..
+            "#观众评价会改变人气"..
+            "#{{ArrowUp}} 人气越高，弹幕越活跃，并可能收到赞助礼物"..
+            "#礼物提供临时属性或主动充能",
         },
         en = {
             Name = "Live Broadcast",
             Desc = "Going live!",
-            Description = "Starts a live broadcast "..
-            "#Viewer comments react to events in real time "..
-            "#{{ArrowUp}} Building popularity attracts sponsors whose gifts grant fading stat boosts",
+            Description = "Combat, pickups, and spending can trigger viewer chat"..
+            "#Viewer reactions change popularity"..
+            "#{{ArrowUp}} Higher popularity means livelier chat and possible sponsor gifts"..
+            "#Gifts grant temporary stats or active charge",
         },
     },
     [64] = {
@@ -1370,11 +1397,10 @@ item.Collectibles = {
         zh = {
             Name = "悲欢之凶剧",
             Desc = "丑角登场",
-            Description = "概率发射交替出现的悲剧与喜剧面具眼泪"..
-            "#悲剧：敌人死亡后，将死亡化作追击敌人的爆炸"..
-            "#喜剧：敌人死亡后，作为友方演员再次登台"..
-            "#同时戴上两张面具的敌人将出演{{ColorPurple}}凶剧{{CR}}"..
-            "#凶剧退场时同时触发强化的悲剧与喜剧",
+            Description = "概率发射交替出现的悲剧与喜剧面具泪"..
+            "#悲剧：戴面具的敌人死亡时引发冲击，并将悲剧传给另一名敌人"..
+            "#喜剧：戴面具的敌人受到致命伤害时拒绝死亡，并成为友军"..
+            "#两种面具相遇时化为{{ColorPurple}}凶剧{{CR}}：悲剧传遍舞台，而喜剧拒绝谢幕",
             Rnd_Special = {
                 Name = "悲欢之凶剧",
                 Description = "没有演员真正离开舞台。",
@@ -1385,10 +1411,9 @@ item.Collectibles = {
             Name = "Drama of sorrow and joy",
             Desc = "Leader To Despia",
             Description = "Chance to fire alternating tragedy and comedy mask tears"..
-            "#Tragedy: slain enemies turn their death into a chasing explosion"..
-            "#Comedy: slain enemies take the stage again as brief friendly actors"..
-            "#Enemies wearing both masks perform {{ColorPurple}}Tragicomedy{{CR}}"..
-            "#Tragicomedy's curtain call triggers empowered tragedy and comedy",
+            "#Tragedy: masked foes unleash a shockwave on death and pass Tragedy onward"..
+            "#Comedy: masked foes refuse death when taking lethal damage and become friendly"..
+            "#When both masks meet, they become {{ColorPurple}}Tragicomedy{{CR}}: tragedy spreads across the stage, while comedy refuses the curtain call",
             Rnd_Special = {
                 Name = "Drama of sorrow and joy",
                 Description = "No actor ever truly leaves the stage.",
@@ -1404,18 +1429,18 @@ item.Collectibles = {
         zh = {
             Name = "卓尔金神历",
             Desc = "祈祷神历的宿命",
-            Description = "使用后选择一件持有的被动道具，将其变为临时道具"..
-            "#然后生成同品质的三选一底座，其被拾取后也是临时道具"..
-            "#{{Warning}} 受伤时自动失去此道具并阻止伤害，并将此道具置于道具池顶部。"..
-            "#再次获得后恢复失去的临时道具",
+            Description = "使用后选择1件持有道具，换取接近其品质的三选一"..
+            "#原道具与新获得道具均成为临时道具"..
+            "#{{Warning}} 受伤时抵挡伤害，并失去神历与临时道具"..
+            "#之后重新获得神历时，恢复此前的临时道具",
         },
         en = {
             Name = "Tzolkin",
             Desc = "Replay the divine calendar",
-            Description = "On use, choose a held passive and convert it into a temporary item"..
-            "#Then spawn a same-quality 3-choice set; the picked one is also temporary"..
-            "#{{Warning}} On hit, lose this item, block the damage, and put this item at the top of the item pool"..
-            "#Reclaiming it restores the lost temporary items",
+            Description = "Choose 1 held item and trade it for a 3-choice near its quality"..
+            "#The original and chosen items both become temporary"..
+            "#{{Warning}} Taking damage blocks the hit and loses Tzolkin and temporary items"..
+            "#Reclaiming Tzolkin restores those temporary items",
         },
     },
     [66] = {
@@ -1426,16 +1451,16 @@ item.Collectibles = {
         zh = {
             Name = "妖心·盈月",
             Desc = "物皆有情",
-            Description = "对敌人造成伤害会注视目标并逐渐积累月相"..
-            "#月相会在敌人死亡或切换目标后保留"..
-            "#{{Damage}} 盈满时对注视目标发动一次妖眼共鸣",
+            Description = "对敌人造成伤害会开始注视目标，并逐渐积累月相"..
+            "#切换目标或目标死亡不会失去已有月相"..
+            "#{{Damage}} 月相盈满时，对当前注视目标发动妖眼共鸣",
         },
         en = {
             Name = "Pareidolia",
             Desc = "Moonlight Domain",
-            Description = "Damaging enemies marks a gaze target and builds moon phase"..
-            "#Moon phase is kept when the target dies or changes"..
-            "#{{Damage}} At full moon, unleash a Yokai Eye resonance on the gaze target",
+            Description = "Damaging foes begins a gaze and builds moon phase"..
+            "#Changing targets or killing the target keeps current moon phase"..
+            "#{{Damage}} At full moon, unleash Yokai Eye resonance on the gaze target",
         },
     },
     [67] = {
@@ -1446,14 +1471,16 @@ item.Collectibles = {
         zh = {
             Name = "反转片？",
             Desc = "阴影选择了我",
-            Description = "剧情道具 "..
-            "#将它贴在某个门上 "..
-            "#按剧情拾取：立刻将你传送回到初始房间",
+            Description = "剧情道具"..
+            "#用于特定剧情中的门"..
+            "#按剧情拾取时，会立刻将角色送回初始房间",
         },
         en = {
             Name = "Reversal Film",
             Desc = "Cast Fate On Me",
-            Description = "When pasting it on the door to go home, open the room leading to the death certificate floor.",
+            Description = "Story item"..
+            "#Used with certain story doors"..
+            "#Picking it up during the story sequence returns you to the starting room",
         },
     },
     [68] = {
@@ -1462,17 +1489,20 @@ item.Collectibles = {
         type = "passive",
         xmlId = 79,
         zh = {
-            Name = "鱼人之泪",
+            Name = "鲛人之泪",
             Desc = "高尚者为我悼哭",
-            Description = "概率发射珍珠眼泪 "..
-            "#珍珠眼泪落地后吸收周围的飞弹 "..
-            "#地上的珍珠可以踢动",
+            Description = "概率发射珍珠泪"..
+            "#珍珠落地后停留，可被角色踢动"..
+            "#接触敌方弹幕时将其吞下，并反向射回友方泪弹"..
+            "#每颗珍珠最多反射或碰撞5次",
         },
         en = {
             Name = "Tears of Pearl",
             Desc = "Nobility Cherisher",
-            Description = "Grants a chance to fire pearl tears."..
-            "#Pearl tears can absorb surrounding projectiles after landing and can be kicked around.",
+            Description = "Chance to fire pearl tears"..
+            "#Pearls linger on the ground and can be kicked"..
+            "#Contact with enemy shots swallows them and fires a friendly tear back"..
+            "#Each pearl can reflect or collide up to 5 times",
         },
     },
     [69] = {
@@ -1483,18 +1513,18 @@ item.Collectibles = {
         zh = {
             Name = "非数骰子",
             Desc = "错误：尝试将零作为除数",
-            Description = "将房间内道具重置成错误道具"..
-            "#将房间内错误道具重置成道具",
+            Description = "将房间内的普通道具重置为错误道具"..
+            "#将错误道具重新重置为普通道具",
             BookOfBelial = "将房间内错误道具重置成恶魔房道具",
             BookOfVirtues = "发射随机特效子弹的魂火",
         },
         en = {
             Name = "D NAN",
             Desc = "Warning: division by zero",
-            Description = "Roll the normal items in the room into glitched items."..
-            "#Roll the glitched items in the room into normal items.",
-            BookOfBelial = "Roll the glitched items in the room into items from devil room.",
-            BookOfVirtues = "Grants a wisp that fires random special effects bullets.",
+            Description = "Rerolls normal collectibles into glitched items"..
+            "#Rerolls glitched items back into normal collectibles",
+            BookOfBelial = "Rerolls glitched items into Devil Room items",
+            BookOfVirtues = "Grants a wisp that fires tears with random effects",
         },
     },
     [70] = {
@@ -1505,28 +1535,18 @@ item.Collectibles = {
         zh = {
             Name = "勇者祝福",
             Desc = "得刷个好开局",
-            Description = "全属性随机上升/下降"..
-            "#接近拾取其的空底座可将其放下以刷取最佳的属性加成"..
-            "#最高值："..
-            "#{{Damage}} +3攻击"..
-            "#{{Tears}} +1.5射速"..
-            "#{{Range}} +4.5射程"..
-            "#{{Speed}} +0.6移速"..
-            "#{{Luck}} +6幸运"..
-            "#{{Shotspeed}} +0.6弹速",
+            Description = "拾取时，为6项基础属性分别随机生成评级"..
+            "#评级决定对应属性的上升或下降幅度"..
+            "#靠近原本的空底座可将其放回"..
+            "#不满意？重新拾取，再来一次",
         },
         en = {
             Name = "Risemara",
             Desc = "Once more again",
-            Description = "Randomly gain stats bonus when pickup"..
-            "#Can be put back and pick up again to reroll its stats bonus"..
-            "#Maximum："..
-            "#{{Damage}} +3 damage"..
-            "#{{Tears}} +1.5 tear"..
-            "#{{Range}} +4.5 range"..
-            "#{{Speed}} +0.6 speed"..
-            "#{{Luck}} +6 luck"..
-            "#{{Shotspeed}} +0.6 shotspeed",
+            Description = "On pickup, roll grades for 6 basic stats"..
+            "#Each grade sets how much that stat rises or falls"..
+            "#Return it to its original empty pedestal"..
+            "#Not happy? Pick it up again and reroll",
         },
     },
     [71] = {
@@ -1537,22 +1557,20 @@ item.Collectibles = {
         zh = {
             Name = "无名刃：心灾",
             Desc = "最好以血浇灌",
-            Description = "隐身的心剑跟班"..
-            "#自动标记心剑附身的敌人"..
-            "#附身的敌人受到伤害后，斩出其当前生命的20%"..
-            "#斩出的生命缓缓飞回敌人体内"..
-            "#对Boss只斩出5%",
+            Description = "心剑会自动附身于一名敌人"..
+            "#目标受到伤害时，暂时斩出其当前生命的20%"..
+            "#被斩出的生命会在短暂延迟后飞回目标"..
+            "#Boss仅斩出5%，且额外伤害存在上限",
             AbyssSynic = "斩出少许血量的蝗虫",
         },
         en = {
             Name = "Chiastolite",
             Desc = "Sacrifice with blood",
-            Description = "Invisible chiastolite familiar"..
-            "#Automatically marks one enemy"..
-            "#Cut out 20% the enemy's hitpoints when it get hit"..
-            "#Only cut out 5% of the Bosses"..
-            "#The hitpoints will slowly fly back to the enemy after that",
-            AbyssSynic = "Chiastolite familiar that cuts out a small amount of health",
+            Description = "A heart blade automatically possesses an enemy"..
+            "#When that foe takes damage, temporarily cut out 20% of its current HP"..
+            "#The cut HP flies back to the target after a short delay"..
+            "#Bosses lose only 5%, and the bonus cut has a damage cap",
+            AbyssSynic = "Locust that cuts out a small amount of health",
         },
     },
     [72] = {
@@ -1600,18 +1618,22 @@ item.Collectibles = {
         zh = {
             Name = "天象灾变",
             Desc = "II",
-            Description = "只能通过清理Boss房间来充能"..
-            "#靠近一扇门来使用，清除门后房间",
+            Description = "{{BossRoom}} 只能通过清理Boss房获得充能（满充通常需2个Boss房）"..
+            "#靠近一扇门使用，对门后的未清理房间发动灾变"..
+            "#灾变会提前清除该房间中的敌人，包括Boss房"..
+            "#进入被灾变的房间时，将直接视为已被清理",
             AbyssSynic = "生成小型硫磺火柱的蝗虫",
             BookOfVirtues = "发射生成小型硫磺火柱眼泪的魂火",
         },
         en = {
             Name = "Calamity",
             Desc = "II",
-            Description = "Only can be charged by clearing boss rooms"..
-            "#Destroy target room completely",
+            Description = "{{BossRoom}} Only recharges by clearing Boss rooms (full charge usually needs 2)"..
+            "#Use near a door to calamitize the uncleared room beyond it"..
+            "#Clears that room's enemies in advance, including Boss rooms"..
+            "#Entering a calamitized room treats it as already cleared",
             AbyssSynic = "Locust that spawns small brimstone fire pillars",
-            BookOfVirtues = "Grants a wisp that fires small brimstone fire pillars tears",
+            BookOfVirtues = "Grants a wisp that fires tears which spawn small brimstone pillars",
         },
     },
     [75] = {
@@ -1622,12 +1644,14 @@ item.Collectibles = {
         zh = {
             Name = "瓶中阴影",
             Desc = "如坠深渊",
-            Description = "进入房间后召唤一个随机友方阴影敌人",
+            Description = "首次进入未清理房间时，召唤1名随机友方阴影敌人"..
+            "#重复持有会额外召唤",
         },
         en = {
             Name = "Shadow Bottle",
             Desc = "Just like inferno",
-            Description = "Summon a shadow enemy when entering one room",
+            Description = "On first entry to an uncleared room, summon 1 random friendly shadow enemy"..
+            "#Extra copies summon additional shadows",
         },
     },
     [76] = {
@@ -1638,18 +1662,22 @@ item.Collectibles = {
         zh = {
             Name = "真实之名",
             Desc = "吾名，阿图姆",
-            Description = "从所有道具中猜测一个道具，随后揭示道具池中的下一个道具"..
-            "#猜中的场合，生成那个道具和{{Collectible628}}",
-            BookOfBelial = "只从恶魔道具池中揭示道具",
-            BookOfVirtues = "成功后生成三个随机道具魂火",
+            Description = "使用后，从所有道具中选择1件作为你的猜测"..
+            "#随后揭示当前道具池的下一件道具"..
+            "#猜中：生成你猜的道具，并额外生成{{Collectible628}}死亡证明"..
+            "#猜错：本次预测失败",
+            BookOfBelial = "改为从恶魔房道具池揭示下一件道具",
+            BookOfVirtues = "猜中后生成对应道具的魂火",
         },
         en = {
-            Name = "The true name",
+            Name = "The True Name",
             Desc = "ATEM!",
-            Description = "Guess one item in all items and reveal the next item"..
-            "#Success:Spawn that item and {{Collectible628}}",
-            BookOfBelial = "Only reveal items from devil items",
-            BookOfVirtues = "Spawn three random items wisp after success",
+            Description = "On use, pick 1 collectible from all items as your guess"..
+            "#Then reveal the next item from the current item pool"..
+            "#Correct: spawn that item plus {{Collectible628}} Death Certificate"..
+            "#Wrong: the prediction fails",
+            BookOfBelial = "Reveal from the Devil Room pool instead",
+            BookOfVirtues = "On a correct guess, spawn a wisp of that item",
         },
     },
     [77] = {
@@ -1660,24 +1688,18 @@ item.Collectibles = {
         zh = {
             Name = "蓝图",
             Desc = "别担心，我有图纸",
-            Description = "使用后打开蓝图面板"..
-            "#{{Collectible}} 将道具作为成本制造飞行器，或作为模块赋予其效果"..
-            "#飞行器拥有独立属性与攻击方式，仅受模块影响"..
-            "#{{Battery}} 飞行器需要占用控制带宽才能投入战斗"..
-            "#每个道具只能被蓝图占用一次"..
-            "#{{Collectible}} 持有时有概率生成道具原型模块，可额外使用一次对应模块"..
-            "#可随时重新编队、拆装并返还成本",
+            Description = "长按使用打开蓝图，制造并管理飞行器"..
+            "#{{Collectible}} 机体底座决定基础性能，装入的道具成为攻击或功能模块"..
+            "#{{Battery}} 控制带宽限制同时出战的飞行器"..
+            "#持有蓝图时，有机会发现可用于制造的道具原型",
         },
         en = {
             Name = "Blueprint",
             Desc = "Don't worry, I've got the plans",
-            Description = "Use to open the Blueprint panel"..
-            "#{{Collectible}} Assign an item as a Flight cost, or install it as a module"..
-            "#Flights have independent stats and attacks, affected only by modules"..
-            "#{{Battery}} Active Flights consume control bandwidth"..
-            "#Each item can only be assigned to Blueprint once"..
-            "#{{Collectible}} While held, item prototype modules may appear, granting one extra use of that module"..
-            "#Freely reorganize, uninstall modules, and reclaim costs",
+            Description = "Hold to open Blueprint and craft / manage your fleet"..
+            "#{{Collectible}} Frame pedestals set base power; installed items become attack or utility modules"..
+            "#{{Battery}} Control bandwidth limits how many crafts can fight at once"..
+            "#While held, Item Prototypes for crafting may appear",
         },
     },
     [78] = {
@@ -1739,17 +1761,18 @@ item.Collectibles = {
         zh = {
             Name = "娇嫩的花",
             Desc = "送给爱你的人",
-            Description = "拾取/下层后获得一朵花"..
-            "#受伤后花朵就会破碎"..
-            "#可选的送达对象：有脑袋的店主、撒旦、天使",
+            Description = "每份道具提供1朵花，每层开始时重新补充"..
+            "#{{Warning}} 受到敌人伤害会失去1朵花"..
+            "#靠近店长、撒旦或天使时，可以将花赠送给对方"..
+            "#根据收花者及所在房间获得不同回礼",
         },
         en = {
             Name = "Delicate Flower",
             Desc = "Wish you a better future",
-            Description = "Gain a flower when pick it up and when entering the next level"..
-            "#The flower will fade away on getting hit"..
-            "#Flowers can be sent to:"..
-            "#Keepers with head、Satan、Angel",
+            Description = "Each copy grants 1 flower; flower count resets to copies held at each new floor"..
+            "#{{Warning}} Enemy damage destroys 1 flower"..
+            "#Approach a Keeper, Satan, or an Angel to give them a flower"..
+            "#Rewards depend on the recipient and the room type",
         },
     },
     [81] = {
@@ -1760,15 +1783,17 @@ item.Collectibles = {
         zh = {
             Name = "科技XIV",
             Desc = "强盛是衰败的旗手",
-            Description = "在身后留下科技限制器"..
-            "#有敌人经过时，距离为1格的限制器间生成激光并在数秒后消除",
+            Description = "行走时在经过的格子留下科技限制器"..
+            "#相邻限制器之间形成可触发的连接"..
+            "#敌人穿过连接时发射短暂激光，并消耗其中一个限制器",
             AbyssSynic = "留下科技限制器的蝗虫",
         },
         en = {
             Name = "Tech 14",
             Desc = "Prosperity leads to decline",
-            Description = "Leave technology limiters behind Isaac"..
-            "#When an enemy passes by, a laser is generated between limiters at a distance of 1 grid and eliminated after a few seconds",
+            Description = "Walking leaves technology limiters on crossed grid cells"..
+            "#Adjacent limiters form triggerable connections"..
+            "#Enemies crossing a connection fire a brief laser and consume one limiter",
             AbyssSynic = "Locust leaving technology limiters",
         },
     },
@@ -1800,20 +1825,20 @@ item.Collectibles = {
         zh = {
             Name = "白日梦",
             Desc = "如果四级道具能从天上掉下来就好了",
-            Description = "每层开始时，在初始房间静止5s后入睡"..
-            "#在睡梦中选择心仪的4级道具"..
-            "#{{Timer}} 60s后那个道具落到身上并在本层持续"..
-            "#按下 {{ButtonRT}} 提前结束梦境",
+            Description = "每层开始时，在起始房间静止约5秒进入梦境"..
+            "#梦见一个品质4道具，梦中按 {{ButtonLT}} 可放弃当前候选并等待下一件"..
+            "#{{Timer}} 约60秒后醒来，获得当前候选的效果直到本层结束"..
+            "#{{Warning}} 离开起始房前没有入睡，本层将无法再次做梦",
             SeijaNerf = "改为梦见0级道具",
         },
         en = {
             Name = "Day Dreamer",
             Desc = "If only my wish would come true",
-            Description = "At the beginning of each floor, fall asleep in the initial room after a 5 seconds doing completely nothing"..
-            "#Choose the desired quality 4 item in your sleep"..
-            "#{{Timer}} 60 seconds later, that item will land on Isaac"..
-            "#Press {{ButtonRT}} to end the dream in advance",
-            SeijaNerf = "Dream about quality 0 items",
+            Description = "At floor start, stand still ~5s in the starting room to enter a dream"..
+            "#Dream a quality 4 item; press {{ButtonLT}} to discard it and wait for the next"..
+            "#{{Timer}} After ~60s, wake with the current pick's effect for the floor"..
+            "#{{Warning}} If you leave the start room before sleeping, no dream this floor",
+            SeijaNerf = "Dream quality 0 items instead",
         },
     },
     [84] = {
@@ -1831,7 +1856,7 @@ item.Collectibles = {
         en = {
             Name = "Disequilibrium",
             Desc = "IV",
-            Description = "Sew your {{DevilRoom}} devil room and {{AngelRoom}} angel room together",
+            Description = "Sew your {{DevilRoom}} Devil Room and {{AngelRoom}} Angel Room together"..
             "#{{DevilRoom}} Devil items require health trading"..
             "#{{AngelRoom}} Only one angel item can be taken",
         },
@@ -1844,16 +1869,18 @@ item.Collectibles = {
         zh = {
             Name = "天象解构",
             Desc = "VI",
-            Description = "{{Card78}} 下层时生成3张红钥匙碎片"..
-            "#{{UltraSecretRoom}} 楼层中至多4个特殊房间的布局位置变为与红隐藏相同"..
-            "#{{Card78}} 进入那些特殊房间后生成1张红钥匙碎片",
+            Description = "{{Card78}} 每层开始获得3张红钥匙碎片"..
+            "#最多4间特殊房会被搬到正常地图之外"..
+            "#使用红钥匙碎片重新打开通往这些房间的路线"..
+            "#{{Card78}} 每间被搬走的特殊房首次进入时返还1张碎片",
         },
         en = {
             Name = "Deconstruction",
             Desc = "VI",
-            Description = "{{Card78}} Spawns 3 red key fragments each level"..
-            "#{{UltraSecretRoom}} The layout positions of up to 4 special rooms in the floor will become the same as that of the UltraSecret Room"..
-            "#{{Card78}} Spawn 1 red key fragment after entering those special rooms",
+            Description = "{{Card78}} Gain 3 Cracked Keys at the start of each floor"..
+            "#Up to 4 special rooms move beyond the normal map"..
+            "#Use Cracked Keys to reopen routes to those rooms"..
+            "#{{Card78}} Each moved room returns 1 Cracked Key on its first visit",
         },
     },
     [86] = {
@@ -1864,18 +1891,18 @@ item.Collectibles = {
         zh = {
             Name = "贤者之石",
             Desc = "杰作",
-            Description = "{{Battery}} 需要接触并吸收3个空道具底座以充满充能"..
-            "#将距你最近的道具转化为快速切换的数个与其连号的道具",
-            BookOfVirtues = "概率发射点金子弹的魂火",
-            SeijaNerf = "75%概率将道具转化为彩虹便便",
+            Description = "{{Battery}} 吸收3个空道具底座即可充满"..
+            "#使用时，使最近的道具在一组固定候选之间快速切换",
+            BookOfVirtues = "有概率将敌人点金的金色魂火",
+            SeijaNerf = "75%概率将目标道具变成彩虹大便",
         },
         en = {
             Name = "Philosopher's Stone",
             Desc = "Masterpiece",
-            Description = "{{Battery}} Contact and absorb 3 empty pedestals to fully charge"..
-            "#Convert the item closest to Isaac into several items whose number are close to it for quick switching",
-            BookOfVirtues = "Wisp with probability to turn enemies gold",
-            SeijaNerf = "75% Chance to convert items into rainbow poops",
+            Description = "{{Battery}} Absorb 3 empty item pedestals to fully charge"..
+            "#On use, makes the nearest item rapidly cycle through a fixed set of alternatives",
+            BookOfVirtues = "Golden wisp with a chance to turn enemies to gold",
+            SeijaNerf = "75% chance to turn the target item into a rainbow poop",
         },
     },
     [87] = {
@@ -1887,15 +1914,15 @@ item.Collectibles = {
             Name = "辉煌",
             Desc = "献给永恒之金",
             Description = "{{GoldenHeart}} +3金心"..
-            "#商品价格下降金心总数"..
-            "#此道具价格不高于角色的硬币数量",
+            "#{{Shop}} 每颗金心使硬币商品价格-1"..
+            "#{{Coin}} 辉煌自身售价不会高于当前硬币数，0硬币时仍售价1",
         },
         en = {
             Name = "Brilliant",
             Desc = "To the gold of eternity",
-            Description = "{{GoldenHeart}} +3 Golden Heart"..
-            "#The number of golden hearts due to a decrease in commodity prices",
-            "#This item's price is not higher than the Isaac's coin count",
+            Description = "{{GoldenHeart}} +3 Golden Hearts"..
+            "#{{Shop}} Each Golden Heart reduces coin prices by 1"..
+            "#{{Coin}} Brilliant's price cannot exceed your coins; at 0 coins it still costs 1",
         },
     },
     [88] = {
@@ -1906,16 +1933,16 @@ item.Collectibles = {
         zh = {
             Name = "博爱",
             Desc = "爱屋及乌",
-            Description = "{{Charm}} 角色身上出现一个魅惑光环"..
-            "#{{Charm}} 光环魅惑接近的敌人，随后附着在那个敌人上",
-            AbyssSynic = "概率魅惑的蝗虫",
+            Description = "{{Charm}} 生成一个跟随角色的魅惑光环"..
+            "#光环靠近敌人后会魅惑目标，并转而跟随该敌人",
+            AbyssSynic = "命中敌人时有10%概率魅惑目标",
         },
         en = {
             Name = "Fraternity",
             Desc = "love me,love my dog",
-            Description = "{{Charm}} A charm halo appears on Isaac"..
-            "#{{Charm}} The halo enchants the approaching enemy and then attaches to it",
-            AbyssSynic = "Locust with chance to charm enemies",
+            Description = "{{Charm}} Spawn a charm halo that follows the character"..
+            "#Approaching an enemy charms it, then the halo follows that target",
+            AbyssSynic = "10% chance to charm enemies on hit",
         },
     },
     [89] = {
@@ -1926,14 +1953,14 @@ item.Collectibles = {
         zh = {
             Name = "终末倒数",
             Desc = "请稍等片刻...",
-            Description = "使用后，随机主动道具从角色头顶逐渐飘落"..
-            "#{{Timer}} 30s后角色接收并使用之",
+            Description = "使用后抽取一个随机主动道具效果，并显示在角色头顶"..
+            "#{{Timer}} 30秒后自动发动该主动道具一次",
         },
         en = {
             Name = "Ending Count",
             Desc = "Please wait a moment...",
-            Description = "Random active items gradually fall from above the character's head"..
-            "#{{Timer}} After 30 seconds, Isaac receives and uses it",
+            Description = "Draw a random active-item effect and display it above the character"..
+            "#{{Timer}} After 30 seconds, automatically activate it once",
         },
     },
     [90] = {
@@ -1945,18 +1972,18 @@ item.Collectibles = {
         zh = {
             Name = "作弊者的祝福",
             Desc = "你打得也太好了！",
-            Description = "只会在一局游戏中输入rewind指令第3次后生成"..
-            "#拾取时获得一层{{Collectible313}}"..
+            Description = "本局第3次完成rewind回溯后生成"..
+            "#拾取时获得一次圣洁卡片的神圣屏障"..
             "#全属性极小幅上升",
-            SeijaNerf = "受伤后使用{{Collectible422}}",
+            SeijaNerf = "受伤后触发一次{{Collectible422}}发光沙漏",
         },
         en = {
             Name = "Cheater's Blessing",
             Desc = "I'm so glad that you cheat so many times",
-            Description = "It will only be generated after entering the rewind command for the third time in a game"..
-            "#Obtain one {{Collectible313}} when pickup"..
-            "#Stats up very very small",
-            SeijaNerf = "Use {{Collectible422}} on getting hit",
+            Description = "Appears after the 3rd completed rewind in a run"..
+            "#On pickup, gain one Holy Card shield"..
+            "#Very small all-stats up",
+            SeijaNerf = "Taking damage triggers Glowing Hour Glass",
         },
     },
     [91] = {
@@ -1967,16 +1994,18 @@ item.Collectibles = {
         zh = {
             Name = "次元之楔",
             Desc = "我发现了新通道！",
-            Description = "生成几只来自未清理房间的敌方怪物"..
-            "#对应位置怪物视为被清理",
-            BookOfVirtues = "发射有传送效果的魂火",
+            Description = "从尚未探索的房间中随机拉来2-3名敌人"..
+            "#这些敌人会在当前房间与你战斗"..
+            "#它们原本占用的刷怪位置会被留空",
+            BookOfVirtues = "发射传送泪弹的红色魂火",
         },
         en = {
             Name = "Dimension Contact",
             Desc = "I found a new passage!",
-            Description = "Spawns several enemies from uncleaned rooms"..
-            "#The corresponding monster is considered as cleared",
-            BookOfVirtues = "Wisp with teleportation effect",
+            Description = "Pull 2-3 enemies from unexplored rooms"..
+            "#Fight them in the current room"..
+            "#Their original spawn positions will be left empty",
+            BookOfVirtues = "Red wisp that fires teleporting tears",
         },
     },
     [92] = {
@@ -1987,20 +2016,20 @@ item.Collectibles = {
         zh = {
             Name = "世界弧",
             Desc = "天下如一",
-            Description = "!!! 一次性"..
-            "#获得一个持续一层的随机被动道具效果"..
-            "#此道具在本层随机房间中重新出现"..
-            "#若没有被找回，也在下层出现",
+            Description = "使用后消失，并获得一个持续本层的随机被动道具效果"..
+            "#随后随机藏进本层另一间房"..
+            "#找到它即可再次使用"..
+            "#本层未找到时，下层会再次出现",
             BookOfBelial = "随机被动道具来自恶魔道具池",
             BookOfVirtues = "额外生成一个随机道具魂火",
         },
         en = {
             Name = "World Arc",
             Desc = "The world is so small!",
-            Description = "!!! SINGLE USE"..
-            "#Obtain a random passive item effect that lasts for one level"..
-            "#This item reappears in the random room in this floor"..
-            "#It also appears in the next level if not retrieved.",
+            Description = "Disappears on use and grants a random passive effect for the floor"..
+            "#Then hides in another random room on the floor"..
+            "#Find it to use it again"..
+            "#If left behind, it reappears on the next floor",
             BookOfBelial = "Random passive item from devil pool",
             BookOfVirtues = "Spawns an additional random item wisp",
         },
@@ -2013,16 +2042,20 @@ item.Collectibles = {
         zh = {
             Name = "最终棱镜",
             Desc = "异世界的赠礼",
-            Description = "自动充能"..
-            "#使用后放出六道彩色激光并逐渐消耗充能",
+            Description = "未开启时自动恢复充能"..
+            "#使用后持续发射6道彩色激光，并不断消耗充能"..
+            "#持续照射时，光束逐渐聚拢并增强"..
+            "#照射中再次使用：消耗10充能，光束+3",
             BookOfBelial = "改为发射彩色硫磺火",
             BookOfVirtues = "协同发射激光的魂火",
         },
         en = {
             Name = "Final Prism",
             Desc = "A gift from another world",
-            Description = "Charge automatically"..
-            "#Release six colored lasers and gradually consume charging energy",
+            Description = "Recharges automatically while inactive"..
+            "#On use, fires 6 colored lasers and drains charge"..
+            "#Beams gradually converge and grow stronger while held"..
+            "#While active, use again: spend 10 charge, +3 beams",
             BookOfBelial = "Fire rainbow brimstone",
             BookOfVirtues = "Wisps firing laser together with Isaac",
         },
@@ -2035,18 +2068,24 @@ item.Collectibles = {
         zh = {
             Name = "卢恩之书",
             Desc = "回三，抽三，回三，抽三...",
-            Description = "{{Rune}} 本房间中每使用过一张符文，就抽一张符文，上限3张"..
-            "#{{Rune}} 持有符文时可以多带一张卡片或药丸",
-            BookOfVirtues = "若成功抽出符文，生成发射极低概率生成符文的眼泪的魂火",
-            SeijaNerf = "极高概率抽出{{Card55}}",
+            Description = "{{Rune}} 首次拾取生成1张随机符文"..
+            "#{{Rune}} 本房间每使用1张符文，记录1次，最多3次"..
+            "#使用本书，按记录数生成等量随机符文"..
+            "#{{Rune}} 持有符文时，可额外携带1张卡牌或药丸"..
+            "#离开房间时清空记录",
+            BookOfVirtues = "成功生成符文时产生魂火；泪弹有0.05%概率使击杀敌人掉落符文",
+            SeijaNerf = "90%概率生成{{Card55}}符文碎片",
         },
         en = {
             Name = "Book of Rune",
             Desc = "Return three, draw three...",
-            Description = "{{Rune}} For every rune used in this room, draw one rune with a maximum of 3 runes"..
-            "#{{Rune}} Allow Isaac to carry 2 cards whe he have a rune",
-            BookOfVirtues = "If the rune is successfully drawn,spawn a wisp with a very low probability of spawning runes",
-            SeijaNerf = "Highly chance to draw {{Card55}}",
+            Description = "{{Rune}} First pickup spawns 1 random rune"..
+            "#{{Rune}} Each rune used this room records 1 use, up to 3"..
+            "#Use the book to spawn that many random runes"..
+            "#{{Rune}} Carry 1 extra card or pill while holding a rune"..
+            "#Leaving the room clears the record",
+            BookOfVirtues = "Spawns a wisp on successful rune spawn; tears have 0.05% chance for kills to drop runes",
+            SeijaNerf = "90% chance to spawn {{Card55}} Rune Shard",
         },
     },
     [95] = {
@@ -2057,15 +2096,16 @@ item.Collectibles = {
         zh = {
             Name = "邪恶干涉",
             Desc = "拥抱不祥",
-            Description = "概率发射穿透并追踪敌人的蝴蝶眼泪"..
-            "#蝴蝶会吸收敌方泪弹与硫磺火"..
-            "#最后炸开并返还出来",
+            Description = "概率发射穿透并追踪敌人的蝴蝶泪"..
+            "#蝴蝶泪会吞噬接触的敌方弹幕，并截断敌方激光"..
+            "#蝴蝶消失时，将吸收的攻击转化为友方泪弹与硫磺火返还",
         },
         en = {
             Name = "Evil Intervention",
             Desc = "Embrace ominous",
-            Description = "Probability to launch piercing and chasing evil tears"..
-            "#Counteract enemy tear bullets, and fire brimstone after hitting the enemy",
+            Description = "Chance to fire a piercing, homing butterfly tear"..
+            "#It devours enemy projectiles and intercepts enemy lasers"..
+            "#On disappearing, returns absorbed attacks as friendly tears and Brimstone",
         },
     },
     [96] = {
@@ -2076,14 +2116,18 @@ item.Collectibles = {
         zh = {
             Name = "论如何飞行",
             Desc = "点击，点击，再点击！",
-            Description = "让角色能够跳跃着飞行",
+            Description = "使用时向上扑动，随后逐渐落下"..
+            "#下落前再次使用，可以继续升高"..
+            "#飞得足够高时，可以越过障碍与敌人",
             BookOfBelial = "从角色高度向下抛射眼泪",
             BookOfVirtues = "从角色高度向下飘落的魂火",
         },
         en = {
             Name = "How to Fly",
             Desc = "Tap Tap tap!",
-            Description = "Enable characters to fly",
+            Description = "Flap upward on use, then gradually fall"..
+            "#Use again before landing to keep climbing"..
+            "#At sufficient height, pass over obstacles and enemies",
             BookOfBelial = "Throw tears down from the height of the character",
             BookOfVirtues = "Wisp falling from the height of the character",
         },
@@ -2096,14 +2140,18 @@ item.Collectibles = {
         zh = {
             Name = "天象破幻",
             Desc = "I",
-            Description = "!!! 一次性 "..
-            "#{{Collectible580}} 向投掷方向连续开启红房间直至碰到边界",
+            Description = "!!! 一次性"..
+            "#使用后举起道具，按攻击方向确认"..
+            "#{{Collectible580}} 沿所选方向连续开启红房间，直到无法继续"..
+            "#举起后再次使用可取消选择",
         },
         en = {
             Name = "Illumination",
             Desc = "I",
-            Description = "!!! SINGLE USE "..
-            "#{{Collectible580}} Continuously open red room towards the throwing direction until it touches the boundary",
+            Description = "!!! SINGLE USE"..
+            "#Lift it overhead, then press a fire direction to confirm"..
+            "#{{Collectible580}} Opens Red Rooms along that direction until blocked"..
+            "#Press active again while raised to cancel",
         },
     },
     [98] = {
@@ -2114,12 +2162,16 @@ item.Collectibles = {
         zh = {
             Name = "天象窥井",
             Desc = "III",
-            Description = "{{Collectible628}} 进入新房间时，4%概率进入死亡证明层的随机房间，并在倒数随机1-3秒后立刻离开",
+            Description = "{{Collectible628}} 进入未探索的房间时，有4%概率短暂进入死亡证明层"..
+            "#每多持有1份，概率+4%"..
+            "#1-3秒后进入原本要去的房间",
         },
         en = {
             Name = "Contemplation",
             Desc = "III",
-            Description = "{{Collectible628}} When entering a new room, 4% chance to enter a random room in the death certificate level and leave immediately after a random 1-3 seconds",
+            Description = "{{Collectible628}} Entering an unexplored room has a 4% chance to briefly enter the Death Certificate floor"..
+            "#Each extra copy adds +4% chance"..
+            "#After 1-3 seconds, enter the intended room",
         },
     },
     [99] = {
@@ -2130,12 +2182,16 @@ item.Collectibles = {
         zh = {
             Name = "天象入渊",
             Desc = "V",
-            Description = "{{SecretRoom}} 在隐藏房中生成一个传送绳，通往一个额外的奖励房间",
+            Description = "{{SecretRoom}} 隐藏房中会出现通往“深渊”的吊索"..
+            "#接触吊索后进入一个独立的深渊房间"..
+            "#深渊中藏有额外奖励，之后可通过吊索返回",
         },
         en = {
             Name = "Chasm",
             Desc = "V",
-            Description = "{{SecretRoom}}Spawns a conveyor rope in the secret room, leading to an additional reward room",
+            Description = "{{SecretRoom}} A hanger leading to the Chasm appears in Secret Rooms"..
+            "#Touch it to enter a separate Chasm room"..
+            "#Find extra rewards there, then use the hanger to return",
         },
     },
     [100] = {
@@ -2146,27 +2202,27 @@ item.Collectibles = {
         zh = {
             Name = "六罪论",
             Desc = "除却愤怒",
-            Description = "防止爆炸伤害"..
-            "#根据本局杀死的七罪小Boss获得效果："..
-            "#嫉妒：眼泪获得穿透与灵体效果"..
-            "#{{Card}} 贪婪：抽3张卡"..
-            "#{{Collectible}} 傲慢：生成随机道具池三选一道具"..
+            Description = "{{Bomb}} 免疫爆炸伤害"..
+            "#本局首次击败其余六种七宗罪时，获得对应奖励："..
+            "#嫉妒：本局获得穿透与灵体泪"..
+            "#{{Card}} 贪婪：生成3张卡牌"..
+            "#{{Collectible}} 傲慢：生成随机道具三选一"..
             "#{{Card31}} 色欲：生成一张小丑卡"..
-            "#{{Coin}} 懒惰：商店价格永久-1"..
+            "#{{Coin}} 懒惰：本局商店价格-1"..
             "#{{Card78}} 暴食：生成2个红钥匙碎片",
             BookOfBelial = "傲慢：生成恶魔道具池三选一道具",
         },
         en = {
             Name = "Book of 6 sin",
             Desc = "Except Anger",
-            Description = "Grants immunity to explosions"..
-            "#Obtain effects based on the Sins mini-Bosses killed in this game："..
-            "#Envy：Grants spectral and piercing tear effects"..
-            "#{{Card}} Greed: Draw 3 cards"..
-            "#{{Collectible}} Pride: Allow Isaac to choose between 3 items."..
-            "#{{Card31}} Lust:Spawns a Joker card"..
-            "#{{Coin}} Sloth：Store Price -1"..
-            "#{{Card78}} Gluttony: Spawns 2 red key fragments",
+            Description = "{{Bomb}} Immunity to explosion damage"..
+            "#First time each of the other six Sins is defeated this run, gain its reward:"..
+            "#Envy: Piercing and spectral tears for the run"..
+            "#{{Card}} Greed: Spawns 3 cards"..
+            "#{{Collectible}} Pride: Spawns a choice of 3 random items"..
+            "#{{Card31}} Lust: Spawns a Joker card"..
+            "#{{Coin}} Sloth: Shop prices -1 for the run"..
+            "#{{Card78}} Gluttony: Spawns 2 Cracked Keys",
             BookOfBelial = "Pride: Allow Isaac to choose between 3 items from devil item pool",
         },
     },
@@ -2178,18 +2234,18 @@ item.Collectibles = {
         zh = {
             Name = "悲悯",
             Desc = "它们被迫为我而死",
-            Description = "受到敌人伤害时，失去一个被动道具并抵消伤害"..
-            "#{{Tears}} 每个因此失去的道具使射速+0.5"..
-            "#优先失去低品质道具"..
+            Description = "受到敌人伤害时，牺牲1件被动道具并抵消伤害"..
+            "#低品质道具更容易被牺牲"..
+            "#{{Tears}} 每件被牺牲的道具使射速+0.5，并在牺牲时释放攻击"..
             "#失去悲悯时，返还所有因此失去的道具",
             SeijaNerf = "失去道具不再获得射速提升",
         },
         en = {
             Name = "Pathetique",
             Desc = "They die for me",
-            Description = "Taking enemy damage removes a passive item and negates the hit"..
-            "#{{Tears}} +0.5 tears for each item lost this way"..
-            "#Prioritizes low-quality items"..
+            Description = "Taking enemy damage sacrifices 1 passive item and negates the hit"..
+            "#Lower-quality items are more likely to be sacrificed"..
+            "#{{Tears}} Each sacrificed item grants +0.5 tears and releases an attack"..
             "#Losing Pathetique returns all items lost this way",
             SeijaNerf = "Lost items no longer grant tears up",
         },
@@ -2202,14 +2258,16 @@ item.Collectibles = {
         zh = {
             Name = "暗黑神秘学",
             Desc = "暗面重现",
-            Description = "{{Fear}} 50%概率抵消受到的伤害，并释放黑色眼睛恐惧敌人",
-            SeijaNerf = "也会恐惧自己",
+            Description = "50%概率抵消受到的伤害"..
+            "#成功时向四周释放高伤害的黑色眼泪，并恐惧敌人",
+			SeijaNerf = "成功抵消伤害时，自己也会恐惧约3秒，期间无法攻击",
         },
         en = {
             Name = "Dark Mysticism",
             Desc = "Darkside Reproduction",
-            Description = "{{Fear}} 50% probability of counteracting damage received and releasing black eyes to fear enemies",
-            SeijaNerf = "Also fears Isaac",
+            Description = "50% chance to negate damage taken"..
+            "#On success, fire high-damage black tears in four directions and fear enemies",
+            SeijaNerf = "On a successful negate, also fear yourself for ~3s and cannot attack",
         },
     },
     [103] = {
@@ -2225,7 +2283,7 @@ item.Collectibles = {
         en = {
             Name = "Fresh Death",
             Desc = "Yuck!",
-            Description = "Obtain the effect of 3 random passive items",
+            Description = "Grants the effects of 3 random passive items",
         },
     },
     [104] = {
@@ -2236,18 +2294,22 @@ item.Collectibles = {
         zh = {
             Name = "新式缝合针",
             Desc = "自左心室刺入",
-            Description = "失去所有{{Heart}}红心，+1{{BrokenHeart}}碎心，将房间中道具转化为{{Collectible"..tostring(enums.Items.Fresh_Death).."}}鲜活死者",
+            Description = "失去所有{{Heart}}红心并+1{{BrokenHeart}}碎心"..
+            "#将房间中的道具底座全部转化为{{Collectible"..tostring(enums.Items.Fresh_Death).."}}鲜活死者"..
+            "#每份鲜活死者提供3个随机被动道具效果",
             BookOfBelial = "{{Collectible"..tostring(enums.Items.Fresh_Death).."}}鲜活死者只提供恶魔道具池的被动效果",
-            BookOfVirtues = "鲜活死者只提供天使道具池的被动效果",
-            SeijaNerf = "+3碎心",
+            BookOfVirtues = "{{Collectible"..tostring(enums.Items.Fresh_Death).."}}鲜活死者只提供天使道具池的被动效果",
+            SeijaNerf = "总计+3碎心",
         },
         en = {
             Name = "The Suture Needle",
             Desc = "Left Ventricular Puncture",
-            Description = "Lose all {{Heart}} red hearts，+1{{BrokenHeart}} broken hearts，convert pedestal in rooms into {{Collectible"..tostring(enums.Items.Fresh_Death).."}} Fresh Death",
-            BookOfBelial = "Item Fresh Death only provide passive effects from devil item pool",
-            BookOfVirtues = "Item Fresh Death only provide passive effects from angel item pool",
-            SeijaNerf = "+3 broken hearts",
+            Description = "Lose all {{Heart}} red hearts and gain +1{{BrokenHeart}} broken heart"..
+            "#Convert all pedestals in the room into {{Collectible"..tostring(enums.Items.Fresh_Death).."}} Fresh Death"..
+            "#Each Fresh Death grants 3 random passive effects",
+            BookOfBelial = "{{Collectible"..tostring(enums.Items.Fresh_Death).."}} Fresh Death only rolls Devil pool passives",
+            BookOfVirtues = "{{Collectible"..tostring(enums.Items.Fresh_Death).."}} Fresh Death only rolls Angel pool passives",
+            SeijaNerf = "+3 broken hearts total",
         },
     },
     [105] = {
@@ -2259,13 +2321,13 @@ item.Collectibles = {
             Name = "琉璃镜片",
             Desc = "有点晃眼...",
             Description = "生成4-8个琉璃掉落物"..
-            "#20%概率偏折弹幕",
+            "#{{Luck}} 靠近角色的敌方弹幕有概率被镜面偏折",
         },
         en = {
             Name = "Glaze Mirror",
             Desc = "Kind of dazzling",
-            Description = "Spawns several glaze pickups on pickup"..
-            "#20% chance to deflect enemy projectiles",
+            Description = "Spawns 4-8 glaze pickups"..
+            "#{{Luck}} Nearby enemy projectiles may be mirrored away",
         },
     },
     [106] = {
@@ -2315,7 +2377,7 @@ item.Collectibles = {
             Name = "Paranoia",
             Desc = "There is a dice",
             Description = "Picked items have a 50% chance of remaining in place",
-            SeijaNerf = "Picked items have a 50% chance to be replaced as {{Collectible258}} Missing No",
+            SeijaNerf = "5% chance for picked items to become {{Collectible258}} Missing No",
         },
     },
     [108] = {
@@ -2326,20 +2388,20 @@ item.Collectibles = {
         zh = {
             Name = "诅咒面具",
             Desc = "你感到头晕目眩",
-            Description = "进入房间的一段时间内，旋转你的射击方向"..
-            "#{{Tears}} +0.35射速"..
-            "#{{Damage}} +2攻击",
-            SeijaBuff = "+2射速"..
-            "#瞄准线跟踪敌人",
+            Description = "进入房间后，射击方向会持续旋转并逐渐减慢"..
+            "#{{Damage}} +2攻击"..
+            "#{{Collectible260}} 保留属性提升，但不会再旋转射击方向",
+            SeijaBuff = "{{Tears}} +2射速"..
+            "#旋转中的瞄准方向会尝试追踪敌人",
         },
         en = {
             Name = "Cursed Mask",
             Desc = "You feel dizzy and dizzy",
-            Description = "Rotate your shooting direction during a period of time after entering the room"..
-            "#{{Tears}} +0.35 Tears up"..
-            "#{{Damage}} +2 Damage up",
-            SeijaBuff = "+2 Tears up"..
-            "#Line of sight tracking enemy",
+            Description = "After entering a room, your firing direction spins and gradually slows"..
+            "#{{Damage}} +2 Damage"..
+            "#{{Collectible260}} Keeps the damage bonus, but no longer spins your aim",
+            SeijaBuff = "{{Tears}} +2 Tears"..
+            "#Spinning aim tries to track nearby enemies",
         },
     },
     [109] = {
@@ -2351,17 +2413,17 @@ item.Collectibles = {
             Name = "血仪刺刃",
             Desc = "以血调色",
             Description = "献祭持有道具，为所选颜色充能"..
-            "#击杀精英敌人也会少量补充对应颜色"..
-            "#{{Room}} 清理房间后六颜色各流失3%"..
-            "#颜色达到阈值时触发对应效果",
+            "#达到100%时点亮该颜色能力"..
+            "#击杀精英也会少量补充对应颜色"..
+            "#点亮的颜色会随清理房间逐渐消耗",
         },
         en = {
             Name = "Ritual Sting",
             Desc = "Color with blood",
             Description = "Sacrifice a held collectible to charge the selected color"..
-            "#Defeating champions also charges their matching colors"..
-            "#{{Room}} Clearing a room drains all six colors by 3%"..
-            "#Crossing color thresholds activates their effects",
+            "#Its ability activates at 100%"..
+            "#Defeating champions slightly charges matching colors"..
+            "#Lit colors gradually drain after clearing rooms",
         },
     },
     [110] = {
@@ -2372,18 +2434,18 @@ item.Collectibles = {
         zh = {
             Name = "虚无假眼",
             Desc = "目不能视",
-            Description = "此道具伴生有3个随机道具以供4选1"..
+            Description = "出现时额外生成3件随机道具，组成四选一"..
             "#{{Damage}} +0.33攻击"..
-            "#拾取时向所有道具池加入两个{{Collectible"..tostring(enums.Items.Nihilistic_Artificial_Eye).."}}虚无假眼",
-            SeijaNerf = "加快伴生道具环绕速度",
+            "#拾取后获得2次机会，使之后生成的道具有10%概率替换为虚无假眼",
+            SeijaNerf = "伴生道具环绕速度提高至4倍",
         },
         en = {
             Name = "Nihilistic Artificial Eye",
             Desc = "I can't see...",
-            Description = "This item is accompanied by 3 random items to choose 1"..
-            "#{{Damage}} +0.33 Damage up"..
-            "#Add a {{Collectible"..tostring(enums.Items.Nihilistic_Artificial_Eye).."}} Nihilistic Artificial Eye into all itempools on pickup",
-            SeijaNerf = "Accelerate the surrounding speed of accompanying items",
+            Description = "Spawns with 3 extra random collectibles as a 4-choice set"..
+            "#{{Damage}} +0.33 Damage"..
+            "#On pickup, gain 2 chances for later collectibles to become this item (10% each)",
+            SeijaNerf = "Companion orbit speed is 4× faster",
         },
     },
     [111] = {
@@ -2394,16 +2456,18 @@ item.Collectibles = {
         zh = {
             Name = "幻像冠冕",
             Desc = "嘲弄虚无",
-            Description = "{{Chargeable}} 蓄力发射阴影对接触的敌人造成伤害"..
-            "#玩家受伤前与阴影换位并免伤",
-            SeijaNerf = "加快阴影速度",
+            Description = "{{Chargeable}} 蓄力后发射向前移动的幻影"..
+            "#{{Warning}} 受到敌人伤害时，消耗幻影抵消伤害并冲向其位置"..
+            "#冲刺期间无敌；抵达后对周围敌人造成{{Damage}} 5倍攻击伤害",
+            SeijaNerf = "幻影移动速度提高至2.5倍",
         },
         en = {
             Name = "Phantom Crown",
             Desc = "Mocking Nothingness",
-            Description = "{{Chargeable}} Charge up and launch shadows to deal damage to enemies in contact"..
-            "# Players should switch positions with shadows before getting injured and avoid damage",
-            SeijaNerf = "Accelerate shadow speed",
+            Description = "{{Chargeable}} Charge to fire a forward-moving phantom"..
+            "#{{Warning}} When taking enemy damage, consume the phantom to negate the hit and dash to it"..
+            "#Invincible during the dash; on arrival deal {{Damage}} 5× damage to nearby enemies",
+            SeijaNerf = "Phantom movement speed is 2.5× faster",
         },
     },
     [112] = {
@@ -2414,14 +2478,16 @@ item.Collectibles = {
         zh = {
             Name = "血翼",
             Desc = "飞行+收割鲜血",
-            Description = "↑ 飞行"..
-            "#{{Chargeable}} 靠近墙壁移动以蓄力，蓄力完成后无敌冲刺4秒并向后喷射30%攻击伤害的硫磺火",
+            Description = "↑ 获得飞行"..
+            "#{{Chargeable}} 贴墙约2秒完成蓄力"..
+            "#蓄满后离墙会无敌冲刺约2秒，并向身后持续喷射30%攻击伤害的硫磺火",
         },
         en = {
             Name = "Blood Wing",
             Desc = "Flying + Harvesting Blood",
-            Description = "↑ Flight"..
-            "#{{Chargeable}} Move close to the wall to accumulate power, and after accumulating power, sprint invincibly for 4 seconds and spray 30% attack damage brimstones fire backwards",
+            Description = "↑ Grants flight"..
+            "#{{Chargeable}} Charge by hugging a wall for about 2 seconds"..
+            "#Leave the wall at full charge for an invincible ~2s dash that sprays 30% damage Brimstone behind you",
         },
     },
     [113] = {
@@ -2432,16 +2498,18 @@ item.Collectibles = {
         zh = {
             Name = "次时代炬火",
             Desc = "旧日破碎",
-            Description = "6个自动瞄准敌人的激光发射器 "..
-            "#{{Chargeable}} 蓄力后分别发射造成30%攻击伤害的激光",
-            SeijaNerf = "只有1个激光发射器",
+            Description = "生成6个自动锁定敌人的激光发射器"..
+            "#{{Chargeable}} 持续攻击约2秒完成蓄力"..
+            "#蓄满后松开攻击，所有发射器同时射出30%攻击伤害的激光",
+            SeijaNerf = "第一份仅生成1个激光发射器",
         },
         en = {
             Name = "Subera Light",
             Desc = "Break the old days",
-            Description = "6 laser launchers with automatic aiming at enemies "..
-            "#{{Chargeable}} After accumulating power, fire lasers that deal 30% of attack damage each",
-            SeijaNerf = "There is only one laser emitter",
+            Description = "Creates 6 auto-locking laser emitters"..
+            "#{{Chargeable}} Hold fire for about 2 seconds to finish charging"..
+            "#Release when full so every emitter fires 30% damage lasers at once",
+            SeijaNerf = "First copy creates only 1 laser emitter",
         },
     },
     [114] = {
@@ -2452,12 +2520,18 @@ item.Collectibles = {
         zh = {
             Name = "D++",
             Desc = "缝合致死",
-            Description = "触发此道具使用次数因数的骰子的效果",
+            Description = "{{Battery}} 至少1格充能即可使用，并消耗当前全部充能"..
+            "#消耗几格充能，就将当前D编号向前推进几格"..
+            "#到达新编号后，触发所有与该编号匹配的骰子效果"..
+            "#{{Collectible476}} D1始终触发",
         },
         en = {
             Name = "D++",
             Desc = "Stitching to death",
-            Description = "The effect of triggering the dice with the factor of the number of times this item is used",
+            Description = "{{Battery}} Usable with at least 1 charge; spends all current charges"..
+            "#Spending N charges advances the current D number by N"..
+            "#On the new number, triggers every matching die effect"..
+            "#{{Collectible476}} D1 always fires",
         },
     },
     [115] = {
@@ -2468,14 +2542,18 @@ item.Collectibles = {
         zh = {
             Name = "香格里拉",
             Desc = "天魔袭来",
-            Description = "玩家攻击时从上空不断生成安全的导弹、激光炮进行自动攻击",
-            SeijaNerf = "攻击落地后概率生成下层通道",
+            Description = "持续开火时，维持空袭节奏并周期性呼叫随机火力支援"..
+            "#支援包括导弹、硫磺火炮与旋转激光装置"..
+            "#这些空袭不会伤害角色",
+            SeijaNerf = "空袭路径上会随机生成通往下层的活板门",
         },
         en = {
             Name = "Shangrila",
             Desc = "Kashtira Arrival",
-            Description = "When players attack, they continuously generate safe missiles and laser cannons from above for automatic attacks",
-            SeijaNerf = "Probability generation of lower level channels after attack landing",
+            Description = "While firing, keeps an airstrike rhythm and periodically calls random aerial support"..
+            "#Support includes missiles, brimstone cannons, and spinning laser devices"..
+            "#These strikes cannot harm the player",
+            SeijaNerf = "Aerial support paths may spawn trapdoors to the next floor",
         },
     },
     [116] = {
@@ -2487,9 +2565,9 @@ item.Collectibles = {
             Name = "命运锚点",
             Desc = "过去仍在前方等待",
             Description = "使用时锚定当前房间，每层最多3个"..
-            "#{{ArrowDown}} 下层后在其他房间复现"..
-            "#房型不匹配时，仅复现锚点周围区域"..
-            "#再次使用可收回当前房间的锚点",
+            "#进入下一层时，锚定内容会优先映射到普通房间"..
+            "#无法完整复现时，仅保留部分锚定内容"..
+            "#再次使用可取消当前房间的锚定",
             BookOfVirtues = "新建锚点时生成留守此处的命运魂火",
             BookOfBelial = "{{DevilRoom}} 可锚定恶魔房，并在下层恶魔房开启时复现",
         },
@@ -2497,9 +2575,9 @@ item.Collectibles = {
             Name = "Destiny Anchor",
             Desc = "The past still waits ahead",
             Description = "Anchors the current room on use, up to 3 per floor"..
-            "#{{ArrowDown}} Reappears elsewhere on the next floor"..
-            "#If room shape differs, only the area around the anchor returns"..
-            "#Use again in an anchored room to retrieve its anchor",
+            "#On the next floor, anchored content prefers mapping into normal rooms"..
+            "#If it cannot fully reproduce, only part of the anchored content returns"..
+            "#Use again in an anchored room to cancel that anchor",
             BookOfVirtues = "New anchors spawn a Destiny Wisp that remains there to guard them",
             BookOfBelial = "{{DevilRoom}} Devil Rooms can be anchored and reproduced if one opens next floor",
         },
@@ -2512,16 +2590,16 @@ item.Collectibles = {
         zh = {
             Name = "慕残症",
             Desc = "腐烂而破碎",
-            Description = "{{RottenHeart}} 失去红心后填充一颗腐心"..
-            "#{{BrokenHeart}} 失去心之容器后填充一颗碎心"..
-            "#腐心与碎心相互抵消且不致死",
+            Description = "{{RottenHeart}} 失去红心血量时留下腐心"..
+            "#{{BrokenHeart}} 失去心之容器时留下碎心"..
+            "#腐心与碎心会彼此抵消，且不会因此直接致死",
         },
         en = {
             Name = "Acrotomophilia",
             Desc = "Rotten and Broken",
-            Description = "{{RottenHeart}} After losing the red heart, fill it with a rotten heart"..
-            "#{{BrokenHeart}} After losing the container of the heart, fill it with a broken heart"..
-            "#Rotten and broken hearts cancel each other out without causing death",
+            Description = "{{RottenHeart}} Lost red health leaves Rotten Hearts"..
+            "#{{BrokenHeart}} Lost Heart Containers leave Broken Hearts"..
+            "#Rotten and Broken Hearts cancel each other and cannot kill by that cancel alone",
         },
     },
     [118] = {
@@ -2532,14 +2610,16 @@ item.Collectibles = {
         zh = {
             Name = "孤独",
             Desc = "两位旅人在此交汇",
-            Description = "角色死亡时随机生成一个其他角色，由其将角色复活"..
-            "#此法生成的所有角色均死亡时游戏才结束",
+            Description = "第一次死亡时召来另一名角色救援"..
+            "#被召来的角色留下并共同继续本局"..
+            "#只要还有一人存活，游戏就不会结束",
         },
         en = {
             Name = "Loneliness",
             Desc = "Journey convergence",
-            Description = "When a character dies, a random other character is generated to revive the character"..
-            "# The game only ends when all characters generated by this method die",
+            Description = "On the first death, summons another character to rescue"..
+            "#The summoned character stays and continues the run together"..
+            "#The run does not end while either character is still alive",
         },
     },
     [119] = {
@@ -2550,16 +2630,18 @@ item.Collectibles = {
         zh = {
             Name = "魔法胸针",
             Desc = "神择祭品",
-            Description = "#!!! 最多可用10次"..
-            "#从三种属性中挑选1项提升，降低另外2项属性"..
-            "#耗尽后生成饰品{{Trinket"..enums.Trinkets.Broken_Brooch.."}}破碎的胸针",
+            Description = "!!! 最多选择10次"..
+            "#每次随机展示3项基础属性"..
+            "#选择其中1项强化，同时削弱另外2项"..
+            "#用尽后碎裂为{{Trinket"..enums.Trinkets.Broken_Brooch.."}}破碎的胸针",
         },
         en = {
             Name = "Core Brooch",
             Desc = "Sacrifice of Heavenly Selection",
-            Description = "#!!! Can be used up to 10 times"..
-            "# Select 1 attribute from three to improve and 2 attributes to decrease"..
-            "# Generate trinket {{Trinket"..enums.Trinkets.Broken_Brooch.."}} after depletion",
+            Description = "!!! Choose up to 10 times"..
+            "#Each use shows 3 random base stats"..
+            "#Pick 1 to boost; the other 2 are weakened"..
+            "#When spent, shatters into {{Trinket"..enums.Trinkets.Broken_Brooch.."}} Broken Brooch",
         },
     },
     [120] = {
@@ -2570,14 +2652,16 @@ item.Collectibles = {
         zh = {
             Name = "灵感",
             Desc = "由幻象救赎",
-            Description = "清理房间后有概率生成掉落物和道具的幻像"..
-            "#仅当角色剩余最后一格血时，碰触幻像变为现实",
+            Description = "清理房间后有概率额外生成奖励幻像"..
+            "#幻像不会取代原本的清房奖励"..
+            "#生命极低时触碰幻像才会变为现实",
         },
         en = {
             Name = "Inspiration",
             Desc = "Redemption by Illusion",
-            Description = "After cleaning the room, chance to generate illusions of pickups and trinkets. "..
-            "#Only when the character has the last remaining health, touching the illusion becomes reality",
+            Description = "Clearing a room may spawn an extra reward illusion"..
+            "#The illusion does not replace the normal clear reward"..
+            "#Only at extremely low health does touching it make it real",
         },
     },
     [121] = {
@@ -2591,17 +2675,17 @@ item.Collectibles = {
             Description = "{{Heart}} +2心之容器"..
             "#{{Damage}} +1攻击"..
             "#{{Speed}} +0.3移速"..
-            "#杀死敌人时生成小饿魔咬咬敌人并将其恐惧",
+            "#击杀敌人时生成小饿魔，追咬其他敌人并使其恐惧",
             SeijaNerf = "饥饿的小饿魔追着玩家咬并逐渐损失生命",
         },
         en = {
             Name = "Hunger Burger",
             Desc = "Delicious finale",
-            Description = "{{Heart}} +2 Heart Container"..
+            Description = "{{Heart}} +2 Heart Containers"..
             "#{{Damage}} +1 Damage"..
-            "#{{Speed}} +0.3 Move Speed"..
-            "#Generate a little hungry demon to bite and scare enemies when killing them",
-            SeijaNerf = "The little hungry demon chased after the player to bite and gradually lost their life",
+            "#{{Speed}} +0.3 Speed"..
+            "#Killing enemies spawns little hungers that bite and fear other enemies",
+            SeijaNerf = "Hungry little hungers chase the player to bite and gradually lose life",
         },
     },
     [122] = {
@@ -2612,22 +2696,22 @@ item.Collectibles = {
         zh = {
             Name = "飞蚊症",
             Desc = "精灵魔术",
-            Description = "使用后，飞来一群彩色苍蝇："..
-            "#!!! 66%概率留下数只彩虹苍蝇"..
-            "#{{Trinket}} 33%概率留下随机饰品"..
-            "#{{Beelzebub}} 1%概率留下随机道具",
+            Description = "使用后召来一群彩色飞蚊："..
+            "#66%：留下2-3只彩虹苍蝇"..
+            "#{{Trinket}} 33%：留下随机饰品"..
+            "#{{Collectible}} 1%：留下随机道具",
             BookOfBelial = "留下的彩虹苍蝇变得血红，伤害路径上的敌人。留下的苍蝇被替换为{{Trinket113}}战争蝗虫",
             BookOfVirtues = "留下的苍蝇被替换为一颗彩虹魂火",
         },
         en = {
             Name = "Muscae Volitantes",
             Desc = "Magic of Flies",
-            Description = "After use, a group of colorful flies come："..
-            "#!!! 66% probability of leaving multiple rainbow flies"..
-            "#{{Trinket}} 33% probability of leaving a random trinket"..
-            "#{{Beelzebub}} 1% probability of leaving a random item",
-            BookOfBelial = "The remaining rainbow flies turn blood red, and the enemies in their path are damaged. The remaining flies is replaced by a {{Trinket113}} War Locust.",
-            BookOfVirtues = "The remaining flies is replaced as a rainbow wisp",
+            Description = "On use, summons a swarm of colorful flies:"..
+            "#66%: leave 2-3 rainbow flies"..
+            "#{{Trinket}} 33%: leave a random trinket"..
+            "#{{Collectible}} 1%: leave a random item",
+            BookOfBelial = "Rainbow flies turn blood-red and damage enemies on their path; leftover flies become {{Trinket113}} War Locust",
+            BookOfVirtues = "Leftover flies become a rainbow wisp",
         },
     },
     [123] = {
@@ -2638,22 +2722,22 @@ item.Collectibles = {
         zh = {
             Name = "卡戎之印",
             Desc = "黑潮将至",
-            Description = "进入楼层45秒后，黑潮开始从初始房向外蔓延"..
-            "#黑潮逐渐吞噬地形与掉落物，但会避开可互动实体且不会伤害玩家"..
-            "#{{Damage}} 黑潮对敌人每30帧造成7点伤害"..
+            Description = "进入楼层45秒后，黑潮从初始房向外蔓延"..
+            "#黑潮逐渐吞噬地形与掉落物，但会避开玩家及机器、乞丐周围"..
+            "#{{Damage}} 黑潮每秒对敌人造成7点伤害"..
             "#不会蔓延到其他维度",
-            SeijaNerf = "黑潮的蔓延速度大幅提高"..
-            "#黑潮避开所有掉落物，且不再吞噬它们",
+            SeijaNerf = "黑潮整体推进速度提高至4倍"..
+            "#不再吞噬掉落物，并会避开掉落物周围",
         },
         en = {
             Name = "Charon's Sign",
             Desc = "The Tide is approaching",
             Description = "After 45 seconds on a floor, a black tide spreads outward from the starting room"..
-            "#The tide gradually consumes terrain and pickups, but avoids interactive entities and cannot harm players"..
-            "#{{Damage}} Deals 7 damage to enemies every 30 frames"..
+            "#The tide gradually consumes terrain and pickups, but keeps clear of Isaac and machines/beggars"..
+            "#{{Damage}} Deals 7 damage per second to enemies in the tide"..
             "#Does not spread across dimensions",
-            SeijaNerf = "The tide spreads much faster"..
-            "#The tide avoids all pickups and no longer consumes them",
+            SeijaNerf = "Overall tide progress is 4× faster"..
+            "#No longer consumes pickups and keeps clear of them",
         },
     },
     [124] = {
@@ -2661,18 +2745,19 @@ item.Collectibles = {
         id = Items.Baby_Tecro,
         type = "familiar",
         xmlId = 135,
-        Hidden = "true",
         zh = {
             Name = "宝宝泰克罗",
             Desc = "我来刺穿！",
-            Description = "{{Chargeable}} 蓄力发射自己的跟班"..
-            "#在墙壁间快速弹射3次",
+            Description = "{{Chargeable}} 持续攻击时预览一条可在墙壁间反射的突刺路线"..
+            "#松开后沿锁定路线高速突进并伤害敌人"..
+            "#蓄力越高，可延伸的反射次数越多",
         },
         en = {
             Name = "Baby Tecro",
-            Desc = "I find!",
-            Description = "{{Chargeable}} Charge to launch the familiar"..
-            "#Bounces between walls 3 times",
+            Desc = "I pierce!",
+            Description = "{{Chargeable}} While firing, preview a wall-reflecting pierce path"..
+            "#Release to dash along the locked path and damage enemies"..
+            "#Higher charge extends more reflections",
         },
     },
     [125] = {
@@ -2680,17 +2765,16 @@ item.Collectibles = {
         id = Items.Baby_Anna,
         type = "familiar",
         xmlId = 136,
-        Hidden = "true",
         zh = {
             Name = "宝宝安娜",
             Desc = "我来吞噬！",
-            Description = "{{Chargeable}} 蓄力发射自己的跟班"..
-            "#飞行时留下硫磺火尾迹",
+            Description = "{{Chargeable}} 蓄力后向瞄准方向高速发射宝宝"..
+            "#飞行过程中在身后留下{{Collectible118}}硫磺火尾迹",
         },
         en = {
             Name = "Baby Anna",
-            Desc = "I eat!",
-            Description = "{{Chargeable}} Charge to launch the familiar"..
+            Desc = "I devour!",
+            Description = "{{Chargeable}} Charge, then launch the familiar toward your aim"..
             "#Leaves a {{Collectible118}} Brimstone trail while flying",
         },
     },
@@ -2699,18 +2783,19 @@ item.Collectibles = {
         id = Items.Baby_Zeis,
         type = "familiar",
         xmlId = 137,
-        Hidden = "true",
         zh = {
             Name = "宝宝泽伊斯",
             Desc = "我来知晓！",
-            Description = "沉睡的跟班"..
-            "#每层醒来并复制你见到的第一个道具",
+            Description = "每层开始时沉睡"..
+            "#发现道具底座后醒来并飞向目标"..
+            "#到达后复制一份该道具，本层仅触发一次",
         },
         en = {
             Name = "Baby Zeis",
             Desc = "I know!",
-            Description = "Sleeping familiar"..
-            "#Wakes each floor to copy the first pedestal item seen",
+            Description = "Starts each floor asleep"..
+            "#Wakes on finding an item pedestal and flies to it"..
+            "#Copies that item on arrival; once per floor",
         },
     },
     [127] = {
@@ -2718,20 +2803,19 @@ item.Collectibles = {
         id = Items.Baby_Marri,
         type = "familiar",
         xmlId = 138,
-        Hidden = "true",
         zh = {
             Name = "宝宝玛丽",
             Desc = "我来质疑！",
-            Description = "祈祷的跟班"..
-            "#{{AngelRoom}} 天使形态：+15% 天使房转化率"..
-            "#{{DevilRoom}} 受伤后切换为恶魔形态：+15% 恶魔房开启率，再次受伤切回",
+            Description = "{{AngelRoom}} 初始为天使形态：天使房转化率+15%"..
+            "#{{DevilRoom}} 受到伤害后切换为恶魔形态：恶魔房开启率+15%"..
+            "#再次受到伤害时切回天使形态",
         },
         en = {
             Name = "Baby Marri",
-            Desc = "I ask!",
-            Description = "Praying familiar"..
-            "#{{AngelRoom}} Angel form: +15% Angel Room conversion"..
-            "#{{DevilRoom}} Taking damage swaps to Devil form: +15% Devil Room chance; swaps back on the next hit",
+            Desc = "I question!",
+            Description = "{{AngelRoom}} Starts in Angel form: +15% Angel Room conversion chance"..
+            "#{{DevilRoom}} Taking damage switches to Devil form: +15% Devil Room chance"..
+            "#Taking damage again switches back to Angel form",
         },
     },
     [128] = {
@@ -2739,18 +2823,19 @@ item.Collectibles = {
         id = Items.Baby_Autio,
         type = "familiar",
         xmlId = 139,
-        Hidden = "true",
         zh = {
             Name = "宝宝艾提奥",
             Desc = "我来掌控！",
-            Description = "飞向敌人的跟班"..
-            "#{{Fear}} 在落点留下恐惧光圈，随后返回",
+            Description = "自动飞向敌人，并在目标附近展开恐惧光环"..
+            "#光环持续恐惧并伤害范围内的敌人"..
+            "#停留一段时间后返回角色身边",
         },
         en = {
             Name = "Baby Autio",
-            Desc = "I hang!",
-            Description = "Familiar that teleports onto enemies"..
-            "#{{Fear}} Leaves a fear aura, then returns",
+            Desc = "I command!",
+            Description = "Flies to enemies and deploys a fear aura near the target"..
+            "#The aura keeps applying fear and damages enemies inside"..
+            "#Returns after lingering for a short time",
         },
     },
     [129] = {
@@ -2758,18 +2843,17 @@ item.Collectibles = {
         id = Items.Baby_Lu,
         type = "familiar",
         xmlId = 140,
-        Hidden = "true",
         zh = {
             Name = "宝宝露",
             Desc = "我来安排！",
-            Description = "每层揭示3个特殊房间的跟班"..
-            "#清理这些特殊房间后打开一个奖励房间",
+            Description = "举行仪式并依次标记数个特殊房间的宝宝"..
+            "#随后生成用于前往这些房间的传送入口",
         },
         en = {
             Name = "Baby Lu",
             Desc = "I plan!",
-            Description = "Familiar that reveals 3 special rooms each floor"..
-            "#Clearing them opens a reward room",
+            Description = "A familiar that performs a ritual to mark several special rooms"..
+            "#Then creates portals leading to those rooms",
         },
     },
     [130] = {
@@ -2798,20 +2882,20 @@ item.Collectibles = {
         zh = {
             Name = "倍增重刃",
             Desc = "十年磨一剑",
-            Description = "拥有至少1格充能时即可使用"..
+            Description = "{{Battery}} 拥有至少1格充能时即可使用"..
             "#消耗当前全部充能，向瞄准方向挥出重刃"..
-            "#{{Damage}} 1格充能造成1点伤害，攻击范围为1"..
-            "#每多1格充能，伤害与范围翻倍",
+            "#{{Damage}} 1格充能造成100%角色攻击伤害"..
+            "#每多1格充能，伤害与攻击范围翻倍",
             BookOfBelial = "{{Battery}} +2充能上限（最多12格），刀刃变为血红",
             BookOfVirtues = "每消耗1格充能生成一颗攻击和生命均为1的魂火",
         },
         en = {
             Name = "Multiknife",
             Desc = "Ten years I honed this sword",
-            Description = "Can be used with at least 1 charge"..
-            "#Consumes all current charges to swing a heavy blade in the aiming direction"..
-            "#{{Damage}} At 1 charge, deals 1 damage with 1 range"..
-            "#Each additional charge doubles damage and range",
+            Description = "{{Battery}} Usable with at least 1 charge"..
+            "#Spends all current charges to swing a heavy blade toward your aim"..
+            "#{{Damage}} 1 charge deals 100% of your damage"..
+            "#Each extra charge doubles damage and swing size",
             BookOfBelial = "{{Battery}} +2 charge cap (max 12). Blade turns blood-red",
             BookOfVirtues = "Spawns a 1 HP / 1 damage wisp per charge spent",
         },
@@ -2824,14 +2908,16 @@ item.Collectibles = {
         zh = {
             Name = "深渊龙牙",
             Desc = "随我步入深渊",
-            Description = "{{Damage}} 1.5倍伤害"..
-            "#{{AngelRoom}} 污染下一个天使房为{{DevilRoom}}恶魔房道具池，触发后+1攻击",
+            Description = "{{Damage}} 1.5倍攻击"..
+            "#{{AngelRoom}} 每份本道具可污染1个天使房，使其中道具改用{{DevilRoom}}恶魔房道具池"..
+            "#每成功污染1次，永久{{Damage}} +1攻击",
         },
         en = {
             Name = "Dragon Tooth",
             Desc = "Follow me into the abyss",
-            Description = "{{Damage}} x1.5 Damage multiplier"..
-            "#{{AngelRoom}} Pollution the next angel room into {{DevilRoom}} Devil Room item pool, after triggering +1 Damage",
+            Description = "{{Damage}} x1.5 Damage"..
+            "#{{AngelRoom}} Each copy can pollute 1 Angel Room so its items use the {{DevilRoom}} Devil pool"..
+            "#Each successful pollution permanently grants {{Damage}} +1 Damage",
         },
     },
     [133] = {
@@ -3121,18 +3207,19 @@ item.Collectibles = {
         zh = {
             Name = "保留意见",
             Desc = "这还不算数",
-            Description = "靠近多选道具时，按"..eidButton(ButtonAction and ButtonAction.ACTION_DROP).."保留其中一个"..
-            "#拾取保留项以在当前层试用道具，并在下层生成售价{{Coin}}15¢的对应道具"..
-            "#主动也可保留；换下试用主动时，掉落的该主动消失",
+            Description = "保留一件商品的当前报价至下一层"..
+            "#靠近商品并按"..eidButton(ButtonAction and ButtonAction.ACTION_DROP).."保留"..
+            "#同时只能保留1件；新的保留会替换旧的"..
+            "#作为商品出现时，无需持有本道具也可保留它",
             AbyssSynic = "白色蝗虫",
         },
         en = {
             Name = "Reserved Judgment",
             Desc = "This isn't final",
-            Description = "Near an option group, press "..eidButton(ButtonAction and ButtonAction.ACTION_DROP).." to reserve one item"..
-            "#Each option group can hold 1 reserved item"..
-            "#Pick up the reserved item to trial it this floor; next floor it returns for {{Coin}}15¢"..
-            "#Actives can be reserved; swapping away a trial active removes its dropped pedestal",
+            Description = "Reserve a priced item's current offer to the next floor"..
+            "#Near an item, press "..eidButton(ButtonAction and ButtonAction.ACTION_DROP).." to reserve it"..
+            "#Only 1 offer can be reserved; a new one replaces the old"..
+            "#Reserved Judgment can reserve itself while being sold, even if not held",
             AbyssSynic = "White locust",
         },
     },
@@ -3146,7 +3233,8 @@ item.Collectibles = {
             Desc = "判决即是终局",
             Description = "满充能时自动通灵1个随机字母"..
             "#使用打开预测面板"..
-            "#用字母拼出英文名，即可获得道具。=可代替名称中的符号"..
+            "#用字母拼出道具名称，即可获得对应道具"..
+            "#「=」可代替名称中的符号"..
             "#{{Warning}} 集齐“FINAL”时，立即唤醒你的死亡终局",
             BookOfBelial = "始终额外拥有一个匹配恶魔房道具池道具时充当通配符的6",
             BookOfVirtues = "显示通灵字母的魂火，熄灭时再获得该字母",
@@ -3156,8 +3244,9 @@ item.Collectibles = {
             Desc = "The sentence is final",
             Description = "Fully charged: automatically summon 1 random letter"..
             "#Use to open the prediction panel"..
-            "#Spell an English name with letters to gain the item; = covers symbols"..
-            "#{{Warning}} Spelling “FINAL” immediately wakes up your death end",
+            "#Spell an item name with letters to gain it"..
+            "#「=」 can stand in for symbols in the name"..
+            "#{{Warning}} Spelling “FINAL” immediately wakes your death end",
             BookOfBelial = "Always have an extra 6; for Devil Room pool items, this 6 can replace any character",
             BookOfVirtues = "A wisp showing the letter; if you still hold this item when it dies, gain that letter again",
         },
@@ -3170,16 +3259,20 @@ item.Collectibles = {
         zh = {
             Name = "重制版！",
 			Desc = "正在按下闪烁的红色按钮",
-            Description = "使用后选择一个楼层并立即前往"..
-            "#永久记录该传送渠道"..
-            "#下次有玩家到达所选楼层时，将其传送回出发楼层",
+            Description = "选择一个楼层，打开时空隧道并前往"..
+            "#记录这次穿越，跨越之后的游戏保留"..
+            "#未来有角色进入目标楼层时，强制将其送回你的出发楼层",
+            BookOfVirtues = "时空隧道会将魂火一并留给未来的使用者",
+            BookOfBelial = "回程后，本层继承过去角色更高的战斗属性",
         },
         en = {
             Name = "Remaster!",
 			Desc = "Pressing on the bloody blinking button",
-            Description = "On use, choose a floor and travel there"..
-            "#Permanently records that teleport link"..
-            "#The next time a player reaches the chosen floor, send them back to the origin floor",
+            Description = "Choose a floor, open a time rift, and travel there"..
+            "#This crossing is saved across future games"..
+            "#When a character later enters the target floor, they are forced back to your origin floor",
+            BookOfVirtues = "The time rift leaves your wisps for the future traveler",
+            BookOfBelial = "After return, this floor inherits the stronger combat stats from the past traveler",
         },
     },
     [152] = {
@@ -3240,18 +3333,14 @@ item.Collectibles = {
         zh = {
             Name = "拖延症",
             Desc = "马上就做……",
-            Description = "{{Timer}} 持有后每经过30秒，永久获得 {{Damage}} +0.1攻击"..
-            "#每层最多累计 {{Damage}} +1攻击"..
-            "#击杀任意Boss后，立即停止本层的攻击增长"..
-            "#包含Boss敌人的房间门始终保持开启",
+            Description = "{{Timer}} 每30秒永久获得{{Damage}} +0.1攻击；每层最多+1"..
+            "#{{BossRoom}} 击杀Boss后本层停止增长；Boss存活时房门保持开启",
         },
         en = {
             Name = "Procrastination",
             Desc = "I'll do it soon...",
-            Description = "{{Timer}} While held, permanently gain {{Damage}} +0.1 every 30 seconds"..
-            "#Accumulate up to {{Damage}} +1 per floor"..
-            "#Killing any boss immediately stops this floor's damage growth"..
-            "#Doors in rooms with living bosses stay open",
+            Description = "{{Timer}} Permanently gain {{Damage}} +0.1 every 30 seconds, up to +1 per floor"..
+            "#{{BossRoom}} Killing a boss stops growth for this floor; doors stay open while a boss is alive",
         },
     },
     [155] = {
@@ -3262,18 +3351,18 @@ item.Collectibles = {
         zh = {
             Name = "神圣心之防护罩－心灵之力",
             Desc = "双心合一",
-            Description = "获得1个防护之心"..
-            "#阻挡首个惩罚性伤害并释放心灵冲击波，然后转化为1个 {{Heart}} 心之容器"..
-            "#冲击波每击杀1个敌人：获得 {{Damage}} x1.05 {{Shotspeed}} -0.02，每房间最多5次"..
-            "#若房间内敌人≥5：冲击波无视护甲，并波及本层其他房间",
+            Description = "获得1个{{ColorRed}}防护之心{{CR}}"..
+            "#阻挡首个惩罚性伤害并释放心灵冲击波，然后转化为1个{{Heart}}心之容器"..
+            "#冲击波每击杀1个敌人：获得{{Damage}} x1.05、{{Shotspeed}} -0.02，每房间最多5次"..
+            "#房间内敌人不少于5个时：冲击波无视护甲，并波及本层其他房间",
         },
         en = {
             Name = "Sacred Mind Shield",
             Desc = "Two hearts as one",
-            Description = "Gain 1 protective heart"..
-            "#Blocks the first punitive hit and releases a mind shockwave, then converts into 1 {{Heart}} heart container"..
-            "#Per enemy killed by the wave: {{Damage}} x1.05 {{Shotspeed}} -0.02, up to 5 per room"..
-            "#If 5+ enemies in the room: wave ignores armor and spreads to other rooms this floor",
+            Description = "Gain 1 {{ColorRed}}protective heart{{CR}}"..
+            "#Blocks the first punitive hit and releases a mind shockwave, then becomes 1 {{Heart}} heart container"..
+            "#Each enemy killed by the wave grants {{Damage}} x1.05 and {{Shotspeed}} -0.02, up to 5 times per room"..
+            "#With at least 5 enemies in the room, the wave ignores armor and spreads to other rooms this floor",
         },
     },
     [156] = {
@@ -3385,21 +3474,15 @@ item.Collectibles = {
         xmlId = 171,
         zh = {
             Name = "再世纪",
-            Desc = "连错误也会被继承",
-            Description = "本局的行为会塑造一个{{ColorYellow}}世纪{{CR}}"..
-            "#本局结束时，为下一局留下对应的{{ColorYellow}}遗产{{CR}}与{{ColorRed}}代价{{CR}}"..
-            "#世纪仅影响下一局一次"..
-            "#{{DeathMark}} 死亡也会留下世纪"..
-            "#{{Player}} 重开不会进行结算",
+            Desc = "一个也不失落",
+            Description = "生成一个记住近期失物的宝宝"..
+            "#每项失物需要记录1-4个战斗房，完成后由宝宝吐回",
         },
         en = {
             Name = "Regenesis",
-            Desc = "Even mistakes are inherited",
-            Description = "This run's actions shape an {{ColorYellow}}Age{{CR}}"..
-            "#When the run truly ends, the next run inherits its {{ColorYellow}}legacy{{CR}} and {{ColorRed}}cost{{CR}}"..
-            "#The Age lasts for the next run only"..
-            "#{{DeathMark}} Death still leaves an Age"..
-            "#{{Player}} Restarting does not settle",
+            Desc = "Not one will be lost",
+            Description = "Spawns a familiar that remembers things you recently lost"..
+            "#Each loss takes 1-4 cleared combat rooms to recover, then the familiar spits it back out",
         },
     },
     [161] = {
@@ -3420,6 +3503,48 @@ item.Collectibles = {
             "#Losing another item changes the copied item",
         },
     },
+    [162] = {
+        Name = "似有所选",
+        id = Items.Perhaps_Chosen,
+        type = "passive",
+        xmlId = 173,
+        zh = {
+            Name = "似有所选",
+            Desc = "请再看看罢",
+            Description = "持有时没有效果"..
+            "#没有选择它时，会作为额外选项加入之后的道具选择"..
+            "#重置不会将其从选择中移除",
+            SeijaBuff = "再次加入道具选择时，会在自己的底座上额外与一个当前道具池的随机道具轮换出现",
+        },
+        en = {
+            Name = "Perhaps Chosen",
+            Desc = "Please, look again.",
+            Description = "Has no effect while held"..
+            "#If not chosen, it returns as an extra option in a later item choice"..
+            "#Rerolls do not remove it from that choice",
+            SeijaBuff = "When it rejoins an item choice, its pedestal also cycles with a random item from the current pool",
+        },
+    },
+    [163] = {
+        Name = "零存在感",
+        id = Items.Zero_Presence,
+        type = "passive",
+        xmlId = 174,
+        zh = {
+            Name = "零存在感",
+            Desc = "你忘记了它",
+            Description = "#概率发射零存在感眼泪"..
+            "#零存在感眼泪会穿透并追踪敌人"..
+            "#获得新道具时，它可能回到该道具的底座",
+        },
+        en = {
+            Name = "Zero Presence",
+            Desc = "You forgot it",
+            Description = "#Chance to fire Zero Presence Tears"..
+            "#Zero Presence Tears pierce and home on enemies"..
+            "#When gaining a new item, it may return to that item's pedestal",
+        },
+    },
 }
 
 item.Trinkets = {
@@ -3431,12 +3556,12 @@ item.Trinkets = {
         zh = {
             Name = "平罪符",
             Desc = "公平意味着有利可图",
-            Description = "{{Shop}} 商品价格改为总平均数上取整",
+            Description = "{{Shop}} 同一房间内的商品价格变为平均价格并向上取整",
         },
         en = {
             Name = "Pacification Mark",
             Desc = "Fair means profitable",
-            Description = "{{Shop}} Change the product price to round up of the total average",
+            Description = "{{Shop}} Priced goods in the same room become the average price, rounded up",
         },
     },
     [2] = {
@@ -3447,15 +3572,15 @@ item.Trinkets = {
         zh = {
             Name = "黑暗脆块",
             Desc = "易燃又美味？",
-            Description = "{{BlackHeart}} 初次拾取时+1黑心"..
-            "#{{BrokenHeart}} 初次失去时+1碎心",
+            Description = "{{BlackHeart}} 获得时+2黑心"..
+            "#{{BrokenHeart}} 失去时+1碎心",
             goldenTrinket = {t={1,1,},},
         },
         en = {
             Name = "Dark Particle",
             Desc = "Flammable and delicious",
-            Description = "{{BlackHeart}} +1 black heart when first pick"..
-            "#{{BrokenHeart}} +1 broken heart when first lose",
+            Description = "{{BlackHeart}} +2 Black Hearts on pickup"..
+            "#{{BrokenHeart}} +1 Broken Heart when lost",
             goldenTrinket = {t={1,1,},},
         },
     },
@@ -3467,13 +3592,13 @@ item.Trinkets = {
         zh = {
             Name = "透特卡残片",
             Desc = "反对奥秘学！",
-            Description = "进入新房间时25%概率随机开启1扇通往其他房间的门",
+            Description = "首次进入房间时约25%概率随机开启1扇额外的门",
             goldenTrinket = {t = {1,},},
         },
         en = {
             Name = "Torn Emperor",
             Desc = "Oppose esoteric!",
-            Description = "25% Chance to randomly open 1 door when entering a new room",
+            Description = "About 25% chance to open 1 extra door when first entering a room",
             goldenTrinket = {t = {1,},},
         },
     },
@@ -3541,15 +3666,15 @@ item.Trinkets = {
         zh = {
             Name = "囤积符号",
             Desc = "重建",
-            Description = "!!! 初次拾取时失去所有掉落物"..
+            Description = "!!! 首次拾取时失去全部{{Coin}}硬币、{{Key}}钥匙与{{Bomb}}炸弹"..
             "#{{Damage}} 永久+1攻击",
             goldenTrinket = {t={1,},},
         },
         en = {
             Name = "Hoarding Symbol",
             Desc = "Reconstruction",
-            Description = "!!! Lose all pickups on first pickup"..
-            "#{{Damage}} +1 Damage up",
+            Description = "!!! On pickup, lose all {{Coin}} coins, {{Key}} keys, and {{Bomb}} bombs"..
+            "#{{Damage}} Permanent +1 Damage",
             goldenTrinket = {t={1,},},
         },
     },
@@ -3561,13 +3686,13 @@ item.Trinkets = {
         zh = {
             Name = "迁跃符号",
             Desc = "远离",
-            Description = "{{ErrorRoom}} 进入新房间时，2%概率进入错误房",
+            Description = "{{ErrorRoom}} 穿门进入未探索房间时，2%概率改为进入错误房",
             goldenTrinket = {t={2,},},
         },
         en = {
             Name = "Transition Symbol",
             Desc = "Away",
-            Description = "{{ErrorRoom}} 2% Chance to enter error room when entering a new room",
+            Description = "{{ErrorRoom}} 2% chance to enter an Error Room when walking into an unvisited room",
             goldenTrinket = {t={2,},},
         },
     },
@@ -3597,12 +3722,12 @@ item.Trinkets = {
         zh = {
             Name = "下坠符号",
             Desc = "抑郁",
-            Description = "放下此饰品时击落所有弹幕",
+            Description = "此饰品落到地面时击落房间内所有弹幕",
         },
         en = {
             Name = "Straining Symbol",
             Desc = "Depression",
-            Description = "Shoot down all projectiles when placing this trinket",
+            Description = "Clears room projectiles when this trinket appears on the ground",
         },
     },
     [11] = {
@@ -3632,13 +3757,15 @@ item.Trinkets = {
             Name = "暂停？",
             Desc = "即时游戏开始了！",
             Description = "{{ArrowUp}} 全属性上升"..
-            "#{{Timer}} 暂停游戏后失去此饰品",
+            "#{{Warning}} 打开暂停菜单后失去此饰品"..
+            "#睡床造成的特殊暂停不会触发",
         },
         en = {
-            Name = "Pause？",
+            Name = "Pause?",
             Desc = "A Real time game!",
-            Description = "{{ArrowUp}} Stats Up"..
-            "#{{Timer}} Lose this trinket after pausing the game",
+            Description = "{{ArrowUp}} All stats up"..
+            "#{{Warning}} Lost after opening the pause menu"..
+            "#Bed pause does not count",
         },
     },
     [13] = {
@@ -3649,12 +3776,12 @@ item.Trinkets = {
         zh = {
             Name = "平等协议",
             Desc = "看似公平",
-            Description = "若你没有任何{{Coin}}硬币，{{Shop}}商店只会出售{{Collectible}}道具",
+            Description = "{{Shop}} 在商店中{{Coin}}硬币为0时，收费的非道具商品变为随机{{Collectible}}道具",
         },
         en = {
             Name = "Equality Agreement",
             Desc = "Seemingly equal",
-            Description = "If you have no {{Coin}} coin，{{Shop}}Shop will only provide {{Collectible}} collectible",
+            Description = "{{Shop}} While {{Coin}} coins are 0 in a shop, priced non-item goods become random {{Collectible}} items",
         },
     },
     [14] = {
@@ -3665,14 +3792,16 @@ item.Trinkets = {
         zh = {
             Name = "期望协定",
             Desc = "概率上一致",
-            Description = "{{Shop}} 商品价格至多为1{{Coin}}硬币，但降价越多越可能白花钱"..
-            "#商品的折扣就是成功购买概率",
+            Description = "{{Shop}} 原价高于1{{Coin}}的商品只需1{{Coin}}尝试购买"..
+            "#每次有1/原价的概率成功"..
+            "#失败仍支付1{{Coin}}，商品留在原地",
         },
         en = {
             Name = "Consistent Expectations",
             Desc = "Equal in Expection",
-            Description = "All shop price is only 1 {{Coin}} coin, but there ara chance to waste money"..
-            "#The discount on the product is the probability of successful purchase",
+            Description = "{{Shop}} Goods priced above 1 {{Coin}} cost 1 {{Coin}} per attempt"..
+            "#Success chance is 1 / original price"..
+            "#Failure still spends 1 {{Coin}}; the goods stay",
         },
     },
     [15] = {
@@ -3684,13 +3813,13 @@ item.Trinkets = {
             Name = "捆绑销售",
             Desc = "多买多得",
             Description = "{{Shop}} 商品价格提升100%"..
-            "#{{ArrowUp}} 完成交易后随机一份商品变为免费",
+            "#{{ArrowUp}} 完成购买后，随机1件剩余收费商品变为免费",
         },
         en = {
             Name = "Bundled Sale",
             Desc = "Buy more, get more",
             Description = "{{Shop}} Product prices increase by 100%"..
-            "#{{ArrowUp}} After completing the transaction, randomly select a product to become free",
+            "#{{ArrowUp}} After a purchase, 1 random remaining priced good becomes free",
         },
     },
     [16] = {
@@ -3701,12 +3830,12 @@ item.Trinkets = {
         zh = {
             Name = "破碎的胸针",
             Desc = "时间足以改变一切",
-            Description = "清理房间后小概率随机提升最低属性",
+            Description = "清理房间后小概率强化攻击、射速、移速或射程中的较弱项",
         },
         en = {
             Name = "Broken Brooch",
             Desc = "Time is enough to change everything",
-            Description = "After cleaning the room, there is a small probability of randomly increasing the lowest attribute",
+            Description = "After clearing a room, small chance to buff the weaker of Damage / Tears / Speed / Range",
         },
     },
 }
@@ -3720,16 +3849,17 @@ item.Cards = {
         zh = {
             Name = "琉璃的骰子碎片",
             Desc = "我的模仿者在何方？何方？何方？",
-            Description = "将所有掉落物转化为它们的琉璃版本 "..
-            "#将房间内所有道具变成与他们同色的随机道具"..
-            "#!!! 一个道具可能有多种颜色",
+            Description = "将房间内的道具随机变为同色道具"..
+            "#常见基础掉落变为对应的琉璃版本 {{Coin}}{{Heart}}{{Key}}{{Bomb}}{{GrabBag}}{{Battery}}{{Poop}}"..
+            "#敌人琉璃化",
             Frame = 0,
         },
         en = {
             Name = "Glaze Dice Shard",
             Desc = "Looking for Assimilation",
-            Description = "Converts all pickups to the glazed type."..
-            "#Morph all items in the room to the same color item.",
+            Description = "Rerolls collectibles in the room into random items of matching colors"..
+            "#Common pickups are converted into their glazed counterparts"..
+            "#Enemies become glazed",
             Frame = 0,
         },
     },
@@ -3741,13 +3871,13 @@ item.Cards = {
         zh = {
             Name = "小青的灵魂石",
             Desc = "安全了，暂时的",
-            Description = "连续发射若干把帅气飞刀",
+            Description = "连续向当前攻击方向发射多波飞刀",
             Frame = 1,
         },
         en = {
             Name = "Qing's Soul",
-            Desc = "Namely Safe",
-            Description = "Fire several stab knife.",
+            Desc = "Safe, for now",
+            Description = "Rapidly fires multiple waves of knives in the current firing direction",
             Frame = 1,
             Type = "Soul",
         },
@@ -3760,14 +3890,15 @@ item.Cards = {
         zh = {
             Name = "双行火车票",
             Desc = "提供食宿！",
-            Description = "!!! 召唤一辆列车撞向选定方向",
+            Description = "!!! 举起后，按攻击方向召唤列车冲过房间"..
+            "#{{Card}} 同时生成一张单程票，可再次召唤列车",
             Frame = 2,
         },
         en = {
-            Name = "Round trip Rail Ticket",
-            Desc = "Granting one meal",
-            Description = "Summon a train rushing to you."..
-            "#Spawn a One way rail ticket.",
+            Name = "Round-Trip Rail Ticket",
+            Desc = "Room and board included!",
+            Description = "!!! Hold it up, then fire in a direction to send a train through the room"..
+            "#{{Card}} Also spawns a One-Way Ticket that can summon another train",
             Frame = 2,
         },
     },
@@ -3779,13 +3910,15 @@ item.Cards = {
         zh = {
             Name = "单程票",
             Desc = "送我回家吧！",
-            Description = "!!! 再次召唤列车",
+            Description = "!!! 举起后，按攻击方向召唤列车冲过房间"..
+            "#{{Warning}} 不会生成新的车票",
             Frame = 3,
         },
         en = {
-            Name = "One way Rail Ticket",
-            Desc = "Welcome again!",
-            Description = "Summon a train rushing to you.",
+            Name = "One-Way Rail Ticket",
+            Desc = "Take me home!",
+            Description = "!!! Hold it up, then fire in a direction to send a train through the room"..
+            "#{{Warning}} Does not create another ticket",
             Frame = 3,
         },
     },
@@ -3797,13 +3930,15 @@ item.Cards = {
         zh = {
             Name = "泰克罗的魂石",
             Desc = "羡..",
-            Description = "持有此魂石时受伤或使用后向八向刺出长枪",
+            Description = "持有时受伤，或使用后，向八个方向刺出长枪"..
+            "#{{Damage}} 长枪造成1.5倍攻击伤害",
             Frame = 54,
         },
         en = {
             Name = "Tecro's Soul",
-            Desc = "I Hate",
-            Description = "Injured while holding this soul stone or using it will fire eight way spears",
+            Desc = "Envy...",
+            Description = "Taking damage while holding it, or using it, fires spears in eight directions"..
+            "#{{Damage}} Spears deal 1.5× your damage",
             Frame = 54,
             Type = "Soul",
         },
@@ -3816,15 +3951,15 @@ item.Cards = {
         zh = {
             Name = "安娜的魂石",
             Desc = "欲..",
-            Description = "地上的此魂石自动飞向敌人并爆炸"..
-            "#使用时触发一次安全的爆炸",
+            Description = "地上的魂石会反复进入黑洞，瞄准敌人后从上方坠落爆炸"..
+            "#使用后，在自身位置引发一次不会伤害玩家的爆炸",
             Frame = 55,
         },
         en = {
             Name = "Anna's Soul",
-            Desc = "I Want",
-            Description = "The soul stone on the ground automatically flies towards the enemy and explodes"..
-            "#Trigger an explosion that does not harm Isaac on use",
+            Desc = "Desire...",
+            Description = "While on the ground, repeatedly disappears into a black hole, targets an enemy, then crashes down from above in an explosion"..
+            "#On use, creates an explosion at your position that cannot hurt players",
             Frame = 55,
             Type = "Soul",
         },
@@ -3837,15 +3972,17 @@ item.Cards = {
         zh = {
             Name = "泽伊斯的魂石",
             Desc = "知..",
-            Description = "为房间中所有道具生成与其编号临近的若干个道具进行多选一"..
-            "#需要足够空间生成道具",
+            Description = "以房间中的道具为中心，显现出若干相邻的可能性"..
+            "#{{Collectible}} 原道具与显现出的道具组成多选一"..
+            "#空间不足时只能显现部分道具",
             Frame = 56,
         },
         en = {
             Name = "Zeis's Soul",
-            Desc = "I Know",
-            Description = "Generate multiple items adjacent to their numbers for all items in the room to choose from"..
-            "#Need enough space to generate items",
+            Desc = "Knowledge...",
+            Description = "Reveals several nearby possibilities around each eligible item in the room"..
+            "#{{Collectible}} The original item and its revealed alternatives form a single choice"..
+            "#Limited space may reduce the number revealed",
             Frame = 56,
             Type = "Soul",
         },
@@ -3856,17 +3993,18 @@ item.Cards = {
         zh = {
             Name = "VIII - 调节",
             Desc = "无知之幕正在落下",
-            Description = "平衡你的金币、钥匙与炸弹"..
-            "#余数转化为硬币、炸弹、钥匙三选一",
+            Description = "平衡你的硬币、钥匙与炸弹"..
+            "#余数转化为{{Coin}}/{{Bomb}}/{{Key}}三选一",
             Frame = 14,
-            tarotClothBuffs = "根据此次平衡改变的基础数量，获得属性提升",
+            tarotClothBuffs = "平衡后，硬币、钥匙与炸弹各+1",
         },
         en = {
             Name = "VIII - Adjustment",
+            Desc = "Power of balance",
             Description = "Balance your coins, keys and bombs"..
-            "#Convert the remainder into pickups of coins, bombs and keys",
+            "#Convert the remainder into a {{Coin}}/{{Bomb}}/{{Key}} choice",
             Frame = 14,
-            tarotClothBuffs = "Get attribute improvement according to the amount of this balance change",
+            tarotClothBuffs = "After balancing, gain +1 coin, +1 key and +1 bomb",
         },
     },
     [9] = {
@@ -3875,15 +4013,18 @@ item.Cards = {
         zh = {
             Name = "VIII - 调节?",
             Desc = "与其纷争，莫如没收",
-            Description = "{{ArrowUp}} 将你的全部基础掉落转化为属性",
+            Description = "{{Coin}}{{Key}}{{Bomb}} 将全部硬币、钥匙和炸弹转化为本局永久属性"..
+            "#持有越多，获得的强化越高，但收益逐渐递减",
             Frame = 36,
-            tarotClothBuffs = "50%概率再次掉落此卡",
+            tarotClothBuffs = "仍按全部资源获得强化，并返还约一半硬币、钥匙和炸弹",
         },
         en = {
             Name = "VIII - Adjustment?",
-            Description = "Convert all your basic pickups into attributes",
+            Desc = "Better to confiscate than to quarrel",
+            Description = "{{Coin}}{{Key}}{{Bomb}} Convert all coins, keys and bombs into permanent stats for the current run"..
+            "#More resources grant a stronger boost, with diminishing returns",
             Frame = 36,
-            tarotClothBuffs = "50% chance to spawn this card again",
+            tarotClothBuffs = "Gain the full conversion, then recover about half of your coins, keys and bombs",
         },
     },
     [10] = {
@@ -3892,17 +4033,18 @@ item.Cards = {
         zh = {
             Name = "XX - 永恒",
             Desc = "引导永恒的哀悼",
-            Description = "{{EternalHeart}} 持有此卡受伤时，有概率掉落一个白心"..
-            "#{{Confessional}} 使用后生成一台忏悔机",
+            Description = "{{EternalHeart}} 持有时，受伤有小概率生成永恒之心"..
+            "#{{Confessional}} 使用后生成一台忏悔室",
             Frame = 26,
-            tarotClothBuffs = "生成两台忏悔机",
+            tarotClothBuffs = "生成两台忏悔室",
         },
         en = {
             Name = "XX - The Aeon",
-            Description = "Holding this card when you are hurt, provide a chance to drop a eternal heart "..
-            "#Use it to generate a repentance machine",
+            Desc = "Don't be sad.Don't worry.",
+            Description = "{{EternalHeart}} While held, taking damage has a small chance to spawn an Eternal Heart"..
+            "#{{Confessional}} On use, spawn a Confessional",
             Frame = 26,
-            tarotClothBuffs = "Generate 2 machine",
+            tarotClothBuffs = "Spawn 2 Confessionals",
         },
     },
     [11] = {
@@ -3911,22 +4053,18 @@ item.Cards = {
         zh = {
             Name = "XX - 永恒?",
             Desc = "瞬间即成永恒",
-            Description = "{{ArrowUp}} 全属性大幅上升"..
-            "#!!! 角色的任意动作都会减少属性上升量"..
-            "#清理房间后少量提升全属性",
+            Description = "记录接下来3秒内的动作与攻击"..
+            "#本层进入房间时，过去的你会完整重演这段时间",
             Frame = 50,
-            tarotClothBuffs = "额外提升属性上升量",
+            tarotClothBuffs = "记录时间延长至5秒",
         },
         en = {
             Name = "XX - The Aeon?",
-            Description = "Greatly increase all attributes"..
-            "#When one of the following triggers, the increase will be reduced"..
-            "#1. Gain or lose pickups or HP"..
-            "#2. Gain or lose trinkets or items"..
-            "#3. Gain cards and pills"..
-            "#Before the increase is reduced to 0, each time you clear the room, slightly increase all attributes",
+            Desc = "An instant becomes eternity",
+            Description = "Record your actions and attacks for the next 3 seconds"..
+            "#For this floor, your past self replays them when entering rooms",
             Frame = 50,
-            tarotClothBuffs = "Increase more attributes",
+            tarotClothBuffs = "Recording duration increases to 5 seconds",
         },
     },
     [12] = {
@@ -3935,17 +4073,18 @@ item.Cards = {
         zh = {
             Name = "XIV - 艺术",
             Desc = "超绝!豪快!闷绝!优雅!超级!究极超级!",
-            Description = "{{ArrowUp}} 使用后，30s内，击杀生命值在10%以下的敌人会随机奖励掉落物"..
-            "#对boss无效",
+            Description = "{{Timer}} 30秒内，击杀敌人会掉落彩虹颜料"..
+            "#每3份颜料合成为1个随机基础掉落",
             Frame = 20,
-            tarotClothBuffs = "效果时间翻倍",
+            tarotClothBuffs = "持续时间延长至45秒",
         },
         en = {
             Name = "XIV - Art",
-            Description = "kill enemies with HP less than 10% within 30s will randomly reward pickups"..
-            "#Invalid for bosses",
+            Desc = "Perfect Faintless Transcendent Supernatural Maniac Absolute",
+            Description = "{{Timer}} For 30s, defeated enemies drop rainbow pigments"..
+            "#Every 3 pigments combine into 1 random basic pickup",
             Frame = 20,
-            tarotClothBuffs = "within 60s",
+            tarotClothBuffs = "Duration increases to 45s",
         },
     },
     [13] = {
@@ -3954,19 +4093,20 @@ item.Cards = {
         zh = {
             Name = "XIV - 艺术?",
             Desc = "艺术，就是爆炸",
-            Description = "本房间内，引爆所有消失的实体"..
-            "#每次爆炸会变得更加猛烈"..
-            "#{{Timer}} 地上的此卡每隔6秒爆炸一次",
+            Description = "地上的此卡会周期性爆炸并弹向别处"..
+            "#使用后，本房间内泪弹、敌方弹幕、敌人、掉落物等消失时发生爆炸"..
+            "#{{Damage}} 爆炸造成2倍攻击伤害；距离玩家过近时不会触发",
             Frame = 44,
-            tarotClothBuffs = "使用后引发的是安全的爆炸",
+            tarotClothBuffs = "使用后的爆炸不会伤害玩家",
         },
         en = {
             Name = "XIV - Art?",
-            Description = "In this room, detonate all disappeared entities "..
-            "#Each explosion will become more violent"..
-            "#This card on the ground explodes every 6 seconds",
+            Desc = "Art is explosion",
+            Description = "While on the ground, this card periodically explodes and bounces away"..
+            "#On use, tears, hostile projectiles, enemies, pickups, and more explode when they disappear in this room"..
+            "#{{Damage}} These explosions deal 2× damage; entities too close to the player do not trigger them",
             Frame = 44,
-            tarotClothBuffs = "The explosion will not harm the user",
+            tarotClothBuffs = "Explosions caused by the used card cannot hurt the player",
         },
     },
     [14] = {
@@ -3975,15 +4115,18 @@ item.Cards = {
         zh = {
             Name = "VII - 巨炮",
             Desc = "大地因我的到来而鸣响",
-            Description = "向攻击方向发射1枚300点伤害继承攻击特效的超大导弹",
+            Description = "向攻击方向发射1枚巨型火箭"..
+            "#爆炸造成300点伤害",
             Frame = 13,
-            tarotClothBuffs = "三向发射3枚超大导弹",
+            tarotClothBuffs = "额外向两侧各发射1枚巨型火箭",
         },
         en = {
             Name = "VII - Chariot",
-            Description = "Launch a super missile with 300 damage points in the attack direction",
+            Desc = "The earth is tingling for my arrival",
+            Description = "Fire 1 giant rocket in the attack direction"..
+            "#Its explosion deals 300 damage",
             Frame = 13,
-            tarotClothBuffs = "Launch 3 in three directions",
+            tarotClothBuffs = "Fire 1 additional giant rocket to each side",
         },
     },
     [15] = {
@@ -3991,17 +4134,21 @@ item.Cards = {
         id = Cards.Chariot_r,
         zh = {
             Name = "VII - 巨像?",
-            Desc = "次元· 陷阱· 金字塔",
-            Description = "交替设下5张陷阱"..
-            "#不同的陷阱对敌人有不同的效果",
+            Desc = "前路只待撞碎",
+            Description = "举起卡牌并输入射击方向，将自己发射出去"..
+            "#飞行期间无敌，对撞到的敌人造成巨额伤害并摧毁可破坏障碍"..
+            "#撞墙时引发猛烈爆炸并停止",
             Frame = 35,
-            tarotClothBuffs = "翻倍陷阱可使用次数",
+            tarotClothBuffs = "第一次撞墙后会反弹并继续飞行",
         },
         en = {
             Name = "VII - The Chariot?",
-            Description = "#Set 5 traps:#Mirror Force:Release a shock wave same as {{Collectible"..tostring(Items.Lofty).."}} with 100 damage to enemies stepped on it#Magic Cylinder：Convert the projectiles into tears, disappear after 10 times#Skill Drain:Seal the enemy stepped on it for 10s(3s for bosses),disappear after 3 times#Great Universe:Randomly transfer enemies step on it and reduce their HP by 50%,disappear after 5 times#Void Space:Reduce the life of newly generated enemy to 1(20% to the boss),disappear after 2 times",
+            Desc = "The path ahead waits only to be smashed",
+            Description = "Hold up the card, then fire in a direction to launch yourself"..
+            "#Invincible in flight; heavily damages enemies you ram and smashes destructible obstacles"..
+            "#Crashing into a wall causes a powerful explosion and ends the flight",
             Frame = 35,
-            tarotClothBuffs = "Double the usable time",
+            tarotClothBuffs = "The first wall crash makes you bounce back and keep flying",
         },
     },
     [16] = {
@@ -4010,17 +4157,20 @@ item.Cards = {
         zh = {
             Name = "XIII - 尸首?",
             Desc = "心怀异端",
-            Description = "{{RottenHeart}} 将你的红心或腐心向后吐出并转化为腐心，放出毒性气体伤害敌人"..
-            "#{{ArrowUp}} 吐尽红心后，仍然有10%概率吐出腐心",
+            Description = "{{RottenHeart}} 向身后吐出红心，并将其转化为腐心"..
+            "#吐出的腐心释放毒雾伤害敌人"..
+            "#无法继续安全消耗红心后，仍有10%概率额外吐出腐心",
             Frame = 43,
             tarotClothBuffs = "概率提升至25%",
         },
         en = {
             Name = "XIII - The Corpse?",
-            Description = "Spit your red heart or rotten heart and turn it into rotten heart, and release toxic gas to hurt the enemy "..
-            "#After spitting out all your red heart, there is still a 10% probability of spitting out rotten heart",
+            Desc = "Harbouring heresy",
+            Description = "{{RottenHeart}} Spit red hearts behind you and turn them into rotten hearts"..
+            "#Spat-out rotten hearts release damaging toxic fog"..
+            "#When no more red hearts can be safely spent, still has a 10% chance to spit an extra rotten heart",
             Frame = 43,
-            tarotClothBuffs = "Higher chance to 25%",
+            tarotClothBuffs = "Chance increases to 25%",
         },
     },
     [17] = {
@@ -4029,16 +4179,21 @@ item.Cards = {
         zh = {
             Name = "XIII - 死神?",
             Desc = "如此，我就能满足了",
-            Description = "立即放下你的主动、卡牌/药丸、饰品"..
-            "#{{ArrowUp}} 属性大幅提升直到上述栏位有一项非空"..
-            "#副手主动拾取后回到原位",
+            Description = "卸下全部主动道具、卡牌/药丸和饰品，其中至多6件形成物品阵列"..
+            "#阵列中的主动与卡牌/药丸仍可使用，饰品持续生效"..
+            "#选中地上资源时按{{ButtonRT}}收入阵列；选中阵列资源时长按{{ButtonRT}}放回地面"..
+            "#重新持有任意主动、卡牌/药丸或饰品时，阵列结束并返还其中所有资源",
+            tarotClothBuffs = "阵列上限提升至8件",
             Frame = 42,
         },
         en = {
             Name = "XIII - Death?",
-            Description = "Put down your active item,cards/pills and trinkets immediately"..
-            "#Gain all stats up until one of the above fields is not empty"..
-            "#The second hand active item returns to the original position after being picked up",
+            Desc = "Handless combo",
+            Description = "Drop all actives, cards/pills, and trinkets; up to 6 become a Field array"..
+            "#Field actives and cards/pills can still be used; trinkets remain active"..
+            "#Press {{ButtonRT}} on a ground resource to add it; hold {{ButtonRT}} on a Field resource to return it"..
+            "#Holding any active, card/pill, or trinket again ends the Field and returns everything in it",
+            tarotClothBuffs = "Field capacity increases to 8",
             Frame = 42,
         },
     },
@@ -4048,17 +4203,18 @@ item.Cards = {
         zh = {
             Name = "XV - 邪心",
             Desc = "灵魂算子：重生",
-            Description = "{{DevilRoom}} 持有此卡时死亡：在恶魔房复活并失去此卡"..
-            "#使用后，主动触发上述效果",
+            Description = "{{DevilRoom}} 持有时，死亡后在恶魔房复活"..
+            "#使用后立即死亡并触发此次复活",
             Frame = 21,
-            tarotClothBuffs = "主动使用时保留此卡",
+            tarotClothBuffs = "主动使用后返还此卡",
         },
         en = {
             Name = "XV - The Devil",
-            Description = "Death while holding this card:revive in the devil room and lose this card "..
-            "#When use:activate above effect",
+            Desc = "Soul = Rebirth",
+            Description = "{{DevilRoom}} While held, revive in a Devil Room after death"..
+            "#Using it kills you immediately and triggers this revival",
             Frame = 21,
-            tarotClothBuffs = "Keep this card when you use it",
+            tarotClothBuffs = "Returns this card after using it",
         },
     },
     [19] = {
@@ -4067,23 +4223,18 @@ item.Cards = {
         zh = {
             Name = "XV - 邪心?",
             Desc = "虚无解械",
-            Description = "{{DevilRoom}} 生成一个临时的撒旦与你交易"..
-            "#交易内容："..
-            "#随机基础掉落"..
-            "#随机道具"..
-            "#随机恶魔房道具"..
-            "#出房间后交易和撒旦均不保留"..
-            "#!!! 炸毁撒旦雕像可以抢夺交易",
+            Description = "{{DevilRoom}} 召来撒旦进行一次恶魔交易，出现2–3件商品"..
+            "#用爆炸攻击撒旦可改为与其战斗；击败后可免费取得尚未购买的商品",
             Frame = 45,
-            tarotClothBuffs = "交易数量增加",
+            tarotClothBuffs = "商品增加至4–5件",
         },
         en = {
             Name = "XV - The Devil?",
-            Description = "Generate a temporary Satan to trade with you"..
-            "#Trade and Satan are not reserved after leaving the room"..
-            "#Blow up the statue of Satan: you can seize the trade, but you must defeat Mr. Satan first",
+            Desc = "Zero = Infinity",
+            Description = "{{DevilRoom}} Summon Satan for a Devil deal with 2–3 goods"..
+            "#Bomb Satan to fight him instead; defeating him makes all unbought goods free",
             Frame = 45,
-            tarotClothBuffs = "Increase in the number of trades",
+            tarotClothBuffs = "Goods increase to 4–5",
         },
     },
     [20] = {
@@ -4092,15 +4243,18 @@ item.Cards = {
         zh = {
             Name = "XIX - 日食",
             Desc = "永夜将至",
-            Description = "生成一道旋涡将敌人吸入并从上方吐出",
+            Description = "生成持续15秒的旋涡"..
+            "#吸入附近敌人，使其从高空坠回",
             Frame = 52,
-            tarotClothBuffs = "翻倍旋涡持续时长",
+            tarotClothBuffs = "旋涡持续30秒",
         },
         en = {
             Name = "XIX - Eclipse",
-            Description = "Generate a vortex to suck in the enemy and spit them out from above",
+            Desc = "Everlasting night approaches",
+            Description = "Creates a vortex for 15 seconds"..
+            "#Swallows nearby enemies and drops them back from above",
             Frame = 52,
-            tarotClothBuffs = "Double the duration of the vortex",
+            tarotClothBuffs = "Vortex lasts 30 seconds",
         },
     },
     [21] = {
@@ -4109,19 +4263,20 @@ item.Cards = {
         zh = {
             Name = "XIX - 食日?",
             Desc = "极昼重临",
-            Description = "召唤巨大的落日，对敌人发射密集激光造成伤害"..
-            "#!!! 橙色激光攻击角色"..
-            "#下层后结束食日",
+            Description = "{{Timer}} 日蚀持续3分钟，太阳逐渐逼近"..
+            "#期间不断召来落光攻击敌人，也会有落光袭击玩家"..
+            "#时间越久，落光越频繁",
             Frame = 53,
-            tarotClothBuffs = "落日造成的伤害翻倍",
+            tarotClothBuffs = "攻击敌人的落光伤害由3倍提升至6倍",
         },
         en = {
             Name = "XIX - Eclipse?",
-            Description = "Summoning a huge sunset, causing damage to enemies by firing dense light "..
-            "#!!! Orange light attack Isaac "..
-            "# Ends Eclipse After Level",
+            Desc = "Polar Day Reaches Again",
+            Description = "{{Timer}} An eclipse lasts 3 minutes as the sun approaches"..
+            "#Falling light repeatedly strikes enemies, while other strikes target the player"..
+            "#The strikes become more frequent over time",
             Frame = 53,
-            tarotClothBuffs = "Double the damage caused by sunset",
+            tarotClothBuffs = "Enemy-targeting strikes increase from 3× to 6× damage",
         },
     },
     [22] = {
@@ -4130,20 +4285,20 @@ item.Cards = {
         zh = {
             Name = "IV - 帝王",
             Desc = "命运的囚徒",
-            Description = "封闭当前房间的门"..
-            "#在墙边尽可能地生成通往其他房间的门"..
-            "#也可能生成不在地图上房间的门"..
-            "#{{ArrowUp}} 角色能飞时，可以开门的位置更多",
+            Description = "沿当前房间墙面尽可能生成通往其他房间的特殊门"..
+            "#原有普通门暂时关闭"..
+            "#部分门可能通往特殊目的地",
             Frame = 10,
-            tarotClothBuffs = "提升通往特殊房间的门的生成率",
+            tarotClothBuffs = "提高墙面生成门的成功率，因此通常会出现更多门",
         },
         en = {
             Name = "IV - The Emperor",
-            Description = "Close the doors of the current room"..
-            "#Try to generate as many doors to other rooms on the wall as possible"..
-            "#Chance to generate doors to room that's not on the map",
+            Desc = "Never can we escape",
+            Description = "Create as many special doors as possible along the current room's walls"..
+            "#Normal doors are temporarily closed"..
+            "#Some doors may lead to special destinations",
             Frame = 10,
-            tarotClothBuffs = "Increase the generation rate of doors to special rooms",
+            tarotClothBuffs = "Raises the per-wall spawn chance, so you usually get more doors",
         },
     },
     [23] = {
@@ -4152,18 +4307,18 @@ item.Cards = {
         zh = {
             Name = "IV - 帝王?",
             Desc = "二日齐天",
-            Description = "召唤一个随机boss，战胜它可以生成它的永久友方复制"..
-            "#{{Damage}} 持有此卡且位于{{BossRoom}}boss房/{{ChallengeRoom}}挑战房/{{BossRushRoom}}Bossrush房间：+1攻击",
+            Description = "召唤一个Boss并封锁房间"..
+            "#击败后，该Boss会复活为友军并持续跟随玩家",
             Frame = 32,
-            tarotClothBuffs = "改为+2攻击",
+            tarotClothBuffs = "不会召唤较弱的Boss",
         },
         en = {
             Name = "IV - The Emperor?",
-            Description = "Summon a random boss"..
-            "#Defeat it will generate a friendly version of the boss"..
-            "#+1 damage when in boss room/challenge room/Bossrush",
+            Desc = "When you raise the second sun",
+            Description = "Summon a boss and seal the room"..
+            "#After being defeated, it returns as a friendly ally and continues to follow you",
             Frame = 32,
-            tarotClothBuffs = "+2 damage",
+            tarotClothBuffs = "Excludes weaker bosses from the summon pool",
         },
     },
     [24] = {
@@ -4172,18 +4327,18 @@ item.Cards = {
         zh = {
             Name = "III - 女帝",
             Desc = "我最爱互相残杀的剧本了",
-            Description = "{{Charm}} 魅惑房间内生命值非最高的所有怪物，其生命值降至10%，削弱的生命值补充给生命最高的敌人"..
-            "#生命值最高的敌人变为彩虹变异",
+            Description = "{{Charm}} 一名敌人吸收其他普通敌人的生命，使它们降至10%生命并被魅惑"..
+            "#这名敌人变为彩虹变异",
             Frame = 9,
-            tarotClothBuffs = "降至20%",
+            tarotClothBuffs = "被魅惑的敌人改为剩余20%生命",
         },
         en = {
             Name = "III - The Empress",
-            Description = "Charm all monsters with not highest HP"..
-            "#Reduce their health to 10% and add them to the highest one"..
-            "#Invalid for bosses",
+            Desc = "Let them fight for me",
+            Description = "{{Charm}} One enemy absorbs the health of other regular enemies, reducing them to 10% HP and charming them"..
+            "#That enemy becomes a Rainbow Champion",
             Frame = 9,
-            tarotClothBuffs = "Reduce to 20%",
+            tarotClothBuffs = "Charmed enemies retain 20% HP",
         },
     },
     [25] = {
@@ -4200,6 +4355,7 @@ item.Cards = {
         },
         en = {
             Name = "III - The Empress?",
+            Desc = "Marked with prices in secret",
             Description = "Reroll all items in this floor "..
             "# Items on this floor need to be purchased and cannot be identified"..
             "# Its price is related to its quality and their original price",
@@ -4213,21 +4369,20 @@ item.Cards = {
         zh = {
             Name = "XIII - 长眠",
             Desc = "梦入异乡",
-            Description = "{{IsaacsRoom}} 生成一张床"..
-            "#用此床入睡后，传送至随机房间，并改变本层所有房间的背景"..
-            "#离开本房间后此床消失"..
-            "#{{BarrenRoom}} 概率生成坏床：入睡后无法传送",
+            Description = "{{IsaacsRoom}} 生成一张可以入睡的床"..
+            "#睡醒后传送至本层随机房间"..
+            "#损坏的床不会传送",
             Frame = 19,
-            tarotClothBuffs = "入睡后额外获得一层{{Collectible313}}",
+            tarotClothBuffs = "睡下时额外触发一次{{Card51}}的效果",
         },
         en = {
             Name = "XIII - Faint",
-            Description = "Generate a bed"..
-            "#After sleeping on this bed,be transmitted to a random room and the background of all rooms this floor will be changed"..
-            "#Remove the bed after leaving the room"..
-            "#Chance of 1/5 generating a bad bed which can't teleport you.",
+            Desc = "Dream into a mirror",
+            Description = "{{IsaacsRoom}} Spawn a bed you can sleep in"..
+            "#After waking, teleport to a random room on the floor"..
+            "#Broken beds do not teleport you",
             Frame = 19,
-            tarotClothBuffs = "Gain one layer of {{Collectible313}} after sleeping",
+            tarotClothBuffs = "Sleeping also triggers {{Card51}} once",
         },
     },
     [27] = {
@@ -4235,19 +4390,21 @@ item.Cards = {
         id = Cards.Faint_r,
         zh = {
             Name = "XIII - 长眠?",
-            Desc = "生死交辉",
-            Description = "!!! 本房间内全属性暂时下降"..
-            "#本房间内受伤后，随机掉落魂心、红心"..
-            "#店长改为掉落硬币",
+            Desc = "万籁将眠",
+            Description = "停止攻击时，房间逐渐陷入沉睡"..
+            "#沉睡越深，敌人、敌方弹幕与激光行动越慢"..
+            "#重新攻击会逐渐唤醒房间",
             Frame = 41,
-            tarotClothBuffs = "大幅下降你的全属性，基础掉落概率更高，受伤后也会掉落其他基础",
+            tarotClothBuffs = "更快入睡，攻击造成的唤醒更慢",
         },
         en = {
             Name = "XIII - Faint?",
-            Description = "Reduced all attributes in this room temporarily"..
-            "#Chance to spawn soul heart and red heart after being injured in this room",
+            Desc = "Cross between life and death",
+            Description = "While not firing, the room gradually falls asleep"..
+            "#Deeper sleep slows enemies, hostile projectiles, and hostile lasers"..
+            "#Firing again slowly wakes the room",
             Frame = 41,
-            tarotClothBuffs = "Reduced much more attributes and provide higher chance to spawn hearts#Also have chance to spawn other pickups",
+            tarotClothBuffs = "Falls asleep faster; attacks wake it more slowly",
         },
     },
     [28] = {
@@ -4256,15 +4413,20 @@ item.Cards = {
         zh = {
             Name = "0 - 旅者",
             Desc = "所遗者广",
-            Description = "从当前房间道具池中抽取5个道具，并生成其中等级最高道具对应魂火",
+            Description = "从当前道具池展示5个可生成魂火的道具虚影"..
+            "#接触其中一个，将其牺牲并生成对应魂火"..
+            "#被选择的道具会从道具池移除",
             Frame = 4,
-            tarotClothBuffs = "改为抽取8个道具",
+            tarotClothBuffs = "候选虚影由5个增加至8个",
         },
         en = {
             Name = "0 - The Fool",
-            Description = "Remove 5 items from the itempool and generate the corresponding wisp of the highest quality item",
+            Desc = "May you lose more",
+            Description = "Show 5 phantom items from the current item pool that can generate item wisps"..
+            "#Touch one to sacrifice it and generate its corresponding item wisp"..
+            "#The selected item is removed from the item pool",
             Frame = 4,
-            tarotClothBuffs = "Remove 8 instead of 5",
+            tarotClothBuffs = "Increases the number of phantom items from 5 to 8",
         },
     },
     [29] = {
@@ -4273,15 +4435,18 @@ item.Cards = {
         zh = {
             Name = "0 - 旅者?",
             Desc = "所知者稀",
-            Description = "从本房间道具池中预知一个道具，下一个生成的道具改为和它一起多选一",
+            Description = "从当前房间道具池预知1件道具"..
+            "#下一件出现的道具会与其组成多选一",
             Frame = 28,
-            tarotClothBuffs = "预知三个道具",
+            tarotClothBuffs = "改为预知3件道具",
         },
         en = {
             Name = "0 - The Fool?",
-            Description = "Predict an item from the item pool in this room. The next generated item can be choosed with it",
+            Desc = "May you know less",
+            Description = "Foretell 1 item from the current room's item pool"..
+            "#The next collectible to appear will become a choice with it",
             Frame = 28,
-            tarotClothBuffs = "Predict 3 items",
+            tarotClothBuffs = "Foretell 3 items instead",
         },
     },
     [30] = {
@@ -4290,15 +4455,16 @@ item.Cards = {
         zh = {
             Name = "XII - 缚者",
             Desc = "倒错回环",
-            Description = "{{ThothCard2}} 将本层所有卡牌变为倒位置",
+            Description = "本层后续出现的正位塔罗牌会变为对应的逆位牌",
             Frame = 18,
-            tarotClothBuffs = "额外生成此卡",
+            tarotClothBuffs = "额外生成1张{{Card"..tostring(Cards.Hanged_Man).."}}",
         },
         en = {
             Name = "XII - The Hanged Man",
-            Description = "#Change all cards on this floor to the reverse position#Used with card {{Card"..tostring(Cards.Hanged_Man_r).."}}:Turn over cards repeatedly until it detonates, then grants 10% probability of transmitting it to the error room and clear this effect",
+            Desc = "Looping and winding",
+            Description = "Later upright Tarot cards on this floor become their reversed versions",
             Frame = 18,
-            tarotClothBuffs = "Spawn this card again",
+            tarotClothBuffs = "Spawns an additional {{Card"..tostring(Cards.Hanged_Man).."}}",
         },
     },
     [31] = {
@@ -4307,15 +4473,16 @@ item.Cards = {
         zh = {
             Name = "XII - 缚者?",
             Desc = "环回错倒",
-            Description = "{{ThothCard}} 将本层所有卡牌变为正位置",
+            Description = "本层后续出现的逆位塔罗牌会变为对应的正位牌",
             Frame = 40,
-            tarotClothBuffs = "并生成此卡",
+            tarotClothBuffs = "额外生成1张{{Card"..tostring(Cards.Hanged_Man_r).."}}",
         },
         en = {
             Name = "XII - The Hanged Man?",
-            Description = "#Change all cards on this floor to the positive position#Used with card {{Card"..tostring(Cards.Hanged_Man).."}}:Turn over cards repeatedly until it detonates, then grants 10% probability of transmitting it to the error room and clear this effect",
+            Desc = "May you a better escape",
+            Description = "Later reversed Tarot cards on this floor become their upright versions",
             Frame = 40,
-            tarotClothBuffs = "Spawn this card again",
+            tarotClothBuffs = "Spawns an additional {{Card"..tostring(Cards.Hanged_Man_r).."}}",
         },
     },
     [32] = {
@@ -4324,18 +4491,18 @@ item.Cards = {
         zh = {
             Name = "IX - 隐者",
             Desc = "你的过去萦绕在心",
-            Description = "随机生成一个本局失去过的道具，优先选择被动道具"..
-            "#{{Collectible36}} 没有这样的道具：生成摸过的大便",
+            Description = "随机生成1个本局失去过的道具"..
+            "#优先选择被动道具",
             Frame = 15,
-            tarotClothBuffs = "在至多三个失去道具中选择其一获得",
+            tarotClothBuffs = "改为从3个道具中选择1个",
         },
         en = {
             Name = "IX - The Hermit",
-            Description = "Randomly generate a lost item"..
-            "#Give priority to passive items"..
-            "#None:Spawn a touched {{Collectible36}}",
+            Desc = "Bury your past deeply in mind",
+            Description = "Spawn 1 random item you have lost this run"..
+            "#Passive items are chosen first",
             Frame = 15,
-            tarotClothBuffs = "Choose one of the three lost items",
+            tarotClothBuffs = "Choose 1 of 3 lost items",
         },
     },
     [33] = {
@@ -4344,18 +4511,20 @@ item.Cards = {
         zh = {
             Name = "IX - 隐者?",
             Desc = "跨越千年的命运",
-            Description = "随机失去至多3个道具并生成一个道具"..
-            "#失去的道具会与之后见到的第7个道具一同生成(不刷新状态)"..
-            "#不会失去副手主动",
+            Description = "随机暂时隐藏至多3件持有道具"..
+            "#立即生成1件随机道具"..
+            "#见到7次新道具后返还",
             Frame = 37,
-            tarotClothBuffs = "额外失去2个道具，生成一个二选一道具",
+            tarotClothBuffs = "随机奖励改为二选一",
         },
         en = {
             Name = "IX - The Hermit?",
-            Description = "Lose up to 3 items randomly and generate one item"..
-            "#The lost items will be generated together with the seventh item seen later (their status will not be refreshed)",
+            Desc = "Buried for thousand years",
+            Description = "Temporarily hides up to 3 random held items"..
+            "#Immediately spawns 1 random item"..
+            "#Returns the hidden items after seeing 7 new items",
             Frame = 37,
-            tarotClothBuffs = "Lose 2 items more and generate 2 items to choose one.",
+            tarotClothBuffs = "The random reward becomes a choice of 2",
         },
     },
     [34] = {
@@ -4370,6 +4539,7 @@ item.Cards = {
         },
         en = {
             Name = "V - The Hierophant",
+            Desc = "I . I",
             Description = "Gain a temporary effect of {{Collectible182}} and {{Collectible533}}.",
             Frame = 11,
             tarotClothBuffs = "Generate delicate wisps of {{Collectible182}},{{Collectible184}} and {{Collectible533}}.",
@@ -4380,28 +4550,19 @@ item.Cards = {
         id = Cards.Hierophant_r,
         zh = {
             Name = "V - 教导?",
-            Desc = "...魔入将我",
-            Description = "{{AngelRoom}} 失去本局所有在天堂房拾取过的道具以及同名道具"..
-            "#{{DevilRoom}} 这样的道具每有一个，获得一份来自恶魔的奖励",
+            Desc = "所信者亦可背弃",
+            Description = "{{AngelRoom}} 献祭所有仍持有的、在天使房取得的道具"..
+            "#{{DevilRoom}} 每献祭1件，生成1件恶魔房道具",
             Frame = 33,
-            tarotClothBuffs = "若失去的道具有对应魂火，则生成它们的脆弱版本",
+            tarotClothBuffs = "被献祭的道具额外留下对应魂火",
         },
         en = {
             Name = "V - The Hierophant?",
-            Description = "Lose all items picked up in the Angel Room and the items with the same name"..
-            "#Every time you lose one item in this way:"..
-            "#6%: generate 1-2 black hearts"..
-            "#66%: generate 1-2 devil room items"..
-            "#1%: +6.66 damage "..
-            "#6%: +0.66 damage"..
-            "#1%: +0.66 speed"..
-            "#6%: +0.11 speed"..
-            "#1%: generate 66 coins"..
-            "#6%: generate 6 random pickups"..
-            "#1%: gain devil transformation"..
-            "#6%: generate a {{Card31}}",
+            Desc = "detautafnI ... ni ... si ... em",
+            Description = "{{AngelRoom}} Sacrifice all items you still hold that were obtained in Angel Rooms"..
+            "#{{DevilRoom}} Each sacrificed item spawns 1 Devil Room item",
             Frame = 33,
-            tarotClothBuffs = "Generate a fragile item wisp for each item removed in this way.",
+            tarotClothBuffs = "Sacrificed items also leave behind their corresponding wisps",
         },
     },
     [36] = {
@@ -4410,17 +4571,20 @@ item.Cards = {
         zh = {
             Name = "I - 魔启",
             Desc = "我将启迪",
-            Description = "{{Card}} 预知并记录一张塔罗牌"..
-            "#使用那张塔罗牌的时候，生成此卡和一张随机卡牌",
+            Description = "从原版塔罗与透特牌中随机预言1张牌面"..
+            "#之后使用该牌面时，生成1张随机卡牌并返还{{Card"..tostring(Cards.Invoker).."}}",
             Frame = 6,
-            tarotClothBuffs = "预知3张卡，额外生成一张随机卡",
+            tarotClothBuffs = "预言3张不同牌面"..
+            "#命中时生成2张随机卡牌",
         },
         en = {
             Name = "I - The Invoker",
-            Description = "Predict and record a tarot card "..
-            "#When using that tarot card, generate this card and a random card",
+            Desc = "I Will Invoke",
+            Description = "Foretell 1 random face from vanilla tarot and Thoth cards"..
+            "#When that face is used, spawn 1 random card and return {{Card"..tostring(Cards.Invoker).."}}",
             Frame = 6,
-            tarotClothBuffs = "Predict 3 cards, generate 2 random cards",
+            tarotClothBuffs = "Foretell 3 different faces"..
+            "#Spawn 2 random cards when one is used",
         },
     },
     [37] = {
@@ -4429,15 +4593,18 @@ item.Cards = {
         zh = {
             Name = "VI - 爱",
             Desc = "吾爱自鸣",
-            Description = "{{ArrowUp}} 本房间内，拾取基础掉落改为获得临时属性提升，并有50%概率再次生成一个基础掉落",
+            Description = "使用后，本房间内拾取基础资源或接触箱子时，有50%概率复制一份"..
+            "#复制品不会再次触发此效果",
             Frame = 12,
-            tarotClothBuffs = "75%概率再次生成",
+            tarotClothBuffs = "概率提升至75%",
         },
         en = {
             Name = "VI - Lover",
-            Description = "In this room, picking up pickups will gain temporary attribute improvement instead of the actual effect, with 50% probability of generating another pickup again",
+            Desc = "A lover in Octave",
+            Description = "For this room, picking up basic resources or contacting chests has a 50% chance to create a copy"..
+            "#Copies cannot trigger this effect again",
             Frame = 12,
-            tarotClothBuffs = "75% chance",
+            tarotClothBuffs = "Chance increased to 75%",
         },
     },
     [38] = {
@@ -4446,19 +4613,22 @@ item.Cards = {
         zh = {
             Name = "VI - 爱?",
             Desc = "直到血流成河",
-            Description = "{{Collectible}} 生成0-4级被动道具各一个进行五选一"..
-            "#!!! 若进行拾取，与那个道具相同等级的被动道具全部转化为同名魂火，道具池内的所有同等级道具改为此道具"..
-            "#!!! 忤逆爱人将会受到心碎的惩罚",
+            Description = "品质0-4各生成1件被动道具，选择其中1件成为该品质的「爱人」"..
+            "#同品质的其它被动道具会被排斥为对应道具魂火"..
+            "#之后出现的该品质道具会变为「爱人」"..
+            "#{{BrokenHeart}} 背叛爱人或利用候选时会受到惩罚",
             Frame = 34,
-            tarotClothBuffs = "改为各2个进行十选一",
+            tarotClothBuffs = "每个品质生成2件候选",
         },
         en = {
             Name = "VI - The Lover?",
-            Description = "Generate a set of item with quality from 0-4 and choose one from five"..
-            "#If one of the item is choiced,all items of the same quality as that item will be converted into fragile item wisp.All items with the same quality in item pool will be replaced with this item"..
-            "#!!! Disobedience to your lover will be punished with heartbreak",
+            Desc = "Til blood shedding like river",
+            Description = "Spawn 1 passive item of each quality 0-4; choose 1 to become that quality's beloved"..
+            "#Other passive items of the same quality are rejected into corresponding item wisps"..
+            "#Future items of that quality become the beloved"..
+            "#{{BrokenHeart}} Betraying a beloved or exploiting a candidate causes punishment",
             Frame = 34,
-            tarotClothBuffs = "Generate 2 set of item and choose one from ten",
+            tarotClothBuffs = "2 candidates per quality",
         },
     },
     [39] = {
@@ -4466,16 +4636,21 @@ item.Cards = {
         id = Cards.Lure,
         zh = {
             Name = "XI - 欲望",
-            Desc = "释放他们内心的猛兽",
-            Description = "本房间内，略微加速所有敌人，他们受到的伤害提升固定值5点",
+            Desc = "欲求皆有其形",
+            Description = "使用时，当前敌人各自索求{{Coin}}{{Key}}{{Bomb}}{{Heart}}之一"..
+            "#满足普通敌人后，其不再阻挡房门且不会造成接触伤害"..
+            "#击杀已满足的敌人会掉落1-2份所求资源",
             Frame = 17,
-            tarotClothBuffs = "固定值提升至10点",
+            tarotClothBuffs = "普通敌人额外掉落1份资源的概率由35%提升至75%",
         },
         en = {
             Name = "XI - Lure",
-            Description = "In this room, slightly accelerate all enemies, damage they take will be increased by 5",
+            Desc = "Inspire their inner beast",
+            Description = "On use, current enemies each demand one of {{Coin}}, {{Key}}, {{Bomb}}, or {{Heart}}"..
+            "#Satisfying a normal enemy makes it no longer keep doors closed and deal no contact damage"..
+            "#Killing a satisfied enemy drops 1-2 of the requested resource",
             Frame = 17,
-            tarotClothBuffs = "increased by 10",
+            tarotClothBuffs = "Normal enemies' chance to drop 1 extra resource increases from 35% to 75%",
         },
     },
     [40] = {
@@ -4484,18 +4659,20 @@ item.Cards = {
         zh = {
             Name = "XI - 欲望?",
             Desc = "顺从你内心的奴隶",
-            Description = "!!! 持有时，每次受到的伤害不低于1.5格心"..
-            "#受伤无敌也相应延长"..
-            "#{{SoulHeart}} 使用后，根据持有此卡的受伤次数生成等量魂心",
+            Description =
+            "持有时，每次受伤获得+0.75攻击，并使之后受到的最低伤害+0.5心"..
+            "#使用后清空记录；每2层生成1个{{SoulHeart}}",
             Frame = 39,
-            tarotClothBuffs = "生成等量混合心",
+            tarotClothBuffs = "奖励改为{{BlendedHeart}}",
         },
         en = {
             Name = "XI - Lure?",
-            Description = "When you hold this card, you will take at least one half heart each time."..
-            "#After using this card, generate an equal amount of soul heart according to the number of times you are injured",
+            Desc = "Free your inner slave",
+            Description =
+            "While held, each hit grants +0.75 Damage and raises later minimum damage by half a heart"..
+            "#Using it clears all records; spawns 1 {{SoulHeart}} per 2 records",
             Frame = 39,
-            tarotClothBuffs = "Generate mixed hearts.",
+            tarotClothBuffs = "Rewards become {{BlendedHeart}}",
         },
     },
     [41] = {
@@ -4510,6 +4687,7 @@ item.Cards = {
         },
         en = {
             Name = "XVIII - The Moon",
+            Desc = "Keep watching moon til bright",
             Description = "Generate a moonlight whose effect is the same with {{Collectible589}}",
             Frame = 24,
             tarotClothBuffs = "When the moonlight generated by this method disappears, it will leave a portal to the secret room",
@@ -4521,21 +4699,18 @@ item.Cards = {
         zh = {
             Name = "XVIII - A?",
             Desc = "望向天空，高高在上",
-            Description = "{{Fear}} 恐惧房间内所有敌人2分钟"..
-            "#!!! 恐惧角色10秒"..
-            "#!!! 被恐惧时受到3倍伤害"..
-            "#击杀恐惧的敌人有概率掉落此卡",
+            Description = "{{Fear}} 使本房间敌人陷入恐惧，并使其受到约3倍总伤害"..
+            "#{{Fear}} 玩家自身也会陷入20秒恐惧",
             Frame = 48,
-            tarotClothBuffs = "永久恐惧房间内所有敌人，恐惧角色20秒",
+            tarotClothBuffs = "玩家不再受到恐惧",
         },
         en = {
             Name = "XVIII - A?",
-            Description = "Frighten 2 minutes for all enemies in the room"..
-            "#Frighten player for 10 seconds"..
-            "#Suffer 3 times the damage when being frightened"..
-            "#killing feard enemies have a chance to drop this card again",
+            Desc = "Look to the sky, way up on high",
+            Description = "{{Fear}} Fear enemies in this room and make them take about 3× total damage"..
+            "#{{Fear}} You are also feared for 20 seconds",
             Frame = 48,
-            tarotClothBuffs = "Frighten enemies eternally#Frighten player for 20 seconds",
+            tarotClothBuffs = "You are no longer feared",
         },
     },
     [43] = {
@@ -4544,25 +4719,18 @@ item.Cards = {
         zh = {
             Name = "II - 女司祭",
             Desc = "妈妈?是妈妈!",
-            Description = "角色巨大化"..
-            "#攻击方式改为操纵妈腿攻击"..
-            "#妈腿造成角色攻击40倍的伤害"..
-            "#蓄力时长为10倍角色延迟"..
-            "#持续30s"..
-            "#可叠加",
+            Description = "{{Timer}} 持续30秒，攻击时改为召唤巨大的妈妈之脚"..
+            "#妈妈之脚造成40倍玩家伤害",
             Frame = 8,
-            tarotClothBuffs = "持续时长翻倍",
+            tarotClothBuffs = "持续时间延长至60秒",
         },
         en = {
             Name = "II - The High Priestess",
-            Description = "Temperorily size up"..
-            "#Change your attack method to manipulating mom's stomp"..
-            "#mom's stomp cause 40 times the damage of player"..
-            "#10 times the firedelay of player to charge "..
-            "#Lasts for 30 second "..
-            "#Stackable",
+            Desc = "Mom? It's mom!",
+            Description = "{{Timer}} For 30 seconds, attacking summons Mom's giant foot instead"..
+            "#Mom's foot deals 40x your damage",
             Frame = 8,
-            tarotClothBuffs = "Double the duration",
+            tarotClothBuffs = "Duration increased to 60 seconds",
         },
     },
     [44] = {
@@ -4571,19 +4739,18 @@ item.Cards = {
         zh = {
             Name = "II - 女司祭?",
             Desc = "和妈妈抱抱！",
-            Description = "额外发射略微跟踪的准星，命中敌人则会降下妈手"..
-            "#妈手捕获敌人后可以控制其一段时间"..
-            "#持续30s",
+            Description = "{{Timer}} 30秒内，攻击时发射会追踪敌人的标记"..
+            "#标记命中后，妈妈之手会抓住敌人约3秒",
             Frame = 30,
-            tarotClothBuffs = "捕获结束后妈手会抓走敌人，随后带着成为友方的敌人重新出现#对boss无效",
+            tarotClothBuffs = "被抓住的非Boss敌人会转化为友军",
         },
         en = {
             Name = "II - The High Priestess?",
-            Description = "Fire a slightly tracked mark when you attack"..
-            "#Spawn a mother's hand to catpure and freeze the enemy for a period of time."..
-            "#Lasts for 30 seconds",
+            Desc = "Hug with your mommy!",
+            Description = "{{Timer}} For 30s, attacking fires a mark that homes toward enemies"..
+            "#On hit, Mom's Hand grabs the enemy for about 3 seconds",
             Frame = 30,
-            tarotClothBuffs = "Mother's hand will take the enemy away and turn it to be a friendly one.",
+            tarotClothBuffs = "Grabbed non-boss enemies become friendly",
         },
     },
     [45] = {
@@ -4592,17 +4759,18 @@ item.Cards = {
         zh = {
             Name = "XXI - 深邃",
             Desc = "有物井中来",
-            Description = "持有此卡下层时+1{{SuperSecretRoom}}超级隐藏房"..
-            "#{{SuperSecretRoom}} 使用后传送到超级隐藏房",
+            Description = "{{SuperSecretRoom}} 使用后传送至本层超级隐藏房"..
+            "#持有至下一层时，额外生成1个超级隐藏房",
             Frame = 57,
-            tarotClothBuffs = "+2{{SuperSecretRoom}}超级隐藏房",
+            tarotClothBuffs = "额外生成2个超级隐藏房",
         },
         en = {
             Name = "XXI - Profound",
-            Description = "+1{{SuperSecretRoom}} Super Secret Room next level while holding it"..
-            "#{{SuperSecretRoom}} Teleports Isaac to the Super Secret Room",
+            Desc = "Something rises from the well",
+            Description = "{{SuperSecretRoom}} On use, teleport to a Super Secret Room on this floor"..
+            "#Holding this card into the next floor adds 1 Super Secret Room",
             Frame = 57,
-            tarotClothBuffs = "+2{{SuperSecretRoom}} Super Secret Room",
+            tarotClothBuffs = "Adds 2 Super Secret Rooms instead",
         },
     },
     [46] = {
@@ -4611,15 +4779,20 @@ item.Cards = {
         zh = {
             Name = "XXI - 深邃?",
             Desc = "不见天月明",
-            Description = "传送到一个迷宫房间，听声音寻找规律通过数道门后奖励隐藏道具三选一",
+            Description = "进入一座由心跳指引的迷宫"..
+            "#连续找到4次正确的门"..
+            "#完成后获得隐藏房道具3选1",
             Frame = 58,
-            tarotClothBuffs = "奖励为四选一",
+            tarotClothBuffs = "最终奖励改为4选1",
         },
         en = {
             Name = "XXI - Profound?",
-            Description = "Transfer to a maze room.Listen to the sound and find patterns. After passing several gates, reward 3 items from secret room to choose in one",
+            Desc = "No moonlight reaches these depths",
+            Description = "Enter a maze guided by heartbeats"..
+            "#Find the correct door 4 times in a row"..
+            "#Complete it for a 3-choice Secret Room item reward",
             Frame = 58,
-            tarotClothBuffs = "Rewards 4 items to choose",
+            tarotClothBuffs = "Final reward becomes a 4-choice",
         },
     },
     [47] = {
@@ -4636,6 +4809,7 @@ item.Cards = {
         },
         en = {
             Name = "I - The Sage?",
+            Desc = "I Will Inflame",
             Description = "Light the fire on the edge of all enemies and pickups in the room"..
             "#Re-ignite all other fires"..
             "#The fire will be automatically extinguished when you are close to it in the current room",
@@ -4649,17 +4823,18 @@ item.Cards = {
         zh = {
             Name = "XVII - 星坠",
             Desc = "星霜在此凝结",
-            Description = "若此卡为本层使用的第一张卡，生成1个魂心、1个白心、1个红心"..
-            "#否则，生成1个半红心",
+            Description = "若此卡为本层使用的第一张卡牌，生成{{Heart}}红心、{{SoulHeart}}魂心与{{EternalHeart}}永恒心各1个"..
+            "#否则，生成1个{{HalfHeart}}半红心",
             Frame = 23,
-            tarotClothBuffs = "满足条件：额外生成一个混合心、一个黑心、一个骨心",
+            tarotClothBuffs = "首次满足条件时，额外生成{{BlendedHeart}}混合心、{{BlackHeart}}黑心与{{BoneHeart}}骨心各1个",
         },
         en = {
             Name = "XVII - The Star",
-            Description = "If this card is the first card used in this level: generate a soul heart, a eternal heart,a red heart."..
-            "#Otherwise: generate a half red heart.",
+            Desc = "Star frost condenses here",
+            Description = "If this is the first card used on the floor, spawn 1 {{Heart}} Red Heart, 1 {{SoulHeart}} Soul Heart, and 1 {{EternalHeart}} Eternal Heart"..
+            "#Otherwise, spawn 1 {{HalfHeart}} Half Red Heart",
             Frame = 23,
-            tarotClothBuffs = "First card: generate an additional mixed heart,a black heart and a bone heart.",
+            tarotClothBuffs = "On a qualifying first use, also spawn 1 {{BlendedHeart}} Blended Heart, 1 {{BlackHeart}} Black Heart, and 1 {{BoneHeart}} Bone Heart",
         },
     },
     [49] = {
@@ -4668,16 +4843,18 @@ item.Cards = {
         zh = {
             Name = "XVII - 星辰?",
             Desc = "他们灿若繁星",
-            Description = "{{Collectible651}} 点亮房间内的敌人并为其添加光环"..
-            "#{{Collectible651}} 在此卡的周围自动提供一个有50%增幅效果的光圈",
+            Description = "{{Collectible651}} 点亮房间内的敌人，使其获得伯列恒之星的光环"..
+            "#地上的此卡也会提供50%强度的光环",
             Frame = 47,
-            tarotClothBuffs = "点亮全层敌人#点亮本层的掉落物",
+            tarotClothBuffs = "本层后续出现的敌人与掉落物也会获得光环",
         },
         en = {
             Name = "XVII - The Stars?",
-            Description = "Light up the enemies in the room, their light effect is the same with {{Collectible651}}",
+            Desc = "They shine like stars",
+            Description = "{{Collectible651}} Light up enemies in the room, giving them a Star of Bethlehem aura"..
+            "#This card also provides a 50%-strength aura while on the ground",
             Frame = 47,
-            tarotClothBuffs = "Light up the enemies and pickups in the level",
+            tarotClothBuffs = "Enemies and pickups appearing later on this floor also gain the aura",
         },
     },
     [50] = {
@@ -4686,17 +4863,20 @@ item.Cards = {
         zh = {
             Name = "V - 密仪",
             Desc = "降神仪式",
-            Description = "{{SacrificeRoom}} 生成一座仪式法阵，在法阵中献祭半格生命获得对应奖励"..
+            Description = "{{SacrificeRoom}} 生成一座仪式法阵"..
+            "#在法阵中献祭半格生命，逐次获得不同奖励"..
             "#{{Heart}} 优先献祭红心",
             Frame = 59,
             tarotClothBuffs = "每次献祭有30%概率生成一颗魂心",
         },
         en = {
             Name = "V - Sting",
-            Description = "{{SacrificeRoom}} Generate a ceremonial array and sacrifice life in it to receive rewards"..
-            "#{{Heart}} Sacrifice red heart first",
+            Desc = "Invocation ritual",
+            Description = "{{SacrificeRoom}} Creates a ritual circle"..
+            "#Sacrifice half a heart within it to receive successive rewards"..
+            "#{{Heart}} Red Hearts are consumed first",
             Frame = 59,
-            tarotClothBuffs = "30% chance to generate a soul heart when sacrifice",
+            tarotClothBuffs = "Each sacrifice has a 30% chance to spawn a Soul Heart",
         },
     },
     [51] = {
@@ -4705,17 +4885,20 @@ item.Cards = {
         zh = {
             Name = "V - 密仪?",
             Desc = "落入彼岸",
-            Description = "失去半颗{{Heart}}红心，对所有敌人造成10点伤害"..
-            "#击杀敌人时翻倍伤害并重复伤害",
+            Description = "将最强的敌人选作祭品"..
+            "#每完成一次献祭，之后的祭品受到更多伤害"..
+            "#仪式持续到房间中没有新的祭品",
             Frame = 60,
-            tarotClothBuffs = "初始伤害为20点",
+            tarotClothBuffs = "可同时标记2个祭品",
         },
         en = {
             Name = "V - Sting?",
-            Description = "Lose half a {{Heart}} red heart, deal 10 damage to all enemies "..
-            "#Double the damage and repeat it when killing enemies",
+            Desc = "Fall to abyss",
+            Description = "Mark the strongest enemy as a sacrifice"..
+            "#Each completed sacrifice makes later victims take more damage"..
+            "#Continues until no new sacrifice remains",
             Frame = 60,
-            tarotClothBuffs = "Base damage as 20",
+            tarotClothBuffs = "Can mark 2 sacrifices at once",
         },
     },
     [52] = {
@@ -4724,17 +4907,18 @@ item.Cards = {
         zh = {
             Name = "XIX - 太阳",
             Desc = "物皆重临",
-            Description = "按照顺序，将本房间内使用的所有卡牌重复执行一次"..
-            "#使用了三种或以上卡牌：额外生成一张随机卡",
+            Description = "重新发动本房间此前使用过的其他卡牌"..
+            "#若一次重放至少3张卡牌，额外生成1张随机卡牌",
             Frame = 25,
-            tarotClothBuffs = "使用了十种或以上卡牌：额外生成一个道具",
+            tarotClothBuffs = "若一次重放至少10张卡牌，额外生成1件道具",
         },
         en = {
             Name = "XIX - The Sun",
-            Description = "Repeat all the cards used in this room once in order "..
-            "#Three or more cards are used: generate an additional random card",
+            Desc = "All that falls again",
+            Description = "Replay other cards previously used in this room"..
+            "#If at least 3 cards are replayed at once, spawn 1 random card",
             Frame = 25,
-            tarotClothBuffs = "Ten or more cards are used: generate an item.",
+            tarotClothBuffs = "If at least 10 cards are replayed at once, also spawn 1 collectible",
         },
     },
     [53] = {
@@ -4743,17 +4927,18 @@ item.Cards = {
         zh = {
             Name = "XIX - 太阳?",
             Desc = "赞美我！",
-            Description = "生成一个彩虹传送旋涡，进入后传送至随机特殊房间"..
-            "#此旋涡可以永久使用",
+            Description = "生成一个本层持续存在的彩虹传送门"..
+            "#可以反复进入，每次进入都会重新随机传送至一个特殊房间",
             Frame = 49,
-            tarotClothBuffs = "优先传送向未探索的房间",
+            tarotClothBuffs = "每次进入时优先传送至尚未探索的特殊房间",
         },
         en = {
             Name = "XIX - The Sun?",
-            Description = "After use, gain half a red heart, +0.4 damage and +0.1 speed every minute"..
-            "#This effect will disappear in next level",
+            Desc = "Praise me!",
+            Description = "Spawn a rainbow portal that lasts for the current floor"..
+            "#It can be entered repeatedly; each entry rerolls a random special-room destination",
             Frame = 49,
-            tarotClothBuffs = "Additional effect: gain half a red heart, +0.4 damage and +0.1 speed every half minute in this room",
+            tarotClothBuffs = "Each entry prioritizes an unexplored special room",
         },
     },
     [54] = {
@@ -4762,16 +4947,16 @@ item.Cards = {
         zh = {
             Name = "XVI - 尖塔",
             Desc = "万物皆虚，万事皆允",
-            Description = "将本房间内所有地形块悬空，随后扔向敌人"..
-            "#不同的地形块有不同的掉落效果",
+            Description = "将当前房间的障碍物升空，随后砸向敌人",
             Frame = 22,
             tarotClothBuffs = "出房间后恢复那些地形块",
         },
         en = {
             Name = "XVI - The Tower",
-            Description = "Suspend all grid blocks in the room and then throw them to the enemy",
+            Desc = "May you be terialistic",
+            Description = "Lift obstacles in the current room, then smash them into enemies",
             Frame = 22,
-            tarotClothBuffs = "Restore those grid blocks after leaving the room",
+            tarotClothBuffs = "Restore those grids after leaving the room",
         },
     },
     [55] = {
@@ -4780,16 +4965,18 @@ item.Cards = {
         zh = {
             Name = "XVI - 尖塔?",
             Desc = "崩落...",
-            Description = "从天上逐渐加速地落下岩块砸向敌人"..
-            "#{{Timer}} 持续10s",
+            Description = "持续从天而降大量随机障碍物"..
+            "#后续波次越来越密集",
             Frame = 46,
-            tarotClothBuffs = "扔下更多数量与种类的地形块",
+            tarotClothBuffs = "波次数量由10提高至16",
         },
         en = {
             Name = "XVI - The Tower?",
-            Description = "Gradually and rapidly fall rocks from the sky and smash them at the enemies",
+            Desc = "Collapse...",
+            Description = "Rain waves of random obstacles from above"..
+            "#Later waves become increasingly dense",
             Frame = 46,
-            tarotClothBuffs = "Drop more rocks",
+            tarotClothBuffs = "Wave count increases from 10 to 16",
         },
     },
     [56] = {
@@ -4798,15 +4985,18 @@ item.Cards = {
         zh = {
             Name = "XXI - 宇宙",
             Desc = "星汉灿烂",
-            Description = "{{Planetarium}} 移除身上一个随机道具，生成一个星座或星象道具",
+            Description = "{{Planetarium}} 从你持有的道具中随机展示3个候选"..
+            "#选择并永久失去其中1件，换取1件星辰类道具",
             Frame = 27,
-            tarotClothBuffs = "生成一个二选一的星象道具",
+            tarotClothBuffs = "奖励改为2选1",
         },
         en = {
             Name = "XXI - The Universe",
-            Description = "Remove a random item and generate a constellation or astrological item",
+            Desc = "Ever shinning",
+            Description = "{{Planetarium}} Show up to 3 random candidates from items you hold"..
+            "#Permanently lose the chosen one for 1 star-themed item",
             Frame = 27,
-            tarotClothBuffs = "Generate a alternative choice",
+            tarotClothBuffs = "Reward becomes a 2-choice instead",
         },
     },
     [57] = {
@@ -4814,20 +5004,21 @@ item.Cards = {
         id = Cards.Universe_r,
         zh = {
             Name = "XXI - 宇宙?",
-            Desc = "不管离开多远，不管时间如何流逝，你永远都是属于我的",
-            Description = "!!! 第一次使用时，随机失去一个道具"..
-            "#此后每次使用此卡，重新生成这个道具，但它视为被摸过的道具"..
-            "#{{ArrowUp}} 下层开始时，生成此卡",
+            Desc = "不管离开多远",
+            Description = "首次使用时，将一件已有道具送入宇宙"..
+            "#之后每次使用，生成该道具的一个副本"..
+            "#进入新层时会重新获得这张卡",
             Frame = 51,
-            tarotClothBuffs = "额外刷新失去道具的状态",
+            tarotClothBuffs = "生成的道具视为新生成",
         },
         en = {
             Name = "XXI - The Universe?",
-            Description = "When you use it for the first time,lose a random item"..
-            "#Otherwise,regenerate that item(used)"..
-            "#Generate this card at the beginning of the next level after you use it",
+            Desc = "No matter how far you go",
+            Description = "First use sends one owned item into the Universe"..
+            "#Later uses create a copy of that item"..
+            "#This card returns at the start of each new floor",
             Frame = 51,
-            tarotClothBuffs = "regenerate that item(unused)",
+            tarotClothBuffs = "Spawned copies count as newly generated",
         },
     },
     [58] = {
@@ -4836,18 +5027,18 @@ item.Cards = {
         zh = {
             Name = "X - 命运",
             Desc = "明暗为逆",
-            Description = "选择一个道具转换为2个脆弱的同名道具魂火"..
-            "#以此法生成的魂火在通过2层后重新转换为道具"..
-            "#刷新重新生成道具的状态",
+            Description = "选择1件已有道具，将其转化为2个脆弱的同名道具魂火"..
+            "#经过2层后，存活的魂火各自变回该道具",
             Frame = 16,
-            tarotClothBuffs = "转换为3个同名道具魂火，魂火可以抵挡一次碰撞",
+            tarotClothBuffs = "改为生成3个更耐久的道具魂火",
         },
         en = {
             Name = "X - The Wheel of Destiny",
-            Description = "Select one item and convert it into two fragile item wisp in the same name."..
-            "#Item wisps spawned in this way turn back to items if you successfully protect it in 2 level.",
+            Desc = "Light and dark coexist",
+            Description = "Choose 1 held item and turn it into 2 fragile matching item wisps"..
+            "#After 2 floors, each surviving wisp turns back into that item",
             Frame = 16,
-            tarotClothBuffs = "Convert into 3 wisps which can withstand one hit",
+            tarotClothBuffs = "Creates 3 tougher item wisps instead",
         },
     },
     [59] = {
@@ -4856,15 +5047,16 @@ item.Cards = {
         zh = {
             Name = "X - 命运?",
             Desc = "你相信引力吗?",
-            Description = "将房间内所有基础掉落物转化为旋转着的三至五选一掉落物",
+            Description = "将房间内的普通掉落物展开为旋转的三至五选一",
             Frame = 38,
-            tarotClothBuffs = "改为五至七选一掉落物",
+            tarotClothBuffs = "改为五至七选一",
         },
         en = {
             Name = "X - The Wheel of Destiny?",
-            Description = "Convert all the pickups in the room into 3-5 pickups to choose one,they are spining in a circle",
+            Desc = "Do you believe in gravity?",
+            Description = "Turns ordinary pickups in the room into spinning choices of 3–5",
             Frame = 38,
-            tarotClothBuffs = "Add the choices of the pickups.",
+            tarotClothBuffs = "Becomes a choice of 5–7",
         },
     },
     [60] = {
@@ -4873,17 +5065,20 @@ item.Cards = {
         zh = {
             Name = "I - 魔女",
             Desc = "我将晶结",
-            Description = "{{Freezing}} 生成4枚冻结敌人5s的冰锥眼泪"..
-            "#冻结状态下死亡的敌人被冰冻并减速全屏敌人",
+            Description = "{{Freezing}} 发射4枚特殊冰冻泪弹"..
+            "#命中敌人会将其冻结约5秒"..
+            "#被冻结的敌人死亡时，使全房敌人减速约5秒",
             Frame = 5,
-            tarotClothBuffs = "生成8枚，冰锥伤害为面板的3倍",
+            tarotClothBuffs = "发射数量由4枚增加至8枚",
         },
         en = {
             Name = "I - The Witch",
-            Description = "Generate 4 ice tears that freeze the enemy for 5s "..
-            "#The enemies who died in this freezing state are frozen and decelerate all enemies",
+            Desc = "I Will Congeal",
+            Description = "{{Freezing}} Fire 4 special freezing tears"..
+            "#Enemies hit are frozen for about 5 seconds"..
+            "#If a frozen enemy dies, all enemies in the room are slowed for about 5 seconds",
             Frame = 5,
-            tarotClothBuffs = "Generate 8 ice tears with damage multiplier of 3",
+            tarotClothBuffs = "Increases the number of special freezing tears from 4 to 8",
         },
     },
     [61] = {
@@ -4892,20 +5087,60 @@ item.Cards = {
         zh = {
             Name = "I - 魔导",
             Desc = "我将昭世",
-            Description = "在地图上揭示一种特殊房间，进入对应房间时打开数个通往其他特殊房间的传送旋涡"..
-            "#{{Card22}} 全部特殊房间均已预知：点亮全图",
+            Description = "揭示本层一种特殊房型的所有房间"..
+            "#首次进入该房型时，生成数个通往其他特殊房间的传送旋涡",
             Frame = 7,
-            tarotClothBuffs = "开启更多特殊房间的传送门",
+            tarotClothBuffs = "额外生成2个传送旋涡，并提高特殊目的地的出现机会",
         },
         en = {
             Name = "I - The Wizard",
-            Description = "Predict a special room "..
-            "#Light up all rooms of that type on the map "..
-            "#Upon entering that room only once, open several transmission portal leading to other special rooms in this level "..
-            "#All special rooms have been predicted: light up the whole map "..
-            "#Small probability to open a transmission portal to special rooms not on the map(including Devil Room, Error Room, etc.)",
+            Desc = "I Will Reveal",
+            Description = "Reveal all rooms of one special room type on this floor"..
+            "#The first time you enter that room type, spawn several portals to other special rooms",
             Frame = 7,
-            tarotClothBuffs = "Open much more portals.#Higher chance to open special portals.",
+            tarotClothBuffs = "+2 portals and a higher chance of special destinations",
+        },
+    },
+    [62] = {
+        Name = "0 - 忘却",
+        id = Cards.Oblivion,
+        zh = {
+            Name = "0 - 忘却",
+            Desc = "别忘了这是什么",
+            Description = "持于主卡牌栏时逐渐褪色，约90秒后消失"..
+            "#消失时，将最近获得的一件可移除被动道具替换为同池的另一件"..
+            "#直接使用不会发动效果，且不会重置褪色进度",
+            Frame = 61,
+            tarotClothBuffs = "遗忘1件道具后，改为获得2件同池替代道具",
+        },
+        en = {
+            Name = "0 - Oblivion",
+            Desc = "Don't forget what this is",
+            Description = "Gradually fades while held as your primary card, disappearing after about 90 seconds"..
+            "#When it disappears, replaces your most recently acquired removable passive with another from the same item pool"..
+            "#Using it directly has no effect and does not reset the fade",
+            Frame = 61,
+            tarotClothBuffs = "Forgetting 1 item grants 2 replacements from the same item pool instead",
+        },
+    },
+    [63] = {
+        Name = "0 - 忘却?",
+        id = Cards.Oblivion_r,
+        zh = {
+            Name = "0 - 忘却?",
+            Desc = "无量空处！",
+            Description = "每秒临时获得1件随机被动道具，共50件"..
+            "#每件持续5秒，且不会触发获得道具时的效果",
+            Frame = 62,
+            tarotClothBuffs = "额外获得50件临时道具",
+        },
+        en = {
+            Name = "0 - Oblivion?",
+            Desc = "Unlimited Void!",
+            Description = "Temporarily gain 1 random passive item every second, 50 times"..
+            "#Each lasts 5 seconds and does not trigger on-acquire effects",
+            Frame = 62,
+            tarotClothBuffs = "Grants 50 additional temporary items",
         },
     },
 }
@@ -5238,11 +5473,13 @@ item.Birthrights = {
         id = Players.Anna,
         type = "birthright",
         zh = {
+            Desc = "血光之灾",
             Description = "{{Speed}} 超额的吞噬物不再降低移速"..
             "#每层均有小恶魔乞丐",
             PlayerName = "安娜",
         },
         en = {
+            Desc = "Bloody disaster",
             Description = "{{Speed}} Excessive phagocytosis no longer reduces movement speed"..
             "#There are rift beggars on each floor",
             PlayerName = "Anna",
@@ -5253,11 +5490,13 @@ item.Birthrights = {
         id = Players.Marriano,
         type = "birthright",
         zh = {
+            Desc = "人格重组",
             Description = "死亡时舍弃另一形态与此道具并复活"..
             "#通过2个楼层以拼合阴阳两面",
             PlayerName = "玛丽亚诺",
         },
         en = {
+            Desc = "Personality reorganization",
         },
     },
     [3] = {
@@ -5265,11 +5504,17 @@ item.Birthrights = {
         id = Players.Spwq,
         type = "birthright",
         zh = {
-            Description = "浮游炮+3",
+            Desc = "额外组件已就位",
+            Description = "每架飞行器额外获得1个镜像模块槽"..
+            "#镜像槽可引用已拥有的道具，且不占用其蓝图分配"..
+            "#失去原道具时，对应镜像失效",
             PlayerName = "青？",
         },
         en = {
-            Description = "+3 Funnel",
+            Desc = "Memories...",
+            Description = "Each craft gains 1 mirror module slot"..
+            "#Mirror slots reference owned items without using blueprint allocation"..
+            "#Mirrors break if you lose the source item",
             PlayerName = "W.Qing",
         },
     },
@@ -5278,10 +5523,12 @@ item.Birthrights = {
         id = Players.Tecro,
         type = "birthright",
         zh = {
+            Desc = "刺痛塑我身",
             Description = "蓄力出枪后命中的第一个敌人受到所有持有隐枪的再次攻击",
             PlayerName = "泰克罗",
         },
         en = {
+            Desc = "I Sting!",
             Description = "The first enemy hit by spear will be attacked by all hidden spears.",
             PlayerName = "Tecro",
         },
@@ -5291,10 +5538,12 @@ item.Birthrights = {
         id = Players.Tecrorun,
         type = "birthright",
         zh = {
+            Desc = "轻如光明",
             Description = "100%聚焦时+4弹射次数",
             PlayerName = "泰克罗· 罗恩",
         },
         en = {
+            Desc = "She is back now",
             Description = "+4 times of reflect when 100% charge.",
             PlayerName = "Tecrorun",
         },
@@ -5304,12 +5553,14 @@ item.Birthrights = {
         id = Players.Zeistos,
         type = "birthright",
         zh = {
+            Desc = "所见即所得",
             Description = "{{Collectible628}} 初始房间始终存在死亡证明传送门"..
             "#每层可以额外自由选择一个被动道具"..
             "#未拥有的被动道具最多可以拿两次",
             PlayerName = "泽伊斯托斯",
         },
         en = {
+            Desc = "WYSIWYG",
             Description = "{{Collectible628}} The initial room always has a death certificate teleportation door"..
             "#Each layer can choose an additional passive item freely "..
             "#Unowned passive items can be taken up to twice",
@@ -5321,10 +5572,12 @@ item.Birthrights = {
         id = Players.annA,
         type = "birthright",
         zh = {
+            Desc = "神明攻势",
             Description = "攻击时概率触发随机额外攻击",
             PlayerName = "安奈",
         },
         en = {
+            Desc = "Divine Offensive",
             Description = "Trigger extra random attack forms when attack.",
             PlayerName = "Anna",
         },
@@ -5334,12 +5587,14 @@ item.Birthrights = {
         id = Players.wq,
         type = "birthright",
         zh = {
+            Desc = "血债应由血偿!",
             Description = "极大提升瞬移攻击与伤害"..
             "#无目标时按下瞬移键快速移动"..
             "#存在目标时快速暗杀敌人",
             PlayerName = "青",
         },
         en = {
+            Desc = "Pain has to Pay!",
             Description = "Greatly evolves teleportation attack"..
             "#Press teleportation key to quickly move when there is no target "..
             "#Quickly assassinate enemies when there is a target",
@@ -5417,20 +5672,20 @@ item.Challenges = {
         zh = {
             Name = "挑战：心如死灰",
             Description = "{{Player21}} 里以撒开局"..
-            "#{{Collectible"..enums.Items.Ember.."}} 持有8个余烬"..
-            "#!!! 除余烬外，所有被动道具效果无效"..
-            "#{{Collectible"..enums.Items.Ember.."}} 余烬复制最近一次永久失去的被动道具"..
-            "#!!! 8个余烬不占用里以撒的道具槽"..
+            "#{{Collectible"..enums.Items.Ember.."}} 开局持有8个余烬，占用道具槽"..
+            "#!!! 除余烬外，被动与跟班可占槽但效果无效"..
+            "#{{Collectible"..enums.Items.Ember.."}} 每个余烬复制最近一次永久失去的可复制被动"..
+            "#!!! 舍弃余烬会降低复制倍率，但不改变复制目标"..
             "#不可打开控制台"..
             "#难度等级：噩梦",
         },
         en = {
             Name = "Feels Like Dead Ashes",
             Description = "{{Player21}} Play as Tainted Isaac"..
-            "#{{Collectible"..enums.Items.Ember.."}} Start with 8 Embers"..
-            "#!!! All passive items except Ember are disabled"..
-            "#{{Collectible"..enums.Items.Ember.."}} Embers copy the last passive item permanently lost"..
-            "#!!! Embers do not occupy Tainted Isaac's item slots"..
+            "#{{Collectible"..enums.Items.Ember.."}} Start with 8 Embers that occupy item slots"..
+            "#!!! Non-Ember passives and familiars can occupy slots but are disabled"..
+            "#{{Collectible"..enums.Items.Ember.."}} Each Ember copies the last permanently lost copyable passive"..
+            "#!!! Discarding Embers lowers the copy multiplier, not the copy target"..
             "#Console is disabled"..
             "#Difficulty: Nightmare",
         },
@@ -5546,14 +5801,14 @@ item.Challenges = {
             Name = "挑战：安全驾驶",
             Description = "{{Player18}} 伯大尼开局"..
             "#!!! 无法发射眼泪"..
-            "#{{Collectible"..enums.Items.Hyper_Velocity.."}} 召唤列车撞击敌人"..
+            "#蓄满专用充能后，朝攻击方向发出{{Collectible"..enums.Items.Hyper_Velocity.."}}列车撞击敌人"..
             "#难度等级：普通",
         },
         en = {
             Name = "Safe Driving",
             Description = "{{Player18}} Play as Bethany"..
             "#!!! Cannot shoot tears"..
-            "#{{Collectible"..enums.Items.Hyper_Velocity.."}} Summon trains to ram enemies"..
+            "#After the special charge fills, fire a {{Collectible"..enums.Items.Hyper_Velocity.."}} train in your attack direction"..
             "#Difficulty: Normal",
         },
     },
@@ -5564,17 +5819,17 @@ item.Challenges = {
         zh = {
             Name = "挑战：食日",
             Description = "{{Player"..enums.Players.Anna.."}} 安娜开局"..
-            "#{{ArrowUp}} 掌中黑洞会直接吞噬吸入的普通敌人"..
-            "#!!! 无法拾取任何掉落物"..
-            "#每层下层后恢复2颗黑心，并获得1炸弹与1钥匙"..
+            "#{{ArrowUp}} 掌中黑洞完全吸入敌人后将其直接消灭"..
+            "#!!! 无法拾取任何地面掉落物，包括道具"..
+            "#{{BlackHeart}} 进入新层获得2颗黑心、{{Bomb}}1炸弹与{{Key}}1钥匙"..
             "#难度等级：简单",
         },
         en = {
             Name = "Swallow the Sun",
             Description = "{{Player"..enums.Players.Anna.."}} Play as Anna"..
-            "#{{ArrowUp}} Enemies sucked into the handheld black hole are devoured immediately"..
-            "#!!! Cannot pick up any pickups"..
-            "#Restore 2 Black Hearts and gain 1 bomb and 1 key on each new floor"..
+            "#{{ArrowUp}} Fully sucked-in enemies are devoured"..
+            "#!!! Cannot pick up any floor pickups, including items"..
+            "#{{BlackHeart}} Gain 2 Black Hearts, {{Bomb}}1 bomb and {{Key}}1 key on each new floor"..
             "#Difficulty: Easy",
         },
     },
@@ -5609,13 +5864,13 @@ item.Pickups = {
         SubType = Pickups.Glaze_heart.SubType,
         zh = {
             Name = "琉璃之心",
-            Description = "随机模仿一颗已有的心"..
+            Description = "根据当前生命模仿一种可获得的心"..
             "#优先抵消{{BrokenHeart}}碎心与{{RottenHeart}}腐心",
         },
         en = {
             Name = "Glaze Heart",
-            Description = "Randomly imitate an existing heart"..
-            "#Priority offset {{BrokenHeart}} BrokenHeart and {{RottenHeart}}RottenHeart",
+            Description = "Imitates an obtainable heart based on your health"..
+            "#Priority: remove {{BrokenHeart}} Broken Hearts and {{RottenHeart}} Rotten Hearts",
         },
     },
     [2] = {
@@ -5623,15 +5878,16 @@ item.Pickups = {
         SubType = Pickups.Glaze_heart_half.SubType,
         zh = {
             Name = "琉璃之半心",
-            Description = "随机模仿半颗已有的心"..
+            Description = "根据当前生命模仿一种可获得的心（半颗）"..
             "#优先抵消{{BrokenHeart}}碎心与{{RottenHeart}}腐心",
         },
         en = {
             Name = "Half of a Glaze Heart",
-            Description = "Randomly imitate half an existing heart"..
-            "#Priority offset {{BrokenHeart}} BrokenHeart and {{RottenHeart}}RottenHeart",
+            Description = "Imitates an obtainable heart based on your health (half)"..
+            "#Priority: remove {{BrokenHeart}} Broken Hearts and {{RottenHeart}} Rotten Hearts",
         },
     },
+
     [3] = {
         Variant = Pickups.Glaze_key.Variant,
         SubType = Pickups.Glaze_key.SubType,
@@ -5693,15 +5949,17 @@ item.Pickups = {
         SubType = Pickups.Glaze_chest.SubType,
         zh = {
             Name = "琉璃之宝箱",
-            Description = "本层随机房间出现一把钥匙跟班，只能用它打开"..
-            "#地图会标出钥匙所在房间"..
-            "#给予数个琉璃掉落或一个重复道具",
+            Description = "本层另一个房间会出现对应钥匙，钥匙房会在地图上标记"..
+            "#只有对应钥匙才能打开宝箱"..
+            "#60%：生成4~7个随机琉璃掉落"..
+            "#40%：复制一个当前持有的随机道具",
         },
         en = {
             Name = "Glaze Chest",
-            Description = "A key familiar appears in a random room this floor"..
-            "#The key's room is marked on the map"..
-            "#Spawns glazed pickups or a duplicate item",
+            Description = "A matching key appears in another room on this floor; its room is marked on the map"..
+            "#Only that key can open the chest"..
+            "#60%: spawns 4~7 random glazed pickups"..
+            "#40%: duplicates a random item you currently own",
         },
     },
     [8] = {
@@ -5743,14 +6001,14 @@ item.Pickups = {
             Desc = "",
             Description = "#{{Collectible}} 拾取后，将其中展示的道具记录为1份原型模块"..
             "#原型模块存入蓝图仓库，可额外装配1次对应道具效果"..
-            "#只能作为模块使用，不能作为飞行器成本",
+            "#只能作为模块使用，不能作为飞行器底座",
         },
         en = {
             Name = "Item Prototype",
             Desc = "",
             Description = "#{{Collectible}} On pickup, records the displayed item as 1 prototype module"..
             "#Stored in Blueprint inventory, granting 1 extra installation of that item's effect"..
-            "#Modules only; cannot be used as a Flight cost",
+            "#Modules only; cannot be used as a craft base",
         },
     },
 }

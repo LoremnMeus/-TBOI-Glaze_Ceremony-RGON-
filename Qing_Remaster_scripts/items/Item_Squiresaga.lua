@@ -834,7 +834,7 @@ local item = {
 					d.saga_modifier_hitpoint_vr = d.saga_modifier_hitpoint_vr or 1
 					local vr = d.saga_modifier_hitpoint_vr
 					local offset = Vector(0,0)
-					
+
 					local wd1 = tostring(math.ceil(ent.HitPoints * 10)/10)
 					if choosed and vr == 1 then wd1 = "<="..wd1.."=>" offset = offset + Vector(-5,0) end
 					local wd2 = tostring(math.ceil(ent.MaxHitPoints * 10)/10)
@@ -846,7 +846,7 @@ local item = {
 				move = function(info,ent,dir)
 					local d = ent:GetData()
 					local vr = d.saga_modifier_hitpoint_vr
-					if dir == 1 then 
+					if dir == 1 then
 						if vr == 1 then
 							if ent.HitPoints < ent.MaxHitPoints then
 								ent.HitPoints = math.min(ent.MaxHitPoints,ent.HitPoints + ent.MaxHitPoints * 0.01)
@@ -893,7 +893,7 @@ local item = {
 					local d = ent:GetData()
 					d.saga_modifier_size_vr = d.saga_modifier_size_vr or 1
 					local vr = d.saga_modifier_size_vr
-					
+
 					local offset = Vector(0,0)
 					local wd1 = tostring(math.floor(ent.SpriteScale.X * 100)/100)
 					if choosed and vr == 2 then wd1 = "<="..wd1.."=>" offset = offset + Vector(-5,0) end
@@ -902,7 +902,7 @@ local item = {
 					local wd = wd1.."X"..wd2
 					if choosed and vr == 1 then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
 					table.insert(ret,#ret + 1,{wd = wd,offset = offset,})
-					
+
 					return ret
 				end,
 				move = function(info,ent,dir)
@@ -910,7 +910,7 @@ local item = {
 					local succc = ent:GetData().saga_modifier_sprite_size
 					local succc2 = ent:GetData().saga_modifier_size
 					local spritesize = ent.SpriteScale
-					if dir == 1 then 
+					if dir == 1 then
 						if d.saga_modifier_size_vr == 1 then
 							local succ2 = Attribute_holder.try_hold_attribute(ent,"Size",ent.Size * 1.04)
 							if succc2 then Attribute_holder.try_rewind_attribute(ent,"Size",succc2) end
@@ -988,7 +988,7 @@ local item = {
 					local d = ent:GetData()
 					local succc = ent:GetData().saga_modifier_friction
 					local fri = ent.Friction
-					if dir == 1 then 
+					if dir == 1 then
 						if ent.Friction < 1.2 then
 							local succ = Attribute_holder.try_hold_attribute(ent,"Friction",fri + 0.01)
 							if succc then Attribute_holder.try_rewind_attribute(ent,"Friction",succc) end
@@ -1084,7 +1084,7 @@ local item = {
 				move = function(info,ent,dir)
 					local d = ent:GetData()
 					local val = ent.SpriteRotation
-					if dir == 1 then 
+					if dir == 1 then
 						ent.SpriteRotation = val + 5
 						return 0
 					elseif dir == -1 then
@@ -1107,7 +1107,7 @@ local item = {
 				move = function(info,ent,dir)
 					local d = ent:GetData()
 					local val = ent.CollisionDamage
-					if dir == 1 then 
+					if dir == 1 then
 						ent.CollisionDamage = (ent.CollisionDamage)% 6 + 1
 						return 0
 					elseif dir == -1 then
@@ -1134,8 +1134,8 @@ local item = {
 				move = function(info,ent,dir)
 					local d = ent:GetData()
 					local val = ent.EntityCollisionClass
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.EntityCollisionClass = (val + 1) % 5
 						return 0
 					elseif dir == -1 then
@@ -1169,8 +1169,8 @@ local item = {
 				move = function(info,ent,dir)
 					local d = ent:GetData()
 					local val = ent.SortingLayer
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.SortingLayer = (val + 1) % 3
 						return 0
 					elseif dir == -1 then
@@ -1207,7 +1207,7 @@ local item = {
 					local d = ent:GetData()
 					local succc = ent:GetData().saga_modifier_friction
 					local val = ent:GetChampionColorIdx()
-					if dir == 1 then 
+					if dir == 1 then
 						val = val + 1
 						if val > 25 then val = 0 end
 						local mxhp = ent.MaxHitPoints
@@ -1262,22 +1262,22 @@ local item = {
 					local d = ent:GetData()
 					d.saga_modifier_buff_vr = d.saga_modifier_buff_vr or 1
 					local vr = d.saga_modifier_buff_vr
-					
+
 					for i = 1,#(info.buffs) do
 						local v = info.buffs[i]
 						local wd = tostring(v.tm)..Language:getText("status", "seconds")..v.name.."："
 						local wd1 = ent:HasEntityFlags(v.val)
-						if wd1 then 
-							wd1 = Language:getText("status", "yes") 
-						else 
-							wd1 = Language:getText("status", "no") 
+						if wd1 then
+							wd1 = Language:getText("status", "yes")
+						else
+							wd1 = Language:getText("status", "no")
 						end
 						local offset = Vector(-10,0)
 						if choosed and vr == i then wd1 = "<="..wd1.."=>" offset = offset + Vector(-5,0) end
 						wd = wd..wd1
 						table.insert(ret,#ret + 1,{wd = wd,offset = offset,})
 					end
-					
+
 					return ret
 				end,
 				move = function(info,ent,dir)
@@ -1287,8 +1287,8 @@ local item = {
 					local val = ent:GetChampionColorIdx()
 					local vr = d.saga_modifier_buff_vr
 					local buff = info.buffs[vr]
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						if ent:HasEntityFlags(buff.val) == false then
 							d["saga_buff_"..tostring(vr).."_succ"] = Attribute_holder.try_hold_and_rewind_attribute(ent,"EntityFlag_"..buff.flagname,true,buff.tm * 30,Attribute_holder.descriptors.entity_flag(buff.val))
 							return 0
@@ -1348,8 +1348,8 @@ local item = {
 					local vr = info.mindtype(ent)
 					local val = (info.hearttype[vr] or {id = 0,}).id or vr
 					local vval = info.tpmap[val] or val
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 					elseif dir == -1 then
@@ -1424,7 +1424,7 @@ local item = {
 					consistance_holder.try_hold_over_entity(ent,item.own_key)
 					local price = ent:GetData()._Data[item.own_key]["Price"] or ent.Price
 					price_holder.try_catch_price(ent)
-					if dir == 1 then 
+					if dir == 1 then
 						if price == -1000 then
 							return -1
 						elseif price == -9 then
@@ -1433,7 +1433,7 @@ local item = {
 							price = 1
 						elseif price >= 999 then
 							price = -1000
-						elseif price < 0 then 
+						elseif price < 0 then
 							price = -((-price) % 8 + 1)
 						else
 							price = math.min(999,price + math.max(math.floor(price * 0.05),1))
@@ -1445,7 +1445,7 @@ local item = {
 							return -1
 						elseif price == -9 then
 							return -1
-						elseif price < 0 then 
+						elseif price < 0 then
 							price = -((-price + 8 - 2) % 8 + 1)
 						else
 							price = price - math.max(math.floor(price * 0.05),1)
@@ -1481,7 +1481,7 @@ local item = {
 					local ret = {}
 					table.insert(ret,#ret + 1,{wd = Language:getText("other", "item_id"),})
 					local val = ent.SubType
-					
+
 					local wd = val
 					local offset = Vector(0,0)
 					if choosed then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
@@ -1495,8 +1495,8 @@ local item = {
 					local val = ent.SubType
 					local config = Isaac.GetItemConfig()
 					local sz = config:GetCollectibles().Size
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val + 1
 						while((val < sz or (val > 2^31 and val < 2^32)) and (config:GetCollectible(val) == nil or config:GetCollectible(val).Hidden or config:GetCollectible(val).Tags & ItemConfig.TAG_QUEST == ItemConfig.TAG_QUEST)) do
 							val = val + 1
@@ -1552,7 +1552,7 @@ local item = {
 					local val = ent.SubType
 					local config = Isaac.GetItemConfig()
 					local col = config:GetCollectible(val)
-					
+
 					local wd = ent.Charge
 					local wd1 = col.MaxCharges
 					if wd1 > 12 then wd = math.floor(wd/wd1 * 100)/100 wd1 = 1 end
@@ -1570,18 +1570,18 @@ local item = {
 					local config = Isaac.GetItemConfig()
 					local col = config:GetCollectible(ent.SubType)
 					local mxval = col.MaxCharges
-					
-					if dir == 1 then 
-						if val < mxval * 2 then 
-							val = math.min(mxval * 2,val + math.max(1,math.floor(mxval/12))) 
+
+					if dir == 1 then
+						if val < mxval * 2 then
+							val = math.min(mxval * 2,val + math.max(1,math.floor(mxval/12)))
 						else
 							return -1
 						end
 						ent.Charge = val
 						return 0
 					elseif dir == -1 then
-						if val > 0 then 
-							val = math.max(0,val - math.max(1,math.floor(mxval/12))) 
+						if val > 0 then
+							val = math.max(0,val - math.max(1,math.floor(mxval/12)))
 						else
 							return -1
 						end
@@ -1592,12 +1592,12 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 100 and ent.SubType ~= 0 then 
+					if ent.Variant == 100 and ent.SubType ~= 0 then
 						local config = Isaac.GetItemConfig()
 						local col = config:GetCollectible(ent.SubType)
 						if col then
 							if col.MaxCharges > 0 then
-								return true 
+								return true
 							end
 						end
 					end
@@ -1610,10 +1610,10 @@ local item = {
 					local ret = {}
 					table.insert(ret,#ret + 1,{wd = Language:getText("other", "touched"),})
 					local val = ent.Touched
-					
+
 					local wd = Language:getText("status", "no")
-					if val == true then 
-						wd = Language:getText("status", "yes") 
+					if val == true then
+						wd = Language:getText("status", "yes")
 					end
 					local offset = Vector(0,0)
 					if choosed then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
@@ -1625,8 +1625,8 @@ local item = {
 					local d = ent:GetData()
 					local s = ent:GetSprite()
 					local val = ent.Touched
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.Touched = not ent.Touched
 						return 0
 					elseif dir == -1 then
@@ -1637,7 +1637,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 100 and ent.SubType ~= 0 then 
+					if ent.Variant == 100 and ent.SubType ~= 0 then
 						return true
 					end
 					return false
@@ -1662,8 +1662,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.SubType]
 					local val = (info.hearttype[ent.SubType] or {id = 0,}).id or ent.SubType
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.SubType = val
@@ -1688,7 +1688,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 10 then 
+					if ent.Variant == 10 then
 						return true
 					end
 					return false
@@ -1721,7 +1721,7 @@ local item = {
 					local ret = {}
 					table.insert(ret,#ret + 1,{wd = Language:getText("other", "trinket_id"),})
 					local val = ent.SubType % 32768
-					
+
 					local wd = val
 					local offset = Vector(0,0)
 					if choosed then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
@@ -1736,8 +1736,8 @@ local item = {
 					local golden = math.floor(ent.SubType / 32768)
 					local config = Isaac.GetItemConfig()
 					local sz = config:GetTrinkets().Size
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val + 1
 						while((val < sz) and (config:GetTrinket(val) == nil or config:GetTrinket(val).Hidden)) do
 							val = val + 1
@@ -1782,7 +1782,7 @@ local item = {
 					local ret = {}
 					table.insert(ret,#ret + 1,{wd = Language:getText("other", "golden_trinket"),})
 					local val = math.floor(ent.SubType / 32768)
-					
+
 					local wd = Language:getText("status", "no")
 					if val > 0 then wd = Language:getText("status", "yes") end
 					local offset = Vector(0,0)
@@ -1798,7 +1798,7 @@ local item = {
 					local golden = math.floor(ent.SubType / 32768)
 					local config = Isaac.GetItemConfig()
 					local sz = config:GetTrinkets().Size
-					
+
 					if dir == 1 or dir == -1 then
 						golden = 1 - golden
 						if config:GetTrinket(val) then
@@ -1842,8 +1842,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.SubType]
 					local val = (info.hearttype[ent.SubType] or {id = 0,}).id or ent.SubType
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.SubType = val
@@ -1868,7 +1868,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 30 then 
+					if ent.Variant == 30 then
 						return true
 					end
 					return false
@@ -1904,8 +1904,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.SubType]
 					local val = (info.hearttype[ent.SubType] or {id = 0,}).id or ent.SubType
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.SubType = val
@@ -1930,7 +1930,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 40 then 
+					if ent.Variant == 40 then
 						return true
 					end
 					return false
@@ -1968,8 +1968,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.SubType]
 					local val = (info.hearttype[ent.SubType] or {id = 0,}).id or ent.SubType
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.SubType = val
@@ -1994,7 +1994,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 69 then 
+					if ent.Variant == 69 then
 						return true
 					end
 					return false
@@ -2028,8 +2028,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.SubType]
 					local val = (info.hearttype[ent.SubType] or {id = 0,}).id or ent.SubType
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.SubType = val
@@ -2054,7 +2054,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 90 then 
+					if ent.Variant == 90 then
 						return true
 					end
 					return false
@@ -2092,8 +2092,8 @@ local item = {
 					local vr = ent.SubType % 2048
 					local large = math.floor(ent.SubType / 2048)
 					local val = (info.hearttype[vr] or {id = 0,}).id or vr
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 					elseif dir == -1 then
@@ -2116,7 +2116,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 70 then 
+					if ent.Variant == 70 then
 						return true
 					end
 					return false
@@ -2149,7 +2149,7 @@ local item = {
 					local vr = math.floor(ent.SubType / 2048)
 					local wd = Language:getText("pills", "small")
 					if vr and vr > 0 then wd = Language:getText("pills", "large") end
-					
+
 					local offset = Vector(0,0)
 					if choosed then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
 					table.insert(ret,#ret + 1,{wd = wd,offset = offset,})
@@ -2163,7 +2163,7 @@ local item = {
 					local vr = ent.SubType % 2048
 					local large = math.floor(ent.SubType / 2048)
 					local val = (info.hearttype[vr] or {id = 0,}).id or vr
-					
+
 					if dir == 1 or dir == -1 then
 						large = 1 - large
 						ent.SubType = val + large * 2048
@@ -2181,7 +2181,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 70 then 
+					if ent.Variant == 70 then
 						return true
 					end
 					return false
@@ -2211,7 +2211,7 @@ local item = {
 					ent = ent:ToPickup()
 					local ret = {}
 					table.insert(ret,#ret + 1,{wd = Language:getText("other", "type")})
-					
+
 					local vr = ent.SubType
 					local wd = (info.hearttype[vr] or {name = Language:getText("poop", "unknown"),}).name
 
@@ -2226,8 +2226,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.SubType]
 					local val = (info.hearttype[ent.SubType] or {id = 0,}).id or ent.SubType
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.SubType = val
@@ -2252,7 +2252,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 42 then 
+					if ent.Variant == 42 then
 						return true
 					end
 					return false
@@ -2289,8 +2289,8 @@ local item = {
 					local vr = info.mindtype(ent)
 					local val = (info.hearttype[vr] or {id = 0,}).id or vr
 					local vval = info.tpmap[val] or val
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 					elseif dir == -1 then
@@ -2317,7 +2317,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 20 then 
+					if ent.Variant == 20 then
 						return true
 					end
 					return false
@@ -2351,7 +2351,7 @@ local item = {
 
 					local vr = ent.SubType
 					local wd = ({name = tostring(vr),} or {name = Language:getText("cards", "unknown"),}).name
-					
+
 					local offset = Vector(0,0)
 					if choosed then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
 					table.insert(ret,#ret + 1,{wd = wd,offset = offset,})
@@ -2364,8 +2364,8 @@ local item = {
 					local val = ent.SubType
 					local config = Isaac.GetItemConfig()
 					local sz = config:GetCards().Size
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val + 1
 						while((val < sz) and (config:GetCard(val) == nil or config:GetCard(val).Hidden)) do
 							val = val + 1
@@ -2404,7 +2404,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToPickup()
-					if ent.Variant == 300 then 
+					if ent.Variant == 300 then
 						return true
 					end
 					return false
@@ -2437,8 +2437,8 @@ local item = {
 					ent = ent:ToBomb()
 					local d = ent:GetData()
 					local dmg = ent.ExplosionDamage
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.ExplosionDamage = math.max(dmg + 1,dmg * 1.05)
 						return 0
 					elseif dir == -1 then
@@ -2468,8 +2468,8 @@ local item = {
 					ent = ent:ToBomb()
 					local d = ent:GetData()
 					local val = ent.RadiusMultiplier
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.RadiusMultiplier = math.max(val + 0.05,val * 1.05)
 						return 0
 					elseif dir == -1 then
@@ -2498,8 +2498,8 @@ local item = {
 					ent = ent:ToBomb()
 					local d = ent:GetData()
 					local val = ent.CollisionDamage
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.CollisionDamage = math.max(val + 1,val * 1.05)
 						return 0
 					elseif dir == -1 then
@@ -2520,7 +2520,7 @@ local item = {
 					table.insert(ret,#ret + 1,{wd = Language:getText("other", "type")})
 					local vr = ent.Variant
 					local wd = (info.hearttype[vr] or {name = Language:getText("bomb_types", "unknown"),}).name
-					
+
 					local offset = Vector(0,0)
 					if choosed then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
 					table.insert(ret,#ret + 1,{wd = wd,offset = offset,})
@@ -2532,8 +2532,8 @@ local item = {
 					local s = ent:GetSprite()
 					local heart = info.hearttype[ent.Variant]
 					local val = (info.hearttype[ent.Variant] or {id = 0,}).id or ent.Variant
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val % info.mxn + 1
 						val = info.tpmap[val] or val
 						ent.Variant = val
@@ -2558,7 +2558,7 @@ local item = {
 				end,
 				check = function(info,ent)
 					ent = ent:ToBomb()
-					if info.hearttype[ent.Variant] ~= nil then 
+					if info.hearttype[ent.Variant] ~= nil then
 						return true
 					end
 					return false
@@ -2608,8 +2608,8 @@ local item = {
 					ent = ent:ToFamiliar()
 					local d = ent:GetData()
 					local val = ent.CollisionDamage
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						ent.CollisionDamage = math.max(val + 1,val * 1.05)
 						return 0
 					elseif dir == -1 then
@@ -2655,7 +2655,7 @@ local item = {
 					local d = ent:GetData()
 					d.saga_modifier_size_vr = d.saga_modifier_size_vr or 1
 					local vr = d.saga_modifier_size_vr
-					
+
 					local offset = Vector(0,0)
 					local wd1 = tostring(math.floor(ent:GetSprite().Scale.X * 100)/100)
 					if choosed and vr == 2 then wd1 = "<="..wd1.."=>" offset = offset + Vector(-5,0) end
@@ -2664,7 +2664,7 @@ local item = {
 					local wd = wd1.."X"..wd2
 					if choosed and vr == 1 then wd = "<="..wd.."=>" offset = offset + Vector(-5,0) end
 					table.insert(ret,#ret + 1,{wd = wd,offset = offset,})
-					
+
 					return ret
 				end,
 				move = function(info,ent,dir)
@@ -2672,7 +2672,7 @@ local item = {
 					local succc = ent:GetData().saga_modifier_sprite_size
 					local succc2 = ent:GetData().saga_modifier_size
 					local spritesize = ent:GetSprite().Scale
-					if dir == 1 then 
+					if dir == 1 then
 						if d.saga_modifier_size_vr == 1 then
 							spritesize = spritesize * 1.05
 						elseif d.saga_modifier_size_vr == 2 then
@@ -2734,7 +2734,7 @@ local item = {
 					d.saga_modifier_color_vr = d.saga_modifier_color_vr or 1
 					local col = auxi.AddColor(ent:GetSprite().Color,Color(0,0,0,0),1,0)
 					local succc = ent:GetData().saga_modifier_color
-					
+
 					if dir == 1 then
 						col[info.colormap[d.saga_modifier_color_vr]] = col[info.colormap[d.saga_modifier_color_vr]] + 5/255
 						local succ = Attribute_holder.try_hold_attribute(ent,"Color",col,{toget = function(ent) return ent:GetSprite().Color end,tochange = function(ent,value) ent:GetSprite().Color = value end,})
@@ -2788,8 +2788,8 @@ local item = {
 				move = function(info,ent,dir)
 					local d = ent:GetData()
 					local val = ent:GetSprite().Rotation
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val + 5
 						ent:GetSprite().Rotation = val
 						return 0
@@ -2899,8 +2899,8 @@ local item = {
 					local val = grid:GetVariant()
 					local vval = info.hearttype[val].id or val
 					local s = grid:GetSprite()
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						vval = (vval + 1) % info.mxn
 					elseif dir == -1 then
 						vval = (vval + info.mxn - 1) % info.mxn
@@ -2971,8 +2971,8 @@ local item = {
 					local val = desc.id
 					local vval = val
 					local s = grid:GetSprite()
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						val = val + 1
 						if val > info.mxn then return -1 end
 					elseif dir == -1 then
@@ -2982,7 +2982,7 @@ local item = {
 					if dir == 1 or dir == -1 then
 						grid.State = (val - 1) * 250
 						if grid.Desc then grid.Desc.State = grid.State end
-						if val == info.mxn or vval == info.mxn then 
+						if val == info.mxn or vval == info.mxn then
 							if grid.Desc then grid:Init(grid.Desc.SpawnSeed) end
 							grid:PostInit()
 						end
@@ -3030,7 +3030,7 @@ local item = {
 					if not grid then return 1 end
 					local desc = info.state_check(info,grid)
 					local succc = ent:GetData().saga_modifier_door_open
-					if dir == 1 then 
+					if dir == 1 then
 						if desc == 1 then return -1 end
 						desc = 1
 					elseif dir == -1 then
@@ -3083,7 +3083,7 @@ local item = {
 					local grid = saga_get_grid(ent, "pit")
 					if not grid then return 1 end
 					local desc = grid.HasLadder
-					if dir == 1 then 
+					if dir == 1 then
 						if desc == true then return -1 end
 						desc = true
 					elseif dir == -1 then
@@ -3091,7 +3091,7 @@ local item = {
 						desc = false
 					end
 					if dir == 1 or dir == -1 then
-						if desc then 
+						if desc then
 							grid:SetLadder(true)
 							local q = Isaac.Spawn(1000,8,0,grid.Position,Vector(0,0),nil)
 							ent:GetData().Ladder = q
@@ -3130,7 +3130,7 @@ local item = {
 					local grid = saga_get_grid(ent, "pressureplate")
 					if not grid then return 1 end
 					local desc = grid.State
-					if dir == 1 then 
+					if dir == 1 then
 						if desc == 3 then return -1 end
 						desc = 3
 					elseif dir == -1 then
@@ -3178,7 +3178,7 @@ local item = {
 					local grid = saga_get_grid(ent, "tnt")
 					if not grid then return 1 end
 					local desc = grid.State
-					if dir == 1 then 
+					if dir == 1 then
 						if desc == 4 then return -1 end
 						desc = desc + 1
 					elseif dir == -1 then
@@ -3221,7 +3221,7 @@ local item = {
 					local grid = saga_get_grid(ent, 11)
 					if not grid then return 1 end
 					local desc = grid.State
-					if dir == 1 then 
+					if dir == 1 then
 						if desc == info.mxn - 1 then return -1 end
 						desc = desc + 1
 					elseif dir == -1 then
@@ -3266,8 +3266,8 @@ local item = {
 					local desc = grid.State
 					local succc = ent:GetData().saga_modifier_trap_door_open
 					local succc2 = ent:GetData().saga_modifier_trap_door_open_sprite
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						if desc == info.mxn - 1 then return -1 end
 						desc = desc + 1
 					elseif dir == -1 then
@@ -3317,8 +3317,8 @@ local item = {
 					local desc = grid.State
 					local succc = ent:GetData().saga_modifier_trap_door_open
 					local succc2 = ent:GetData().saga_modifier_trap_door_open_sprite
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						if desc == info.mxn - 1 then return -1 end
 						desc = desc + 1
 					elseif dir == -1 then
@@ -3366,7 +3366,7 @@ local item = {
 					local grid = saga_get_grid(ent, 10)
 					if not grid then return 1 end
 					local desc = grid.State
-					if dir == 1 then 
+					if dir == 1 then
 						if desc == info.mxn - 1 then return -1 end
 						desc = desc + 1
 					elseif dir == -1 then
@@ -3410,8 +3410,8 @@ local item = {
 					local desc = info.tpmap[grid.State]
 					local succc = ent:GetData().saga_modifier_spike_open
 					local succc2 = ent:GetData().saga_modifier_spike_open_sprite
-					
-					if dir == 1 then 
+
+					if dir == 1 then
 						if desc == info.mxn - 1 then return -1 end
 						desc = desc + 1
 					elseif dir == -1 then
@@ -3498,12 +3498,12 @@ auxi.add_to_seija(item.entity)
 
 local function check_screen_size(v)
 	local screensize = ui.GetScreenSize()
-	while(screensize.X > 256) do 
-		screensize.X = screensize.X / 2 
+	while(screensize.X > 256) do
+		screensize.X = screensize.X / 2
 		v.X = v.X / 2
 	end
-	while(screensize.Y > 256) do 
-		screensize.Y = screensize.Y / 2 
+	while(screensize.Y > 256) do
+		screensize.Y = screensize.Y / 2
 		v.Y = v.Y / 2
 	end
 	return v
@@ -3511,24 +3511,24 @@ end
 
 local function check_screen_multi(v)
 	local screensize = ui.GetScreenSize()
-	while(screensize.X > 256) do 
-		screensize.X = screensize.X / 2 
+	while(screensize.X > 256) do
+		screensize.X = screensize.X / 2
 		v.X = v.X * 2
 	end
-	while(screensize.Y > 256) do 
-		screensize.Y = screensize.Y / 2 
+	while(screensize.Y > 256) do
+		screensize.Y = screensize.Y / 2
 		v.Y = v.Y * 2
 	end
 	return v
 end
-	
+
 local function get_screensize_multi()
 	local ret = 4
 	local screensize = ui.GetScreenSize()
-	while(screensize.X > 256) do 
-		screensize.X = screensize.X / 2 
+	while(screensize.X > 256) do
+		screensize.X = screensize.X / 2
 		ret = ret / 2
-	end 
+	end
 	return ret
 end
 --l local q = Isaac.Spawn(5,40,1,Vector(200,200),Vector(0,0),nil) q.SubType = 2
@@ -3734,8 +3734,8 @@ Function = function(_,player)
 				elseif dir == 6 then vel = vel + Vector(0,-1)
 				elseif dir == 7 then vel = vel + Vector(0,1) end
 				local vel_adder = player.Velocity
-				if vel_adder:Length() < 0.3 then 
-					vel_adder = Vector(0,0) 
+				if vel_adder:Length() < 0.3 then
+					vel_adder = Vector(0,0)
 				else
 					vel_adder = vel_adder:Normalized()
 				end
@@ -3770,7 +3770,7 @@ Function = function(_,player)
 		end
 		item.last_open_dir = dir
 		if should_count then
-			if dir and auxi.should_do_Seija(player) then 
+			if dir and auxi.should_do_Seija(player) then
 				local idx = player:GetData().__Index
 				save.elses[item.own_key.."buff"] = save.elses[item.own_key.."buff"] or {}
 				save.elses[item.own_key.."buff"][idx] = (save.elses[item.own_key.."buff"][idx] or 0) + 1
@@ -3843,7 +3843,7 @@ Function = function(_,ent)
 						end
 						local nearest = nil
 						local range = ent:GetSprite().Scale:Length()
-						
+
 						for u,v in pairs(n_entity) do
 							if (ent.Position - v.Position):Length() < (40 * range + v.Size) and auxi.MakeVector((ent.Position - v.Position):GetAngleDegrees() - ent.RotationOffset).X < 0.05 and auxi.check_all_exists(v) then
 								if item.uncheckable[v.Type] == nil and (nearest == nil or get_type_priority(nearest) < get_type_priority(v) or ((nearest.Position - player.Position):Length() > (v.Position - player.Position):Length() and get_type_priority(nearest) <= get_type_priority(v)))then
@@ -3851,7 +3851,7 @@ Function = function(_,ent)
 								end
 							end
 						end
-						
+
 						if nearest == nil then
 							local room = Game():GetRoom()
 							local grids = get_saga_grid_info(ent.Position,55 * range)
@@ -3864,15 +3864,15 @@ Function = function(_,ent)
 							end
 							if nearest then nearest = grid_entity.get_grid_entity(nearest.grid,nearest.idx) end
 						end
-						
+
 						if nearest then
 							item.targ = nearest
 							makelist(nearest)
 							local dir = (get_safe_name(nearest,"Position") - player.Position):Normalized()
 							for i = 1,3 do
-								if dir.Y > 0 then 
+								if dir.Y > 0 then
 									dir.Y = dir.Y + 2
-								else 
+								else
 									dir.Y = dir.Y - 2
 								end
 								dir = dir:Normalized()
@@ -3911,41 +3911,34 @@ local function time_stop()
 	if saga_time_stop_active and frame - saga_time_stop_refresh_frame < 15 then return false end
 	saga_time_stop_active = true
 	saga_time_stop_refresh_frame = frame
-	local n_entity = Isaac.GetRoomEntities() 
-	for u,v in pairs(n_entity) do 
+	local n_entity = Isaac.GetRoomEntities()
+	for u,v in pairs(n_entity) do
 		if item.unstopable[v.Type] == nil then
 			--print(v.Type.." "..v.Variant)
-			local s = v:GetSprite()
-			for u,v in pairs(item.eventlist) do
-				if s:IsEventTriggered(v) ~= false then 
-					s:Update()
+			local d = v:GetData()
+			local pos_cmp = {protect = true,tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,}
+			local freeze_ok = d.saga_flag_freeze_succ and Attribute_holder.has_claim(v, "EntityFlag_FLAG_FREEZE", d.saga_flag_freeze_succ)
+			local sprite_ok = d.saga_flag_no_sprite_update_succ and Attribute_holder.has_claim(v, "EntityFlag_FLAG_NO_SPRITE_UPDATE", d.saga_flag_no_sprite_update_succ)
+			if not freeze_ok or not sprite_ok then
+				local s = v:GetSprite()
+				for _, event_name in pairs(item.eventlist) do
+					if s:IsEventTriggered(event_name) ~= false then
+						s:Update()
+					end
 				end
 			end
-			local d = v:GetData()
-			if d.saga_flag_freeze_succ == nil then
-				d.saga_flag_freeze_succ = Attribute_holder.try_hold_attribute(v,"EntityFlag_FLAG_FREEZE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-			end
-			if d.saga_flag_no_sprite_update_succ == nil then
-				d.saga_flag_no_sprite_update_succ = Attribute_holder.try_hold_attribute(v,"EntityFlag_FLAG_NO_SPRITE_UPDATE",true,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-			end
+			Attribute_holder.ensure_hold_token(v, d, "saga_flag_freeze_succ", "EntityFlag_FLAG_FREEZE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
+			Attribute_holder.ensure_hold_token(v, d, "saga_flag_no_sprite_update_succ", "EntityFlag_FLAG_NO_SPRITE_UPDATE", true, Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
 			-- protect：与 auxi.time_stop 对齐，避免外部改 Position 把冻结原点吸走
-			if d.saga_flag_position_succ == nil then
-				d.saga_flag_position_succ = Attribute_holder.try_hold_attribute(v,"Position",Vector(v.Position.X,v.Position.Y),{protect = true,tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-			end
-			if d.saga_flag_velocity_succ == nil then
-				d.saga_flag_velocity_succ = Attribute_holder.try_hold_attribute(v,"Velocity",Vector(0,0),{protect = true,tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-			end
+			Attribute_holder.ensure_hold_token(v, d, "saga_flag_position_succ", "Position", Vector(v.Position.X,v.Position.Y), pos_cmp)
+			Attribute_holder.ensure_hold_token(v, d, "saga_flag_velocity_succ", "Velocity", Vector(0,0), pos_cmp)
 		end
 	end
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		local d = player:GetData()
-		if d.saga_flag_entitycollisionclass_none_succ == nil then
-			d.saga_flag_entitycollisionclass_none_succ = Attribute_holder.try_hold_attribute(player,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE)
-		end
-		if d.saga_data_should_not_attack_succ == nil then
-			d.saga_data_should_not_attack_succ = Attribute_holder.try_hold_attribute(player,"Data_should_not_attack",true,Attribute_holder.descriptors.data_field("should_not_attack"))
-		end
+		Attribute_holder.ensure_hold_token(player, d, "saga_flag_entitycollisionclass_none_succ", "EntityCollisionClass", EntityCollisionClass.ENTCOLL_NONE)
+		Attribute_holder.ensure_hold_token(player, d, "saga_data_should_not_attack_succ", "Data_should_not_attack", true, Attribute_holder.descriptors.data_field("should_not_attack"))
 	end
 	return true
 end
@@ -3954,38 +3947,27 @@ local function time_free()
 	if not saga_time_stop_active then return false end
 	saga_time_stop_active = false
 	saga_time_stop_refresh_frame = -999999
-	local n_entity = Isaac.GetRoomEntities() 
-	for u,v in pairs(n_entity) do 
+	local pos_cmp = {tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,}
+	local n_entity = Isaac.GetRoomEntities()
+	for u,v in pairs(n_entity) do
 		if item.unstopable[v.Type] == nil then
 			local d = v:GetData()
-			if d.saga_flag_freeze_succ then
-				Attribute_holder.try_rewind_attribute(v,"EntityFlag_FLAG_FREEZE",d.saga_flag_freeze_succ,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE))
-				d.saga_flag_freeze_succ = nil
-			end
-			if d.saga_flag_no_sprite_update_succ then
-				Attribute_holder.try_rewind_attribute(v,"EntityFlag_FLAG_NO_SPRITE_UPDATE",d.saga_flag_no_sprite_update_succ,Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE))
-				d.saga_flag_no_sprite_update_succ = nil
-			end
-			if d.saga_flag_position_succ then
-				Attribute_holder.try_rewind_attribute(v,"Position",d.saga_flag_position_succ,{tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-				d.saga_flag_position_succ = nil
-			end
-			if d.saga_flag_velocity_succ then
-				Attribute_holder.try_rewind_attribute(v,"Velocity",d.saga_flag_velocity_succ,{tocompare = function(v1,v2) return (v1 - v2):Length() < 0.001 end,})
-				d.saga_flag_velocity_succ = nil
-			end
+			local failed = false
+			if not Attribute_holder.rewind_hold_token(v, d, "saga_flag_freeze_succ", "EntityFlag_FLAG_FREEZE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_FREEZE)) then failed = true end
+			if not Attribute_holder.rewind_hold_token(v, d, "saga_flag_no_sprite_update_succ", "EntityFlag_FLAG_NO_SPRITE_UPDATE", Attribute_holder.descriptors.entity_flag(EntityFlag.FLAG_NO_SPRITE_UPDATE)) then failed = true end
+			if not Attribute_holder.rewind_hold_token(v, d, "saga_flag_position_succ", "Position", pos_cmp) then failed = true end
+			if not Attribute_holder.rewind_hold_token(v, d, "saga_flag_velocity_succ", "Velocity", pos_cmp) then failed = true end
+			if failed then Attribute_holder.force_clear_freeze_entity(v, {zero_velocity = true}) end
 		end
 	end
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		local d = player:GetData()
-		if d.saga_flag_entitycollisionclass_none_succ then
-			Attribute_holder.try_rewind_attribute(player,"EntityCollisionClass",d.saga_flag_entitycollisionclass_none_succ)
-			d.saga_flag_entitycollisionclass_none_succ = nil
+		if not Attribute_holder.rewind_hold_token(player, d, "saga_flag_entitycollisionclass_none_succ", "EntityCollisionClass") then
+			Attribute_holder.force_clear_freeze_entity(player, {grid_collision = false, entity_collision = EntityCollisionClass.ENTCOLL_PLAYER})
 		end
-		if d.saga_data_should_not_attack_succ then
-			Attribute_holder.try_rewind_attribute(player,"Data_should_not_attack",d.saga_data_should_not_attack_succ,{toget = function(ent) return ent:GetData().should_not_attack end,tochange = function(ent,value) ent:GetData().should_not_attack = value end,})
-			d.saga_data_should_not_attack_succ = nil
+		if not Attribute_holder.rewind_hold_token(player, d, "saga_data_should_not_attack_succ", "Data_should_not_attack", {toget = function(ent) return ent:GetData().should_not_attack end,tochange = function(ent,value) ent:GetData().should_not_attack = value end,}) then
+			d.should_not_attack = nil
 		end
 	end
 	return true
@@ -4079,6 +4061,13 @@ end
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_GET_SHADER_PARAMS, params = nil,		--璁板綍鏁板瓧
 Function = function(_,name)
 	if name == "Squiresaga" then
+		if auxi.shader_effect_idle() then
+			return {
+				info1 = {0,0,0,0,},
+				info2 = {0,0,0,0,},
+				should_work = 0,
+			}
+		end
 		if item.targ and (item.targ:Exists() == false or item.targ:IsDead() == true) then
 			item.targ = nil
 			item.render_sprite_pos = nil
