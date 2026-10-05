@@ -5,8 +5,8 @@
   "releaseChannel": "alpha",
   "storyScope": "prologue",
   "prerelease": true,
-  "buildMode": "local",
-  "sourceCommit": "c04d68f",
+  "buildMode": "actions",
+  "sourceCommit": "fdde52c",
   "fileCount": 3373,
-  "generatedAt": "2026-10-05T11:41:02Z"
+  "generatedAt": "2026-10-05T11:46:18Z"
 }
