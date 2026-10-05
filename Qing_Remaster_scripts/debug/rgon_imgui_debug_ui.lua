@@ -2772,23 +2772,41 @@ end
 	add_drag_float(theseus_group, "QingRemasterOptions_TheseusNoticeTriggerScale", text("theseus_trigger_scale"), {"QingRemasterOptions", "Debug", "TheseusNoticeTriggerScale"}, nil, 0.01, 0.2, 1.2)
 	add_drag_float(theseus_group, "QingRemasterOptions_TheseusNoticeArrowScale", text("theseus_arrow_scale"), {"QingRemasterOptions", "Debug", "TheseusNoticeArrowScale"}, nil, 0.05, 0.5, 2)
 	add_drag_float(theseus_group, "QingRemasterOptions_TheseusNoticeActionScale", text("theseus_action_scale"), {"QingRemasterOptions", "Debug", "TheseusNoticeActionScale"}, nil, 0.01, 0.2, 1.2)
+	if dev_env.probes_allowed() then
+		local ok_hotkey, anim_hotkey = pcall(require, "Qing_Remaster_scripts.debug.player_anim_hotkey_dev")
+		if ok_hotkey and anim_hotkey and anim_hotkey.build then
+			local zh_hotkey = language_key() == "zh"
+			local anim_hotkey_group = start_mod(
+				"visual_player_anim_hotkey",
+				DEBUG_PAGE.visual,
+				zh_hotkey and "玩家动画热键" or "Player Anim Hotkey",
+				"QingRemasterOptions_GroupPlayerAnimHotkey",
+				{path = {"Player Anim Hotkey"}, kind = "tool"}
+			)
+			anim_hotkey.build(anim_hotkey_group, api)
+		end
+	end
 	do
 		local restore_super_bombs = function()
 			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsBombGrowthSeconds"}, 20)
 			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsMamaGrowthSeconds"}, 120)
-			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsTimerX"}, -7)
-			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsTimerY"}, -8.25)
+			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsTimerX"}, -5)
+			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsTimerY"}, -5)
+			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsMamaTimerX"}, 5)
+			item.set_value({"QingRemasterOptions", "Debug", "SuperBombsMamaTimerY"}, 9)
 		end
 		local SUPER_BOMBS_CONTROLS = {
 			{key = "bomb_growth", kind = "drag_float", label = text("super_bombs_bomb_seconds"), path = {"QingRemasterOptions", "Debug", "SuperBombsBombGrowthSeconds"}, speed = 1, min = 1, max = 120, fmt = "%.0f s", help = text("super_bombs_bomb_seconds_help"), home = true},
 			{key = "mama_growth", kind = "drag_float", label = text("super_bombs_mama_seconds"), path = {"QingRemasterOptions", "Debug", "SuperBombsMamaGrowthSeconds"}, speed = 1, min = 1, max = 600, fmt = "%.0f s", help = text("super_bombs_mama_seconds_help"), home = true},
 			{key = "timer_x", kind = "drag_float", label = text("super_bombs_timer_x"), path = {"QingRemasterOptions", "Debug", "SuperBombsTimerX"}, speed = 0.25, min = -100, max = 100, fmt = "%.2f", help = text("super_bombs_timer_x_help"), home = true},
 			{key = "timer_y", kind = "drag_float", label = text("super_bombs_timer_y"), path = {"QingRemasterOptions", "Debug", "SuperBombsTimerY"}, speed = 0.25, min = -100, max = 100, fmt = "%.2f", help = text("super_bombs_timer_y_help"), home = true},
+			{key = "mama_timer_x", kind = "drag_float", label = text("super_bombs_mama_timer_x"), path = {"QingRemasterOptions", "Debug", "SuperBombsMamaTimerX"}, speed = 0.25, min = -100, max = 100, fmt = "%.2f", help = text("super_bombs_mama_timer_x_help"), home = true},
+			{key = "mama_timer_y", kind = "drag_float", label = text("super_bombs_mama_timer_y"), path = {"QingRemasterOptions", "Debug", "SuperBombsMamaTimerY"}, speed = 0.25, min = -100, max = 100, fmt = "%.2f", help = text("super_bombs_mama_timer_y_help"), home = true},
 		}
 		local super_bombs_group = start_mod("item_super_bombs", DEBUG_PAGE.items, text("group_super_bombs"), "QingRemasterOptions_GroupSuperBombs", {
 			path = {"Super Bombs"}, kind = "tool",
 			controls = SUPER_BOMBS_CONTROLS,
-			home = {enabled = true, controls = {"bomb_growth", "mama_growth", "timer_x", "timer_y"}},
+			home = {enabled = true, controls = {"bomb_growth", "mama_growth", "timer_x", "timer_y", "mama_timer_x", "mama_timer_y"}},
 			footer = {restore_label = text("restore_item_defaults"), restore = restore_super_bombs},
 		})
 		imgui_layout.render_control_spec(super_bombs_group, "item_super_bombs", SUPER_BOMBS_CONTROLS, "main")
@@ -3145,6 +3163,13 @@ end
 				air.crash_fx_restore_defaults()
 			end
 		end)
+	end
+	local attack_trigger_group = start_mod("system_attack_trigger", DEBUG_PAGE.systems, text("group_attack_callbacks"), "QingRemasterOptions_GroupAttackCallbacks", {path = {"Attack Trigger"}, kind = "tool"})
+	do
+		add_checkbox(attack_trigger_group, "QingRemasterOptions_TriggerLaserStart", text("trigger_laser_start"), {"Trigger_LaserStart"}, text("trigger_laser_start_help"))
+		add_checkbox(attack_trigger_group, "QingRemasterOptions_TriggerLaserEnd", text("trigger_laser_end"), {"Trigger_LaserEnd"}, text("trigger_laser_end_help"))
+		add_checkbox(attack_trigger_group, "QingRemasterOptions_TriggerBrimStart", text("trigger_brim_start"), {"Trigger_BrimStart"}, text("trigger_brim_start_help"))
+		add_checkbox(attack_trigger_group, "QingRemasterOptions_TriggerBrimEnd", text("trigger_brim_end"), {"Trigger_BrimEnd"}, text("trigger_brim_end_help"))
 	end
 	local temp_revive_group = start_mod("audit_temp_revive", DEBUG_PAGE.systems, text("group_temp_revive"), "QingRemasterOptions_GroupTempRevive", {path = {"Temporary Revive"}, kind = "tool"})
 	do

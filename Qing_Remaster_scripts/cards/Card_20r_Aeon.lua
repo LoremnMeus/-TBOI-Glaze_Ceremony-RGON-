@@ -611,7 +611,8 @@ local function record_pose(player, frame)
 	end
 
 	local visual_aim = resolve_recording_visual_aim(player, rec, frame)
-	if visual_aim then
+	-- visual_aim only chooses Head direction. Whether Head participates is the compositor's job.
+	if visual_aim and Ghost.body_accepts_directional_head(anim) then
 		local head_anim = aeon_replay.head_anim_from_direction(visual_aim)
 		if head_anim and head_anim ~= overlay_anim then
 			overlay_anim = head_anim

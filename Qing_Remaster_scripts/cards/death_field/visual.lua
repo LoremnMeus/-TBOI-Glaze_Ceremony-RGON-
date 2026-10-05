@@ -52,16 +52,18 @@ local function proxy_visual_center_screen(ent, host_sprite, callback_offset)
 	return base + Vector(voff.X * scale, voff.Y * scale)
 end
 
---- 旁挂条：Render 点使条的可见中心落在「虚影中心 + side_offset」
-local function overlay_render_pos(ent, host_sprite, bar_sprite, callback_offset, side_offset)
+--- 旁挂条：Render 点使条的可见中心落在「虚影中心 + side_offset * proxy scale」
+local function overlay_render_pos(ent, host_sprite, bar_sprite, callback_offset, side_offset, scale_x, scale_y)
+	scale_x = tonumber(scale_x) or 1
+	scale_y = tonumber(scale_y) or 1
 	local center = proxy_visual_center_screen(ent, host_sprite, callback_offset)
 	side_offset = side_offset or Vector.Zero
-	local target = center + side_offset
+	local target = center + Vector(side_offset.X * scale_x, side_offset.Y * scale_y)
 	if not bar_sprite then
 		return target
 	end
 	local bar_voff = ui.SpriteVisualCenterOffset(bar_sprite, 0)
-	return target - bar_voff
+	return target - Vector(bar_voff.X * scale_x, bar_voff.Y * scale_y)
 end
 
 local function ensure_sprite(d, key, anm2, frame_anim)
@@ -96,7 +98,7 @@ local function visible_fill_px(amount, maxc)
 	return math.max(1, math.min(CHARGEBAR_FILL_H, visible))
 end
 
-local function render_ui_chargebar(spr, main_charge, battery_charge, max_charge, screen, pulse)
+local function render_ui_chargebar(spr, main_charge, battery_charge, max_charge, screen, pulse, scale_x, scale_y)
 	if not spr or not max_charge or max_charge <= 0 then
 		return
 	end
@@ -104,6 +106,9 @@ local function render_ui_chargebar(spr, main_charge, battery_charge, max_charge,
 	local main = math.max(0, math.min(maxc, main_charge or 0))
 	local battery = math.max(0, math.min(maxc, battery_charge or 0))
 	local boost = (pulse or 0) * (C.CHARGE_PULSE_BOOST or 0.45)
+	scale_x = tonumber(scale_x) or 1
+	scale_y = tonumber(scale_y) or 1
+	spr.Scale = Vector(scale_x, scale_y)
 
 	spr:SetFrame("BarEmpty", 0)
 	spr.Color = Color(1, 1, 1, 1)
@@ -187,8 +192,7 @@ function M.apply_proxy_appearance(ent, entry, blend, activatable)
 
 	local alpha_focus = activatable and C.ALPHA_FOCUS or C.ALPHA_FOCUS_UNUSABLE
 	local alpha = lerp(alpha_idle, alpha_focus, blend)
-	local target_scale = activatable and (C.FOCUS_SCALE or 1.12) or 1.0
-	local scale = lerp(1.0, target_scale, blend)
+	local scale = lerp(C.PROXY_IDLE_SCALE or 0.78, C.PROXY_FOCUS_SCALE or 1.0, blend)
 	local target_lift = activatable and C.FOCUS_LIFT or (C.FOCUS_LIFT_UNUSABLE or 0.12)
 	local lift = target_lift * blend
 
@@ -226,7 +230,7 @@ function M.update_proxy(ent, entry, focused, activatable)
 	return blend
 end
 
-local function queue_ui_bar(spr, main_charge, battery_charge, maxc, screen, pulse)
+local function queue_ui_bar(spr, main_charge, battery_charge, maxc, screen, pulse, scale_x, scale_y)
 	overlay_queue[#overlay_queue + 1] = {
 		kind = "ui_bar",
 		sprite = spr,
@@ -235,6 +239,8 @@ local function queue_ui_bar(spr, main_charge, battery_charge, maxc, screen, puls
 		maxc = maxc,
 		screen = screen,
 		pulse = pulse,
+		scale_x = scale_x,
+		scale_y = scale_y,
 	}
 end
 
@@ -285,15 +291,22 @@ function M.render_proxy(ent, d, s, player, callback_offset)
 	if entry.kind == "active" then
 		local main, battery, maxc, ctype = charge.get_effective_charge(entry)
 		if maxc > 0 and ctype ~= ItemConfig.CHARGE_SPECIAL then
-			local spr = ensure_sprite(d, C.OWN_KEY .. "ui_bar", C.UI_CHARGEBAR_ANM2, "BarEmpty")
 			local pulse = tonumber(entry.charge_pulse) or 0
+			local spr = ensure_sprite(d, C.OWN_KEY .. "ui_bar", C.UI_CHARGEBAR_ANM2, "BarEmpty")
+			local sx, sy = 1, 1
+			if s and s.Scale then
+				sx = tonumber(s.Scale.X) or 1
+				sy = tonumber(s.Scale.Y) or 1
+			end
 			queue_ui_bar(
 				spr,
 				main,
 				battery,
 				maxc,
-				overlay_render_pos(ent, s, spr, callback_offset, C.UI_CHARGEBAR_OFFSET),
-				pulse
+				overlay_render_pos(ent, s, spr, callback_offset, C.UI_CHARGEBAR_OFFSET, sx, sy),
+				pulse,
+				sx,
+				sy
 			)
 		end
 	end
@@ -327,7 +340,9 @@ function M.flush_overlays()
 				job.battery_charge,
 				job.maxc,
 				job.screen,
-				job.pulse
+				job.pulse,
+				job.scale_x,
+				job.scale_y
 			)
 		elseif job.kind == "hold_bar" then
 			render_hold_bar(job.sprite, job.percent, job.screen)

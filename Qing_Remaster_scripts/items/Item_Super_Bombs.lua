@@ -2,7 +2,6 @@ local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
-local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
@@ -24,8 +23,47 @@ local item = {
 local growth_sprite = Sprite()
 growth_sprite:Load("gfx/mimics/Super_Bombs/super_bombs_hud.anm2",true)
 
-local timer_font = Font()
-timer_font:Load("font/luaminioutlined.fnt")
+local timer_h_sprite = Sprite()
+timer_h_sprite:Load("gfx/mimics/Super_Bombs/segment_h.anm2",true)
+timer_h_sprite:Play("Idle",true)
+
+local timer_v_sprite = Sprite()
+timer_v_sprite:Load("gfx/mimics/Super_Bombs/segment_v.anm2",true)
+timer_v_sprite:Play("Idle",true)
+
+local timer_dot_sprite = Sprite()
+timer_dot_sprite:Load("gfx/mimics/Super_Bombs/segment_dot.anm2",true)
+timer_dot_sprite:Play("Idle",true)
+
+local timer_digit_segments = {
+	["0"] = {"A","B","C","D","E","F"},
+	["1"] = {"B","C"},
+	["2"] = {"A","B","D","E","G"},
+	["3"] = {"A","B","C","D","G"},
+	["4"] = {"B","C","F","G"},
+	["5"] = {"A","C","D","F","G"},
+	["6"] = {"A","C","D","E","F","G"},
+	["7"] = {"A","B","C"},
+	["8"] = {"A","B","C","D","E","F","G"},
+	["9"] = {"A","B","C","D","F","G"},
+}
+
+local timer_segment_positions = {
+	A = Vector(1,0),
+	F = Vector(0,1),
+	B = Vector(6,1),
+	G = Vector(1,4),
+	E = Vector(0,5),
+	C = Vector(6,5),
+	D = Vector(1,8),
+}
+
+local timer_digit_advance = 8
+local timer_dot_position = Vector(1,8)
+local timer_dot_advance = 2
+local timer_colon_top_position = Vector(0,2)
+local timer_colon_bottom_position = Vector(0,5)
+local timer_colon_advance = 2
 
 local function get_debug_setting(setting,default_value)
 	local root = save.ModConfigSettings
@@ -34,8 +72,9 @@ local function get_debug_setting(setting,default_value)
 end
 
 local function get_growth_frames(setting,default_seconds)
+	-- bomb_timer / mama_timer advance on MC_POST_PLAYER_UPDATE (60Hz).
 	local seconds = get_debug_setting(setting,default_seconds)
-	return math.max(1,math.floor(seconds * 30 + 0.5))
+	return math.max(1,math.floor(seconds * 60 + 0.5))
 end
 
 local function get_bomb_growth_frames()
@@ -156,6 +195,148 @@ local function get_render_info(player)
 	if player:GetNumGigaBombs() > 0 and not has_primary_active(player) then
 		return "mama",state.mama_timer,get_mama_growth_frames(),state
 	end
+end
+
+local function round_timer_position(position)
+	return Vector(
+		math.floor(position.X + 0.5),
+		math.floor(position.Y + 0.5)
+	)
+end
+
+local function get_timer_segment_sprite(segment)
+	if segment == "A" or segment == "D" or segment == "G" then
+		return timer_h_sprite
+	end
+	return timer_v_sprite
+end
+
+local function render_timer_sprite(sprite,position,color)
+	sprite.Scale = Vector(1,1)
+	sprite.Color = color
+	sprite:Render(
+		round_timer_position(position),
+		Vector.Zero,
+		Vector.Zero
+	)
+end
+
+local function get_timer_brightness(remaining_seconds)
+	local frame = Game():GetFrameCount()
+
+	if remaining_seconds <= 2 then
+		if math.floor(frame / 8) % 2 == 0 then
+			return 1
+		end
+		return 0.65
+	end
+
+	if remaining_seconds <= 5 then
+		local wave = 0.5 + 0.5 * math.sin(frame / 12)
+		return 0.85 + 0.15 * wave
+	end
+
+	return 1
+end
+
+local function render_timer_digit(position,digit,hud_alpha,remaining_seconds)
+	local lit_segments = timer_digit_segments[digit]
+	if not lit_segments then return end
+
+	local brightness = get_timer_brightness(remaining_seconds)
+	local on_color = Color(1,0.05,0.05,hud_alpha * brightness)
+
+	for _,segment in ipairs(lit_segments) do
+		local sprite = get_timer_segment_sprite(segment)
+		render_timer_sprite(sprite,position + timer_segment_positions[segment],on_color)
+	end
+end
+
+local function render_timer_dot(position,hud_alpha,remaining_seconds)
+	local brightness = get_timer_brightness(remaining_seconds)
+	render_timer_sprite(
+		timer_dot_sprite,
+		position + timer_dot_position,
+		Color(1,0.05,0.05,hud_alpha * brightness)
+	)
+end
+
+local function render_timer_colon(position,hud_alpha,remaining_seconds)
+	local brightness = get_timer_brightness(remaining_seconds)
+	local color = Color(1,0.05,0.05,hud_alpha * brightness)
+	render_timer_sprite(timer_dot_sprite,position + timer_colon_top_position,color)
+	render_timer_sprite(timer_dot_sprite,position + timer_colon_bottom_position,color)
+end
+
+local function get_timer_character_advance(character)
+	if timer_digit_segments[character] then
+		return timer_digit_advance
+	end
+	if character == "." then
+		return timer_dot_advance
+	end
+	if character == ":" then
+		return timer_colon_advance
+	end
+	return 0
+end
+
+local function measure_timer_text(text)
+	local width = 0
+	for index = 1,#text do
+		width = width + get_timer_character_advance(string.sub(text,index,index))
+	end
+	return width
+end
+
+local function render_timer_text(position,text,hud_alpha,remaining_seconds)
+	local cursor_x = position.X
+	for index = 1,#text do
+		local character = string.sub(text,index,index)
+		local character_position = Vector(cursor_x,position.Y)
+		if timer_digit_segments[character] then
+			render_timer_digit(character_position,character,hud_alpha,remaining_seconds)
+		elseif character == "." then
+			render_timer_dot(character_position,hud_alpha,remaining_seconds)
+		elseif character == ":" then
+			render_timer_colon(character_position,hud_alpha,remaining_seconds)
+		end
+		cursor_x = cursor_x + get_timer_character_advance(character)
+	end
+end
+
+local function format_timer(counter,maximum)
+	-- counter/maximum are PLAYER_UPDATE ticks (60Hz); growth.frame stays on its own timeline.
+	local remaining_seconds = math.max(0,maximum - counter) / 60
+	if maximum >= 60 * 60 then
+		local seconds = math.ceil(remaining_seconds)
+		return string.format(
+			"%d:%02d",
+			math.floor(seconds / 60),
+			seconds % 60
+		),remaining_seconds
+	end
+	local shown = math.ceil(remaining_seconds * 10 - 0.000001) / 10
+	return string.format("%.1f",shown),remaining_seconds
+end
+
+local function get_timer_position(player,growth_type,timer_width)
+	if growth_type == "mama" then
+		local anchor = ui.PlayerActiveUIPos(
+			player,
+			ActiveSlot.SLOT_PRIMARY,
+			auxi.GetPlayerOrder(player),
+			CollectibleType.COLLECTIBLE_MAMA_MEGA
+		)
+		local timer_x = get_debug_setting("SuperBombsMamaTimerX",5)
+		local timer_y = get_debug_setting("SuperBombsMamaTimerY",9)
+		return anchor + Vector(timer_x - timer_width,timer_y)
+	end
+
+	local anchor = ui.UIBombPos(auxi.is_double_player())
+	local timer_x = get_debug_setting("SuperBombsTimerX",-5)
+	local timer_y = get_debug_setting("SuperBombsTimerY",-5)
+	return anchor + Vector(timer_x - timer_width,timer_y)
 end
 
 local function lerp(a,b,progress)
@@ -279,22 +460,19 @@ Function = function(_)
 		if auxi.has_have_coll(player,item.entity) then
 			local growth_type,counter,maximum,state = get_render_info(player)
 			if growth_type then
-				local position = ui.UIBombPos(auxi.is_double_player())
+				local bomb_position = ui.UIBombPos(auxi.is_double_player())
 				local alpha = slot_render_holder.get_alpha()
-				render_growth_icon(position,growth_type,state,alpha,player)
+				-- 成长图标始终从炸弹栏出发；Mama 倒计时单独锚在主主动槽。
+				render_growth_icon(bomb_position,growth_type,state,alpha,player)
 				if not state.growth then
-					local remaining = math.max(0,maximum - counter) / 30
-					local text
-					if maximum >= 60 * 30 then
-						local seconds = math.ceil(remaining)
-						text = string.format("%d:%02d",math.floor(seconds / 60),seconds % 60)
-					else
-						text = string.format("%.1f",remaining)
-					end
-					local text_width = timer_font:GetStringWidthUTF8(text)
-					local timer_x = get_debug_setting("SuperBombsTimerX",-7)
-					local timer_y = get_debug_setting("SuperBombsTimerY",-8.25)
-					gui.draw_ch(position + Vector(timer_x - text_width,timer_y),text,1,1,KColor(1,0.05,0.05,alpha),true,timer_font)
+					local text,remaining_seconds = format_timer(counter,maximum)
+					local timer_width = measure_timer_text(text)
+					render_timer_text(
+						get_timer_position(player,growth_type,timer_width),
+						text,
+						alpha,
+						remaining_seconds
+					)
 				end
 			end
 			break

@@ -3,7 +3,7 @@
 -- content_scope is decided here, not by parsing the version string in Lua.
 return {
     public = true,
-    project_version = "alpha-0.1.0",
+    project_version = "alpha-0.1.1",
     release_channel = "alpha",
     content_scope = {
         story_max_chapter = "prologue",

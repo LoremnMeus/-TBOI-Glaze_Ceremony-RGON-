@@ -23,12 +23,13 @@ local C = {
 	INITIAL_RADIUS = 84, -- 首次进场确定性环形半径
 	INITIAL_BASE_ANGLE = 22.5, -- 度；半格旋转，减轻挡门
 
-	ALPHA_IDLE = 0.62,
-	ALPHA_FOCUS = 1.0,
+	ALPHA_IDLE = 0.48,
+	ALPHA_FOCUS = 0.95,
 	ALPHA_FOCUS_UNUSABLE = 0.82, -- soft focus：选中但不可立即发动
-	ALPHA_UNCHARGED = 0.42,
+	ALPHA_UNCHARGED = 0.32,
 
-	FOCUS_SCALE = 1.12, -- 聚焦且可发动：平滑放大
+	PROXY_IDLE_SCALE = 0.78, -- 常驻虚影：背景信息，不占满战斗画面
+	PROXY_FOCUS_SCALE = 1.00, -- 焦点恢复到原版 Pickup 尺寸；不再额外放大
 	FOCUS_LIFT = 0.35, -- 可发动选中：Offset 提亮（无 Colorize）
 	FOCUS_LIFT_UNUSABLE = 0.12, -- soft focus：轻度提亮，不放大
 	FOCUS_BLEND_SPEED = 0.45, -- 仅 30Hz EFFECT update 推进一次（勿在 render 再 tick）

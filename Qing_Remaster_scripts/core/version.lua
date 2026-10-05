@@ -1,3 +1,3 @@
 return {
-    project = "alpha-0.1.0",
+    project = "alpha-0.1.1",
 }

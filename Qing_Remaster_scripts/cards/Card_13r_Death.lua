@@ -68,6 +68,20 @@ local function rebuild_field_players()
 	for i = 0, Game():GetNumPlayers() - 1 do
 		local player = Game():GetPlayer(i)
 		if player then
+			local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+			if type(probe) == "table" and type(probe.record_external) == "function" then
+				local idx = state.player_index(player)
+				local field = state.get_field(player)
+				pcall(probe.record_external, {
+					source = "death_field",
+					event = "DEATH_FIELD_REBUILD_CHECK",
+					player = i,
+					idx = tostring(idx),
+					field_exists = field ~= nil,
+					active = state.is_active(player),
+					entries = state.entry_count(player),
+				})
+			end
 			interaction.on_new_room(player)
 		end
 	end

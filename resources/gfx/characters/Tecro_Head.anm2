@@ -1,11 +1,11 @@
-﻿<AnimatedActor>
-	<Info CreatedBy="robot" CreatedOn="2022/6/1 20:30:39" Version="134" Fps="30"/>
+<AnimatedActor>
+	<Info CreatedBy="robot" CreatedOn="2026/10/5 0:50:23" Version="136" Fps="30"/>
 	<Content>
 		<Spritesheets>
 			<Spritesheet Path="costumes\Tecro_Head.png" Id="0"/>
 		</Spritesheets>
 		<Layers>
-			<Layer Name="head4" Id="0" SpritesheetId="0"/>
+			<Layer Name="head0" Id="0" SpritesheetId="0"/>
 		</Layers>
 		<Nulls/>
 		<Events/>

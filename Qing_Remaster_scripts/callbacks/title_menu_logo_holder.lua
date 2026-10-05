@@ -82,18 +82,20 @@ local function rainbow_solo_enabled()
 	return option_flag({"QingRemasterOptions", "Menu", "TitleLogoRainbowSolo"}, false)
 end
 
-local function title_lum_range(for_text)
+local function title_lum_range(for_text, lang)
 	local options = get_options_holder()
-	local low_key = for_text and "TitleLogoRainbowTextLumLow" or "TitleLogoRainbowLumLow"
-	local high_key = for_text and "TitleLogoRainbowTextLumHigh" or "TitleLogoRainbowLumHigh"
-	local low = for_text and DEFAULT_TEXT_LUM_LOW or DEFAULT_LUM_LOW
-	local high = for_text and DEFAULT_TEXT_LUM_HIGH or DEFAULT_LUM_HIGH
+	-- 中文小字与大标题同色域；英文小字仍用窄窗 0.05–0.10。
+	local use_text_window = for_text == true and lang ~= "zh"
+	local low_key = use_text_window and "TitleLogoRainbowTextLumLow" or "TitleLogoRainbowLumLow"
+	local high_key = use_text_window and "TitleLogoRainbowTextLumHigh" or "TitleLogoRainbowLumHigh"
+	local low = use_text_window and DEFAULT_TEXT_LUM_LOW or DEFAULT_LUM_LOW
+	local high = use_text_window and DEFAULT_TEXT_LUM_HIGH or DEFAULT_LUM_HIGH
 	if options and options.get_value then
 		low = tonumber(options.get_value({"QingRemasterOptions", "Menu", low_key})) or low
 		high = tonumber(options.get_value({"QingRemasterOptions", "Menu", high_key})) or high
 	end
-	local fallback_low = for_text and DEFAULT_TEXT_LUM_LOW or DEFAULT_LUM_LOW
-	local fallback_high = for_text and DEFAULT_TEXT_LUM_HIGH or DEFAULT_LUM_HIGH
+	local fallback_low = use_text_window and DEFAULT_TEXT_LUM_LOW or DEFAULT_LUM_LOW
+	local fallback_high = use_text_window and DEFAULT_TEXT_LUM_HIGH or DEFAULT_LUM_HIGH
 	if high <= low + 0.001 then
 		return fallback_low, fallback_high
 	end
@@ -109,8 +111,8 @@ local function title_option_number(key, default)
 	return default
 end
 
-local function make_title_rainbow_color(alpha, for_text)
-	local lum_low, lum_high = title_lum_range(for_text == true)
+local function make_title_rainbow_color(alpha, for_text, lang)
+	local lum_low, lum_high = title_lum_range(for_text == true, lang)
 	local dir = title_option_number("TitleLogoRainbowDirection", DEFAULT_ROLL_DIRECTION)
 	if dir < 0 then
 		dir = -1
@@ -182,7 +184,7 @@ end
 local function logo_sheet_for_lang(lang)
 	local cfg = title_logo_cfg()
 	if not cfg then return nil end
-	-- 中文贴图未实装前不得 Replace 到 cfg.zh（缺文件 → 空白叠层）。实装后设 title_logo.zh_ready = true。
+	-- zh_ready=false 时不 Replace 到 cfg.zh（缺文件会空白叠层）。
 	if lang == "zh" then
 		if cfg.zh_ready == true and type(cfg.zh) == "string" and cfg.zh ~= "" then
 			return cfg.zh
@@ -260,8 +262,8 @@ function item.rainbow_debug_status()
 	if not rainbow then
 		return "not loaded yet (open title screen)"
 	end
-	local t_lo, t_hi = title_lum_range(false)
-	local x_lo, x_hi = title_lum_range(true)
+	local t_lo, t_hi = title_lum_range(false, rainbow_lang)
+	local x_lo, x_hi = title_lum_range(true, rainbow_lang)
 	local parts = {
 		"loaded",
 		"lang=" .. tostring(rainbow_lang or "?"),
@@ -286,12 +288,19 @@ function item.rainbow_debug_status()
 	return table.concat(parts, ", ")
 end
 
-local function apply_lang_sheet(spr, spritesheet_id, lang)
+-- ReplaceSpritesheet 的第一参是 LayerId：换一层不会带动共用同一 png 的其它层。
+local function apply_lang_layers(spr, layer_ids, lang)
 	if not spr then return false end
 	local sheet = logo_sheet_for_lang(lang)
 	if not sheet then return false end
+	local ids = layer_ids
+	if type(ids) ~= "table" then
+		ids = { ids }
+	end
 	local ok, err = pcall(function()
-		spr:ReplaceSpritesheet(spritesheet_id, sheet, true)
+		for i = 1, #ids do
+			spr:ReplaceSpritesheet(ids[i], sheet, false)
+		end
 		spr:LoadGraphics()
 	end)
 	if not ok then
@@ -301,43 +310,61 @@ local function apply_lang_sheet(spr, spritesheet_id, lang)
 	return true
 end
 
+local function hide_overlay_unused_layers(spr)
+	if not spr then return end
+	set_layer_visible(spr, 0, false)
+	set_layer_visible(spr, 1, false)
+	set_layer_visible(spr, 3, false)
+end
+
+-- titlemenu_replace.anm2 SpritesheetId=1 → logo_replace*.png；换语言时必须 Load+Replace，
+-- 否则底座仍停在英文木条小字，只有彩虹大标题层换成中文。
+local function bind_overlay_sheet(spr, anm2, lang)
+	if not spr then return false end
+	local sheet_lang = lang or "en"
+	if not logo_sheet_for_lang(sheet_lang) then
+		sheet_lang = "en"
+	end
+	local ok_load = pcall(function()
+		spr:Load(anm2, true)
+		spr:Play("Idle", true)
+	end)
+	if not ok_load then return false end
+	hide_overlay_unused_layers(spr)
+	if sheet_lang == "zh" then
+		-- Logo=2 / LogoShadow=3，不是 Drawing=1
+		if not apply_lang_layers(spr, { LAYER_LOGO, LAYER_VANILLA_LOGO_SHADOW }, "zh") then
+			return false
+		end
+	end
+	overlay_lang = sheet_lang
+	return true
+end
+
 local function ensure_overlay(lang)
 	local cfg = title_logo_cfg()
 	if not cfg or cfg.enabled == false or not custom_logo_enabled() then return nil end
 	local anm2 = type(cfg.anm2) == "string" and cfg.anm2 or "gfx/ui/main menu/titlemenu_replace.anm2"
+	local sheet_lang = lang or "en"
+	if not logo_sheet_for_lang(sheet_lang) then
+		sheet_lang = "en"
+	end
 	if not overlay then
 		overlay = Sprite()
-		local ok = pcall(function()
-			overlay:Load(anm2, true)
-			overlay:Play("Idle", true)
-		end)
-		if not ok or not overlay or overlay.GetLayerCount == nil then
+		if not bind_overlay_sheet(overlay, anm2, sheet_lang) then
 			overlay = nil
 			overlay_lang = nil
 			return nil
 		end
-		set_layer_visible(overlay, 0, false)
-		set_layer_visible(overlay, 1, false)
-		set_layer_visible(overlay, 3, false)
-		overlay_lang = "en"
+		return overlay
 	end
-	if lang == "zh" and overlay_lang ~= "zh" then
-		if apply_lang_sheet(overlay, 1, "zh") then
-			overlay_lang = "zh"
+	if overlay_lang ~= sheet_lang then
+		if not bind_overlay_sheet(overlay, anm2, sheet_lang) then
+			return overlay
 		end
-	elseif lang ~= "zh" and overlay_lang == "zh" then
-		pcall(function()
-			overlay:Load(anm2, true)
-			overlay:Play("Idle", true)
-		end)
-		set_layer_visible(overlay, 0, false)
-		set_layer_visible(overlay, 1, false)
-		set_layer_visible(overlay, 3, false)
-		overlay_lang = lang
 	end
 	return overlay
 end
-
 local function rainbow_anm2_path()
 	local cfg = title_logo_cfg()
 	if cfg and type(cfg.rainbow_anm2) == "string" and cfg.rainbow_anm2 ~= "" then
@@ -379,7 +406,7 @@ local function ensure_rainbow(lang)
 			return nil
 		end
 		-- 必须显式绑到存在的 en sheet；缺 zh 文件时 Replace 会留下空白贴图
-		if not apply_lang_sheet(rainbow, 0, sheet_lang) then
+		if not apply_lang_layers(rainbow, { RAINBOW_LAYER_TITLE, RAINBOW_LAYER_TEXT }, sheet_lang) then
 			rainbow_last_error = "sheet bind failed lang=" .. tostring(sheet_lang)
 			rainbow = nil
 			rainbow_lang = nil
@@ -402,7 +429,7 @@ local function ensure_rainbow(lang)
 			rainbow:Load(anm2, true)
 			rainbow:Play("Idle", true)
 		end)
-		if apply_lang_sheet(rainbow, 0, sheet_lang) then
+		if apply_lang_layers(rainbow, { RAINBOW_LAYER_TITLE, RAINBOW_LAYER_TEXT }, sheet_lang) then
 			apply_title_rainbow_shader(rainbow)
 			rainbow_shader_applied = true
 			refresh_rainbow_shader_flag(rainbow)
@@ -453,10 +480,9 @@ local function render_logo_overlay()
 				rainbow_shader_applied = true
 				refresh_rainbow_shader_flag(rainbow_spr)
 			end
-			-- 上半大标题 / 下半小字：各自 Colorize lum 映射
-			rainbow_spr.Color = make_title_rainbow_color(1, false)
+			rainbow_spr.Color = make_title_rainbow_color(1, false, lang)
 			rainbow_spr:RenderLayer(RAINBOW_LAYER_TITLE, screen, Vector.Zero, Vector.Zero)
-			rainbow_spr.Color = make_title_rainbow_color(1, true)
+			rainbow_spr.Color = make_title_rainbow_color(1, true, lang)
 			rainbow_spr:RenderLayer(RAINBOW_LAYER_TEXT, screen, Vector.Zero, Vector.Zero)
 		end)
 		rainbow_last_render_ok = ok_render == true

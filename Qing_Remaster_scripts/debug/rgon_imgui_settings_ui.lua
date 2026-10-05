@@ -81,6 +81,16 @@ local function add_card_rates_group(parent_id)
 	end)
 end
 
+	local schema = require("Qing_Remaster_scripts.others.mod_config_schema")
+	local function schema_label(key)
+		local entry = schema.entry(key)
+		return entry and schema.entry_text(entry, "label") or text(key)
+	end
+	local function schema_help(key)
+		local entry = schema.entry(key)
+		return entry and schema.entry_text(entry, "help") or nil
+	end
+
 	local settings_item = item.menu_id.."_SettingsItem"
 	local window_id = item.settings_id
 	local tabbar = window_id.."_TabBar"
@@ -88,6 +98,7 @@ end
 		Compatibility = tabbar.."_Compatibility",
 		Gameplay = tabbar.."_Gameplay",
 		HUD = tabbar.."_HUD",
+		Controls = tabbar.."_Controls",
 		Cards = tabbar.."_Cards",
 	}
 
@@ -99,26 +110,59 @@ end
 	ImGui.AddTab(tabbar, tabs.Compatibility, text("tab_compatibility"))
 	ImGui.AddTab(tabbar, tabs.Gameplay, text("tab_gameplay"))
 	ImGui.AddTab(tabbar, tabs.HUD, text("tab_hud"))
+	ImGui.AddTab(tabbar, tabs.Controls, text("tab_controls"))
 	ImGui.AddTab(tabbar, tabs.Cards, text("tab_cards"))
 
 	local compatibility_rgon = add_group(tabs.Compatibility, "QingRemasterOptions_GroupCompatibilityRgon", text("group_rgon"))
-	add_checkbox(compatibility_rgon, "QingRemasterOptions_UseRgonImitateItems", text("use_rgon_imitate"), {"QingRemasterOptions", "Compatibility", "UseRgonImitateItems"}, text("use_rgon_imitate_help"))
+	add_checkbox(compatibility_rgon, "QingRemasterOptions_UseRgonImitateItems", schema_label("UseRgonImitateItems"), {"QingRemasterOptions", "Compatibility", "UseRgonImitateItems"}, schema_help("UseRgonImitateItems"))
 
 	local gameplay_runtime = add_group(tabs.Gameplay, "QingRemasterOptions_GroupGameplayRuntime", text("group_runtime"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_ItemsAllow", text("items_allow"), {"Items_allow"}, text("existing_setting"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_TrinketsAllow", text("trinkets_allow"), {"Trinkets_allow"}, text("existing_setting"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_PickupAllow", text("pickup_allow"), {"Pickup_allow"}, text("existing_setting"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_BossAllow", text("boss_allow"), {"Boss_allow"}, text("existing_setting"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementAllow", text("achievement_allow"), {"Achievement_allow"}, text("existing_setting"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementPoolGating", text("achievement_pool_gating"), {"Achievement_pool_gating"}, text("achievement_pool_gating_help"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementTrinketGating", text("achievement_trinket_gating"), {"Achievement_trinket_gating"}, text("achievement_trinket_gating_help"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementCardGating", text("achievement_card_gating"), {"Achievement_card_gating"}, text("achievement_card_gating_help"))
-	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementPickupGating", text("achievement_pickup_gating"), {"Achievement_pickup_gating"}, text("achievement_pickup_gating_help"))
-	local gameplay_callbacks = add_group(tabs.Gameplay, "QingRemasterOptions_GroupAttackCallbacks", text("group_attack_callbacks"))
-	add_checkbox(gameplay_callbacks, "QingRemasterOptions_TriggerLaserStart", text("trigger_laser_start"), {"Trigger_LaserStart"}, text("trigger_laser_start_help"))
-	add_checkbox(gameplay_callbacks, "QingRemasterOptions_TriggerLaserEnd", text("trigger_laser_end"), {"Trigger_LaserEnd"}, text("trigger_laser_end_help"))
-	add_checkbox(gameplay_callbacks, "QingRemasterOptions_TriggerBrimStart", text("trigger_brim_start"), {"Trigger_BrimStart"}, text("trigger_brim_start_help"))
-	add_checkbox(gameplay_callbacks, "QingRemasterOptions_TriggerBrimEnd", text("trigger_brim_end"), {"Trigger_BrimEnd"}, text("trigger_brim_end_help"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_ItemsAllow", schema_label("Items_allow"), {"Items_allow"}, schema_help("Items_allow"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_TrinketsAllow", schema_label("Trinkets_allow"), {"Trinkets_allow"}, schema_help("Trinkets_allow"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_PickupAllow", schema_label("Pickup_allow"), {"Pickup_allow"}, schema_help("Pickup_allow"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_BossAllow", schema_label("Boss_allow"), {"Boss_allow"}, schema_help("Boss_allow"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_AutoLive", schema_label("Auto_Live"), {"Auto_Live"}, schema_help("Auto_Live"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementAllow", schema_label("Achievement_allow"), {"Achievement_allow"}, schema_help("Achievement_allow"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementPoolGating", schema_label("Achievement_pool_gating"), {"Achievement_pool_gating"}, schema_help("Achievement_pool_gating"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementTrinketGating", schema_label("Achievement_trinket_gating"), {"Achievement_trinket_gating"}, schema_help("Achievement_trinket_gating"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementCardGating", schema_label("Achievement_card_gating"), {"Achievement_card_gating"}, schema_help("Achievement_card_gating"))
+	add_checkbox(gameplay_runtime, "QingRemasterOptions_AchievementPickupGating", schema_label("Achievement_pickup_gating"), {"Achievement_pickup_gating"}, schema_help("Achievement_pickup_gating"))
+
+	local controls_group = add_group(tabs.Controls, "QingRemasterOptions_GroupControls", text("group_controls"))
+	local function add_keyboard_binding(entry_key, element_id)
+		local entry = schema.entry(entry_key)
+		if not entry then return end
+		ImGui.AddInputKeyboard(controls_group, element_id, schema.entry_text(entry, "label"), function(code)
+			schema.write(entry, tonumber(code))
+		end, tonumber(schema.read(entry)) or 0)
+		ImGui.AddCallback(element_id, ImGuiCallback.Render, function()
+			ImGui.UpdateData(element_id, ImGuiData.Value, tonumber(schema.read(entry)) or 0)
+		end)
+		imgui_layout.set_helpmarker(element_id, schema.entry_text(entry, "help"))
+	end
+	add_keyboard_binding("thor_key", "QingRemasterOptions_ThorKey")
+	local thor_controller_entry = schema.entry("thor_controller")
+	ImGui.AddInputInteger(controls_group, "QingRemasterOptions_ThorController", schema.entry_text(thor_controller_entry, "label"), function(value)
+		schema.write(thor_controller_entry, math.floor(tonumber(value) or 0))
+	end, tonumber(schema.read(thor_controller_entry)) or 12, 1, 4)
+	ImGui.AddCallback("QingRemasterOptions_ThorController", ImGuiCallback.Render, function()
+		ImGui.UpdateData("QingRemasterOptions_ThorController", ImGuiData.Value, tonumber(schema.read(thor_controller_entry)) or 12)
+	end)
+	imgui_layout.set_helpmarker("QingRemasterOptions_ThorController", schema.entry_text(thor_controller_entry, "help"))
+	add_keyboard_binding("Off_air_key", "QingRemasterOptions_OffAirKey")
+	add_checkbox(controls_group, "QingRemasterOptions_AllowMouseControl", schema_label("allow_mouse_control"), {"allow_mouse_control"}, schema_help("allow_mouse_control"))
+	local mouse_entry = schema.entry("mouseSupport")
+	local mouse_labels = {}
+	for index, choice in ipairs(mouse_entry.choices) do
+		mouse_labels[index] = schema.choice_label(choice)
+	end
+	ImGui.AddCombobox(controls_group, "QingRemasterOptions_MouseSupport", schema.entry_text(mouse_entry, "label"), function(index)
+		schema.write(mouse_entry, (tonumber(index) or 0) + 1)
+	end, mouse_labels, math.max(0, schema.mouse_mode() - 1))
+	ImGui.AddCallback("QingRemasterOptions_MouseSupport", ImGuiCallback.Render, function()
+		ImGui.UpdateData("QingRemasterOptions_MouseSupport", ImGuiData.Value, math.max(0, schema.mouse_mode() - 1))
+	end)
+	imgui_layout.set_helpmarker("QingRemasterOptions_MouseSupport", schema.entry_text(mouse_entry, "help"))
 
 	local hud_imitate = add_group(tabs.HUD, "QingRemasterOptions_GroupHudImitate", text("group_hud_imitate"))
 	add_text(hud_imitate, text("temp_hud_layout_help"))
@@ -150,6 +194,52 @@ end
 			if holder.apply_language then holder.apply_language(true) end
 		end
 	end
+	local function refresh_title_logo_settings()
+		local holder = require("Qing_Remaster_scripts.callbacks.title_menu_logo_holder")
+		if holder then
+			if holder.reset_overlay_cache then holder.reset_overlay_cache() end
+			if holder.refresh_vanilla_logo then holder.refresh_vanilla_logo() end
+		end
+	end
+	local function set_all_menu_languages(mode)
+		local holder = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
+		if holder and holder.set_all_force_modes then
+			holder.set_all_force_modes(mode)
+			return
+		end
+		for _, key in ipairs({
+			"CharacterSelectLanguage",
+			"ControlsLanguage",
+			"GameOverLanguage",
+			"TitleLogoLanguage",
+		}) do
+			item.set_value({"QingRemasterOptions", "Menu", key}, mode)
+		end
+		apply_menu_language()
+		refresh_title_logo_settings()
+	end
+	local force_all_group = add_group(tabs.HUD, "QingRemasterOptions_GroupMenuLangForceAll", text("group_menu_lang_force_all"))
+	add_text(force_all_group, text("menu_lang_force_all_help"))
+	local force_all_status_id = "QingRemasterOptions_MenuLangForceAllStatus"
+	imgui_layout.add_wrapped_text(force_all_group, force_all_status_id, "")
+	ImGui.AddCallback(force_all_status_id, ImGuiCallback.Render, function()
+		local holder = require("Qing_Remaster_scripts.callbacks.rgon_menu_language_holder")
+		local sheets, game_lang = "en/en/en/en", "en"
+		if holder and holder.describe_all_force_status then
+			sheets, game_lang = holder.describe_all_force_status()
+		end
+		imgui_layout.update_text(force_all_status_id, string.format(text("menu_lang_force_all_status"), sheets, game_lang))
+	end)
+	ImGui.AddButton(force_all_group, "QingRemasterOptions_MenuLangForceAllAuto", text("character_menu_lang_auto"), function()
+		set_all_menu_languages(0)
+	end)
+	ImGui.AddButton(force_all_group, "QingRemasterOptions_MenuLangForceAllZh", text("character_menu_lang_zh"), function()
+		set_all_menu_languages(1)
+	end)
+	ImGui.AddButton(force_all_group, "QingRemasterOptions_MenuLangForceAllEn", text("character_menu_lang_en"), function()
+		set_all_menu_languages(2)
+	end)
+
 	local function add_menu_language_group(setting_key, group_text_key, help_key, status_key, id_stem, on_apply)
 		local function set_mode(mode)
 			item.set_value({"QingRemasterOptions", "Menu", setting_key}, mode)
@@ -183,13 +273,6 @@ end
 	add_menu_language_group("ControlsLanguage", "group_controls_lang", "controls_lang_help", "controls_lang_status", "Controls")
 	add_menu_language_group("GameOverLanguage", "group_game_over_lang", "game_over_lang_help", "game_over_lang_status", "GameOver")
 
-	local function refresh_title_logo_settings()
-		local holder = require("Qing_Remaster_scripts.callbacks.title_menu_logo_holder")
-		if holder then
-			if holder.reset_overlay_cache then holder.reset_overlay_cache() end
-			if holder.refresh_vanilla_logo then holder.refresh_vanilla_logo() end
-		end
-	end
 	local title_logo_group = add_group(tabs.HUD, "QingRemasterOptions_GroupTitleLogo", text("group_title_logo"))
 	add_text(title_logo_group, text("title_logo_help"))
 	local title_logo_custom_path = {"QingRemasterOptions", "Menu", "TitleLogoCustom"}

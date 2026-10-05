@@ -68,9 +68,17 @@ local entries = {
 		runtime = "Qing_Remaster_scripts.debug.player_appearance_ghost_probe",
 		ui = {id = "audit_player_appearance_ghost", category = "visual"},
 	},
+	remaster_ghost_render = {
+		runtime = "Qing_Remaster_scripts.debug.remaster_ghost_render_probe",
+		ui = {id = "audit_remaster_ghost_render", category = "visual"},
+	},
 	held_reward_consistency = {
 		runtime = "Qing_Remaster_scripts.debug.held_reward_consistency_probe",
 		ui = {id = "audit_held_reward_consistency", category = "visual"},
+	},
+	pocket_pill_visual = {
+		runtime = "Qing_Remaster_scripts.debug.pocket_pill_visual_probe",
+		ui = {id = "audit_pocket_pill_visual", category = "visual"},
 	},
 	devils_heart_debt = {
 		runtime = "Qing_Remaster_scripts.debug.devils_heart_debt_probe",
@@ -103,6 +111,10 @@ local entries = {
 	essm_hourglass = {
 		runtime = "Qing_Remaster_scripts.debug.essm_hourglass_probe",
 		ui = {id = "audit_essm_hourglass", category = "systems"},
+	},
+	portal_restore_rewind = {
+		runtime = "Qing_Remaster_scripts.debug.portal_restore_rewind_probe",
+		ui = {id = "audit_portal_restore_rewind", category = "systems"},
 	},
 	spirit_sword_lifecycle = {
 		runtime = "Qing_Remaster_scripts.debug.spirit_sword_lifecycle_probe",

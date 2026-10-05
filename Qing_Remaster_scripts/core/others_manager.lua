@@ -38,9 +38,16 @@ function Others_manager.Init(mod)
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.pedestal_encounter_regression_lab"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.pickup_morph_txn_regression_lab"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.debug.price_refresh_regression_lab"))
+	if not dev_env.is_public_release() then
+		local ok_hotkey, anim_hotkey = pcall(require, "Qing_Remaster_scripts.debug.player_anim_hotkey_dev")
+		if ok_hotkey and anim_hotkey then
+			table.insert(Others_manager.items, #Others_manager.items + 1, anim_hotkey)
+		end
+	end
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Tarot_Cloth_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Option_Index_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Special_Destination_holder"))
+	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.portal_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Record_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.Damage_holder"))
 	table.insert(Others_manager.items,#Others_manager.items + 1,require("Qing_Remaster_scripts.others.craft_dynamic_stats"))

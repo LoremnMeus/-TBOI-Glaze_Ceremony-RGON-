@@ -553,19 +553,24 @@ local function build_offer(pickup, player_key, provider, provider_token, record_
 	return offer
 end
 
-local function reserve_offer(player, pickup)
+--- 建立当前层 reservation（牌子 / freeze / save.elses）。
+--- 不清既有 reserved_offer；手动 Ctrl 由 reserve_offer 先拆旧约。
+--- opts.quote：已 resolve 报价（跨层 payload）；缺省则从 pickup 现读。
+--- opts.frozen_subtype：权威展示项；缺省用 pickup.SubType。
+--- opts.auto：跨层续保标记（语义注释；不改报价来源以外的路径）。
+local function establish_reservation(player, pickup, opts)
+	if not player or not pickup then return false end
+	opts = opts or {}
 	local state, player_key = get_state(player, true)
-	if state.reserved_offer then
-		clear_reservation(state, player_key, { play_disappear = true, restore_cycle = true })
-	else
-		clear_player_mark(player_key, pickup)
-	end
 
 	local provider = "vanilla"
 	local provider_token = nil
 	local pc = perhaps_mod()
 	local choice = pc and pc.get_materialized_choice and pc.get_materialized_choice(pickup)
-	local quote = resolve_offer_quote(pickup, choice)
+	local quote = opts.quote
+	if not quote or quote.resolved ~= true then
+		quote = resolve_offer_quote(pickup, choice)
+	end
 	if not quote.resolved or quote.has_price ~= true or type(quote.quoted_price) ~= "number" then
 		-- 报价尚未 settle：本次 RT 不建立 reservation
 		return false
@@ -584,10 +589,10 @@ local function reserve_offer(player, pickup)
 
 	-- vanilla：RJ 自己冻结当前展示；Perhaps 已由 adapter 冻结，禁止 double freeze
 	local cycle_fields = {}
-	local frozen_subtype = pickup.SubType
+	local frozen_subtype = tonumber(opts.frozen_subtype) or pickup.SubType
 	if provider == "vanilla" then
 		local snapshot
-		snapshot, frozen_subtype = freeze_collectible_cycle(pickup, pickup.SubType)
+		snapshot, frozen_subtype = freeze_collectible_cycle(pickup, frozen_subtype)
 		cycle_fields = {
 			cycle_paused = true,
 			cycle_snapshot = snapshot,
@@ -610,6 +615,34 @@ local function reserve_offer(player, pickup)
 	return true
 end
 
+local function reserve_offer(player, pickup)
+	local state, player_key = get_state(player, true)
+	if state.reserved_offer then
+		clear_reservation(state, player_key, { play_disappear = true, restore_cycle = true })
+	else
+		clear_player_mark(player_key, pickup)
+	end
+	return establish_reservation(player, pickup)
+end
+
+--- 仅当跨层兑现的就是 Reserved Judgment 本体时重新 arm；普通商品一次履行完毕。
+local function rearm_self_reservation(player, spawned, payload)
+	if not player or not spawned or not payload then return false end
+	if payload.collectible_id ~= item.entity then return false end
+	local pickup = spawned.ToPickup and spawned:ToPickup() or spawned
+	if not pickup then return false end
+	return establish_reservation(player, pickup, {
+		auto = true,
+		frozen_subtype = payload.collectible_id,
+		quote = {
+			resolved = true,
+			has_price = payload.has_price == true,
+			quoted_price = payload.quoted_price,
+			was_shop_item = payload.was_shop_item == true,
+		},
+	})
+end
+
 local function find_offer_spawn_pos(room)
 	local margin = 80
 	local top_left = room:GetTopLeftPos()
@@ -618,23 +651,22 @@ local function find_offer_spawn_pos(room)
 end
 
 local function spawn_committed_offer(player, payload)
-	if not payload then return false end
+	if not payload then return nil end
 	local room = Game():GetRoom()
 	local position = find_offer_spawn_pos(room)
 
 	if payload.provider == "perhaps_chosen" and payload.provider_token ~= nil then
 		local pc = perhaps_mod()
-		if not pc or not pc.materialize_reserved_choice then return false end
-		local carrier = pc.materialize_reserved_choice(payload.provider_token, {
+		if not pc or not pc.materialize_reserved_choice then return nil end
+		return pc.materialize_reserved_choice(payload.provider_token, {
 			has_price = payload.has_price == true,
 			quoted_price = payload.quoted_price,
 			was_shop_item = payload.was_shop_item == true,
 			position = position,
 		})
-		return carrier ~= nil
 	end
 
-	if not payload.collectible_id then return false end
+	if not payload.collectible_id then return nil end
 	if payload.was_shop_item then
 		unique_holder.try_spawn_shop_item()
 	end
@@ -646,7 +678,7 @@ local function spawn_committed_offer(player, payload)
 		Vector.Zero,
 		player
 	):ToPickup()
-	if not pickup then return false end
+	if not pickup then return nil end
 	pickup:Morph(
 		EntityType.ENTITY_PICKUP,
 		PickupVariant.PICKUP_COLLECTIBLE,
@@ -659,13 +691,18 @@ local function spawn_committed_offer(player, payload)
 		was_shop_item = payload.was_shop_item == true,
 	})
 	pickup:GetData()[item.own_key.."spawned"] = true
-	return true
+	return pickup
 end
 
 local function try_spawn_committed(player, state)
 	if not state or not state.committed_spawn then return end
-	if spawn_committed_offer(player, state.committed_spawn) then
+	local payload = state.committed_spawn
+	local spawned = spawn_committed_offer(player, payload)
+	if spawned then
 		state.committed_spawn = nil
+		if payload.collectible_id == item.entity then
+			rearm_self_reservation(player, spawned, payload)
+		end
 	end
 end
 

@@ -84,6 +84,8 @@ local C = {
 		"glow", "body", "body0", "body1", "head", "head0", "head1", "head2", "head3", "head4", "head5",
 		"top0", "extra", "ghost", "back",
 	},
+	WALK_LAYER_ANIMS = {"WalkDown", "WalkUp", "WalkLeft", "WalkRight", "Idle"},
+	HEAD_LAYER_ANIMS = {"HeadDown", "HeadUp", "HeadLeft", "HeadRight"},
 }
 
 local RM = {}
@@ -93,8 +95,11 @@ local GHOST_HELD_VISIBLE_KEY = item.own_key.."held_visible"
 local GHOST_HELD_META_KEY = item.own_key.."held_meta"
 local GHOST_COSTUME_SPRS_KEY = item.own_key.."walk_costume_sprs"
 local GHOST_COSTUME_WINNERS_KEY = item.own_key.."costume_winners"
+local GHOST_COSTUME_CANDIDATES_KEY = item.own_key.."costume_candidates"
 local GHOST_COSTUME_DRIVER_KEY = item.own_key.."costume_driver_key"
 local GHOST_COSTUME_CLOCK_KEY = item.own_key.."costume_clocks"
+local GHOST_CLOCK_PROBE_KEY = item.own_key.."costume_clock_probe"
+local GHOST_PLAN_CACHE_KEY = item.own_key.."composite_plan_cache"
 local GHOST_DIRECTIONAL_HEAD_KEY = item.own_key.."directional_head_overlay"
 local GHOST_PROBE_SNAP_KEY = item.own_key.."probe_snap"
 local GHOST_CAN_FLY_KEY = item.own_key.."can_fly"
@@ -142,19 +147,52 @@ function RM.ghost_has_walk_composite(ghost)
 	return RM.ghost_count_drawable_slots(ghost) > 0
 end
 
-function RM.ghost_should_render_walk_composite(ghost)
+function RM.ghost_costume_candidates(ghost)
+	if not ghost or not ghost.GetData then return nil end
+	local gd = ghost:GetData()
+	local cands = gd[GHOST_COSTUME_CANDIDATES_KEY]
+	if type(cands) == "table" and #cands > 0 then
+		return cands
+	end
+	return gd[GHOST_COSTUME_WINNERS_KEY]
+end
+
+function RM.ghost_current_composite_plan(ghost)
+	if not ghost or not ghost:Exists() then return {} end
+	local gd = ghost:GetData()
+	local body = ghost:GetSprite()
+	local body_anim = nil
+	pcall(function()
+		if body then body_anim = body:GetAnimation() end
+	end)
+	local overlay_anim, overlay_frame, overlay_active = RM.ghost_walk_overlay_state(body, body_anim, ghost)
+	local cache = gd[GHOST_PLAN_CACHE_KEY]
+	if type(cache) == "table"
+		and cache.main_anim == body_anim
+		and cache.overlay_anim == overlay_anim
+		and type(cache.plan) == "table"
+	then
+		return cache.plan, body_anim, overlay_anim, overlay_frame, overlay_active
+	end
+	local plan = RM.ghost_build_render_plan(RM.ghost_costume_candidates(ghost), body_anim, overlay_anim)
+	gd[GHOST_PLAN_CACHE_KEY] = {
+		main_anim = body_anim,
+		overlay_anim = overlay_anim,
+		plan = plan,
+	}
+	return plan, body_anim, overlay_anim, overlay_frame, overlay_active
+end
+
+function RM.ghost_should_render_composite(ghost)
 	if not RM.ghost_has_walk_composite(ghost) then
 		return false
 	end
-	local anim = nil
-	pcall(function()
-		anim = ghost:GetSprite():GetAnimation()
-	end)
-	return anim == "WalkDown"
-		or anim == "WalkUp"
-		or anim == "WalkLeft"
-		or anim == "WalkRight"
-		or anim == "Idle"
+	local plan = RM.ghost_current_composite_plan(ghost)
+	return type(plan) == "table" and #plan > 0
+end
+
+function RM.ghost_should_render_walk_composite(ghost)
+	return RM.ghost_should_render_composite(ghost)
 end
 
 local ghost_probe_observer = nil
@@ -280,8 +318,11 @@ function RM.emit_ghost_probe(stage, ghost, extra)
 						pcall(function() anm2 = slot.spr:GetFilename() end)
 					end
 					extra.winners[#extra.winners + 1] = {
-						key = tostring(k),
+						key = tostring(slot and slot.key or k),
+						plan_key = slot and slot.plan_key,
 						layer_id = slot and slot.layer_id,
+						logical_layer_id = slot and slot.logical_layer_id,
+						anim_source = slot and slot.anim_source,
 						priority = slot and slot.priority,
 						from_base = slot and (slot.from_base == true or slot.spr == body),
 						is_flying = slot and slot.is_flying and true or false,
@@ -359,13 +400,91 @@ function RM.costume_layer_rank(key)
 	return C.COSTUME_LAYER_RANK[key] or 35
 end
 
+--- True Head overlay slots only. `top0` is a PSL render slot, not head ownership.
 function RM.costume_layer_is_head(key)
 	if not key then return false end
-	return key:match("^head") ~= nil or key == "skull" or key == "face" or key == "hair" or key == "top0"
+	return key:match("^head") ~= nil or key == "skull" or key == "face" or key == "hair"
 end
 
 function RM.costume_layer_role(key)
 	return RM.costume_layer_is_head(key) and "head" or "body"
+end
+
+function RM.ghost_psl_index(key)
+	if type(key) ~= "string" then return nil end
+	for i, name in ipairs(C.PSL_LAYER_KEYS) do
+		if name == key then
+			return i - 1
+		end
+	end
+	return nil
+end
+
+function RM.ghost_logical_layer_id(key, native_id)
+	local psl = RM.ghost_psl_index(key)
+	if psl ~= nil then return psl end
+	return tonumber(native_id) or 0
+end
+
+function RM.ghost_anim_source_order(source)
+	return source == "head" and 1 or 0
+end
+
+function RM.sprite_animation_data(spr, anim)
+	local ad = nil
+	if not spr or type(anim) ~= "string" or anim == "" then return nil end
+	pcall(function()
+		if spr.GetAnimationData then
+			ad = spr:GetAnimationData(anim)
+		end
+	end)
+	return ad
+end
+
+--- LayerAnimation declared in AnimationData counts as present.
+--- Layer/Frame Visible is playback, not ownership.
+function RM.sprite_anim_has_layer(spr, anim, layer_id)
+	layer_id = tonumber(layer_id)
+	if not RM.sprite_is_usable(spr) or not layer_id or layer_id < 0 then return false end
+	local ad = RM.sprite_animation_data(spr, anim)
+	if not ad then return false end
+	local present = false
+	pcall(function()
+		if ad.GetAllLayers then
+			local layers = ad:GetAllLayers()
+			if type(layers) == "table" then
+				for i = 1, #layers do
+					local ld = layers[i]
+					if ld and ld.GetLayerID and ld:GetLayerID() == layer_id then
+						present = true
+						return
+					end
+				end
+			end
+		end
+		if not present and ad.GetLayer then
+			local ld = ad:GetLayer(layer_id)
+			present = ld ~= nil
+		end
+	end)
+	return present
+end
+
+function RM.ghost_layer_in_anim_list(spr, layer_id, names)
+	if type(names) ~= "table" then return false end
+	for i = 1, #names do
+		if RM.sprite_anim_has_layer(spr, names[i], layer_id) then
+			return true
+		end
+	end
+	return false
+end
+
+--- Classify a native ANM2 layer by which animation family actually contains it.
+function RM.ghost_layer_anim_sources(spr, layer_id)
+	local in_walk = RM.ghost_layer_in_anim_list(spr, layer_id, C.WALK_LAYER_ANIMS)
+	local in_head = RM.ghost_layer_in_anim_list(spr, layer_id, C.HEAD_LAYER_ANIMS)
+	return in_walk, in_head
 end
 
 function RM.ghost_read_sprite_anim_frame(spr)
@@ -387,13 +506,21 @@ function RM.ghost_desired_walk_anim(ghost)
 	return anim
 end
 
---- 行走合成的主时钟：优先非底模、非头部的 body 衣装层（Az 等可见身体）
+function RM.ghost_slot_is_body_driver_candidate(slot)
+	if not slot or not slot.spr or slot.from_base then return false end
+	if slot.anim_source == "head" then return false end
+	local key = slot.key
+	if RM.costume_layer_is_head(key) then return false end
+	return true
+end
+
+--- 行走合成的主时钟：优先非底模、body-source 的 body 衣装层（Az 等可见身体）
 function RM.ghost_pick_body_driver(winners)
 	if type(winners) ~= "table" then return nil end
 	local best, best_rank = nil, 9999
-	for key, slot in pairs(winners) do
-		if slot and slot.spr and not slot.from_base and not RM.costume_layer_is_head(key) then
-			local rank = RM.costume_layer_rank(key)
+	for _, slot in pairs(winners) do
+		if RM.ghost_slot_is_body_driver_candidate(slot) then
+			local rank = RM.costume_layer_rank(slot.key)
 			if rank >= 30 and rank <= 32 then
 				if not best
 					or (slot.priority or 0) > (best.priority or 0)
@@ -405,8 +532,8 @@ function RM.ghost_pick_body_driver(winners)
 		end
 	end
 	if best then return best end
-	for key, slot in pairs(winners) do
-		if slot and slot.spr and not slot.from_base and not RM.costume_layer_is_head(key) then
+	for _, slot in pairs(winners) do
+		if RM.ghost_slot_is_body_driver_candidate(slot) then
 			if not best or (slot.priority or 0) > (best.priority or 0) then
 				best = slot
 			end
@@ -415,17 +542,26 @@ function RM.ghost_pick_body_driver(winners)
 	return best
 end
 
+function RM.ghost_find_winner_slot(winners, driver_key)
+	if type(winners) ~= "table" or type(driver_key) ~= "string" then return nil end
+	if winners[driver_key] then return winners[driver_key] end
+	for _, slot in pairs(winners) do
+		if slot and (slot.plan_key == driver_key or slot.key == driver_key) then
+			return slot
+		end
+	end
+	return nil
+end
+
 function RM.ghost_get_costume_driver(ghost, winners)
 	winners = winners or (ghost and ghost:GetData()[GHOST_COSTUME_WINNERS_KEY])
 	if type(winners) ~= "table" then return nil end
 	local gd = ghost and ghost:GetData()
 	local driver_key = gd and gd[GHOST_COSTUME_DRIVER_KEY]
-	if type(driver_key) == "string" and winners[driver_key] then
-		local slot = winners[driver_key]
-		if slot and slot.spr and not slot.from_base then return slot end
-	end
+	local slot = RM.ghost_find_winner_slot(winners, driver_key)
+	if slot and slot.spr and not slot.from_base then return slot end
 	local picked = RM.ghost_pick_body_driver(winners)
-	if picked and gd then gd[GHOST_COSTUME_DRIVER_KEY] = picked.key end
+	if picked and gd then gd[GHOST_COSTUME_DRIVER_KEY] = picked.plan_key or picked.key end
 	return picked
 end
 
@@ -781,11 +917,12 @@ function RM.resolve_costume_winners(opts)
 	local has_layers = type(appearance.costume_layers) == "table" and #appearance.costume_layers > 0
 	local has_costumes = type(appearance.costumes) == "table" and #appearance.costumes > 0
 	if not has_layers and not has_costumes and not use_live then
-		return { winners = {}, pool = {}, driver_key = nil }
+		return { winners = {}, pool = {}, driver_key = nil, candidates = {} }
 	end
 	local pool = {}
 	local pool_by_anm2_role = {}
 	local winners = {}
+	local candidates = {}
 	local function pool_sprite_for(anm2, role)
 		if type(anm2) ~= "string" or anm2 == "" then return nil end
 		role = role == "head" and "head" or "body"
@@ -810,6 +947,33 @@ function RM.resolve_costume_winners(opts)
 		end
 		return path
 	end
+	local function make_slot(spr, layer_id, key, priority, is_flying, from_base, anm2, anim_source)
+		anim_source = anim_source == "head" and "head" or "body"
+		local plan_key = anim_source .. "|" .. key
+		return {
+			spr = spr,
+			layer_id = layer_id,
+			native_layer_id = layer_id,
+			logical_layer_id = RM.ghost_logical_layer_id(key, layer_id),
+			priority = priority or 0,
+			key = key,
+			plan_key = plan_key,
+			clock_key = (from_base and "base" or (anm2 or "spr")) .. "|" .. anim_source,
+			from_base = from_base and true or false,
+			is_flying = is_flying and true or false,
+			anim_source = anim_source,
+			role = anim_source,
+			anm2 = anm2 or sprite_anm2(spr),
+		}
+	end
+	local function commit_slot(slot)
+		if not slot or not slot.plan_key then return end
+		candidates[#candidates + 1] = slot
+		local prev = winners[slot.plan_key]
+		if not prev or (slot.priority or 0) >= (prev.priority or 0) then
+			winners[slot.plan_key] = slot
+		end
+	end
 	local function collect_slots(probe_spr, priority, is_flying, from_base, anm2)
 		if not RM.sprite_is_usable(probe_spr) then return end
 		local ok_n, n = pcall(function() return probe_spr:GetLayerCount() end)
@@ -823,25 +987,20 @@ function RM.resolve_costume_winners(opts)
 					key = RM.costume_layer_key(lay:GetName())
 				end
 			end)
-			if key then
-				local role = RM.costume_layer_role(key)
-				local spr = probe_spr
-				if not from_base and type(anm2) == "string" then
-					spr = pool_sprite_for(anm2, role) or probe_spr
+			if type(key) ~= "string" or key == "" then
+				key = "n" .. tostring(i)
+			end
+			if from_base then
+				commit_slot(make_slot(probe_spr, i, key, priority, is_flying, true, anm2, "body"))
+			else
+				local body_spr = probe_spr
+				local head_spr = probe_spr
+				if type(anm2) == "string" then
+					body_spr = pool_sprite_for(anm2, "body") or probe_spr
+					head_spr = pool_sprite_for(anm2, "head") or probe_spr
 				end
-				local prev = winners[key]
-				if not prev or (priority or 0) >= (prev.priority or 0) then
-					winners[key] = {
-						spr = spr,
-						layer_id = i,
-						priority = priority or 0,
-						key = key,
-						from_base = from_base and true or false,
-						is_flying = is_flying and true or false,
-						role = role,
-						anm2 = anm2 or sprite_anm2(spr),
-					}
-				end
+				commit_slot(make_slot(body_spr, i, key, priority, is_flying, false, anm2, "body"))
+				commit_slot(make_slot(head_spr, i, key, priority, is_flying, false, anm2, "head"))
 			end
 			::continue::
 		end
@@ -871,38 +1030,30 @@ function RM.resolve_costume_winners(opts)
 			end
 			-- Live capture must use real costume sprites; never fall back to a freshly loaded anm2.
 			if key and spr and lid and lid >= 0 then
-				winners[key] = {
-					spr = spr,
-					layer_id = lid,
-					priority = tonumber(bind.priority) or 1,
-					key = key,
-					from_base = false,
-					is_flying = bind.is_flying and true or false,
-					sprite_layer = tonumber(bind.sprite_layer),
-					costume_index = ci,
-					role = RM.costume_layer_role(key),
-					anm2 = bind.anm2 or sprite_anm2(spr),
-				}
+				local function live_commit(anim_source)
+					local slot = make_slot(spr, lid, key, tonumber(bind.priority) or 1, bind.is_flying, false, bind.anm2, anim_source)
+					slot.sprite_layer = tonumber(bind.sprite_layer)
+					slot.costume_index = ci
+					commit_slot(slot)
+				end
+				live_commit("body")
+				live_commit("head")
 			end
 		end
 	elseif has_layers then
 		for _, bind in ipairs(appearance.costume_layers) do
 			local key = RM.psl_index_to_key(bind.sprite_layer)
-			local role = RM.costume_layer_role(key)
-			local spr = pool_sprite_for(bind.anm2, role)
 			local lid = tonumber(bind.layer_id)
-			if key and spr and lid and lid >= 0 then
-				winners[key] = {
-					spr = spr,
-					layer_id = lid,
-					priority = tonumber(bind.priority) or 1,
-					key = key,
-					from_base = false,
-					is_flying = bind.is_flying and true or false,
-					sprite_layer = tonumber(bind.sprite_layer),
-					role = role,
-					anm2 = bind.anm2,
-				}
+			local probe = pool_sprite_for(bind.anm2, "body") or pool_sprite_for(bind.anm2, "head")
+			if key and probe and lid and lid >= 0 then
+				local body_spr = pool_sprite_for(bind.anm2, "body") or probe
+				local head_spr = pool_sprite_for(bind.anm2, "head") or probe
+				local body_slot = make_slot(body_spr, lid, key, tonumber(bind.priority) or 1, bind.is_flying, false, bind.anm2, "body")
+				body_slot.sprite_layer = tonumber(bind.sprite_layer)
+				commit_slot(body_slot)
+				local head_slot = make_slot(head_spr, lid, key, tonumber(bind.priority) or 1, bind.is_flying, false, bind.anm2, "head")
+				head_slot.sprite_layer = tonumber(bind.sprite_layer)
+				commit_slot(head_slot)
 			end
 		end
 	else
@@ -917,8 +1068,9 @@ function RM.resolve_costume_winners(opts)
 	local driver = RM.ghost_pick_body_driver(winners)
 	return {
 		winners = winners,
+		candidates = candidates,
 		pool = pool,
-		driver_key = driver and driver.key or nil,
+		driver_key = driver and (driver.plan_key or driver.key) or nil,
 	}
 end
 
@@ -1038,7 +1190,7 @@ function RM.capture_player_composite_pose(player, appearance, runtime)
 	for key, slot in pairs(winners) do
 		if not slot or slot.from_base or not slot.spr then goto continue end
 		local anim, frame, oanim, oframe, sflip = RM.read_sprite_full_pose(slot.spr)
-		local is_head = RM.costume_layer_is_head(key)
+		local is_head = slot.anim_source == "head"
 		local need = false
 		if is_head then
 			local main_ok = RM.pose_clock_eq(anim, frame, body_anim, body_frame)
@@ -1081,7 +1233,7 @@ function RM.capture_player_composite_pose(player, appearance, runtime)
 				ov.slot = tonumber(slot.sprite_layer)
 			end
 			overrides = overrides or {}
-			overrides[key] = ov
+			overrides[slot.plan_key or key] = ov
 		end
 		::continue::
 	end
@@ -2468,6 +2620,103 @@ function RM.tick_lua_sprite(spr, advance)
 	pcall(function() spr:Update() end)
 end
 
+function RM.ghost_clock_bind(clocks, clock_key, spr, fields)
+	if type(clocks) ~= "table" or type(clock_key) ~= "string" or clock_key == "" then
+		return nil
+	end
+	local state = clocks[clock_key]
+	if type(state) ~= "table" then
+		state = {
+			update_accum = 0,
+			ticks_this_update = 0,
+		}
+		clocks[clock_key] = state
+	end
+	state.spr = spr
+	state.clock_key = clock_key
+	if type(fields) == "table" then
+		for k, v in pairs(fields) do
+			state[k] = v
+		end
+	end
+	return state
+end
+
+function RM.ghost_is_actually_moving(ghost)
+	if not ghost then return false end
+	local vel = ghost.Velocity
+	if not vel then return false end
+	local len2 = nil
+	pcall(function()
+		if vel.LengthSquared then
+			len2 = vel:LengthSquared()
+		elseif vel.X and vel.Y then
+			len2 = vel.X * vel.X + vel.Y * vel.Y
+		end
+	end)
+	return type(len2) == "number" and len2 > 0.01
+end
+
+--- Player-appearance policy: Walk body is 2x while actually moving. Clock engine only receives this number.
+function RM.ghost_costume_playback_rate(state, ghost, body_anim, appearance)
+	local rate = 1
+	if type(state) == "table" then
+		rate = tonumber(state.update_rate) or rate
+	end
+	if appearance then
+		rate = tonumber(state and state.update_rate)
+			or tonumber(appearance.playback_rate)
+			or tonumber(appearance.animation_rate)
+			or rate
+	end
+	local source = type(state) == "table" and state.anim_source or nil
+	if (source == "body" or source == "main")
+		and RM.ghost_is_walk_family(body_anim)
+		and RM.ghost_is_actually_moving(ghost) then
+		rate = rate * 2
+	end
+	return rate
+end
+
+--- Generic Lua Sprite clock. Knows only rate, accumulator, and Update().
+function RM.advance_sprite_clock(state, rate)
+	if type(state) ~= "table" or not state.spr then
+		return 0, tonumber(rate) or 1
+	end
+	local effective = tonumber(rate) or 1
+	local unit = 1 / (C.GHOST_LUA_SPRITE_STEP or 2)
+	state.update_accum = (tonumber(state.update_accum) or 0) + effective * unit
+	local ticks = 0
+	local frame_before = nil
+	pcall(function() frame_before = state.spr:GetFrame() end)
+	state.frame_before = frame_before
+	while state.update_accum >= 1 do
+		pcall(function() state.spr:Update() end)
+		state.update_accum = state.update_accum - 1
+		ticks = ticks + 1
+		if ticks > 8 then break end
+	end
+	local frame_after = frame_before
+	pcall(function() frame_after = state.spr:GetFrame() end)
+	state.frame_after = frame_after
+	state.ticks_this_update = ticks
+	state.effective_rate = effective
+	return ticks, effective
+end
+
+function RM.ghost_anim_sync_candidates(anim, overlay)
+	if overlay then
+		return RM.ghost_head_anim_candidates(anim)
+	end
+	if RM.ghost_is_walk_family(anim) then
+		return RM.ghost_walk_anim_candidates(anim)
+	end
+	if type(anim) == "string" and anim ~= "" then
+		return {anim}
+	end
+	return {}
+end
+
 function RM.ghost_walk_anim_candidates(walk_anim)
 	local list = {}
 	if type(walk_anim) == "string" and walk_anim ~= "" then
@@ -2558,6 +2807,84 @@ function RM.ghost_head_anim_candidates(overlay_anim)
 		list[#list + 1] = name
 	end
 	return list
+end
+
+--- Map HeadDown / HeadDownShoot / HeadDown_Idle → HeadDown. Walk families return nil.
+--- Lua patterns do not support `|` alternation; match the four fixed prefixes explicitly.
+function RM.ghost_head_family_base(anim)
+	if type(anim) ~= "string" or anim == "" then return nil end
+	for _, dir in ipairs({"Down", "Up", "Left", "Right"}) do
+		local base = "Head" .. dir
+		if anim:sub(1, #base) == base then
+			return base
+		end
+	end
+	return nil
+end
+
+function RM.ghost_head_family_base_self_test()
+	local cases = {
+		{"HeadDown", "HeadDown"},
+		{"HeadUp", "HeadUp"},
+		{"HeadLeft_Idle", "HeadLeft"},
+		{"HeadRight_Overlay", "HeadRight"},
+		{"HeadDownShoot", "HeadDown"},
+		{"HeadDown_Idle", "HeadDown"},
+		{"HeadDown_Overlay", "HeadDown"},
+		{"WalkDown", nil},
+	}
+	local fails = {}
+	for i = 1, #cases do
+		local input, expected = cases[i][1], cases[i][2]
+		local got = RM.ghost_head_family_base(input)
+		if got ~= expected then
+			fails[#fails + 1] = {input = input, expected = expected, got = got}
+		end
+	end
+	return #fails == 0, fails
+end
+
+function RM.ghost_head_held_on_first_frame(head_frame, head_active)
+	if head_active == true then return false end
+	return (tonumber(head_frame) or 0) == 0
+end
+
+function RM.ghost_head_display_anim(spr, head_anim, use_idle)
+	if type(head_anim) ~= "string" or head_anim == "" then return head_anim end
+	if use_idle then
+		local base = RM.ghost_head_family_base(head_anim)
+		local idle = base and (base .. "_Idle")
+		if idle and RM.sprite_animation_data(spr, idle) then
+			return idle
+		end
+	end
+	return head_anim
+end
+
+function RM.ghost_animation_layer_ids(spr, anim)
+	local ids = {}
+	if not RM.sprite_is_usable(spr) or type(anim) ~= "string" or anim == "" then
+		return ids
+	end
+	local n = 0
+	pcall(function() n = spr:GetLayerCount() end)
+	if type(n) ~= "number" then return ids end
+	for i = 0, n - 1 do
+		if RM.sprite_anim_has_layer(spr, anim, i) then
+			ids[#ids + 1] = i
+		end
+	end
+	return ids
+end
+
+function RM.ghost_head_overlay_extra_anim(spr, head_anim)
+	local base = RM.ghost_head_family_base(head_anim)
+	if not base then return nil end
+	local extra = base .. "_Overlay"
+	if RM.sprite_animation_data(spr, extra) then
+		return extra
+	end
+	return nil
 end
 
 --- 已在播「首选」动画时不重 Play，避免 PRE 每帧 Render 把帧重置为 0。
@@ -2674,8 +3001,11 @@ function RM.setup_ghost_walk_costumes(ghost, appearance)
 	appearance = RM.sanitize_appearance(appearance)
 	local gd = ghost:GetData()
 	gd[GHOST_COSTUME_WINNERS_KEY] = nil
+	gd[GHOST_COSTUME_CANDIDATES_KEY] = nil
 	gd[GHOST_COSTUME_SPRS_KEY] = nil
 	gd[GHOST_COSTUME_CLOCK_KEY] = nil
+	gd[GHOST_CLOCK_PROBE_KEY] = nil
+	gd[GHOST_PLAN_CACHE_KEY] = nil
 	gd[item.own_key.."walk_composite"] = nil
 	local has_layers = type(appearance.costume_layers) == "table" and #appearance.costume_layers > 0
 	local has_costumes = type(appearance.costumes) == "table" and #appearance.costumes > 0
@@ -2691,6 +3021,7 @@ function RM.setup_ghost_walk_costumes(ghost, appearance)
 	if type(winners) == "table" and next(winners) then
 		gd[GHOST_COSTUME_SPRS_KEY] = pool
 		gd[GHOST_COSTUME_WINNERS_KEY] = winners
+		gd[GHOST_COSTUME_CANDIDATES_KEY] = resolved.candidates or {}
 		gd[item.own_key.."walk_composite"] = has_layers or has_costumes
 		gd[GHOST_COSTUME_DRIVER_KEY] = resolved.driver_key
 	end
@@ -2717,12 +3048,12 @@ function RM.ghost_restore_base_layer_visibility(ghost)
 	end
 end
 
---- head pass 中若有 costume winner，则禁止再画底模 Head overlay（否则 Brimstone ChargeHead 与 Head* 双绘）。
-function RM.ghost_head_slots_have_costume_winner(head_slots)
-	if type(head_slots) ~= "table" then return false end
-	for i = 1, #head_slots do
-		local slot = head_slots[i]
-		if slot and slot.from_base ~= true then
+--- Costume owns base Head overlay only when a non-base winner actually uses the head animation source.
+function RM.ghost_head_slots_have_costume_winner(slots)
+	if type(slots) ~= "table" then return false end
+	for i = 1, #slots do
+		local slot = slots[i]
+		if slot and slot.from_base ~= true and slot.anim_source == "head" then
 			return true
 		end
 	end
@@ -2736,9 +3067,10 @@ function RM.ghost_suppress_replaced_base_layers(body, winners)
 		return saved
 	end
 	local replaced = {}
-	for key, slot in pairs(winners) do
-		if slot and slot.from_base ~= true and type(key) == "string" then
-			replaced[key] = true
+	for _, slot in pairs(winners) do
+		local name = slot and slot.key
+		if slot and slot.from_base ~= true and type(name) == "string" then
+			replaced[name] = true
 		end
 	end
 	if not next(replaced) then return saved end
@@ -2768,35 +3100,181 @@ function RM.ghost_restore_layer_visibility_map(body, saved)
 	end
 end
 
-function RM.ghost_sort_winner_slots(winners, head_pass)
-	local list = {}
-	if type(winners) ~= "table" then return list end
-	for key, slot in pairs(winners) do
-		if slot and slot.spr and RM.sprite_layer_usable(slot.spr, slot.layer_id) then
-			local is_head = RM.costume_layer_is_head(key)
-			if (head_pass and is_head) or (not head_pass and not is_head) then
-				local anm2 = slot.anm2
-				if type(anm2) ~= "string" or anm2 == "" then
-					pcall(function() anm2 = slot.spr:GetFilename() end)
-				end
-				list[#list + 1] = {
-					key = key,
-					spr = slot.spr,
-					layer_id = slot.layer_id,
-					from_base = slot.from_base and true or false,
-					is_flying = slot.is_flying and true or false,
-					role = slot.role or RM.costume_layer_role(key),
-					anm2 = anm2,
-				}
+function RM.ghost_slot_active_reason(slot, body_anim, overlay_anim)
+	if not slot then return "missing_slot" end
+	if slot.anim_source == "head"
+		and not RM.ghost_directional_head_participates(body_anim, overlay_anim) then
+		return "head_not_participating"
+	end
+	local anim = slot.anim_source == "head" and overlay_anim or body_anim
+	if type(anim) ~= "string" or anim == "" then
+		return "no_source_animation"
+	end
+	if not RM.sprite_animation_data(slot.spr, anim) then
+		return "animation_missing"
+	end
+	if RM.sprite_anim_has_layer(slot.spr, anim, slot.layer_id) then
+		return "current_animation"
+	end
+	return "layer_missing"
+end
+
+function RM.ghost_inactive_costume_slots(winners, plan, body_anim, overlay_anim)
+	local out = {}
+	if type(winners) ~= "table" then return out end
+	local in_plan = {}
+	if type(plan) == "table" then
+		for i = 1, #plan do
+			local pk = plan[i] and plan[i].plan_key
+			if type(pk) == "string" then
+				in_plan[pk] = true
 			end
 		end
 	end
+	for _, slot in pairs(winners) do
+		if slot and slot.from_base ~= true then
+			local pk = slot.plan_key or ((slot.anim_source or "body") .. "|" .. tostring(slot.key))
+			if not in_plan[pk] then
+				local anm2 = slot.anm2
+				if type(anm2) ~= "string" or anm2 == "" then
+					pcall(function()
+						if slot.spr then anm2 = slot.spr:GetFilename() end
+					end)
+				end
+				out[#out + 1] = {
+					slot_key = slot.key,
+					plan_key = pk,
+					anim_source = slot.anim_source,
+					anm2 = anm2,
+					layer_id = slot.layer_id,
+					slot_active_reason = RM.ghost_slot_active_reason(slot, body_anim, overlay_anim),
+				}
+				if #out >= 24 then break end
+			end
+		end
+	end
+	return out
+end
+
+--- Animation-level ownership: declared LayerAnimation in the current main/overlay anim.
+--- Frame Visible/Delay belongs to Sprite playback, not compositor arbitration.
+function RM.ghost_build_render_plan(candidates, body_anim, overlay_anim)
+	local list = {}
+	if type(candidates) ~= "table" then return list end
+	local participating = {}
+	local function consider(slot)
+		if not slot or not slot.spr or not RM.sprite_layer_usable(slot.spr, slot.layer_id) then
+			return
+		end
+		local active_reason = RM.ghost_slot_active_reason(slot, body_anim, overlay_anim)
+		if active_reason ~= "current_animation" then
+			return
+		end
+		local anm2 = slot.anm2
+		if type(anm2) ~= "string" or anm2 == "" then
+			pcall(function() anm2 = slot.spr:GetFilename() end)
+		end
+		local key = slot.key
+		local anim_source = slot.anim_source == "head" and "head" or "body"
+		participating[#participating + 1] = {
+			key = key,
+			plan_key = slot.plan_key or (anim_source .. "|" .. tostring(key)),
+			clock_key = slot.clock_key or slot.plan_key or key,
+			spr = slot.spr,
+			layer_id = slot.layer_id,
+			native_layer_id = slot.native_layer_id or slot.layer_id,
+			logical_layer_id = slot.logical_layer_id or RM.ghost_logical_layer_id(key, slot.layer_id),
+			from_base = slot.from_base and true or false,
+			is_flying = slot.is_flying and true or false,
+			anim_source = anim_source,
+			role = anim_source,
+			anm2 = anm2,
+			priority = slot.priority or 0,
+			update_rate = slot.update_rate,
+			active_reason = active_reason,
+		}
+	end
+	if candidates[1] ~= nil then
+		for i = 1, #candidates do
+			consider(candidates[i])
+		end
+	else
+		for _, slot in pairs(candidates) do
+			consider(slot)
+		end
+	end
+	local anim_winners = {}
+	for i = 1, #participating do
+		local cand = participating[i]
+		local prev = anim_winners[cand.plan_key]
+		if not prev or (cand.priority or 0) >= (prev.priority or 0) then
+			anim_winners[cand.plan_key] = cand
+		end
+	end
+	for _, slot in pairs(anim_winners) do
+		list[#list + 1] = slot
+	end
+	local groups = {}
+	for i = 1, #list do
+		local slot = list[i]
+		local gk = tostring(slot.anm2 or "") .. "|" .. tostring(slot.anim_source or "body")
+		slot._group = gk
+		local g = groups[gk]
+		if not g then
+			g = {has_known = false, max_known = -1}
+			groups[gk] = g
+		end
+		local psl = RM.ghost_psl_index(slot.key)
+		if psl ~= nil then
+			g.has_known = true
+			if psl > g.max_known then g.max_known = psl end
+			slot.sort_logical = psl
+			slot.unknown_tail = 0
+		end
+	end
+	for i = 1, #list do
+		local slot = list[i]
+		if slot.sort_logical == nil then
+			local g = groups[slot._group]
+			local native = tonumber(slot.native_layer_id) or 0
+			if g and g.has_known then
+				slot.sort_logical = g.max_known
+				slot.unknown_tail = 1
+			else
+				slot.sort_logical = native
+				slot.unknown_tail = 0
+			end
+		end
+		slot._group = nil
+	end
 	table.sort(list, function(a, b)
-		local ra = RM.costume_layer_rank(a.key)
-		local rb = RM.costume_layer_rank(b.key)
-		if ra ~= rb then return ra < rb end
-		return (a.layer_id or 0) < (b.layer_id or 0)
+		local la = tonumber(a.sort_logical) or 0
+		local lb = tonumber(b.sort_logical) or 0
+		if la ~= lb then return la < lb end
+		local ta = tonumber(a.unknown_tail) or 0
+		local tb = tonumber(b.unknown_tail) or 0
+		if ta ~= tb then return ta < tb end
+		local na = tonumber(a.native_layer_id) or 0
+		local nb = tonumber(b.native_layer_id) or 0
+		if na ~= nb then return na < nb end
+		local sa = RM.ghost_anim_source_order(a.anim_source)
+		local sb = RM.ghost_anim_source_order(b.anim_source)
+		if sa ~= sb then return sa < sb end
+		return tostring(a.plan_key or a.key) < tostring(b.plan_key or b.key)
 	end)
+	return list
+end
+
+function RM.ghost_sort_winner_slots(winners, head_pass)
+	local plan = RM.ghost_build_render_plan(winners, nil, nil)
+	if head_pass == nil then return plan end
+	local list = {}
+	for i = 1, #plan do
+		local is_head = plan[i].anim_source == "head"
+		if (head_pass and is_head) or (not head_pass and not is_head) then
+			list[#list + 1] = plan[i]
+		end
+	end
 	return list
 end
 
@@ -2806,6 +3284,45 @@ function RM.ghost_is_walk_family(anim)
 		or anim == "WalkLeft"
 		or anim == "WalkRight"
 		or anim == "Idle"
+end
+
+--- Walk*/Idle are the only body poses that composite a directional Head* overlay.
+function RM.ghost_body_accepts_directional_head(anim)
+	return RM.ghost_is_walk_family(anim)
+end
+
+function RM.ghost_is_directional_head_anim(anim)
+	return RM.ghost_head_family_base(anim) ~= nil
+end
+
+--- Clock may still hold HeadLeft during Hit; that does not mean the composite draws it.
+function RM.ghost_directional_head_participates(body_anim, overlay_anim)
+	if not RM.ghost_is_directional_head_anim(overlay_anim) then
+		return true
+	end
+	return RM.ghost_body_accepts_directional_head(body_anim)
+end
+
+function RM.ghost_directional_head_participation_self_test()
+	local cases = {
+		{"WalkDown", "HeadDown", true},
+		{"WalkLeft", "HeadLeft", true},
+		{"Idle", "HeadDown", true},
+		{"Hit", "HeadLeft", false},
+		{"Hit", "HeadDown_Idle", false},
+		{"WalkRight", "HeadRight_Overlay", true},
+		{"Trapdoor", "HeadUp", false},
+		{"WalkDown", "WalkDown", true},
+	}
+	local fails = {}
+	for i = 1, #cases do
+		local body, overlay, expected = cases[i][1], cases[i][2], cases[i][3]
+		local got = RM.ghost_directional_head_participates(body, overlay)
+		if got ~= expected then
+			fails[#fails + 1] = {body = body, overlay = overlay, expected = expected, got = got}
+		end
+	end
+	return #fails == 0, fails
 end
 
 --- Ordinary body clock is running when the base sprite is on Walk* and PlaybackSpeed > 0.
@@ -2828,14 +3345,14 @@ function RM.ghost_world_screen_pos(ghost, world_offset, render_offset)
 	return screen - room:GetRenderScrollOffset()
 end
 
-function RM.ghost_costume_sync_body_sprite(spr, source_body, source_anim, source_frame, clocks, slot_key, is_flying)
+function RM.ghost_costume_sync_body_sprite(spr, source_body, source_anim, source_frame, clocks, slot_key, is_flying, clock_meta)
 	if not RM.sprite_is_usable(spr)
 		or not RM.sprite_is_usable(source_body)
 		or type(source_anim) ~= "string"
 		or source_anim == "" then
 		return nil
 	end
-	local target_anim = RM.sprite_resolve_one_of(spr, RM.ghost_walk_anim_candidates(source_anim))
+	local target_anim = RM.sprite_resolve_one_of(spr, RM.ghost_anim_sync_candidates(source_anim, false))
 	if not target_anim then return nil end
 	local source_len = RM.sprite_animation_length(source_body, source_anim)
 	local target_len = RM.sprite_animation_length(spr, target_anim)
@@ -2848,22 +3365,23 @@ function RM.ghost_costume_sync_body_sprite(spr, source_body, source_anim, source
 	else
 		mode = "movement_independent"
 	end
-	local state = clocks and clocks[slot_key]
-	local changed = not state or state.anim ~= target_anim or state.mode ~= mode
+	clock_meta = type(clock_meta) == "table" and clock_meta or {}
+	local prev = clocks and clocks[slot_key]
+	local changed = not prev or prev.anim ~= target_anim or prev.mode ~= mode
+	local fields = {
+		anim = target_anim,
+		mode = mode,
+		anim_source = clock_meta.anim_source or "body",
+		update_rate = tonumber(clock_meta.update_rate) or 1,
+		is_flying = is_flying and true or false,
+	}
+	RM.ghost_clock_bind(clocks, slot_key, spr, fields)
 	if mode == "shared" then
-		if clocks then
-			clocks[slot_key] = { anim = target_anim, mode = mode }
-		end
 		pcall(function()
 			spr:SetFrame(target_anim, tonumber(source_frame) or 0)
 		end)
-	else
-		if changed then
-			pcall(function() spr:Play(target_anim, true) end)
-			if clocks then
-				clocks[slot_key] = { anim = target_anim, mode = mode }
-			end
-		end
+	elseif changed then
+		pcall(function() spr:Play(target_anim, true) end)
 	end
 	local target_frame = nil
 	pcall(function() target_frame = spr:GetFrame() end)
@@ -2873,6 +3391,7 @@ function RM.ghost_costume_sync_body_sprite(spr, source_body, source_anim, source
 		source_len = source_len,
 		target_len = target_len,
 		clock_mode = mode,
+		clock_key = slot_key,
 		is_flying = is_flying and true or false,
 		source_frame = tonumber(source_frame) or 0,
 		target_frame = target_frame,
@@ -2906,6 +3425,9 @@ function RM.ghost_walk_overlay_state(body, body_anim, ghost)
 			-- Shared Ghost synthetic directional head, not a real attack overlay.
 			overlay_active = false
 			overlay_frame = 0
+			if not RM.ghost_is_walk_family(body_anim) then
+				overlay_anim = nil
+			end
 		else
 			overlay_active = true
 			if ghost and ghost.GetData and syn_anim then
@@ -2928,7 +3450,9 @@ function RM.ghost_costume_sync_head_sprite(spr, source_body, head_anim, head_fra
 		or head_anim == "" then
 		return nil
 	end
-	local target_anim = RM.sprite_resolve_one_of(spr, RM.ghost_head_anim_candidates(head_anim))
+	local use_idle = RM.ghost_head_held_on_first_frame(head_frame, head_active)
+	local display_anim = RM.ghost_head_display_anim(spr, head_anim, use_idle)
+	local target_anim = RM.sprite_resolve_one_of(spr, RM.ghost_anim_sync_candidates(display_anim, true))
 	if not target_anim then return nil end
 	local mode
 	local source_len, target_len = nil, nil
@@ -2940,30 +3464,31 @@ function RM.ghost_costume_sync_head_sprite(spr, source_body, head_anim, head_fra
 			end
 			spr:SetFrame(target_anim, 0)
 		end)
-		if clocks then
-			clocks[slot_key] = { anim = target_anim, mode = mode }
-		end
+		RM.ghost_clock_bind(clocks, slot_key, spr, {
+			anim = target_anim,
+			mode = mode,
+			anim_source = "head",
+			update_rate = 1,
+		})
 	else
 		source_len = RM.sprite_overlay_animation_length(source_body, head_anim)
 		target_len = RM.sprite_animation_length(spr, target_anim)
 		local same_clock = source_len and target_len and source_len == target_len
 		mode = same_clock and "shared" or "head_independent"
-		local state = clocks and clocks[slot_key]
-		local changed = not state or state.anim ~= target_anim or state.mode ~= mode
+		local prev = clocks and clocks[slot_key]
+		local changed = not prev or prev.anim ~= target_anim or prev.mode ~= mode
+		RM.ghost_clock_bind(clocks, slot_key, spr, {
+			anim = target_anim,
+			mode = mode,
+			anim_source = "head",
+			update_rate = 1,
+		})
 		if mode == "shared" then
-			if clocks then
-				clocks[slot_key] = { anim = target_anim, mode = mode }
-			end
 			pcall(function()
 				spr:SetFrame(target_anim, tonumber(head_frame) or 0)
 			end)
-		else
-			if changed then
-				pcall(function() spr:Play(target_anim, true) end)
-				if clocks then
-					clocks[slot_key] = { anim = target_anim, mode = mode }
-				end
-			end
+		elseif changed then
+			pcall(function() spr:Play(target_anim, true) end)
 		end
 	end
 	local target_frame = nil
@@ -2971,6 +3496,8 @@ function RM.ghost_costume_sync_head_sprite(spr, source_body, head_anim, head_fra
 	return {
 		source_anim = head_anim,
 		target_anim = target_anim,
+		head_display_anim = display_anim,
+		head_use_idle = use_idle and true or false,
 		source_len = source_len,
 		target_len = target_len,
 		clock_mode = mode,
@@ -2994,7 +3521,9 @@ end
 
 function RM.ghost_costume_pin_recorded_head(spr, overlay_anim, overlay_frame)
 	if not RM.sprite_is_usable(spr) or type(overlay_anim) ~= "string" or overlay_anim == "" then return end
-	local target = RM.sprite_resolve_one_of(spr, RM.ghost_head_anim_candidates(overlay_anim)) or overlay_anim
+	local use_idle = (tonumber(overlay_frame) or 0) == 0
+	local display = RM.ghost_head_display_anim(spr, overlay_anim, use_idle)
+	local target = RM.sprite_resolve_one_of(spr, RM.ghost_head_anim_candidates(display)) or display
 	pcall(function()
 		if spr:GetAnimation() ~= target then
 			spr:Play(target, true)
@@ -3003,7 +3532,7 @@ function RM.ghost_costume_pin_recorded_head(spr, overlay_anim, overlay_frame)
 	end)
 end
 
-function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_anim, overlay_frame, overlay_active, head_pass, render_offset)
+function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_anim, overlay_frame, overlay_active, _head_pass, render_offset)
 	if not ghost or not body or #slots == 0 then return 0, nil end
 	local sc = ghost.SpriteScale or Vector(1, 1)
 	local tint = body.Color or Color(1, 1, 1, 1)
@@ -3032,27 +3561,34 @@ function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_an
 	for _, slot in ipairs(slots) do
 		local spr = slot.spr
 		if not RM.sprite_layer_usable(spr, slot.layer_id) then goto continue end
-		local ov = layer_overrides and layer_overrides[slot.key]
+		local use_head_clock = slot.anim_source == "head"
+		local ov = layer_overrides and (
+			layer_overrides[slot.plan_key] or layer_overrides[slot.key]
+		)
 		local sync_info = nil
+		local clock_key = slot.clock_key or slot.plan_key or slot.key
 		-- Recorded layer override wins. Base winners are the reference clock and never SetFrame themselves.
 		if ov then
-			if recorded_pose and head_pass then
+			if recorded_pose and use_head_clock then
 				RM.ghost_apply_recorded_head_override(spr, ov, anim, frame, overlay_anim, overlay_frame)
 			else
 				RM.ghost_apply_full_layer_override(spr, ov, {replace = true})
 			end
-			sync_info = { clock_mode = "recorded_override", source_anim = head_pass and overlay_anim or anim }
+			sync_info = { clock_mode = "recorded_override", source_anim = use_head_clock and overlay_anim or anim }
 		elseif slot.from_base then
 			sync_info = {
 				clock_mode = "base_source",
-				source_anim = head_pass and overlay_anim or anim,
-				target_anim = head_pass and overlay_anim or anim,
-				source_frame = head_pass and (tonumber(overlay_frame) or 0) or (tonumber(frame) or 0),
+				source_anim = use_head_clock and overlay_anim or anim,
+				target_anim = use_head_clock and overlay_anim or anim,
+				source_frame = use_head_clock and (tonumber(overlay_frame) or 0) or (tonumber(frame) or 0),
 				is_flying = slot.is_flying and true or false,
 				overlay_active = overlay_active and true or false,
 			}
 		elseif recorded_pose then
-			if head_pass then
+			if use_head_clock then
+				if type(overlay_anim) ~= "string" or overlay_anim == "" then
+					goto continue
+				end
 				RM.ghost_costume_pin_recorded_head(spr, overlay_anim, overlay_frame)
 				sync_info = {
 					clock_mode = "recorded_pin",
@@ -3068,14 +3604,24 @@ function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_an
 					source_frame = tonumber(frame) or 0,
 				}
 			end
-		elseif head_pass then
+		elseif use_head_clock then
 			sync_info = RM.ghost_costume_sync_head_sprite(
-				spr, body, overlay_anim, overlay_frame, overlay_active == true, clocks, slot.key
+				spr, body, overlay_anim, overlay_frame, overlay_active == true, clocks, clock_key
 			)
 		else
+			local app = gd[item.own_key.."ghost_app"]
+			local update_rate = tonumber(slot.update_rate)
+				or tonumber(app and app.animation_rate)
+				or 1
 			sync_info = RM.ghost_costume_sync_body_sprite(
-				spr, body, anim, frame, clocks, slot.key, slot.is_flying == true
+				spr, body, anim, frame, clocks, clock_key, slot.is_flying == true, {
+					anim_source = "body",
+					update_rate = update_rate,
+				}
 			)
+		end
+		if not slot.from_base and not ov and not sync_info then
+			goto continue
 		end
 		local ok = pcall(function()
 			spr.Scale = sc
@@ -3087,7 +3633,7 @@ function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_an
 			spr:RenderLayer(slot.layer_id, screen, Vector.Zero, Vector.Zero)
 		end)
 		if ok then drawn = drawn + 1 end
-		if #slot_probe < 12 then
+		if #slot_probe < 40 then
 			local actual_anim, actual_frame = nil, nil
 			pcall(function()
 				actual_anim = spr:GetAnimation()
@@ -3095,11 +3641,22 @@ function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_an
 			end)
 			slot_probe[#slot_probe + 1] = {
 				slot_key = slot.key,
+				plan_key = slot.plan_key,
+				clock_key = clock_key,
 				from_base = slot.from_base and true or false,
 				is_flying = slot.is_flying and true or false,
-				head_pass = head_pass and true or false,
-				role = slot.role or (head_pass and "head" or "body"),
+				head_pass = use_head_clock and true or false,
+				anim_source = use_head_clock and "head" or "body",
+				role = use_head_clock and "head" or "body",
 				anm2 = slot.anm2,
+				layer_id = slot.layer_id,
+				native_layer_id = slot.native_layer_id or slot.layer_id,
+				logical_layer_id = slot.logical_layer_id,
+				sort_logical = slot.sort_logical,
+				unknown_tail = slot.unknown_tail,
+				slot_active_reason = slot.active_reason or "current_animation",
+				render_index = #slot_probe,
+				render_ok = ok and true or false,
 				sprite_ptr = slot.spr and tostring(slot.spr) or nil,
 				source_anim = sync_info and sync_info.source_anim or nil,
 				target_anim = sync_info and sync_info.target_anim or actual_anim,
@@ -3107,9 +3664,13 @@ function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_an
 				target_len = sync_info and sync_info.target_len or nil,
 				clock_mode = sync_info and sync_info.clock_mode or nil,
 				overlay_active = sync_info and sync_info.overlay_active or nil,
+				head_use_idle = sync_info and sync_info.head_use_idle,
+				head_display_anim = sync_info and sync_info.head_display_anim or nil,
 				body_clock_running = body_running,
 				source_frame = sync_info and sync_info.source_frame or nil,
 				target_frame = sync_info and sync_info.target_frame or actual_frame,
+				actual_anim = actual_anim,
+				actual_frame = actual_frame,
 			}
 			if not slot_probe[#slot_probe].anm2 then
 				pcall(function()
@@ -3118,6 +3679,68 @@ function RM.ghost_draw_winner_layers(ghost, body, slots, anim, frame, overlay_an
 			end
 		end
 		::continue::
+	end
+	if type(overlay_anim) == "string" and overlay_anim ~= "" then
+		local seen = {}
+		for _, slot in ipairs(slots) do
+			local spr = slot.spr
+			if slot.anim_source == "head" and slot.from_base ~= true and spr then
+				local h = GetPtrHash(spr)
+				if not seen[h] then
+					seen[h] = true
+					local extra = RM.ghost_head_overlay_extra_anim(spr, overlay_anim)
+					if extra then
+						local restore_anim, restore_frame = nil, 0
+						pcall(function()
+							restore_anim = spr:GetAnimation()
+							restore_frame = spr:GetFrame()
+						end)
+						local ids = RM.ghost_animation_layer_ids(spr, extra)
+						pcall(function()
+							if spr:GetAnimation() ~= extra then
+								spr:Play(extra, true)
+							end
+							local len = RM.sprite_animation_length(spr, extra) or 1
+							if len < 1 then len = 1 end
+							local fr = Game():GetFrameCount() % len
+							spr:SetFrame(extra, fr)
+						end)
+						for i = 1, #ids do
+							local lid = ids[i]
+							if RM.sprite_layer_usable(spr, lid) then
+								local ok = pcall(function()
+									spr.Scale = sc
+									spr.FlipX = ghost.FlipX
+									spr.Color = Color(tint.R, tint.G, tint.B, alpha)
+									spr:RenderLayer(lid, screen, Vector.Zero, Vector.Zero)
+								end)
+								if ok then drawn = drawn + 1 end
+								if #slot_probe < 40 then
+									slot_probe[#slot_probe + 1] = {
+										slot_key = slot.key,
+										plan_key = (slot.plan_key or slot.key) .. "|overlay_extra",
+										anim_source = "head",
+										role = "head_overlay_extra",
+										anm2 = slot.anm2,
+										layer_id = lid,
+										slot_active_reason = "head_overlay_extra",
+										source_anim = overlay_anim,
+										target_anim = extra,
+										actual_anim = extra,
+										render_ok = ok and true or false,
+									}
+								end
+							end
+						end
+						if type(restore_anim) == "string" and restore_anim ~= "" then
+							pcall(function()
+								spr:SetFrame(restore_anim, tonumber(restore_frame) or 0)
+							end)
+						end
+					end
+				end
+			end
+		end
 	end
 	return drawn, slot_probe
 end
@@ -3134,9 +3757,12 @@ function RM.clear_ghost_walk_costumes(ghost)
 	RM.ghost_restore_base_layer_visibility(ghost)
 	local gd = ghost:GetData()
 	gd[GHOST_COSTUME_WINNERS_KEY] = nil
+	gd[GHOST_COSTUME_CANDIDATES_KEY] = nil
 	gd[GHOST_COSTUME_SPRS_KEY] = nil
 	gd[GHOST_COSTUME_DRIVER_KEY] = nil
 	gd[GHOST_COSTUME_CLOCK_KEY] = nil
+	gd[GHOST_CLOCK_PROBE_KEY] = nil
+	gd[GHOST_PLAN_CACHE_KEY] = nil
 	gd[item.own_key.."walk_composite"] = nil
 end
 
@@ -3226,48 +3852,77 @@ function RM.render_ghost_walk_costumes(ghost, render_offset)
 	end
 	-- 读 body 上真实 overlay（recorded 已写入；空时 cinematic 仍可回退 Head* frame 0）
 	local overlay_anim, overlay_frame, overlay_active = RM.ghost_walk_overlay_state(body, anim, ghost)
-	local body_slots = RM.ghost_sort_winner_slots(winners, false)
-	local head_slots = RM.ghost_sort_winner_slots(winners, true)
+	local gd = ghost:GetData()
+	local sources = RM.ghost_costume_candidates(ghost)
+	local cache = gd[GHOST_PLAN_CACHE_KEY]
+	local plan
+	if type(cache) == "table"
+		and cache.main_anim == anim
+		and cache.overlay_anim == overlay_anim
+		and type(cache.plan) == "table"
+	then
+		plan = cache.plan
+	else
+		plan = RM.ghost_build_render_plan(sources, anim, overlay_anim)
+		gd[GHOST_PLAN_CACHE_KEY] = {
+			main_anim = anim,
+			overlay_anim = overlay_anim,
+			plan = plan,
+		}
+	end
 	local sc = ghost.SpriteScale or Vector(1, 1)
 	local tint = body.Color or Color(1, 1, 1, 1)
 	local alpha = tint.A or 1
 	local screen = RM.ghost_world_screen_pos(ghost, nil, render_offset)
 	local body_running = RM.ghost_body_clock_running(body, anim)
-	-- Phase B/C：暂隐被 costume 取代的底模同名层（PRE 已 cancel 整精灵，仍防 fallback/误绘）
-	local suppressed = RM.ghost_suppress_replaced_base_layers(body, winners)
-	local drawn_body, body_probe = RM.ghost_draw_winner_layers(
-		ghost, body, body_slots, anim, frame, overlay_anim, overlay_frame, overlay_active, false, render_offset
+	-- Phase B/C：暂隐被当前 animation plan 中 costume winner 取代的底模同名层
+	local suppressed = RM.ghost_suppress_replaced_base_layers(body, plan)
+	local drawn_layers, slot_probe = RM.ghost_draw_winner_layers(
+		ghost, body, plan, anim, frame, overlay_anim, overlay_frame, overlay_active, nil, render_offset
 	)
-	local drawn_head, head_probe = RM.ghost_draw_winner_layers(
-		ghost, body, head_slots, anim, frame, overlay_anim, overlay_frame, overlay_active, true, render_offset
-	)
-	drawn_body = drawn_body or 0
-	drawn_head = drawn_head or 0
-	-- 底模 Head* overlay 只在「head 槽无人用 costume 赢」时绘制；否则与 ChargeHead 等同槽双绘。
-	local costume_owns_head = RM.ghost_head_slots_have_costume_winner(head_slots)
+	drawn_layers = drawn_layers or 0
+	-- 底模 Head* overlay 只在「没有 head-source costume winner」时绘制。
+	local costume_owns_head = RM.ghost_head_slots_have_costume_winner(plan)
+	local head_participates = RM.ghost_directional_head_participates(anim, overlay_anim)
 	local overlay_drawn = false
-	if not costume_owns_head then
+	if not costume_owns_head and head_participates then
 		overlay_drawn = RM.ghost_render_sprite_overlay_only(body, screen, sc, ghost.FlipX, tint, alpha)
 	end
-	local total_drawn = drawn_body + drawn_head + (overlay_drawn and 1 or 0)
+	local total_drawn = drawn_layers + (overlay_drawn and 1 or 0)
 	local render_fallback = false
 	if total_drawn == 0 then
+		local restore_ov, restore_of = nil, 0
+		if not head_participates and type(overlay_anim) == "string" and overlay_anim ~= "" then
+			restore_ov = overlay_anim
+			restore_of = tonumber(overlay_frame) or 0
+			pcall(function() body:RemoveOverlay() end)
+		end
 		render_fallback = RM.ghost_render_fallback_full_body(ghost, body, screen, sc, tint, alpha)
+		if restore_ov then
+			pcall(function()
+				body:PlayOverlay(restore_ov, true)
+				body:SetOverlayFrame(restore_ov, restore_of)
+			end)
+		end
 	end
 	-- Phase E：恢复底模 Visible（勿永久改层）
 	RM.ghost_restore_layer_visibility_map(body, suppressed)
 
-	local slot_probe = {}
 	local suppressed_count = 0
 	for _ in pairs(suppressed) do suppressed_count = suppressed_count + 1 end
-	if type(body_probe) == "table" then
-		for i = 1, #body_probe do
-			slot_probe[#slot_probe + 1] = body_probe[i]
-		end
-	end
-	if type(head_probe) == "table" then
-		for i = 1, #head_probe do
-			slot_probe[#slot_probe + 1] = head_probe[i]
+	local render_sequence = {}
+	if type(slot_probe) == "table" then
+		for i = 1, #slot_probe do
+			local s = slot_probe[i]
+			render_sequence[#render_sequence + 1] = string.format(
+				"#%d %s layer=%s logical=%s src=%s %s",
+				i,
+				tostring(s.slot_key),
+				tostring(s.layer_id),
+				tostring(s.logical_layer_id),
+				tostring(s.anim_source),
+				tostring(s.anm2)
+			)
 		end
 	end
 	RM.emit_ghost_probe("render_post", ghost, {
@@ -3275,25 +3930,30 @@ function RM.render_ghost_walk_costumes(ghost, render_offset)
 		frame = frame,
 		body_anim = body_anim,
 		body_frame = body_frame,
+		current_main_anim = anim,
+		current_overlay_anim = overlay_anim,
 		render_anim = anim,
 		render_frame = frame,
-		costume_driver = driver and driver.key or nil,
+		costume_driver = driver and (driver.plan_key or driver.key) or nil,
 		driver_anim = driver_anim,
 		driver_frame = driver_frame,
-		driver_key = driver and driver.key or nil,
+		driver_key = driver and (driver.plan_key or driver.key) or nil,
 		overlay_anim = overlay_anim,
 		overlay_frame = overlay_frame,
 		overlay_active = overlay_active and true or false,
+		head_participates = head_participates and true or false,
 		body_clock_running = body_running,
-		body_slot_count = #body_slots,
-		head_slot_count = #head_slots,
-		layers_drawn = drawn_body + drawn_head,
+		plan_slot_count = #plan,
+		layers_drawn = drawn_layers,
 		overlay_drawn = overlay_drawn,
 		costume_owns_head = costume_owns_head,
 		base_overlay_suppressed = costume_owns_head,
 		base_layers_suppressed = suppressed_count,
 		winner_slot_probe = slot_probe,
-		head_slot_probe = head_probe,
+		clock_probe = ghost:GetData()[GHOST_CLOCK_PROBE_KEY],
+		actually_moving = RM.ghost_is_actually_moving(ghost),
+		inactive_costume_probe = RM.ghost_inactive_costume_slots(sources, plan, anim, overlay_anim),
+		render_sequence = render_sequence,
 		render_fallback = render_fallback,
 		recorded_pose = recorded_pose and true or false,
 	})
@@ -3688,26 +4348,45 @@ function RM.tick_ghost_walk_costume_sprites(ghost)
 	-- movement_independent: only while base Walk PlaybackSpeed > 0.
 	-- persistent / head_independent: always tick.
 	local clocks = gd[GHOST_COSTUME_CLOCK_KEY]
-	local winners = gd[GHOST_COSTUME_WINNERS_KEY]
-	if type(clocks) ~= "table" or type(winners) ~= "table" then return end
+	if type(clocks) ~= "table" then return end
 	local body = ghost:GetSprite()
 	local body_anim = nil
 	pcall(function() body_anim = body:GetAnimation() end)
 	local body_running = RM.ghost_body_clock_running(body, body_anim)
+	local app = gd[item.own_key.."ghost_app"]
 	local seen = {}
+	local probe = {}
 	for key, state in pairs(clocks) do
 		local mode = state and state.mode
 		local should_tick = mode == "persistent" or mode == "head_independent"
 			or (mode == "movement_independent" and body_running)
-		if should_tick then
-			local slot = winners[key]
-			local spr = slot and slot.spr
-			if spr and not seen[spr] then
-				seen[spr] = true
-				RM.tick_lua_sprite(spr, true)
-			end
+		local spr = state and state.spr
+		local rate = RM.ghost_costume_playback_rate(state, ghost, body_anim, app)
+		if should_tick and spr and not seen[spr] then
+			seen[spr] = true
+			RM.advance_sprite_clock(state, rate)
+		elseif state then
+			state.ticks_this_update = 0
+			state.effective_rate = rate
+		end
+		if state and #probe < 16 then
+			probe[#probe + 1] = {
+				clock_key = key,
+				sprite_ptr = spr and tostring(spr) or nil,
+				anim = state.anim,
+				mode = mode,
+				anim_source = state.anim_source,
+				base_rate = tonumber(state.update_rate) or 1,
+				effective_rate = state.effective_rate or rate,
+				accumulator = state.update_accum,
+				ticks_this_update = state.ticks_this_update or 0,
+				frame_before = state.frame_before,
+				frame_after = state.frame_after,
+				should_tick = should_tick and true or false,
+			}
 		end
 	end
+	gd[GHOST_CLOCK_PROBE_KEY] = probe
 end
 
 function RM.hide_ghost_held_sprite(ghost)
@@ -5210,6 +5889,9 @@ do
 		sync_head = function(ghost, anim)
 			RM.ghost_sync_walk_head_overlay(ghost, anim, ghost:GetData())
 		end,
+		body_accepts_directional_head = RM.ghost_body_accepts_directional_head,
+		is_directional_head_anim = RM.ghost_is_directional_head_anim,
+		directional_head_participates = RM.ghost_directional_head_participates,
 		get_probe_snapshot = RM.get_ghost_probe_snapshot,
 		ensure_held = RM.ensure_ghost_held_sprite,
 		hide_held = RM.hide_ghost_held_sprite,

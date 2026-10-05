@@ -418,6 +418,12 @@ function M.tick_player(player)
 		if drop_triggered(player) then
 			executor.try_absorb_pickup(player, focus.ent)
 			clear_absorb_focus(player)
+		elseif pocket_triggered(player) then
+			local kind = executor.get_absorb_kind(focus.ent)
+			if kind == "card" or kind == "pill" then
+				executor.try_absorb_and_use_pickup(player, focus.ent)
+				clear_absorb_focus(player)
+			end
 		end
 		return
 	end
@@ -455,14 +461,6 @@ function M.on_new_room(player)
 		proxy.clear_room_cache(player)
 		return
 	end
-	-- 同逻辑帧去重：Continue 时常 POST_GAME_STARTED + POST_NEW_ROOM 各调一次
-	local frame = Game():GetFrameCount()
-	local d = player:GetData()
-	if d[C.OWN_KEY .. "rebuild_frame"] == frame then
-		return
-	end
-	d[C.OWN_KEY .. "rebuild_frame"] = frame
-
 	local rng = player:GetCardRNG(C.ENTITY)
 	proxy.rebuild_room(player, rng)
 end

@@ -5,9 +5,152 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Pause_Screen_holder = require("Qing_Remaster_scripts.others.Pause_Screen_holder")
 local time_holder = require("Qing_Remaster_scripts.others.Time_holder")
 
-local item = {
+local item
+
+local function note_portal_restore_cmd_rewind(event, extra)
+	local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+	if type(probe) ~= "table" or type(probe.record_external) ~= "function" then
+		return
+	end
+	local row = {
+		source = "console_hack",
+		event = tostring(event or "CMD_REWIND"),
+		should_load2 = save.should_load2 == true,
+	}
+	if type(extra) == "table" then
+		for k, v in pairs(extra) do
+			row[k] = v
+		end
+	end
+	pcall(probe.record_external, row)
+end
+
+local function normalize_console_command(raw)
+	raw = tostring(raw or "")
+	return string.lower(raw:match("^%s*(%S+)") or "")
+end
+
+-- Shader / bookkeeping only. Must not arm should_load2 or call collect_data.
+local function handle_console_command(raw)
+	raw = tostring(raw or "")
+	if normalize_console_command(raw) == "rewind" then
+		note_portal_restore_cmd_rewind("CONSOLE_HISTORY_SEES_REWIND", {
+			raw = raw,
+			lastcmd = raw,
+			diagnostic_only = true,
+		})
+	end
+end
+
+local function read_rgon_console_lists()
+	if not Console or Console.GetCommandHistory == nil or Console.GetHistory == nil then
+		return nil, nil
+	end
+	local ok1, cmdlist = pcall(Console.GetCommandHistory)
+	local ok2, shownlist = pcall(Console.GetHistory)
+	if not ok1 or type(cmdlist) ~= "table" or not ok2 or type(shownlist) ~= "table" then
+		return nil, nil
+	end
+	return cmdlist, shownlist
+end
+
+-- Authoritative RGON rewind arm: first native MC_PRE_NEW_ROOM, before project PRE_NEW_ROOM.
+-- Do not call save.collect_data(); savedata's existing post PRE_NEW_ROOM owns restore.
+local function check_rgon_rewind_before_new_room()
+	local cmdlist, shownlist = read_rgon_console_lists()
+	if not cmdlist then
+		return false
+	end
+
+	local raw = cmdlist[#cmdlist]
+	local command = normalize_console_command(raw)
+	local shown_count = #shownlist
+	local showntarget = tostring(shownlist[2] or "")
+
+	if command ~= "rewind" then
+		return false
+	end
+
+	-- Fresh submit window: first PRE_NEW_ROOM still has ">rewind" as History()[2].
+	-- Shader-next-frame is too late (output already replaced). Do not drop this check.
+	if showntarget ~= ">" .. tostring(raw) then
+		return false
+	end
+
+	local marker = tostring(shown_count) .. "\0" .. tostring(raw)
+	if item.last_consumed_rewind_marker == marker then
+		return false
+	end
+
+	item.last_consumed_rewind_marker = marker
+	save.should_load2 = true
+	note_portal_restore_cmd_rewind("CONSOLE_EARLY_REWIND_ARMED", {
+		raw = raw,
+		shown_count = shown_count,
+		showntarget = showntarget,
+		marker = marker,
+	})
+	return true
+end
+
+local function baseline_rgon_console_history()
+	local cmdlist, shownlist = read_rgon_console_lists()
+	if not cmdlist then
+		item.console_history_initialized = true
+		item.lastcmd = nil
+		item.lastnum = 0
+		return
+	end
+	item.lastcmd = cmdlist[#cmdlist]
+	item.lastnum = #shownlist
+	item.console_history_initialized = true
+end
+
+-- Diagnostic only. Do not arm should_load2 or collect_data from shader polling.
+local function poll_rgon_console_history()
+	local cmdlist, shownlist = read_rgon_console_lists()
+	if not cmdlist then
+		return
+	end
+
+	local lastcmd = cmdlist[#cmdlist]
+	local shown_count = #shownlist
+	local showntarget = shownlist[2] or ""
+
+	if item.console_history_initialized ~= true then
+		item.console_history_initialized = true
+		item.lastcmd = lastcmd
+		item.lastnum = shown_count
+		return
+	end
+
+	local changed = item.lastcmd ~= lastcmd or item.lastnum ~= shown_count
+	if changed then
+		note_portal_restore_cmd_rewind("CONSOLE_HISTORY_CHANGED", {
+			command_count = #cmdlist,
+			shown_count = shown_count,
+			lastcmd = lastcmd,
+			showntarget = showntarget,
+			prev_lastcmd = item.lastcmd,
+			prev_shown_count = item.lastnum,
+			diagnostic_only = true,
+		})
+		if lastcmd and ">" .. tostring(lastcmd) == tostring(showntarget) then
+			handle_console_command(lastcmd)
+		end
+		item.lastcmd = lastcmd
+		item.lastnum = shown_count
+	end
+end
+
+item = {
 	ToCall = {},
 	pre_ToCall = {},
+	myToCall = {},
+	console_history_initialized = false,
+	lastcmd = nil,
+	lastnum = nil,
+	last_consumed_rewind_marker = nil,
 	buffers = {},
 	now_state = {str1 = "",str2 = "",state = 0,},
 	now_id = nil,
@@ -154,17 +297,44 @@ local item = {
 		["Cplock"] = false,
 	},
 }
--- 命令回调能直接取得已执行命令。RGON 下不再通过 shader 轮询控制台历史；
--- Vanilla 下也保留这条直接路径，旧键盘模拟仅负责提交前的兼容处理。
+-- Native RGON rewind does not reliably reach MC_EXECUTE_CMD.
+-- The authoritative RGON path is the early MC_PRE_NEW_ROOM Console history observer.
+-- This handler is only a fallback for environments/commands that do reach MC_EXECUTE_CMD.
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EXECUTE_CMD, params = nil,
 Function = function(_,str,params)
 	local command = string.lower(tostring(str or ""))
 	item.may_executed = {str = command.." "..tostring(params or ""),fr = Isaac.GetFrameCount(),}
-	if command == "rewind" then save.should_load2 = true end
+	if command == "rewind" then
+		save.should_load2 = true
+		note_portal_restore_cmd_rewind("CMD_REWIND")
+	end
 end,
 })
 
 if REPENTOGON then
+	table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{
+		CallBack = ModCallbacks.MC_PRE_NEW_ROOM,
+		params = nil,
+		priority = -20000,
+		Function = function()
+			check_rgon_rewind_before_new_room()
+		end,
+	})
+	table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
+	Function = function(_, continue)
+		baseline_rgon_console_history()
+		if continue ~= true then
+			item.last_consumed_rewind_marker = nil
+		end
+	end,
+	})
+	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_GET_SHADER_PARAMS, params = nil,
+	Function = function(_,name)
+		if name == item.shader_name then
+			poll_rgon_console_history()
+		end
+	end,
+	})
 	return item
 end
 
@@ -196,6 +366,7 @@ function item.Try_Execute(state)
 	elseif state.state == 0 then
 		if state.str1 == "rewind" then 
 			save.should_load2 = true
+			note_portal_restore_cmd_rewind("CMD_REWIND")
 		end
 	end
 	table.insert(item.buffers,1,state)

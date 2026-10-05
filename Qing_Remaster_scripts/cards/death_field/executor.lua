@@ -98,13 +98,13 @@ function M.spawn_real_pickup(entry, pos)
 	return nil
 end
 
-function M.materialize_entry(player, uid)
+function M.materialize_entry(player, uid, pos)
 	local entry = state.find_entry(player, uid)
 	if not entry then
 		return false
 	end
 	local ent = proxy.get_proxy(player, uid)
-	local pos = (ent and ent.Position) or player.Position
+	pos = pos or (ent and ent.Position) or player.Position
 	-- 先改业务真相，再 evaluate（desired 中不再含该饰品）
 	state.remove_entry(player, uid)
 	proxy.remove_proxy(player, uid)
@@ -469,9 +469,9 @@ local function capture_pill_fields(player, color)
 	}
 end
 
-function M.use_pill(player, uid)
-	local entry = state.find_entry(player, uid)
-	if not entry or entry.kind ~= "pill" then
+--- 使用一份 pill 业务数据；不碰 Death Field state。返回是否消耗。
+local function execute_pill_entry(player, entry)
+	if not player or not entry or entry.kind ~= "pill" then
 		return false
 	end
 	local color = entry.pill_color
@@ -498,7 +498,15 @@ function M.use_pill(player, uid)
 	if golden then
 		consumed = roll_golden_pill_consume(entry, player)
 	end
+	return consumed
+end
 
+function M.use_pill(player, uid)
+	local entry = state.find_entry(player, uid)
+	if not entry or entry.kind ~= "pill" then
+		return false
+	end
+	local consumed = execute_pill_entry(player, entry)
 	if consumed then
 		state.remove_entry(player, uid)
 		proxy.remove_proxy(player, uid)
@@ -534,32 +542,32 @@ function M.is_absorbable_pickup(pickup)
 	return pickup_kind(pickup) ~= nil
 end
 
-function M.try_absorb_pickup(player, pickup)
-	if not state.is_active(player) then
-		return false
-	end
+function M.get_absorb_kind(pickup)
+	return pickup_kind(pickup)
+end
+
+--- 取得地上 pickup 的事务：capture / Options / 支付 / Remove。不写 Death Field entry。
+local function acquire_absorb_pickup(player, pickup)
 	if not auxi.check_all_exists(pickup) then
-		return false
+		return nil
 	end
 	local kind = pickup_kind(pickup)
 	if not kind then
-		return false
-	end
-	if not state.has_room(player) then
-		fail_full(player, pickup.Position)
-		return false
+		return nil
 	end
 
-	-- 商店 / 恶魔价：付得起才纳入，并走统一支付
+	local original_pos = Vector(pickup.Position.X, pickup.Position.Y)
+
+	-- 商店 / 恶魔价：付得起才取得，并走统一支付
 	local price = pickup.Price or 0
 	if price ~= 0 then
 		if not auxi.can_afford_pickup(player, pickup) then
 			fail_full(player, pickup.Position)
-			return false
+			return nil
 		end
 	end
 
-	-- B. Capture（任何支付 / Options / Remove 之前）
+	-- Capture（任何支付 / Options / Remove 之前）
 	local entry = {kind = kind}
 	if kind == "active" then
 		entry.collectible_id = pickup.SubType
@@ -585,21 +593,7 @@ function M.try_absorb_pickup(player, pickup)
 		entry.golden_use_seed = fields.golden_use_seed
 	end
 
-	local placed = {}
-	proxy.for_each_proxy(player, function(_, ent)
-		placed[#placed + 1] = ent.Position
-	end)
-	local pos = layout.find_safe_deterministic(pickup.Position, placed)
-	state.update_norm_from_world(entry, pos)
-
-	-- C. 先建立业务 entry，再做不可逆 side effect
-	local added = state.add_entry(player, entry)
-	if not added then
-		fail_full(player, pickup.Position)
-		return false
-	end
-
-	-- D. Options：程序化吸收等价于选中该成员
+	-- Options：程序化取得等价于选中该成员
 	if (pickup.OptionsPickupIndex or 0) ~= 0 then
 		option_index_holder.commit_selection(pickup, player, {
 			source = C.OWN_KEY,
@@ -608,19 +602,89 @@ function M.try_absorb_pickup(player, pickup)
 		})
 	end
 
-	-- E. 支付一次
 	if price ~= 0 then
 		auxi.buy_a_pickup(pickup, player, {no_remove = true, NoAnim = true})
 	end
 
-	-- F. Remove 只结束 physical carrier
 	pickup:Remove()
+	return {
+		entry = entry,
+		kind = kind,
+		original_pos = original_pos,
+	}
+end
 
-	proxy.spawn_proxy(player, added, pos)
+function M.try_absorb_pickup(player, pickup, opts)
+	opts = type(opts) == "table" and opts or {}
+	local spawn_proxy = opts.spawn_proxy ~= false
+	local do_poof = opts.poof ~= false
+	if not state.is_active(player) then
+		return false
+	end
+	if not auxi.check_all_exists(pickup) then
+		return false
+	end
+	local kind = pickup_kind(pickup)
+	if not kind then
+		return false
+	end
+	if not state.has_room(player) then
+		fail_full(player, pickup.Position)
+		return false
+	end
+
+	local tx = acquire_absorb_pickup(player, pickup)
+	if not tx then
+		return false
+	end
+
+	local placed = {}
+	proxy.for_each_proxy(player, function(_, ent)
+		placed[#placed + 1] = ent.Position
+	end)
+	local pos = layout.find_safe_deterministic(tx.original_pos, placed)
+	state.update_norm_from_world(tx.entry, pos)
+
+	local added = state.add_entry(player, tx.entry)
+	if not added then
+		fail_full(player, tx.original_pos)
+		M.spawn_real_pickup(tx.entry, tx.original_pos)
+		return false
+	end
+
+	if spawn_proxy then
+		proxy.spawn_proxy(player, added, pos)
+	end
 	if kind == "trinket" then
 		trinkets.refresh(player)
 	end
-	poof(pos)
+	if do_poof then
+		poof(pos)
+	end
+	return added
+end
+
+--- Card/Pill: 取得事务后立即使用，不进 Death Field；未消耗则原位 rematerialize。
+function M.try_absorb_and_use_pickup(player, pickup)
+	if not auxi.check_all_exists(pickup) then
+		return false
+	end
+	local kind = pickup_kind(pickup)
+	if kind ~= "card" and kind ~= "pill" then
+		return false
+	end
+	local tx = acquire_absorb_pickup(player, pickup)
+	if not tx then
+		return false
+	end
+	if kind == "card" then
+		player:UseCard(tx.entry.card_id, 0)
+		return true
+	end
+	local consumed = execute_pill_entry(player, tx.entry)
+	if not consumed then
+		M.spawn_real_pickup(tx.entry, tx.original_pos)
+	end
 	return true
 end
 

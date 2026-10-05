@@ -74,6 +74,49 @@ function item.get_language(setting_key)
 	return "en"
 end
 
+--- Force all menu language overrides at once (title logo / character / controls / game-over).
+--- mode: 0=auto, 1=zh, 2=en
+function item.set_all_force_modes(mode)
+	local value = tonumber(mode) or FORCE_AUTO
+	if value ~= FORCE_ZH and value ~= FORCE_EN then
+		value = FORCE_AUTO
+	end
+	local options = require("Qing_Remaster_scripts.callbacks.rgon_imgui_options_holder")
+	for _, key in ipairs({
+		"CharacterSelectLanguage",
+		"ControlsLanguage",
+		"GameOverLanguage",
+		"TitleLogoLanguage",
+	}) do
+		if options and options.set_value then
+			options.set_value({"QingRemasterOptions", "Menu", key}, value)
+		end
+	end
+	item.loaded_by_hash = {}
+	item.applied_language = nil
+	item.apply_language(true)
+	local ok, logo = pcall(require, "Qing_Remaster_scripts.callbacks.title_menu_logo_holder")
+	if ok and logo then
+		if logo.reset_overlay_cache then logo.reset_overlay_cache() end
+		if logo.refresh_vanilla_logo then logo.refresh_vanilla_logo() end
+	end
+	return true
+end
+
+function item.describe_all_force_status()
+	local keys = {
+		"TitleLogoLanguage",
+		"CharacterSelectLanguage",
+		"ControlsLanguage",
+		"GameOverLanguage",
+	}
+	local parts = {}
+	for _, key in ipairs(keys) do
+		parts[#parts + 1] = tostring(item.get_language(key))
+	end
+	return table.concat(parts, "/"), item.get_game_language()
+end
+
 function item.full_path(info, path)
 	if type(path) ~= "string" or path == "" then return nil end
 	return (info.base or "")..path

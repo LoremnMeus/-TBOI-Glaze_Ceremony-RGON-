@@ -4,9 +4,14 @@
 -- Remaster binds the verified low-level implementation; Aeon/TianYi/etc. are consumers.
 -- appearance.base_sheets is keyed by Sprite Layer ID, not ANM2 <Spritesheet> Id.
 -- Cinematic Walk/Idle: base sprite is the reference clock.
--- Body: flying costumes stay persistent; ordinary costumes share matching lengths or advance only while Walk is running.
--- Head: idle directional Head* stays on frame 0; only a real overlay advances, then length matching applies.
--- Same costume ANM2 uses separate Lua Sprites for body-role vs head-role clocks (Spirit of the Night etc.).
+-- Layer compositor: each frame enumerates layers in the current main/overlay animation,
+-- arbitrates per slot, then draws in known PSL order with unknown native layers trailing
+-- that animation group. Clock source is independent of render order.
+-- HeadXX_Idle: only while the directional head overlay is held on frame 0.
+-- HeadXX_Overlay: extra draw if present. Walk extra animations are not used.
+-- Directional Head* participates in the composite only while body is Walk*/Idle.
+-- Hit and other full-body poses keep the head clock but do not draw Head*.
+-- Same costume ANM2 uses separate Lua Sprites for body-source vs head-source clocks.
 -- Held visuals are {kind="collectible", gfx=} or {kind="pickup", variant, subtype}. A gfx string remains a collectible sheet.
 local enums = require("Qing_Remaster_scripts.core.enums")
 
@@ -342,6 +347,32 @@ function Ghost.sync_walk_head(ghost, anim)
 	if API.sync_head then
 		API.sync_head(ghost, anim)
 	end
+end
+
+function Ghost.body_accepts_directional_head(anim)
+	Ghost.ensure_bound()
+	if API and API.body_accepts_directional_head then
+		return API.body_accepts_directional_head(anim) and true or false
+	end
+	return anim == "WalkDown"
+		or anim == "WalkUp"
+		or anim == "WalkLeft"
+		or anim == "WalkRight"
+		or anim == "Idle"
+end
+
+function Ghost.directional_head_participates(body_anim, overlay_anim)
+	Ghost.ensure_bound()
+	if API and API.directional_head_participates then
+		return API.directional_head_participates(body_anim, overlay_anim) and true or false
+	end
+	if not Ghost.body_accepts_directional_head(body_anim) then
+		local overlay = overlay_anim
+		if type(overlay) == "string" and overlay:sub(1, 4) == "Head" then
+			return false
+		end
+	end
+	return true
 end
 
 function Ghost.get_probe_snapshot(ghost)

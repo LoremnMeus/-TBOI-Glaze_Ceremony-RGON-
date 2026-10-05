@@ -1,15 +1,19 @@
--- Shared pocket / tarot-card visual resolver.
--- Input: concrete Card ID (pickup SubType for PICKUP_TAROTCARD).
--- Output: held/world preview visual spec. Does not spawn entities.
+-- Shared pocket visual resolver (cards / runes / pills).
+-- Input: concrete Card ID, or full PillColor pickup subtype.
+-- Output: world/held preview visual spec. Does not spawn entities.
 --
--- Priority:
+-- Card priority:
 -- 1) ModdedCardFront:Copy() when present
 -- 2) ItemConfigCard.PickupSubtype → EntityConfig ANM2
 -- 3) CardType / IsRune / known Card ID family fallbacks
+--
+-- Pill: full PillColor subtype → EntityConfig ANM2, cross-checked with
+-- XMLData.GetEntityByTypeVarSub(..., Strict=true). Do not mask PILL_GIANT_FLAG.
 
 local M = {}
 
 local TAROT_VARIANT = PickupVariant.PICKUP_TAROTCARD
+local PILL_VARIANT = PickupVariant.PICKUP_PILL
 
 local FAMILY_ANM2 = {
 	[ItemConfig.CARDTYPE_TAROT] = "gfx/005.301_tarot card.anm2",
@@ -196,6 +200,69 @@ end
 function M.resolve_card_anm2(card_id)
 	local visual = M.resolve_card_visual(card_id)
 	return visual and visual.anm2 or nil
+end
+
+local function xml_entity_strict(variant, subtype)
+	local xml = nil
+	pcall(function()
+		xml = XMLData.GetEntityByTypeVarSub(
+			EntityType.ENTITY_PICKUP,
+			variant,
+			subtype,
+			true
+		)
+	end)
+	if type(xml) == "table" then
+		return xml
+	end
+	return nil
+end
+
+--- Resolve world visual for a full PillColor pickup subtype.
+--- Does not mask PILL_GIANT_FLAG and does not special-case gold.
+--- exact is true only when strict XML hits this exact subtype.
+function M.resolve_pill_visual(pill_color)
+	pill_color = tonumber(pill_color)
+	if pill_color == nil then
+		return nil
+	end
+
+	local cfg = nil
+	local anm2 = nil
+	pcall(function()
+		cfg = EntityConfig.GetEntity(
+			EntityType.ENTITY_PICKUP,
+			PILL_VARIANT,
+			pill_color
+		)
+		if cfg and cfg.GetAnm2Path then
+			anm2 = cfg:GetAnm2Path()
+		end
+	end)
+	if type(anm2) ~= "string" or anm2 == "" then
+		anm2 = entity_anm2(PILL_VARIANT, pill_color)
+	end
+
+	local xml = xml_entity_strict(PILL_VARIANT, pill_color)
+	local xml_anm2 = nil
+	local xml_subtype = nil
+	if xml then
+		xml_anm2 = xml.anm2path or xml.anm2
+		xml_subtype = tonumber(xml.subtype)
+		if type(xml_anm2) ~= "string" or xml_anm2 == "" then
+			xml_anm2 = nil
+		end
+	end
+
+	return {
+		pill_color = pill_color,
+		anm2 = anm2,
+		animation = "Idle",
+		strict_xml = xml ~= nil,
+		xml_anm2 = xml_anm2,
+		xml_subtype = xml_subtype,
+		exact = xml ~= nil and xml_subtype == pill_color,
+	}
 end
 
 return M

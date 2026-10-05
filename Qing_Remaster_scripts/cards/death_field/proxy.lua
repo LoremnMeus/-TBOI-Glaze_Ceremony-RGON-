@@ -1,6 +1,7 @@
 -- Death Field ghost proxies: dedicated Effect (Death Field Proxy), not MeusNil
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local enums = require("Qing_Remaster_scripts.core.enums")
+local pocket_visual = require("Qing_Remaster_scripts.others.pocket_visual")
 local C = require("Qing_Remaster_scripts.cards.death_field.constants")
 local state = require("Qing_Remaster_scripts.cards.death_field.state")
 local layout = require("Qing_Remaster_scripts.cards.death_field.layout")
@@ -49,6 +50,92 @@ function M.is_proxy(ent)
 	return ent:GetData()[C.DATA_TAG] == true
 end
 
+local function note_proxy_probe(row)
+	local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+	if type(probe) ~= "table" or type(probe.record_external) ~= "function" then
+		return
+	end
+	pcall(probe.record_external, row)
+end
+
+function M.count_world_proxies()
+	local n = 0
+	if not M.VARIANT or M.VARIANT < 0 then
+		return 0
+	end
+	local list = Isaac.FindByType(EntityType.ENTITY_EFFECT, M.VARIANT, -1, false, false)
+	for i = 1, #list do
+		local ent = list[i]
+		if ent and ent.Exists and ent:Exists() then
+			n = n + 1
+		end
+	end
+	return n
+end
+
+local function count_cached_proxies(player)
+	local n = 0
+	M.for_each_proxy(player, function()
+		n = n + 1
+	end)
+	return n
+end
+
+local function emit_spawn_probe(player, entry, q)
+	local exists = false
+	local pos = "nil"
+	local ptr = "nil"
+	if q and q.Exists and q:Exists() then
+		exists = true
+		ptr = tostring(GetPtrHash(q))
+		pcall(function()
+			pos = string.format("%.2f,%.2f", q.Position.X, q.Position.Y)
+		end)
+	end
+	note_proxy_probe({
+		source = "death_field",
+		event = "DEATH_FIELD_PROXY_SPAWN",
+		uid = tostring(entry and entry.uid),
+		ptr = ptr,
+		exists = exists,
+		position = pos,
+		owner_idx = tostring(owner_index(player)),
+		proxy_count = M.count_world_proxies(),
+	})
+end
+
+local function apply_static_idle(sprite, anim)
+	anim = (type(anim) == "string" and anim ~= "") and anim or "Idle"
+	pcall(function()
+		sprite:Play(anim, true)
+		sprite:SetFrame(0)
+		if sprite.LoadGraphics then
+			sprite:LoadGraphics()
+		end
+	end)
+end
+
+local function load_card_proxy_sprite(sprite, card_id)
+	local visual = pocket_visual.resolve_card_visual(card_id)
+	if not visual then
+		return
+	end
+	if visual.exact and visual.sprite then
+		pcall(function()
+			visual.sprite:Play(visual.animation or "Idle", true)
+			visual.sprite:SetFrame(0)
+		end)
+		local fn
+		pcall(function() fn = visual.sprite:GetFilename() end)
+		if type(fn) == "string" and fn ~= "" then
+			sprite:Load(fn, true)
+		end
+	elseif type(visual.anm2) == "string" and visual.anm2 ~= "" then
+		sprite:Load(visual.anm2, true)
+	end
+	apply_static_idle(sprite, visual.animation)
+end
+
 local function load_entry_sprite(sprite, entry)
 	if entry.kind == "active" then
 		auxi.load_item(entry.collectible_id, {sprite = sprite})
@@ -63,48 +150,14 @@ local function load_entry_sprite(sprite, entry)
 		return
 	end
 	if entry.kind == "card" then
-		-- 用地上卡牌 pickup 贴图，勿用 HUD ui_cardfronts（16×20 在世界里又小又扁）
-		local room = Game():GetRoom()
-		local dummy = Isaac.Spawn(
-			EntityType.ENTITY_PICKUP,
-			PickupVariant.PICKUP_TAROTCARD,
-			entry.card_id or 0,
-			room:GetCenterPos() + Vector(20000, 20000),
-			Vector.Zero,
-			nil
-		):ToPickup()
-		if dummy then
-			dummy.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-			dummy.Visible = false
-			local ds = dummy:GetSprite()
-			sprite:Load(ds:GetFilename(), true)
-			sprite:Play(ds:GetAnimation(), true)
-			sprite:SetFrame(ds:GetFrame())
-			sprite:LoadGraphics()
-			dummy:Remove()
-		end
+		load_card_proxy_sprite(sprite, entry.card_id)
 		return
 	end
 	if entry.kind == "pill" then
-		-- TECH DEBT：dummy PICKUP_PILL 仅在 rebuild 时 Spawn 一次以抄贴图
-		local room = Game():GetRoom()
-		local dummy = Isaac.Spawn(
-			EntityType.ENTITY_PICKUP,
-			PickupVariant.PICKUP_PILL,
-			entry.pill_color or 0,
-			room:GetCenterPos() + Vector(20000, 20000),
-			Vector.Zero,
-			nil
-		):ToPickup()
-		if dummy then
-			dummy.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-			dummy.Visible = false
-			local ds = dummy:GetSprite()
-			sprite:Load(ds:GetFilename(), true)
-			sprite:Play(ds:GetAnimation(), true)
-			sprite:SetFrame(ds:GetFrame())
-			sprite:LoadGraphics()
-			dummy:Remove()
+		local visual = pocket_visual.resolve_pill_visual(entry.pill_color)
+		if visual and type(visual.anm2) == "string" and visual.anm2 ~= "" then
+			sprite:Load(visual.anm2, true)
+			apply_static_idle(sprite, visual.animation)
 		end
 		return
 	end
@@ -196,10 +249,12 @@ end
 function M.spawn_proxy(player, entry, pos)
 	pos = pos or entry._spawn_pos or player.Position
 	if not M.VARIANT or M.VARIANT < 0 then
+		emit_spawn_probe(player, entry, nil)
 		return nil
 	end
 	local q = Isaac.Spawn(EntityType.ENTITY_EFFECT, M.VARIANT, 0, pos, Vector.Zero, player)
 	if not q then
+		emit_spawn_probe(player, entry, nil)
 		return nil
 	end
 	q = q:ToEffect() or q
@@ -230,6 +285,7 @@ function M.spawn_proxy(player, entry, pos)
 	if store then
 		store[entry.uid] = q
 	end
+	emit_spawn_probe(player, entry, q)
 	return q
 end
 
@@ -262,6 +318,14 @@ end
 
 function M.rebuild_room(player, rng, opts)
 	opts = opts or {}
+	note_proxy_probe({
+		source = "death_field",
+		event = "DEATH_FIELD_PROXY_REBUILD_BEGIN",
+		idx = tostring(owner_index(player)),
+		entries = state.entry_count(player),
+		existing_proxy_count = M.count_world_proxies(),
+		cached_proxy_count = count_cached_proxies(player),
+	})
 	M.remove_all_proxies(player)
 	if not state.is_active(player) then
 		return

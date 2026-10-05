@@ -141,8 +141,10 @@ local item = {
 				BlueprintSettingsVersion = 8,
 				SuperBombsBombGrowthSeconds = 20,
 				SuperBombsMamaGrowthSeconds = 120,
-				SuperBombsTimerX = -7,
-				SuperBombsTimerY = -8.25,
+				SuperBombsTimerX = -5,
+				SuperBombsTimerY = -5,
+				SuperBombsMamaTimerX = 5,
+				SuperBombsMamaTimerY = 9,
 				TitleMarqueeStartX = 320,
 				TitleMarqueeEndX = 80,
 				TitleMarqueeY = 95,
@@ -396,8 +398,13 @@ local LANG = {
 		tab_compatibility = "Compatibility",
 		tab_gameplay = "Gameplay",
 		tab_hud = "HUD",
+		tab_controls = "Controls",
+		group_controls = "Character controls",
 		group_hud_imitate = "Imitate items",
 		group_character_menu_lang = "Character select language",
+		group_menu_lang_force_all = "Force menu language (test)",
+		menu_lang_force_all_help = "One-click force for title logo + character select + controls + game-over. Does not change the game Options language.",
+		menu_lang_force_all_status = "Forced sheets (logo/select/controls/game-over): %s (game language: %s)",
 		character_menu_lang_help = "Swaps Qing character-select text sheets. Default follows the game language.",
 		character_menu_lang_auto = "Follow game language",
 		character_menu_lang_zh = "Force Chinese",
@@ -434,7 +441,7 @@ local LANG = {
 		title_logo_rainbow_bend = "Rainbow roll spatial bend",
 		title_logo_rainbow_shape_contrast = "Rainbow roll shape contrast",
 		title_logo_rainbow_style_help = "ColorOffset params: how much luminance shifts hue, how curved bands are, and how strongly remapped gray keeps border/fill contrast. Defaults match prior fixed constants.",
-		title_logo_lang_help = "Choose which logo sheet to use when the mod logo is enabled. Auto follows game language. Chinese sheet is not bundled yet and falls back to English.",
+		title_logo_lang_help = "Choose which logo sheet to use when the mod logo is enabled. Auto follows game language (Chinese uses logo_replace_zh.png).",
 		title_logo_lang_status = "Current logo: %s (game language: %s)",
 		title_logo_offset_x = "Logo overlay offset X",
 		title_logo_offset_y = "Logo overlay offset Y",
@@ -738,10 +745,14 @@ local LANG = {
 		super_bombs_bomb_seconds_help = "Seconds without using a consumable bomb before one existing bomb grows into a Giga Bomb.",
 		super_bombs_mama_seconds = "Giga Bomb to Mama Mega limit",
 		super_bombs_mama_seconds_help = "Seconds with an empty primary active slot before one Giga Bomb grows into Mama Mega.",
-		super_bombs_timer_x = "Timer right edge X",
-		super_bombs_timer_x_help = "Horizontal offset of the timer's right edge from the Glaze Bomb HUD anchor.",
-		super_bombs_timer_y = "Timer Y",
-		super_bombs_timer_y_help = "Vertical offset of the timer from the Glaze Bomb HUD anchor.",
+		super_bombs_timer_x = "Bomb timer right edge X",
+		super_bombs_timer_x_help = "Horizontal offset of the Bomb→Giga timer's right edge from the bomb HUD anchor.",
+		super_bombs_timer_y = "Bomb timer Y",
+		super_bombs_timer_y_help = "Vertical offset of the Bomb→Giga timer from the bomb HUD anchor.",
+		super_bombs_mama_timer_x = "Mama Mega timer right edge X",
+		super_bombs_mama_timer_x_help = "Horizontal offset of the Giga→Mama timer's right edge from the primary active-slot center (PlayerActiveUIPos).",
+		super_bombs_mama_timer_y = "Mama Mega timer Y",
+		super_bombs_mama_timer_y_help = "Vertical offset of the Giga→Mama timer from the primary active-slot center. Negative is above the slot.",
 		charon_spawn_interval = "Generation interval",
 		charon_spawn_interval_help = "Frames between generation attempts on each flooded grid. The original frequency is 15.",
 		charon_particle_lifetime = "Particle lifetime",
@@ -1144,8 +1155,13 @@ local LANG = {
 		tab_compatibility = "兼容",
 		tab_gameplay = "玩法",
 		tab_hud = "HUD",
+		tab_controls = "控制",
+		group_controls = "角色操作",
 		group_hud_imitate = "模拟道具",
 		group_character_menu_lang = "选人页语言",
+		group_menu_lang_force_all = "强制菜单语言（测试）",
+		menu_lang_force_all_help = "一键强制标题 Logo / 选人页 / 开局操作说明 / 死亡名字。不修改游戏设置里的语言选项。",
+		menu_lang_force_all_status = "当前强制贴图（Logo/选人/操作/死亡）：%s（游戏语言：%s）",
 		character_menu_lang_help = "运行时替换青的选人页文字贴图。默认跟随游戏语言，可强制中文或英文。",
 		character_menu_lang_auto = "跟随游戏语言",
 		character_menu_lang_zh = "强制中文",
@@ -1182,7 +1198,7 @@ local LANG = {
 		title_logo_rainbow_bend = "彩虹 Roll 空间弯曲",
 		title_logo_rainbow_shape_contrast = "彩虹 Roll 结构对比",
 		title_logo_rainbow_style_help = "ColorOffset：灰度影响色相的程度、色带弯曲、remap 后边框/内部对比。默认对应旧固定常量。",
-		title_logo_lang_help = "启用模组 Logo 时选择贴图语言。默认跟随游戏语言；中文贴图尚未实装，会回退英文。",
+		title_logo_lang_help = "启用模组 Logo 时选择贴图语言。默认跟随游戏语言；中文使用 logo_replace_zh.png。",
 		title_logo_lang_status = "当前 Logo：%s（游戏语言：%s）",
 		title_logo_offset_x = "Logo 叠绘偏移 X",
 		title_logo_offset_y = "Logo 叠绘偏移 Y",
@@ -1486,10 +1502,14 @@ local LANG = {
 		super_bombs_bomb_seconds_help = "未使用消耗型炸弹达到该秒数后，将一枚现有炸弹成长为超大炸弹。",
 		super_bombs_mama_seconds = "超大炸弹->Mama Mega计数上限",
 		super_bombs_mama_seconds_help = "主主动槽为空时达到该秒数后，将一枚超大炸弹成长为 Mama Mega。",
-		super_bombs_timer_x = "计时文本右边缘 X",
-		super_bombs_timer_x_help = "计时文本右边缘相对琉璃炸弹 HUD 锚点的水平偏移。",
-		super_bombs_timer_y = "计时文本 Y",
-		super_bombs_timer_y_help = "计时文本相对琉璃炸弹 HUD 锚点的垂直偏移。",
+		super_bombs_timer_x = "炸弹计时右边缘 X",
+		super_bombs_timer_x_help = "普通炸弹→超大炸弹计时器右边缘，相对炸弹 HUD 锚点的水平偏移。",
+		super_bombs_timer_y = "炸弹计时 Y",
+		super_bombs_timer_y_help = "普通炸弹→超大炸弹计时器，相对炸弹 HUD 锚点的垂直偏移。",
+		super_bombs_mama_timer_x = "Mama Mega 计时右边缘 X",
+		super_bombs_mama_timer_x_help = "超大炸弹→Mama Mega 计时器右边缘，相对主主动槽中心（PlayerActiveUIPos）的水平偏移。",
+		super_bombs_mama_timer_y = "Mama Mega 计时 Y",
+		super_bombs_mama_timer_y_help = "超大炸弹→Mama Mega 计时器，相对主主动槽中心的垂直偏移；负值在槽上方。",
 		charon_spawn_interval = "生成间隔",
 		charon_spawn_interval_help = "每个已淹没网格尝试生成黑潮的帧间隔；原始频率为 15。",
 		charon_particle_lifetime = "粒子寿命",
@@ -1895,14 +1915,24 @@ end
 local function apply_debug_migrations(root)
 	local debug_settings = root.QingRemasterOptions and root.QingRemasterOptions.Debug
 	if not debug_settings then return end
-	if debug_settings.SuperBombsTimerPositionVersion == nil then
-		if debug_settings.SuperBombsTimerX == nil or debug_settings.SuperBombsTimerX == -11 then
-			debug_settings.SuperBombsTimerX = -7
+	if (tonumber(debug_settings.SuperBombsTimerPositionVersion) or 0) < 2 then
+		local timer_x = tonumber(debug_settings.SuperBombsTimerX)
+		if timer_x == nil or timer_x == -11 or timer_x == -7 then
+			debug_settings.SuperBombsTimerX = -5
 		end
-		if debug_settings.SuperBombsTimerY == nil or debug_settings.SuperBombsTimerY == -5 then
-			debug_settings.SuperBombsTimerY = -8.25
+		local timer_y = tonumber(debug_settings.SuperBombsTimerY)
+		if timer_y == nil or timer_y == -8.25 then
+			debug_settings.SuperBombsTimerY = -5
 		end
-		debug_settings.SuperBombsTimerPositionVersion = 1
+		local mama_x = tonumber(debug_settings.SuperBombsMamaTimerX)
+		if mama_x == nil or mama_x == -8 then
+			debug_settings.SuperBombsMamaTimerX = 5
+		end
+		local mama_y = tonumber(debug_settings.SuperBombsMamaTimerY)
+		if mama_y == nil or mama_y == -20 then
+			debug_settings.SuperBombsMamaTimerY = 9
+		end
+		debug_settings.SuperBombsTimerPositionVersion = 2
 	end
 	if (tonumber(debug_settings.CharonSettingsVersion) or 0) < 3 then
 		debug_settings.CharonAnimationSpeed = nil

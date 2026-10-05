@@ -2338,6 +2338,11 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_KNIFE_INIT, params = nil,
 Function = function(_,ent)
 	if ent.Variant == enums.Entities.Tecro_Spear then
+		-- Custom head extras skip RENDER_WATER_REFLECT; disable native knife reflection so the shaft is not shown alone.
+		ent:SetWaterClipFlags(
+			ent:GetWaterClipFlags()
+			| WaterClipFlag.DISABLE_RENDER_REFLECTION
+		)
 		local d = ent:GetData()
 		local s = ent:GetSprite()
 		local player = CharacterAttackCompat.resolve_entity_player(ent, d.player)

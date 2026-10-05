@@ -561,6 +561,79 @@ Function = function(_,player)
 end,
 })
 
+local function note_rewind_portal(event, extra)
+	local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+	if type(probe) ~= "table" or type(probe.record_external) ~= "function" then
+		return
+	end
+	local row = {
+		source = "savedata",
+		event = tostring(event or "?"),
+		should_load = item.should_load == true,
+		should_load2 = item.should_load2 == true,
+	}
+	if type(probe.snapshot_rewind_state) == "function" then
+		if event == "REWIND_SOURCE" and extra and extra.source_store then
+			row.state = probe.snapshot_rewind_state(extra.source_store)
+		elseif event == "REWIND_AFTER_RESTORE" then
+			row.current_state = probe.snapshot_rewind_state(item.elses)
+		else
+			row.current_state = probe.snapshot_rewind_state(item.elses)
+			row.lst_state = probe.snapshot_rewind_state(item.lst)
+			row.lst2_state = probe.snapshot_rewind_state(item.lst2)
+		end
+	end
+	pcall(function()
+		row.frame = Isaac.GetFrameCount()
+	end)
+	pcall(function()
+		row.room = Game():GetLevel():GetCurrentRoomIndex()
+	end)
+	if type(extra) == "table" then
+		for k, v in pairs(extra) do
+			if k ~= "source_store" then
+				row[k] = v
+			end
+		end
+	end
+	pcall(probe.record_external, row)
+end
+
+local function player_bind_index(player)
+	local idx
+	pcall(function()
+		idx = player:GetData().__Index
+	end)
+	return idx
+end
+
+-- Wholesale restore must rebind EntityPlayer to PERSISTENT_PLAYER_DATA before
+-- POST_REWIND / POST_NEW_ROOM consumers look up player:GetData().__Index.
+local function rebind_players_for_restore(tp)
+	for playerNum = 1, Game():GetNumPlayers() do
+		local player = Game():GetPlayer(playerNum - 1)
+		local before_idx = player_bind_index(player)
+		local p_ok = item.check_p_data(player) == true
+		local v_ok = false
+		if not p_ok then
+			v_ok = item.check_vague_data(player) == true
+		end
+		local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+		if type(probe) == "table" and type(probe.record_external) == "function" then
+			pcall(probe.record_external, {
+				source = "savedata",
+				event = "RESTORE_PLAYER_BINDING",
+				rewind_type = tp,
+				player = playerNum - 1,
+				before_idx = tostring(before_idx),
+				check_p_data_result = p_ok,
+				check_vague_result = v_ok,
+				after_idx = tostring(player_bind_index(player)),
+			})
+		end
+	end
+end
+
 -- Run-state timeline snapshots.
 -- save.elses is the authoritative rewindable run-state store:
 --   * lst  = previous room snapshot used by Glowing Hour Glass / RGON rewind
@@ -570,8 +643,11 @@ end,
 -- Consumers MUST NOT manually restore business state already stored in save.elses.
 function item.collect_data()
 	--Isaac.DebugString("Data Collected")
+	local rewind_pending = item.should_load2 == true
+	local glass_pending = item.should_load == true
 	if item.should_load then
 		item.should_load = nil
+		rebind_players_for_restore("Glass")
 		if item.lst then
 			local data = auxi.deepCopy(item.lst)
 			local desc = item.elses
@@ -581,17 +657,27 @@ function item.collect_data()
 	end
 	if item.should_load2 then
 		--Isaac.DebugString("Accept Reload")
+		note_rewind_portal("REWIND_BEFORE_RESTORE")
 		item.should_load2 = nil
-		for playerNum = 1, Game():GetNumPlayers() do
-			local player = Game():GetPlayer(playerNum - 1)
-			local succ = item.check_p_data(player) if succ then else item.check_vague_data(player) end
+		rebind_players_for_restore("Rewind")
+		local tg
+		local snapshot_src
+		if REPENTOGON then
+			tg = item.lst
+			snapshot_src = "lst"
+		else
+			tg = item.lst2
+			snapshot_src = "lst2"
 		end
-		local tg = item.lst2 
-		if REPNETOGON then tg = item.lst end
 		if tg then
+			note_rewind_portal("REWIND_SOURCE", {
+				snapshot_src = snapshot_src,
+				source_store = tg,
+			})
 			local data = auxi.deepCopy(tg)
 			local desc = item.elses
 			item.elses = data
+			note_rewind_portal("REWIND_AFTER_RESTORE")
 			callback_manager.work("POST_REWIND",function(funct,params) funct(nil,"Rewind",desc) end)
 		end
 	end
@@ -604,8 +690,14 @@ function item.collect_data()
 		end
 	end
 	if should_save then
+		if not rewind_pending and not glass_pending then
+			note_rewind_portal("SAVE_BEFORE_ROOM_SNAPSHOT")
+		end
 		item.lst2 = auxi.deepCopy(item.lst) or auxi.deepCopy(item.elses)
 		item.lst = auxi.deepCopy(item.elses)
+		if not rewind_pending and not glass_pending then
+			note_rewind_portal("SAVE_AFTER_ROOM_SNAPSHOT")
+		end
 	end
 end
 

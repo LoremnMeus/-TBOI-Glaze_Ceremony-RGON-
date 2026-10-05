@@ -8,6 +8,7 @@ local item = {
 	ToCall={},
 	myToCall={},
 	pre_myToCall={},
+	post_myToCall={},
 	own_key="h_c_",
 	debug={
 		probe_enabled=false,
@@ -39,10 +40,14 @@ local item = {
 		family_probe_last=nil,
 		last_error=nil,
 		last_event="not initialized",
+		room_restore_trace_enabled=false,
+		room_restore_trace={},
+		room_restore_trace_seq=0,
+		room_restore_sink=nil,
 	},
 }
 local SCHEMA_VERSION,duplicate_key=2,"___hci_"
-local runtime={claims={},pending_remove={},tracked={},tracked_entities={},next_claim_token=1,room_epoch=0,morph_pending={},state_switch_followups={}}
+local runtime={claims={},pending_remove={},tracked={},tracked_entities={},next_claim_token=1,room_epoch=0,morph_pending={},state_switch_followups={},keep_room_restore_once=false,preserve_room_restore_this_room=false}
 
 function item.reset_debug_stats()
 	item.debug.errors=0 item.debug.migrations=0 item.debug.migration_orphans=0 item.debug.parameter_conflicts=0
@@ -82,9 +87,79 @@ local function count(tbl) local n=0 for _ in pairs(tbl or {}) do n=n+1 end retur
 local function normalize_scope(params)
 	params=params or {}
 	if params.one_room==true and params.keep_level==true then item.debug.parameter_conflicts=item.debug.parameter_conflicts+1 end
+	if params.one_room==true and params.room_restore_persistent==true then item.debug.parameter_conflicts=item.debug.parameter_conflicts+1 end
+	if params.keep_level==true and params.room_restore_persistent==true then item.debug.parameter_conflicts=item.debug.parameter_conflicts+1 end
 	if params.one_room==true then return "room" end
+	if params.room_restore_persistent==true then return "room_restore" end
 	if params.keep_level==true then return "run" end
 	return "level"
+end
+
+local function scope_params_changed(params)
+	if not params then return false end
+	return params.one_room~=nil or params.keep_level~=nil or params.room_restore_persistent~=nil
+end
+
+--- Continue 当前房重载 / Hourglass / 项目 rewind：本次 PRE_NEW_ROOM 视为 room restore。
+--- Project `rewind` 会走两次 PRE_NEW_ROOM：第一次消费 save.should_load2 并 restore save.elses，
+--- 再 POST_REWIND("Rewind")。keep_room_restore_once 只给第二次进房再保留一次 room_restore。
+local PORTAL_CONFIG_OWNER="Portal_holder_portal_config"
+local ROOM_RESTORE_TRACE_CAP=400
+
+local function count_room_restore_and_portal()
+	local store=save.elses and save.elses.Consistance_holder
+	if type(store)~="table" then return 0,0 end
+	local room_restore,portal=0,0
+	for _,record in pairs(store.records or {}) do
+		if record.scope=="room_restore" then room_restore=room_restore+1 end
+		if record.owner==PORTAL_CONFIG_OWNER then portal=portal+1 end
+	end
+	return room_restore,portal
+end
+
+local function trace_room_restore(event,extra)
+	if item.debug.room_restore_trace_enabled~=true then return end
+	local isaac_frame,room_frame,room_idx=-1,-1,nil
+	pcall(function() isaac_frame=Isaac.GetFrameCount() end)
+	pcall(function() room_frame=Game():GetRoom():GetFrameCount() end)
+	pcall(function() room_idx=Game():GetLevel():GetCurrentRoomIndex() end)
+	local rr,portal=count_room_restore_and_portal()
+	item.debug.room_restore_trace_seq=(item.debug.room_restore_trace_seq or 0)+1
+	local 	row={
+		seq=item.debug.room_restore_trace_seq,
+		source="consistance",
+		event=tostring(event or "?"),
+		frame=isaac_frame,
+		room_frame=room_frame,
+		room=room_idx,
+		should_load=save.should_load==true,
+		should_load2=save.should_load2==true,
+		keep_once=runtime.keep_room_restore_once==true,
+		preserve=runtime.preserve_room_restore_this_room==true,
+		room_restore_records=rr,
+		portal_records=portal,
+	}
+	if type(extra)=="table" then
+		for k,v in pairs(extra) do row[k]=v end
+	end
+	local trace=item.debug.room_restore_trace
+	if type(trace)~="table" then
+		trace={}
+		item.debug.room_restore_trace=trace
+	end
+	trace[#trace+1]=row
+	while #trace>ROOM_RESTORE_TRACE_CAP do table.remove(trace,1) end
+	local probe=package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+	if type(probe)=="table" and type(probe.record_external)=="function" then
+		pcall(probe.record_external,row)
+	end
+end
+
+local function should_preserve_room_restore()
+	if runtime.keep_room_restore_once==true then return true end
+	if save.should_load==true then return true end
+	if save.should_load2==true then return true end
+	return false
 end
 local function normalize_match(params)
 	params=params or {}
@@ -526,14 +601,14 @@ function item.try_hold_entity(ent,checkname,params,params2)
 		-- rematch 到已有 B：从 store 加载，不要用残留 A_data 覆盖
 		data._Data[checkname]=auxi.deepCopy(record.data or {})
 		update_record_evidence(record,ent)
-		if params.one_room~=nil or params.keep_level~=nil then record.scope=normalize_scope(params) end
+		if scope_params_changed(params) then record.scope=normalize_scope(params) end
 		if params.consistance~=nil then record.retain_on_remove=params.consistance==true end
 		if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
 		note_lifecycle("REMATCH",{owner=checkname,ptr=entity_ptr_hash(ent),new_subtype=subtype,new_family=family_key(family_identity_from_entity(ent))})
 	else
 		record.data=auxi.deepCopy(data._Data[checkname])
 		update_record_evidence(record,ent)
-		if params.one_room~=nil or params.keep_level~=nil then record.scope=normalize_scope(params) end
+		if scope_params_changed(params) then record.scope=normalize_scope(params) end
 		if params.consistance~=nil then record.retain_on_remove=params.consistance==true end
 		if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
 	end
@@ -875,6 +950,11 @@ function item.purge_owners_by_prefix(prefix)
 	return #remove
 end
 
+--- Read-only flags for timeline probes. Does not change cleanup.
+function item.debug_get_room_restore_flags()
+	return runtime.keep_room_restore_once==true, runtime.preserve_room_restore_this_room==true
+end
+
 --- Debug：统计某 owner 的 record 数 / 按 subtype 聚合。
 function item.count_owner_records(owner)
 	local store=ensure_store()
@@ -890,16 +970,22 @@ function item.count_owner_records(owner)
 	return n,by_subtype
 end
 
-local function cleanup_scope(event)
+--- event "room"：默认只清 scope=room。
+--- opts.drop_room_restore：真正离房后再清 room_restore（须在 save.collect_data 快照之后）。
+--- event "level"：清 run 以外（含 room_restore）。
+local function cleanup_scope(event,opts)
+	opts=opts or {}
 	local store=ensure_store() local remove={}
 	for id,record in pairs(store.records) do
-		if event=="room" and record.scope=="room" then table.insert(remove,id)
+		if event=="room" then
+			if record.scope=="room" then table.insert(remove,id)
+			elseif record.scope=="room_restore" and opts.drop_room_restore==true then table.insert(remove,id) end
 		elseif event=="level" and record.scope~="run" then table.insert(remove,id) end
 		-- 临时 promote（scope=run + _promoted_cross_floor）在 PRE_NEW_LEVEL 里先清旧再 preserve，此处勿再删
 	end
 	for _,id in ipairs(remove) do drop_record(id) end item.debug.last_event=event.." cleanup: "..tostring(#remove) return #remove
 end
-function item.cleanup_scope(event) return cleanup_scope(event) end
+function item.cleanup_scope(event,opts) return cleanup_scope(event,opts) end
 
 --- RGON：勿忘草 / 搬家盒 中的 InitSeed 集合（无可 API 时返回空）
 local function iter_entities_save_states(vec, fn)
@@ -1172,7 +1258,7 @@ function item.run_duplicate_spawn_test()
 	return true
 end
 function item.get_debug_snapshot()
-	local store=ensure_store() local scopes={room=0,level=0,run=0} local retained,index_buckets,index_links,evidence_records,zero_transient_records=0,0,0,0,0 local evidence_groups={}
+	local store=ensure_store() local scopes={room=0,room_restore=0,level=0,run=0} local retained,index_buckets,index_links,evidence_records,zero_transient_records=0,0,0,0,0 local evidence_groups={}
 	local by_owner={} local match_modes={exact=0,ignore_subtype=0,ignore_variant=0,ignore_type=0}
 	for _,record in pairs(store.records) do
 		scopes[record.scope]=(scopes[record.scope] or 0)+1
@@ -1222,6 +1308,7 @@ function item.get_debug_snapshot()
 		claims=count(runtime.claims),
 		pending_remove=count(runtime.pending_remove),
 		room=scopes.room or 0,
+		room_restore=scopes.room_restore or 0,
 		level=scopes.level or 0,
 		run=scopes.run or 0,
 		retained=retained,
@@ -1462,7 +1549,7 @@ function item.run_integrity_audit()
 end
 function item.check_table()
 	local s=item.get_debug_snapshot()
-	print(string.format("Consistance V%d records=%d buckets=%d claims=%d pending=%d room=%d level=%d run=%d retained=%d errors=%d supersedes=%d family=%d/%d empty=%d",s.schema_version,s.records,s.index_buckets,s.claims,s.pending_remove,s.room,s.level,s.run,s.retained,s.errors,s.supersedes,s.family_supersedes,s.family_records_dropped,s.empty_collectible_families_cleaned))
+	print(string.format("Consistance V%d records=%d buckets=%d claims=%d pending=%d room=%d room_restore=%d level=%d run=%d retained=%d errors=%d supersedes=%d family=%d/%d empty=%d",s.schema_version,s.records,s.index_buckets,s.claims,s.pending_remove,s.room,s.room_restore or 0,s.level,s.run,s.retained,s.errors,s.supersedes,s.family_supersedes,s.family_records_dropped,s.empty_collectible_families_cleaned))
 	if s.top_owners then
 		for _,row in ipairs(s.top_owners) do
 			print(string.format("  owner=%s records=%d retained=%d buckets=%d",row.owner,row.records,row.retained,row.index_buckets))
@@ -1471,13 +1558,55 @@ function item.check_table()
 end
 
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_GAME_STARTED,params=nil,Function=function(_,continue)
-	item.reset_debug_stats() clear_claims() if not continue then save.elses.Consistance_holder=new_store() end local store=ensure_store() rebuild_index(store) item.debug.last_event=continue and "continued run initialized" or "new run initialized"
+	item.reset_debug_stats() clear_claims() if not continue then save.elses.Consistance_holder=new_store() end local store=ensure_store() rebuild_index(store)
+	runtime.keep_room_restore_once=continue==true
+	runtime.preserve_room_restore_this_room=false
+	item.debug.last_event=continue and "continued run initialized" or "new run initialized"
 end})
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_ROOM,params=nil,Function=function()
-	-- 1) 仍为空的 collectible pedestal：整 family 结束；2) clear_claims；3) room scope cleanup
+	-- 1) 仍为空的 collectible pedestal：整 family 结束；2) clear_claims；3) 仅清普通 room scope
+	-- room_restore 必须等 savedata.collect_data 快照之后再清，否则 Hourglass lst 里没有 portal 配置。
+	-- consume keep_room_restore_once here (pre). POST_REWIND("Rewind") may set it again
+	-- later in the same PRE_NEW_ROOM after collect_data; post cleanup must not clear that token.
+	trace_room_restore("PRE_NEW_ROOM_PRE_ENTER")
+	local preserve=should_preserve_room_restore()
+	trace_room_restore("PRE_NEW_ROOM_PRE_DECISION",{decision=preserve})
+	runtime.preserve_room_restore_this_room=preserve
+	runtime.keep_room_restore_once=false
 	cleanup_empty_collectible_families_on_room_exit()
 	clear_claims()
 	cleanup_scope("room")
+	trace_room_restore("PRE_NEW_ROOM_PRE_EXIT")
+end})
+table.insert(item.post_myToCall,{CallBack=enums.Callbacks.PRE_NEW_ROOM,params=nil,priority=50,Function=function()
+	trace_room_restore("PRE_NEW_ROOM_POST_ENTER")
+	local preserve=runtime.preserve_room_restore_this_room==true
+	runtime.preserve_room_restore_this_room=false
+	if not preserve then
+		trace_room_restore("PRE_NEW_ROOM_POST_BEFORE_CLEAN")
+		cleanup_scope("room",{drop_room_restore=true})
+		trace_room_restore("PRE_NEW_ROOM_POST_AFTER_CLEAN")
+	end
+end})
+-- Project `rewind` causes two PRE_NEW_ROOM passes.
+-- The first pass consumes save.should_load2 and restores save.elses,
+-- then POST_REWIND("Rewind") fires.
+-- Preserve room_restore records for exactly one additional room-enter pass.
+-- Do not set this on "Glass": Hourglass has no second PRE_NEW_ROOM, and a leftover
+-- token would wrongly preserve portals on the next real room leave.
+table.insert(item.myToCall,{CallBack=enums.Callbacks.POST_REWIND,params=nil,Function=function(_,tp)
+	if tp=="Rewind" then
+		runtime.keep_room_restore_once=true
+	end
+	local probe=package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+	if type(probe)=="table" and type(probe.record_external)=="function" then
+		pcall(probe.record_external,{
+			source="consistance",
+			event="POST_REWIND_STATE",
+			rewind_type=tp,
+			keep_once=runtime.keep_room_restore_once==true,
+		})
+	end
 end})
 -- 新层 PRE_NEW_ROOM 阶段尽早 preserve（勿忘草向量可能在实体生成后被清空）
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_PRE_NEW_LEVEL,params=nil,Function=function()
@@ -1485,6 +1614,8 @@ table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_PRE_NEW_LEVEL,param
 end})
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_LEVEL,params=nil,Function=function()
 	-- 换层：keep = 当前向量 ∪ 打包时记下的 InitSeed；向量读空时不删 promote
+	runtime.keep_room_restore_once=false
+	runtime.preserve_room_restore_this_room=false
 	clear_claims()
 	local live = collect_cross_floor_init_seeds()
 	local keep = union_keep_seeds(live)

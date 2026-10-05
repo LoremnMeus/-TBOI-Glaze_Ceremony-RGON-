@@ -1,8 +1,8 @@
 local Version = require("Qing_Remaster_scripts.core.version")
 
-local item = RegisterMod("QING_REBIRTH", 1)
+local item = RegisterMod("QING_REMASTER", 1)
 item.Version = Version.project
-___QING_REBIRTH___ = {MOD = item,}		--如果需要唯一标识符，请使用该变量
+___QING_REMASTER___ = {MOD = item,}		--如果需要唯一标识符，请使用该变量
 
 -- math.random 是整个 Lua 环境共享的非确定随机流；必须在任何业务模块加载前播种。
 -- os 默认不可用；混合系统启动毫秒与引擎全局 Random()，避免依赖单一熵源。

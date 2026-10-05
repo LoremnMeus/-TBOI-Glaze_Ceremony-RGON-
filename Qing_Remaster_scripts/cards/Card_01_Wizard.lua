@@ -8,6 +8,7 @@ local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
 local special_dest = require("Qing_Remaster_scripts.others.Special_Destination_holder")
+local portal_holder = require("Qing_Remaster_scripts.others.portal_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -100,32 +101,45 @@ function item.spawn_a_fool_port(pos,params)
 	params = params or {}
 	local info = params.info or {id = -1,tp = 117,gidx = 84,dim = 0,}
 	local q = Isaac.Spawn(1000,161,item.entity,pos,Vector(0,0),nil):ToEffect()
-	local s = q:GetSprite()
-	s:Load("gfx/cards/cd01_wiz_port.anm2",true)
-	s:Play("Appear",true)
-	for i = 0,5 do s:ReplaceSpritesheet(i,"gfx/effects/portals/cd01_wiz_port_"..tostring(info.tp)..".png") end
-	s:LoadGraphics()
-	local d = q:GetData()
-	d[item.own_key.."effect"] = info
-	d[item.own_key.."others"] = params
-	if EID then
-		local language = EID.UserConfig.Language
-		if language == "auto" then language = "zh_cn" end
-		local eid = special_dest.get_portal_eid(info.tp, language)
-		if not eid and item.port_desc[language] then
-			eid = item.port_desc[language][info.tp]
-		end
-		if eid then q:GetData().EID_Description = eid end
-	end
+	portal_holder.apply_portal_config(q, info, params, {restored = false})
+	portal_holder.capture_portal_config(q, info, params)
 	return q
 end
 
 special_dest.bind_fool_portal_spawner(item.spawn_a_fool_port)
 
+local function note_wizard_probe(event, extra)
+	local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
+	if type(probe) ~= "table" or type(probe.record_external) ~= "function" then
+		return
+	end
+	local row = {
+		source = "wizard",
+		event = tostring(event or "?"),
+	}
+	if type(extra) == "table" then
+		for k, v in pairs(extra) do
+			row[k] = v
+		end
+	end
+	pcall(probe.record_external, row)
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
 	local desc = Game():GetLevel():GetCurrentRoomDesc()
-	if (save.elses[item.own_key.."effect"][desc.Data.Type] or 0) & 1 == 1 then 
+	local effect_value = (save.elses[item.own_key.."effect"][desc.Data.Type] or 0)
+	local will_generate = effect_value & 1 == 1
+	note_wizard_probe("WIZARD_GENERATION_CHECK", {
+		room_type = desc.Data.Type,
+		effect_value = effect_value,
+		will_generate = will_generate,
+	})
+	if will_generate then 
+		note_wizard_probe("WIZARD_GENERATION_BEGIN", {
+			room_type = desc.Data.Type,
+			effect_before = effect_value,
+		}) 
 		local tbl = {}
 		local level = Game():GetLevel()
 		local rooms = level:GetRooms()
@@ -209,6 +223,10 @@ Function = function(_)
 			end
 		end
 		save.elses[item.own_key.."effect"][desc.Data.Type] = 2
+		note_wizard_probe("WIZARD_GENERATION_COMMIT", {
+			room_type = desc.Data.Type,
+			effect_after = 2,
+		})
 	end
 end,
 })

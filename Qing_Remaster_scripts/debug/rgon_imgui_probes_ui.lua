@@ -1370,6 +1370,59 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 	end
 	end
 
+	local remaster_ghost_group = start_probe_module(
+		"audit_remaster_ghost_render",
+		"Remaster Ghost Az Repro",
+		"QingRemasterOptions_GroupRemasterGhostRender"
+	)
+	if remaster_ghost_group then
+	do
+		local function ghost_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.remaster_ghost_render_probe")
+		end
+		add_text(
+			remaster_ghost_group,
+			"Az Walk / Composite (includes Hit keep-overlay). Spawn 2spooky or Spoon Bender then Run 4 Directions / Composite Suite. Summary: family_base, participation, 2spooky_idle, overlay_extra, hit_no_head."
+		)
+		imgui_layout.add_small_action_row(remaster_ghost_group, {
+			{id = "QingRemasterOptions_RemasterGhostSpawnAz", label = "Spawn Az Ghost", on_click = function()
+				local p = ghost_probe(); if p and p.spawn_az_ghost then p.spawn_az_ghost() end
+			end},
+			{id = "QingRemasterOptions_RemasterGhostSpawnSpooky", label = "Spawn 2spooky", on_click = function()
+				local p = ghost_probe(); if p and p.spawn_2spooky_ghost then p.spawn_2spooky_ghost() end
+			end},
+			{id = "QingRemasterOptions_RemasterGhostSpawnOverlay", label = "Spawn Head Overlay", on_click = function()
+				local p = ghost_probe(); if p and p.spawn_overlay_head_ghost then p.spawn_overlay_head_ghost() end
+			end},
+			{id = "QingRemasterOptions_RemasterGhostStop", label = "Stop", on_click = function()
+				local p = ghost_probe(); if p and p.stop then p.stop() end
+			end},
+		})
+		imgui_layout.add_small_action_row(remaster_ghost_group, {
+			{id = "QingRemasterOptions_RemasterGhostRun4", label = "Run 4 Directions", on_click = function()
+				local p = ghost_probe(); if p and p.run_four_directions then p.run_four_directions() end
+			end},
+			{id = "QingRemasterOptions_RemasterGhostRunSuite", label = "Run Composite Suite", on_click = function()
+				local p = ghost_probe(); if p and p.run_composite_suite then p.run_composite_suite() end
+			end},
+		})
+		ImGui.AddButton(remaster_ghost_group, "QingRemasterOptions_RemasterGhostSpawnCap", "Spawn Captured Player Ghost", function()
+			local p = ghost_probe(); if p and p.spawn_captured_player_ghost then p.spawn_captured_player_ghost() end
+		end)
+		local status_id = "QingRemasterOptions_RemasterGhostStatus"
+		imgui_layout.add_wrapped_text(remaster_ghost_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = ghost_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(remaster_ghost_group, ghost_probe, {
+			id_prefix = "QingRemasterOptions_RemasterGhostOut",
+			export_label = "Export JSONL",
+		})
+	end
+	end
+
 	local held_group = start_probe_module(
 		"audit_held_reward_consistency",
 		"Held Reward Consistency",
@@ -1405,6 +1458,45 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 		probe_output.add_probe_output_controls(held_group, held_probe, {
 			id_prefix = "QingRemasterOptions_HeldRewardOut",
 			export_label = "Export Report",
+		})
+	end
+	end
+
+	local pill_vis_group = start_probe_module(
+		"audit_pocket_pill_visual",
+		"Pocket Pill Visual",
+		"QingRemasterOptions_GroupPocketPillVisual"
+	)
+	if pill_vis_group then
+	do
+		local function pill_vis_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.pocket_pill_visual_probe")
+		end
+		add_text(
+			pill_vis_group,
+			"EntityConfig vs XML strict subtype for PillColor (gold/horse included). No dummy spawn."
+		)
+		imgui_layout.add_small_action_row(pill_vis_group, {
+			{id = "QingRemasterOptions_PocketPillRun", label = "Run Suite", on_click = function()
+				local p = pill_vis_probe(); if p and p.run_suite then p.run_suite() end
+			end},
+			{id = "QingRemasterOptions_PocketPillClear", label = "Clear", on_click = function()
+				local p = pill_vis_probe(); if p and p.clear then p.clear() end
+			end},
+			{id = "QingRemasterOptions_PocketPillCopy", label = "Copy Summary", on_click = function()
+				local p = pill_vis_probe(); if p and p.copy_summary then p.copy_summary() end
+			end},
+		})
+		local status_id = "QingRemasterOptions_PocketPillStatus"
+		imgui_layout.add_wrapped_text(pill_vis_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = pill_vis_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(pill_vis_group, pill_vis_probe, {
+			id_prefix = "QingRemasterOptions_PocketPillOut",
+			export_label = "Export JSONL",
 		})
 	end
 	end
@@ -2175,6 +2267,53 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
 		probe_output.add_probe_output_controls(essm_hg_group, hg_probe, {
 			id_prefix = "QingRemasterOptions_EssmHourglassOut",
+			export_label = "Export JSONL",
+		})
+	end
+	end
+
+	local portal_rw_group = start_probe_module(
+		"audit_portal_restore_rewind",
+		"Portal Restore Rewind",
+		"QingRemasterOptions_GroupPortalRestoreRewind"
+	)
+	if portal_rw_group then
+	do
+		local function portal_rw_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.portal_restore_rewind_probe")
+		end
+		add_text(
+			portal_rw_group,
+			"Rollback State Probe v5. Enable, spawn a Wizard portal, leave, rewind. Copy Summary: wizard map + portal seed across SAVE / REWIND / GENERATION_CHECK / RESTORE_RESULT."
+		)
+		local enable_id = "QingRemasterOptions_PortalRestoreRewindEnabled"
+		ImGui.AddCheckbox(portal_rw_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = portal_rw_probe()
+			local cfg = p and p.get_config and p.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = portal_rw_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		imgui_layout.add_small_action_row(portal_rw_group, {
+			{id = "QingRemasterOptions_PortalRestoreRewindClear", label = "Clear", on_click = function()
+				local p = portal_rw_probe(); if p and p.clear then p.clear() end
+			end},
+			{id = "QingRemasterOptions_PortalRestoreRewindCopy", label = "Copy Summary", on_click = function()
+				local p = portal_rw_probe(); if p and p.copy_summary then p.copy_summary() end
+			end},
+		})
+		local status_id = "QingRemasterOptions_PortalRestoreRewindStatus"
+		imgui_layout.add_wrapped_text(portal_rw_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = portal_rw_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(portal_rw_group, portal_rw_probe, {
+			id_prefix = "QingRemasterOptions_PortalRestoreRewindOut",
 			export_label = "Export JSONL",
 		})
 	end
