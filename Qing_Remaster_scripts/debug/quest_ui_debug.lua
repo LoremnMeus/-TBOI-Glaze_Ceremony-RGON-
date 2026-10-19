@@ -28,7 +28,7 @@ local function draw_mod()
 end
 
 local function add_slider(parent, id, label, getter, setter, min_v, max_v)
-	local add = ImGui.AddSliderInteger or ImGui.AddSliderInt
+	local add = ImGui.AddSliderInteger
 	if not add then return end
 	add(parent, id, label, function(v)
 		setter(math.floor((v or 0) + 0.5))

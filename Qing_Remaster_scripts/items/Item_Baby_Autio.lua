@@ -5,6 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -251,6 +252,10 @@ local function detach_follow(ent, d)
 end
 
 local function attach_follow(ent, d)
+	if QF.should_player_follow(ent) ~= true then
+		d[item.own_key.."IsFollow"] = true
+		return
+	end
 	if not d[item.own_key.."IsFollow"] then
 		ent:AddToFollowers()
 		d[item.own_key.."IsFollow"] = true
@@ -327,7 +332,9 @@ Function = function(_, ent)
 		attach_follow(ent, d)
 		Baby_Anim.tick_float_idle(ent, item.own_key.."float", {locked = item.float_lock})
 		if Baby_Anim.is_float_idle_anim(s:GetAnimation()) then
-			ent:FollowParent()
+			if QF.should_player_follow(ent) then
+				ent:FollowParent()
+			end
 		end
 		effect.cooldown = math.max(0, (effect.cooldown or 0) - 1)
 		if effect.cooldown <= 0 and auxi.check_all_exists(tg) and Baby_Anim.is_float_idle_anim(s:GetAnimation()) then
@@ -346,7 +353,7 @@ Function = function(_, ent)
 			elseif auxi.check_all_exists(tg) then
 				ent.Position = tg.Position + RandomVector() * 20
 			elseif player then
-				ent.Position = player.Position
+				ent.Position = QF.home_position(ent, player) or player.Position
 			end
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_SHELLGAME, 0.7, 1.05, false, 0, 2)
 			play_locked(ent, "Appear")
@@ -385,7 +392,7 @@ Function = function(_, ent)
 			end_aura_combat(effect)
 			begin_halo_out(effect)
 			if player then
-				effect.warp_pos = player.Position
+				effect.warp_pos = QF.home_position(ent, player) or player.Position
 			end
 			play_locked(ent, "Hide")
 			effect.state = "to_player_hide"
@@ -398,7 +405,7 @@ Function = function(_, ent)
 				ent.Position = effect.warp_pos
 				effect.warp_pos = nil
 			elseif player then
-				ent.Position = player.Position
+				ent.Position = QF.home_position(ent, player) or player.Position
 			end
 			sound_tracker.PlayStackedSound(SoundEffect.SOUND_SUMMON_POOF, 0.7, 1.05, false, 0, 2)
 			play_locked(ent, "Appear")
@@ -408,7 +415,9 @@ Function = function(_, ent)
 
 	elseif effect.state == "to_player_appear" then
 		effect.halo_target = 0
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
 		if s:IsFinished("Appear") then
 			Baby_Anim.reset(ent, item.own_key.."float")
 			s:Play("Float", true)
@@ -423,6 +432,25 @@ Function = function(_, ent)
 
 	tick_link_vis(effect)
 end,
+})
+
+function item.is_detached_phase(ent)
+	local effect = ent and ent:GetData()[item.own_key.."effect"]
+	local st = effect and effect.state
+	return st ~= nil and st ~= "follow"
+end
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "baby_autio",
+	zh = "宝宝艾提奥",
+	en = "Baby Autio",
+	movement = "follow",
+	control_mode = "move_only",
+	is_leaving_formation = function(_, fam)
+		return item.is_detached_phase(fam)
+	end,
 })
 
 return item

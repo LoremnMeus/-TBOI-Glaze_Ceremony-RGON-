@@ -13,68 +13,46 @@ local item = {
 	ToCall = {}
 }
 
-function item.reveal_map(player)
+function item.reveal_map(player, rng)
 	local level = Game():GetLevel()
 	local specials = {}
 	local normals = {}
 	local rooms = level:GetRooms()
-	local skip = {
-		[RoomType.ROOM_DEFAULT] = true,
-		[RoomType.ROOM_SECRET] = true,
-		[RoomType.ROOM_SUPERSECRET] = true,
-		[RoomType.ROOM_ULTRASECRET] = true,
-	}
-	local rank = {
-		[RoomType.ROOM_TREASURE] = 1,
-		[RoomType.ROOM_SHOP] = 2,
-		[RoomType.ROOM_BOSS] = 3,
-	}
+	rng = auxi.rng_for_sake(rng)
+	local current = level:GetCurrentRoomDesc()
 	for i = 0, rooms.Size do
 		local targ = rooms:Get(i)
-		if targ ~= nil and targ.SafeGridIndex >= 0 and targ.DisplayFlags ~= 5 and targ.DisplayFlags ~= 7 then
-			local desc = level:GetRoomByIdx(targ.SafeGridIndex,-1)
-			if desc ~= nil and desc.SafeGridIndex >= 0 and desc.DisplayFlags ~= 5 and desc.DisplayFlags ~= 7 and desc.SafeGridIndex ~= level:GetCurrentRoomDesc().SafeGridIndex then
+		if targ ~= nil and targ.SafeGridIndex >= 0 then
+			local desc = level:GetRoomByIdx(targ.SafeGridIndex, auxi.GetDimension() or 0)
+			if desc ~= nil and desc.Data and desc.SafeGridIndex >= 0 and desc.VisitedCount == 0
+				and (desc.DisplayFlags & 5) == 0 and desc.SafeGridIndex ~= current.SafeGridIndex then
 				local rtype = desc.Data and desc.Data.Type or RoomType.ROOM_DEFAULT
-				if skip[rtype] then
-					if rtype == RoomType.ROOM_DEFAULT then normals[#normals + 1] = desc end
+				if rtype == RoomType.ROOM_DEFAULT then
+					normals[#normals + 1] = desc
 				else
-					specials[#specials + 1] = {desc = desc, rank = rank[rtype] or 9}
+					specials[#specials + 1] = desc
 				end
 			end
 		end
 	end
-	table.sort(specials,function(a,b) return a.rank < b.rank end)
-	local function reveal(desc)
-		level:GetRoomByIdx(desc.SafeGridIndex).DisplayFlags = level:GetRoomByIdx(desc.SafeGridIndex).DisplayFlags | 7
+	local candidates = #specials > 0 and specials or normals
+	if #candidates > 0 then
+		local chosen = candidates[rng:RandomInt(#candidates) + 1]
+		chosen.DisplayFlags = chosen.DisplayFlags | 7
+		level:UpdateVisibility()
 	end
-	if #specials > 0 then
-		reveal(specials[1].desc)
-	else
-		local n = math.min(3,#normals)
-		for i = 1,n do
-			local r = math.random(#normals)
-			reveal(normals[r])
-			table.remove(normals,r)
-		end
-	end
-	level:UpdateVisibility()
 end
 
 function item.try_collect(player,ent)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
 	player:AddKeys(1)
-	item.reveal_map(player)
+	item.reveal_map(player, ent:GetDropRNG())
 	glaze_crown.notify_pickup(player, ent and ent.Position)
 	return true
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_PICKUP_COLLISION, params = item.pickup.Variant,
 Function = function(_,ent, col, low)
-	if col.Type == 3 then
-		local player = Game():GetPlayer(0)
-		if col:ToFamiliar() and col:ToFamiliar().Player then player = col:ToFamiliar().Player end
-		item.reveal_map(player)
-	end
     local player = col:ToPlayer()
 	if ent.SubType == item.pickup.SubType then
 		if player then

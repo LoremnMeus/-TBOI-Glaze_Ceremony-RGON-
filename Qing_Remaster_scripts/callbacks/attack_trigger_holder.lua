@@ -79,6 +79,7 @@ item.IsSyntheticSampleAttack = classifier.IsSyntheticSampleAttack
 item.GetPreferredAimEntity = classifier.GetPreferredAimEntity
 item.GetPreferredAimDirection = classifier.GetPreferredAimDirection
 item.GetAttackAimContext = aim_resolver.GetAttackAimContext
+item.WhenAttackDirectionReady = registry.WhenAttackDirectionReady
 item.GetPlayerAimDirection = classifier.GetPlayerAimDirection
 item.RegisterSourceCapabilityResolver = classifier.RegisterSourceCapabilityResolver
 item.GetAttackOwnerPlayer = classifier.GetAttackOwnerPlayer

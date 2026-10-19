@@ -1,14 +1,17 @@
 -- 启动期模块预加载：在其他模组改写全局 require 搜索路径前写入 package.loaded。
+-- 只做 early pin。callback 注册必须由 exactly one business manager 负责。
 -- 新增运行时 helper/data 或可能延迟首次使用的模块时，统一登记在这里。
 local manager = {}
 manager.loaded = {}
-manager.callback_audit = {auto_registered = {}}
+-- module table identity → {path, summary}; filled in Init, compared in manager_manager.
+manager.callback_candidates = {}
 
 manager.modules = {
 	"Qing_Remaster_scripts.core.dev_environment",
 	"Qing_Remaster_scripts.core.release_scope",
 	"Qing_Remaster_scripts.cards.card_registry",
 	"Qing_Remaster_scripts.cards.card_registry_bootstrap",
+	"Qing_Remaster_scripts.cards.card_mapping",
 	"Qing_Remaster_scripts.cards.thoth_use_semantics",
 	"Qing_Remaster_scripts.cards.adjustment_vfx",
 	"Qing_Remaster_scripts.items.regenesis_capture_vfx",
@@ -47,10 +50,20 @@ manager.modules = {
 	"Qing_Remaster_scripts.debug.rgon_imgui_probes_ui",
 	"Qing_Remaster_scripts.others.a2z_font_renderer",
 	"Qing_Remaster_scripts.others.dynamic_lighting_holder",
+	"Qing_Remaster_scripts.others.craft.registry",
+	"Qing_Remaster_scripts.others.craft.resolver",
+	"Qing_Remaster_scripts.others.craft.weapon_runtime",
+	"Qing_Remaster_scripts.others.craft.presentation",
 	"Qing_Remaster_scripts.others.craft_combat_profile",
 	"Qing_Remaster_scripts.others.craft_eid_copy",
 	"Qing_Remaster_scripts.others.blueprint_craft_eid",
 	"Qing_Remaster_scripts.others.blueprint_tutorial",
+	"Qing_Remaster_scripts.others.blueprint.store",
+	"Qing_Remaster_scripts.others.blueprint.integrity",
+	"Qing_Remaster_scripts.others.blueprint.editor",
+	"Qing_Remaster_scripts.others.blueprint.panel",
+	"Qing_Remaster_scripts.others.blueprint.panel_input",
+	"Qing_Remaster_scripts.others.blueprint.panel_render",
 	"Qing_Remaster_scripts.others.Mouse_UI_holder",
 	"Qing_Remaster_scripts.others.fullscreen_select_holder",
 	"Qing_Remaster_scripts.others.craft_dynamic_stats",
@@ -186,12 +199,16 @@ manager.modules = {
 	"Qing_Remaster_scripts.player.character_attack_round",
 	"Qing_Remaster_scripts.mimics.Familiar_Control_Selector",
 	"Qing_Remaster_scripts.mimics.Craft_Bandwidth_Manager",
+	"Qing_Remaster_scripts.mimics.air_flight.movement",
+	"Qing_Remaster_scripts.mimics.air_flight.crash",
+	"Qing_Remaster_scripts.mimics.air_flight.combat",
 	"Qing_Remaster_scripts.mimics.Familiar_Follower_Arbiter",
 	"Qing_Remaster_scripts.mimics.Familiar_Move_Driver",
 	"Qing_Remaster_scripts.mimics.familiar_attack_classification",
 	"Qing_Remaster_scripts.mimics.craft_identity",
 	"Qing_Remaster_scripts.mimics.Craft_Familiar_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Tear_Babies_holder",
+	"Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Laser_Babies_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Advanced_Familiars_holder",
 	"Qing_Remaster_scripts.mimics.Character_Advanced_Familiars_holder",
@@ -206,6 +223,7 @@ manager.modules = {
 	"Qing_Remaster_scripts.mimics.Craft_Bobby_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Paschal_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Crown_holder",
+	"Qing_Remaster_scripts.mimics.Craft_Watcher_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Ludovico_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Evil_Eye_holder",
 	"Qing_Remaster_scripts.mimics.Craft_Aux_Entities_holder",
@@ -238,42 +256,58 @@ local function is_probe_module(module_path)
 	return type(module_path) == "string" and module_path:find("%.[%w_]+_probe$") ~= nil
 end
 
+-- Collect callback-bearing preload modules for a later read-only ownership check.
+-- Probe modules are skipped (probe_registry → others_manager is intentional).
+-- Do NOT print here: legitimate preload+manager modules would drown the signal.
+local CALLBACK_FIELDS = {
+	"pre_ToCall",
+	"ToCall",
+	"post_ToCall",
+	"pre_myToCall",
+	"myToCall",
+	"post_myToCall",
+}
+
+local function callback_summary(module)
+	if type(module) ~= "table" then
+		return nil
+	end
+	local found = {}
+	for _, field in ipairs(CALLBACK_FIELDS) do
+		local list = module[field]
+		if type(list) == "table" and #list > 0 then
+			found[#found + 1] = field .. "=" .. tostring(#list)
+		end
+	end
+	if #found == 0 then
+		return nil
+	end
+	return table.concat(found, ", ")
+end
+
 function manager.Init()
 	local env = require("Qing_Remaster_scripts.core.dev_environment")
+	manager.callback_candidates = {}
 	for _, module_path in ipairs(manager.modules) do
-		if is_probe_module(module_path) then
+		local is_probe = is_probe_module(module_path)
+		local module
+		if is_probe then
 			-- require_probe pcall-swallows load errors but prints + stores last_probe_error.
-			manager.loaded[module_path] = env.require_probe(module_path)
+			module = env.require_probe(module_path)
 		else
-			manager.loaded[module_path] = require(module_path)
+			module = require(module_path)
+		end
+		manager.loaded[module_path] = module
+		if not is_probe then
+			local summary = callback_summary(module)
+			if summary then
+				manager.callback_candidates[module] = {
+					path = module_path,
+					summary = summary,
+				}
+			end
 		end
 	end
-end
-
-local callback_fields = {"pre_ToCall", "ToCall", "post_ToCall", "pre_myToCall", "myToCall", "post_myToCall"}
-local function has_callbacks(module)
-	if type(module) ~= "table" then return false end
-	for _, field in ipairs(callback_fields) do if type(module[field]) == "table" and #module[field] > 0 then return true end end
-	return false
-end
-
--- Return callback-bearing preloads omitted from all business managers. The core
--- manager registers these through its normal pipeline, so callback priority and
--- REPENTOGON mapping remain centralized and object identity prevents duplicates.
-function manager.collect_missing_callback_modules(groups)
-	local registered = {}
-	for _, group in ipairs(groups) do for _, module in ipairs(group.items or {}) do registered[module] = true end end
-	local missing = {}
-	manager.callback_audit.auto_registered = {}
-	for _, path in ipairs(manager.modules) do
-		local module = manager.loaded[path]
-		if has_callbacks(module) and not registered[module] then
-			missing[#missing + 1] = module
-			manager.callback_audit.auto_registered[#manager.callback_audit.auto_registered + 1] = path
-			registered[module] = true
-		end
-	end
-	return missing
 end
 
 return manager

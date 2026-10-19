@@ -95,6 +95,16 @@ local function player_bonus(player)
 	return run.bonus[idx]
 end
 
+--- Flight：只继承冲击波击杀累计的伤害乘算与弹速加算；不复制护盾/冲击波。
+function item.get_stat_bonus(player)
+	local b = player_bonus(player)
+	if not b then return nil end
+	return {
+		damage_mul = 1 + (tonumber(b.mul) or 0),
+		shotspeed = tonumber(b.shot) or 0,
+	}
+end
+
 local function find_player_by_idx(idx)
 	if idx == nil then return nil end
 	for playerNum = 1, Game():GetNumPlayers() do

@@ -127,8 +127,13 @@ end
 
 --- Prefer SetScale (triggers ResetSpriteScale). Never write SetScale then SpriteScale.
 --- sprite_scale is legacy / non-RGON fallback only when laser_scale is absent.
---- WARNING: Do not call for factory FireBrimstone / FireTechXLaser replay — SetScale
---- resets factory-initialized beam width via ResetSpriteScale. Technology may still use it.
+--- WARNING: Do not call for factory FireBrimstone / FireTechXLaser **replay/copy** —
+--- SetScale resets factory-initialized beam width via ResetSpriteScale. Technology may still use it.
+--- EXCEPTION (verified 2026-10): Craft Tech X **creation** in
+--- `weapon_runtime.spawn_craft_techx` applies a one-shot factory normalization
+--- `SetScale(GetScale()*2)` immediately after FireTechXLaser to restore vanilla Tech X
+--- thickness (`Scale=sqrt(R/60)`, `Size=5*Scale`). Do not remove that path; do not
+--- generalize it to Aeon replay / copy / Brimstone factory.
 function M.apply_recorded_laser_scale(laser, base)
 	laser = as_laser(laser)
 	if not laser then

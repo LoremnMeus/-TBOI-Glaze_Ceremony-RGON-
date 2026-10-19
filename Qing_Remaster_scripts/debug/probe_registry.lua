@@ -32,6 +32,22 @@ local entries = {
 		runtime = "Qing_Remaster_scripts.debug.pause_sprite_shift_probe",
 		ui = {id = "audit_pause_sprite_shift", category = "visual"},
 	},
+	tarot_reverse_pool = {
+		runtime = "Qing_Remaster_scripts.debug.tarot_reverse_pool_probe",
+		ui = {id = "audit_tarot_reverse_pool", category = "systems"},
+	},
+	tiny_update_charge = {
+		runtime = "Qing_Remaster_scripts.debug.tiny_update_charge_probe",
+		ui = {id = "audit_tiny_update_charge", category = "items"},
+	},
+	tiny_update_commit = {
+		runtime = "Qing_Remaster_scripts.debug.tiny_update_commit_probe",
+		ui = {id = "audit_tiny_update_commit", category = "items"},
+	},
+	matryoshka_marbles_split = {
+		runtime = "Qing_Remaster_scripts.debug.matryoshka_marbles_split_probe",
+		ui = {id = "audit_matryoshka_marbles_split", category = "items"},
+	},
 	sprite_splice = {
 		runtime = "Qing_Remaster_scripts.debug.sprite_splice_probe",
 		ui = {id = "audit_sprite_splice", category = "visual"},

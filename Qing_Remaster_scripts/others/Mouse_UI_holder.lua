@@ -24,6 +24,9 @@ local holder = {
 	active_id = nil,
 	_active_button = nil,
 	want_capture_mouse = false,
+	_modal_owner = nil,
+	_modal_entering = false,
+	_foreign_block = false,
 }
 
 local function refresh_buttons()
@@ -94,8 +97,31 @@ function holder.was_released(button)
 	return holder._released[button or 0] == true
 end
 
+function holder.claim_modal(owner)
+	holder._modal_owner = owner
+end
+
+function holder.release_modal(owner)
+	if holder._modal_owner == owner then
+		holder._modal_owner = nil
+		holder._foreign_block = false
+	end
+end
+
+function holder.begin_modal_frame(owner, player)
+	holder._modal_owner = owner
+	holder._modal_entering = true
+	holder.begin_frame(player)
+	holder._modal_entering = false
+end
+
 function holder.begin_frame(player)
 	refresh_buttons()
+	if holder._modal_owner and not holder._modal_entering then
+		holder._foreign_block = true
+		return
+	end
+	holder._foreign_block = false
 	local frame = Game():GetFrameCount()
 	holder._ui_frame = frame
 	holder._begun = true
@@ -120,6 +146,7 @@ function holder.begin_frame(player)
 end
 
 function holder.register(id, rect, opts)
+	if holder._foreign_block then return end
 	if not holder._begun then
 		error("Mouse_UI.register called before begin_frame")
 	end
@@ -155,6 +182,10 @@ local function sort_widgets()
 end
 
 function holder.end_frame()
+	if holder._foreign_block then
+		holder._foreign_block = false
+		return
+	end
 	if not holder._begun then return end
 	holder._begun = false
 	holder._resolved = true

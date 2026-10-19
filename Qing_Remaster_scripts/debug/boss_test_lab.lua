@@ -90,7 +90,7 @@ local function build_adapter_panel(parent, entry)
 		ImGui.AddElement(node, hp, ImGuiElement.TreeNode, tr("生命值", "HP"))
 		ImGui.AddSliderFloat(hp, hp .. "_Slider", "HP %", function(v)
 			adapter.set_hp_ratio((tonumber(v) or 100) / 100)
-		end, 100, 1, 100, "%.0f")
+		end, 100, 1, 0, 100, "%.0f")
 		ImGui.AddCallback(hp .. "_Slider", ImGuiCallback.Render, function()
 			local s = adapter.inspect and adapter.inspect() or {}
 			local ratio = (s.hp_ratio or s.hp or 1) * 100
@@ -153,7 +153,7 @@ local function build_adapter_panel(parent, entry)
 		if adapter.set_palace_build then
 			ImGui.AddSliderFloat(pal, pal .. "_Build", "Build", function(v)
 				adapter.set_palace_build(tonumber(v) or 0)
-			end, 0, 0, 1, "%.2f")
+			end, 0, 0.01, 0, 1, "%.2f")
 			ImGui.AddCallback(pal .. "_Build", ImGuiCallback.Render, function()
 				local s = adapter.inspect and adapter.inspect() or {}
 				local b = s.palace and s.palace.build or 0
@@ -163,7 +163,7 @@ local function build_adapter_panel(parent, entry)
 		if adapter.set_palace_stability then
 			ImGui.AddSliderFloat(pal, pal .. "_Stab", "Stability", function(v)
 				adapter.set_palace_stability(tonumber(v) or 1)
-			end, 1, 0, 1, "%.2f")
+			end, 1, 0.01, 0, 1, "%.2f")
 			ImGui.AddCallback(pal .. "_Stab", ImGuiCallback.Render, function()
 				local s = adapter.inspect and adapter.inspect() or {}
 				local b = s.palace and s.palace.stability or 1

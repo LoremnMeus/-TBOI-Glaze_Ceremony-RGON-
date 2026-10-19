@@ -365,19 +365,33 @@ table.insert(item.myToCall, #item.myToCall + 1, {
 		local source = event.attack_source or attack.source
 		local aim = classifier.GetAttackAimContext(source, attack, event)
 		local speed = (player.ShotSpeed or 1) * 10
-		local pos = (aim and aim.position) or player.Position
-		local dir = (aim and aim.direction) or Vector(1, 0)
-		local q = attack_holder.FireTear(player, pos, dir * speed, {
-			mode = "inherit",
-			role = "derived",
-			reason = "zero_presence",
-			attack = attack,
-			family = "tear",
-			can_be_eye = false,
-		})
-		if q then
-			apply_zero_presence_tear(q)
+		local function launch(pos, dir)
+			if not dir or not pos then return end
+			local owner = player
+			if not owner or not owner:Exists() or not player_has_item(owner) then return end
+			local mode = (attack and attack.active and not attack.ending) and "inherit" or "untracked"
+			local q = attack_holder.FireTear(owner, pos, dir * speed, {
+				mode = mode,
+				role = "derived",
+				reason = "zero_presence",
+				attack = mode == "inherit" and attack or nil,
+				family = "tear",
+				can_be_eye = false,
+			})
+			if q then
+				apply_zero_presence_tear(q)
+			end
 		end
+		if aim and aim.state == "pending" then
+			attack_holder.WhenAttackDirectionReady(attack, function(atk, dir, state)
+				if state ~= "resolved" or not dir then return end
+				local pos = (aim and aim.position) or (atk and atk.position) or player.Position
+				launch(pos, dir)
+			end)
+			return
+		end
+		if not aim or not aim.direction then return end
+		launch((aim.position or player.Position), aim.direction)
 	end,
 })
 

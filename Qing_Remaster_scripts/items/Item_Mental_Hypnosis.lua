@@ -279,6 +279,24 @@ local function get_or_create_player_buff(idx)
 	return state
 end
 
+--- Flight / Blueprint 只读快照：玩家当前精神控制净累计（含奖惩），不暴露 save table。
+function item.get_stat_buff(player)
+	if not player then return nil end
+	local idx = player:GetData().__Index
+	if idx == nil then return nil end
+	local buff = get_buff_root()[idx]
+	if type(buff) ~= "table" then return nil end
+	return {
+		damage = tonumber(buff.damage) or 0,
+		tear = tonumber(buff.tear) or 0,
+		shotspeed = tonumber(buff.shotspeed) or 0,
+		range = tonumber(buff.range) or 0,
+		speed = tonumber(buff.speed) or 0,
+		luck = tonumber(buff.luck) or 0,
+		size = tonumber(buff.size) or 1,
+	}
+end
+
 
 function item.is_secret_room_type(roomtype)
 	return roomtype == RoomType.ROOM_SECRET

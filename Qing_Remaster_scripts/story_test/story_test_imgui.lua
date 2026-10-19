@@ -9,7 +9,6 @@ local runner = require("Qing_Remaster_scripts.story_test.story_test_runner")
 local scenes = require("Qing_Remaster_scripts.story.story_scenes")
 local quest_registry = require("Qing_Remaster_scripts.quest.quest_registry")
 local pause_ui = require("Qing_Remaster_scripts.auxiliary.pause_ui")
-local bank_debug = require("Qing_Remaster_scripts.threads.bank.bank_debug")
 local stone_debug = require("Qing_Remaster_scripts.threads.stone.stone_debug")
 
 local imgui = {}
@@ -829,7 +828,13 @@ function imgui.build(parent_id)
 		threads_tab, prefix .. "_Bank",
 		tr("银行 / Bum Emperor", "Bank / Bum Emperor")
 	)
-	bank_debug.build(bank_hdr)
+	imgui_layout.add_wrapped_text(
+		bank_hdr, prefix .. "_BankMoved",
+		tr(
+			"金融业务测试已移到 Debug → 测试 → 贪婪银行测试台。这里不再重复提供存取款和房间跳转。",
+			"Banking tests moved to Debug → Tests → Bank Test Lab."
+		)
+	)
 	local stone_hdr = imgui_layout.add_section(
 		threads_tab, prefix .. "_Stone",
 		tr("棋盘 / Floraine", "Chess / Floraine")
@@ -882,7 +887,7 @@ function imgui.build(parent_id)
 	ImGui.AddCallback(prefix .. "_LayoutInfo", ImGuiCallback.Render, function()
 		imgui_layout.update_text(prefix .. "_LayoutInfo", layout_debug_text())
 	end)
-	local add_slider = ImGui.AddSliderInteger or ImGui.AddSliderInt
+	local add_slider = ImGui.AddSliderInteger
 	if add_slider then
 		add_slider(layout_hdr, prefix .. "_QOX", tr("任务 X 偏移", "Quest X offset"), function(v)
 			ui.quest_ox = math.floor((v or 0) + 0.5)

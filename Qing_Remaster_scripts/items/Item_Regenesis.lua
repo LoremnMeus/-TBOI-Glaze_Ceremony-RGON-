@@ -14,6 +14,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local pedestal_restore = require("Qing_Remaster_scripts.auxiliary.pedestal_restore")
 local capture_vfx = require("Qing_Remaster_scripts.items.regenesis_capture_vfx")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -911,10 +912,14 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		-- If later behavior detaches/reorders the familiar, use
 		-- Familiar_Follower_Arbiter instead of directly owning queue transitions.
 		if not d[item.own_key .. "IsFollow"] then
-			familiar:AddToFollowers()
+			if QF.should_player_follow(familiar) then
+				familiar:AddToFollowers()
+			end
 			d[item.own_key .. "IsFollow"] = true
 		end
-		familiar:FollowParent()
+		if QF.should_player_follow(familiar) then
+			familiar:FollowParent()
+		end
 
 		if sprite then
 			if sprite:IsFinished("Appear") then

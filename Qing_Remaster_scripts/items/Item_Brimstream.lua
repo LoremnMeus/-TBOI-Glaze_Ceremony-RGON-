@@ -2,6 +2,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local selector = require("Qing_Remaster_scripts.mimics.Familiar_Control_Selector")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {ToCall={},entity=enums.Items.Brimstream,familiar=enums.Familiars.Brimstream,own_key="Item_Brimstream_"}
 local OWNER,TRAIL="brimstream",item.own_key.."trail"
@@ -23,6 +24,10 @@ local JET_CAP_BRIM=168
 local FADER=item.own_key.."fade"
 
 local function player_of(e) return auxi.check_spawner_player(e) or Game():GetPlayer(0) end
+local function brim_controlled(ent)
+	local owner = selector.get_owner(ent)
+	return owner == OWNER or owner == selector.BLUEPRINT
+end
 local function valid_enemies()
 	local ret={}
 	for _,e in ipairs(Isaac.GetRoomEntities()) do
@@ -332,13 +337,13 @@ local function begin_return(ent)
 	ent.Visible=true
 	ent.SpriteScale=Vector.One
 end
-local function idle_orbit(ent,p,d,s)
+local function idle_orbit(ent,home,d,s)
 	remove_jet(ent)
 	d[item.own_key.."state"]="idle"
 	ent.SpriteScale=Vector.One
 	ent.Visible=true
 	local a=(ent.InitSeed%360)+Game():GetFrameCount()*1.5
-	local wanted=p.Position+Vector.FromAngle(a):Resized(72)
+	local wanted=home.Position+Vector.FromAngle(a):Resized(72)
 	ent.Velocity=ent.Velocity*.72+(wanted-ent.Position)*.12
 	s.Rotation=ent.Velocity:GetAngleDegrees()+90
 end
@@ -348,8 +353,9 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_EVALUATE_CACHE,Function=funct
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_FAMILIAR_INIT,params=item.familiar,Function=function(_,e) e:GetSprite():Play("Appear",true) reset(e) end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_NEW_ROOM,Function=function() for _,e in ipairs(Isaac.FindByType(EntityType.ENTITY_FAMILIAR,item.familiar)) do reset(e) end end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_FAMILIAR_UPDATE,params=item.familiar,Function=function(_,ent)
-	if not selector.is_owner(ent,OWNER) then return end
+	if not brim_controlled(ent) then return end
 	local p,d,s=player_of(ent),ent:GetData(),ent:GetSprite()
+	local home=QF.home_entity(ent,p) or p
 	ent.SpriteRotation=0
 	if s:IsFinished("Appear") then s:Play("Idle",true) end
 	local list=valid_enemies()
@@ -358,7 +364,7 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_FAMILIAR_UPDATE,params=item.f
 
 	-- 仅 idle：无敌人环绕；有敌人首次起飞。航线中途不因清怪立刻结束。
 	if not state or state=="idle" then
-		if #list==0 then idle_orbit(ent,p,d,s) return end
+		if #list==0 then idle_orbit(ent,home,d,s) return end
 		begin_depart(ent,list)
 		state="depart"
 	elseif state=="return" then
@@ -366,12 +372,12 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_FAMILIAR_UPDATE,params=item.f
 			begin_depart(ent,list)
 			state="depart"
 		else
-			local to=p.Position-ent.Position
+			local to=home.Position-ent.Position
 			ent.SpriteScale=Vector.One
 			ent.Visible=true
 			remove_jet(ent)
 			if to:Length()<=72 then
-				idle_orbit(ent,p,d,s)
+				idle_orbit(ent,home,d,s)
 				return
 			end
 			ent.Velocity=ent.Velocity*.55+to:Normalized():Resized(9)
@@ -518,7 +524,7 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_FAMILIAR_UPDATE,params=item.f
 	end
 end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_PRE_FAMILIAR_COLLISION,params=item.familiar,Function=function(_,ent,col)
-	if not selector.is_owner(ent,OWNER) or not auxi.isenemies(col) then return end
+	if not brim_controlled(ent) or not auxi.isenemies(col) then return end
 	local d=ent:GetData() local st=d[item.own_key.."state"]
 	if st~="attack" and st~="stream" and st~="exit" then return end
 	local hits=d[item.own_key.."hits"] or {} d[item.own_key.."hits"]=hits
@@ -570,4 +576,17 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_FAMILIAR_UPDATE,params=Famili
 		d[item.own_key.."locust_cd"]=3
 	end
 end})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "brimstream",
+	zh = "硫磺激流",
+	en = "Brimstream",
+	movement = "free",
+	control_mode = "move_only",
+	custom_move = true,
+	exclude_from_formation = true,
+})
+
 return item

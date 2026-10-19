@@ -247,4 +247,32 @@ item.story_test = {
 	end,
 }
 
+function item.debug_ensure_bank_entrance()
+	local level = Game():GetLevel()
+	local room = Game():GetRoom()
+	local desc = level:GetCurrentRoomDesc()
+	local info = {
+		greed = Game():IsGreedMode() == true,
+		stage = level:GetStage(),
+		room_type = room:GetType(),
+		index = desc and desc.SafeGridIndex or nil,
+		clear = room:IsClear() == true,
+		matched = false,
+		present = false,
+	}
+	info.matched = info.stage == LevelStage.STAGE7_GREED
+		and info.room_type == RoomType.ROOM_BOSS
+		and info.index == 45
+		and info.clear
+	ensure_bank_entrance()
+	local doors = require("Qing_Remaster_scripts.grids.grid_doors")
+	for _, row in pairs(doors.doors or {}) do
+		if row and row.targ == "s.arcade.23509" then
+			info.present = true
+			break
+		end
+	end
+	return info
+end
+
 return item

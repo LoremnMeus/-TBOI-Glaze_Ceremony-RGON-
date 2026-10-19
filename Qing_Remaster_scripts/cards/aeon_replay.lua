@@ -1,6 +1,7 @@
 -- Aeon attack snapshot / persistent track / special epic (replay).
 -- Brimstone: FireBrimstone owns width; Tainted Azazel dm=0.5 → factory 0.1 then restore DM.
--- Tech X: FireTechXLaser(radius) owns ring+beam width; never SetScale after factory.
+-- Tech X: FireTechXLaser(radius) owns ring; replay must NOT SetScale after factory.
+-- Craft creation exception: spawn_craft_techx factory SetScale(GetScale()*2) — see craft_techx_radius_thickness.md.
 -- Technology: still may apply_recorded_laser_scale (untested width path).
 -- Sword: Spirit Sword Mimic (geometry hit) for family=sword; Bone Club still fire_Sword.
 -- Mimic/source follows Ghost; never force sword world Position onto Ghost.

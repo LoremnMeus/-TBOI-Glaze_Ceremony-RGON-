@@ -1,4 +1,5 @@
--- 宝宝安娜：蓄力喷射硫磺尾；旋转/瞄准对齐宝宝泰克罗；撞墙贴住参考大胖蛆探针
+-- 宝宝安娜：满蓄发射；玩家松手触发，Flight 满蓄自动触发。
+-- 蓄力喷射硫磺尾；旋转/瞄准对齐宝宝泰克罗；撞墙贴住参考大胖蛆探针
 local g = require("Qing_Remaster_scripts.core.globals")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
@@ -7,6 +8,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -19,7 +21,6 @@ local item = {
 	familiar = enums.Familiars.Baby_Anna,
 	own_key = "Item_Baby_Anna_",
 	max_charge = 60,
-	min_charge = 30,
 	speed = 20,
 	max_speed = 40,
 	acceleration = 0.5,
@@ -36,7 +37,6 @@ local function ensure_charge(d)
 		d[item.own_key.."charging"] = {
 			progress = 0,
 			maxCharge = item.max_charge,
-			minCharge = item.min_charge,
 			lastInput = false,
 			storedDir = Vector(0, 1),
 			displayDir = Vector(0, 1),
@@ -288,14 +288,19 @@ Function = function(_, ent)
 	ent.CollisionDamage = 0
 	ent.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_WALLS
 	if not d[item.own_key.."IsFollow"] then
-		ent:AddToFollowers()
+		if QF.should_player_follow(ent) then
+			ent:AddToFollowers()
+		end
 		d[item.own_key.."IsFollow"] = true
 	end
 
 	local chargeData = ensure_charge(d)
-	local input = safe_input_dir(player)
-	local isInput = input ~= nil
-	local releasing = chargeData.lastInput and not isInput
+	local ac = QF.resolve_attack_control(ent, player, safe_input_dir(player))
+	local isInput = ac.want == true
+	local releasing = false
+	if not ac.auto_fire_when_full then
+		releasing = chargeData.lastInput and not isInput
+	end
 
 	if isInput then
 		if not chargeData.lastInput then
@@ -303,13 +308,23 @@ Function = function(_, ent)
 			chargeData.prev_axes = 0
 			chargeData.axis_grace = 0
 		end
-		local aim = update_aim(chargeData, input)
+		local aim = update_aim(chargeData, ac.aim)
 		chargeData.progress = math.min(chargeData.progress + 1, chargeData.maxCharge)
 		Baby_Anim.reset(ent, item.own_key.."float")
 		if not s:IsPlaying("Idle") then s:Play("Idle", true) end
 		set_face_dir(ent, aim)
 		apply_full_charge_vfx(ent, chargeData)
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
+		if ac.auto_fire_when_full and chargeData.progress >= chargeData.maxCharge then
+			releasing = true
+		end
+	elseif ac.cancel_on_window_end and chargeData.lastInput then
+		clear_face(ent)
+		chargeData.progress = 0
+		chargeData.prev_axes = 0
+		chargeData.axis_grace = 0
 	elseif releasing then
 		set_face_dir(ent, chargeData.displayDir or chargeData.storedDir)
 	else
@@ -321,15 +336,16 @@ Function = function(_, ent)
 			idle_max = 180,
 		})
 		if Baby_Anim.is_float_idle_anim(s:GetAnimation()) then
-			ent:FollowParent()
+			if QF.should_player_follow(ent) then
+				ent:FollowParent()
+			end
 		end
 	end
 
 	if releasing then
-		if chargeData.progress >= chargeData.minCharge then
+		if chargeData.progress >= chargeData.maxCharge then
 			local aim = normalize_dir(chargeData.displayDir or chargeData.storedDir)
 			if aim:Length() > 0.1 then
-				local rate = chargeData.progress / chargeData.maxCharge
 				Baby_Anim.reset(ent, item.own_key.."float")
 				ent:RemoveFromFollowers()
 				d[item.own_key.."IsFollow"] = nil
@@ -339,11 +355,11 @@ Function = function(_, ent)
 				s.Color = Color(1, 1, 1, 1, 0, 0, 0)
 				d[item.own_key.."launchData"] = {
 					direction = aim,
-					speed = item.speed * math.sqrt(rate),
+					speed = item.speed,
 					acceleration = item.acceleration,
 					phase = "windup",
 					windup_left = item.windup_frames,
-					mxcnt = math.floor(item.wall_stop_base * (0.5 + 0.5 * rate)),
+					mxcnt = item.wall_stop_base,
 					margin = 0,
 				}
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_SHELLGAME, 0.65, 1.05, false, 0, 2)
@@ -356,6 +372,19 @@ Function = function(_, ent)
 
 	chargeData.lastInput = isInput
 end,
+})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "baby_anna",
+	zh = "宝宝安娜",
+	en = "Baby Anna",
+	movement = "follow",
+	control_mode = "move_only",
+	is_leaving_formation = function(_, fam)
+		return fam:GetData()[item.own_key.."launchData"] ~= nil
+	end,
 })
 
 return item

@@ -46,6 +46,27 @@ function M.build(api)
 	local tests_tab = api.tests_tab
 	local story_test_tab = api.story_test_tab
 
+	-- RGON AddDragFloat(parent, id, label, cb, default, speed, min, max, format).
+	-- Never omit speed. See codex_work/notes/rgon_imgui_dragfloat_signature_pitfall.md
+	local function add_probe_drag(parent, id, label, setter, getter, default, speed, min_v, max_v, fmt)
+		ImGui.AddDragFloat(
+			parent,
+			id,
+			label,
+			function(value)
+				if setter then setter(value) end
+			end,
+			default,
+			speed,
+			min_v,
+			max_v,
+			fmt or "%.0f"
+		)
+		ImGui.AddCallback(id, ImGuiCallback.Render, function()
+			local v = getter and getter() or default
+			ImGui.UpdateData(id, ImGuiData.Value, tonumber(v) or default or 0)
+		end)
+	end
 
 local function add_attack_audit_group(group)
 	if not group then return end
@@ -950,6 +971,175 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
 		probe_output.add_probe_output_controls(pause_shift_group, get_ps_probe, {
 			id_prefix = "QingRemasterOptions_PauseSpriteShiftOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local tarot_pool_group = start_probe_module(
+		"audit_tarot_reverse_pool",
+		"倒位塔罗卡池",
+		"QingRemasterOptions_GroupTarotReversePool"
+	)
+	if tarot_pool_group then
+		add_text(
+			tarot_pool_group,
+			"只记录倒位牌是否登记、MC_GET_CARD 原始类别，以及 GetCard 与 GetCardEx 的对照。不替换抽到的牌。"
+		)
+		local function get_tarot_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.tarot_reverse_pool_probe")
+		end
+		local enable_id = "QingRemasterOptions_TarotReversePoolEnabled"
+		ImGui.AddCheckbox(tarot_pool_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = get_tarot_probe()
+			local cfg = p and p.get_config and p.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = get_tarot_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		ImGui.AddDragInteger(
+			tarot_pool_group,
+			"QingRemasterOptions_TarotReversePoolCount",
+			"API 抽样次数",
+			function(value)
+				local p = get_tarot_probe()
+				if p and p.set_sample_count then p.set_sample_count(value) end
+			end,
+			100,
+			1,
+			1,
+			1000,
+			"%d"
+		)
+		imgui_layout.add_small_action_row(tarot_pool_group, {
+			{id = "QingRemasterOptions_TarotReversePoolSnap", label = "检查登记", on_click = function()
+				local p = get_tarot_probe()
+				if p and p.snapshot_registration then p.snapshot_registration() end
+			end},
+			{id = "QingRemasterOptions_TarotReversePoolSample", label = "抽样 GetCard", on_click = function()
+				local p = get_tarot_probe()
+				if p and p.sample_apis then p.sample_apis() end
+			end},
+		})
+		local status_id = "QingRemasterOptions_TarotReversePoolStatus"
+		imgui_layout.add_wrapped_text(tarot_pool_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = get_tarot_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(tarot_pool_group, get_tarot_probe, {
+			id_prefix = "QingRemasterOptions_TarotReversePoolOut",
+			export_label = "Export Report",
+		})
+	end
+
+	local tiny_charge_group = start_probe_module(
+		"audit_tiny_update_charge",
+		"Tiny Update Charge",
+		"QingRemasterOptions_GroupTinyUpdateCharge"
+	)
+	if tiny_charge_group then
+	do
+		add_text(tiny_charge_group, "观察微型更新的一次性充能修正。默认关闭，不写存档，不改充能。")
+		local function charge_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.tiny_update_charge_probe")
+		end
+		local enable_id = "QingRemasterOptions_TinyUpdateChargeEnabled"
+		ImGui.AddCheckbox(tiny_charge_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = charge_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = charge_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_TinyUpdateChargeStatus"
+		imgui_layout.add_wrapped_text(tiny_charge_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = charge_probe()
+			imgui_layout.update_text(status_id, (probe and probe.get_summary and probe.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(tiny_charge_group, charge_probe, {
+			id_prefix = "QingRemasterOptions_TinyUpdateChargeOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local tiny_commit_group = start_probe_module(
+		"audit_tiny_update_commit",
+		"Tiny Update Commit",
+		"QingRemasterOptions_GroupTinyUpdateCommit"
+	)
+	if tiny_commit_group then
+	do
+		add_text(tiny_commit_group, "读取最近 10 次微型更新提交。只看 GetSeed，不额外消耗 RNG。")
+		local function commit_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.tiny_update_commit_probe")
+		end
+		local status_id = "QingRemasterOptions_TinyUpdateCommitStatus"
+		imgui_layout.add_wrapped_text(tiny_commit_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = commit_probe()
+			imgui_layout.update_text(status_id, (probe and probe.get_summary and probe.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(tiny_commit_group, commit_probe, {
+			id_prefix = "QingRemasterOptions_TinyUpdateCommitOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local marble_group = start_probe_module(
+		"audit_matryoshka_marbles_split",
+		"Matryoshka Marbles Split",
+		"QingRemasterOptions_GroupMatryoshkaMarblesSplit"
+	)
+	if marble_group then
+	do
+		add_text(marble_group, "套娃弹珠探针。默认关闭。Summary 记录分裂、寿命、视觉和悬浮验收。逐帧轨迹需另开 Full。不改变弹珠物理。")
+		local function marble_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.matryoshka_marbles_split_probe")
+		end
+		local enable_id = "QingRemasterOptions_MatryoshkaSplitEnabled"
+		ImGui.AddCheckbox(marble_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = marble_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = marble_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local full_id = "QingRemasterOptions_MatryoshkaSplitFull"
+		ImGui.AddCheckbox(marble_group, full_id, "Full trajectory", nil, false)
+		ImGui.AddCallback(full_id, ImGuiCallback.Render, function()
+			local probe = marble_probe()
+			local cfg = probe and probe.get_config and probe.get_config() or {}
+			ImGui.UpdateData(full_id, ImGuiData.Value, cfg.full_trajectory == true)
+		end)
+		ImGui.AddCallback(full_id, ImGuiCallback.Edited, function(value)
+			local probe = marble_probe()
+			if probe and probe.set_full_trajectory then probe.set_full_trajectory(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_MatryoshkaSplitStatus"
+		imgui_layout.add_wrapped_text(marble_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = marble_probe()
+			imgui_layout.update_text(status_id, (probe and probe.get_summary and probe.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(marble_group, marble_probe, {
+			id_prefix = "QingRemasterOptions_MatryoshkaSplitOut",
 			export_label = "Export Report",
 		})
 	end

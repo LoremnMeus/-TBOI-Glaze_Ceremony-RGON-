@@ -5,6 +5,9 @@ local M = {
 	CRAFT_UID_KEY = "Item_Blue_Print_craft_uid",
 	-- Live craft_combat_profile on the Air Flight familiar (runtime; not save.elses).
 	PROFILE_KEY = "CraftIdentity_craft_profile",
+	-- Air Flight stamp_craft_source keys (projectile GetData; not save.elses).
+	PROJECTILE_UID_KEY = "Item_Air_Flight_craft_uid",
+	PROJECTILE_AIR_KEY = "Item_Air_Flight_craft_air",
 }
 
 function M.get_uid(ent)
@@ -39,6 +42,33 @@ function M.set_profile(ent, profile)
 		return
 	end
 	ent:GetData()[M.PROFILE_KEY] = profile
+end
+
+function M.get_projectile_uid(ent)
+	if not ent or not ent.GetData then
+		return nil
+	end
+	local uid = M.get_uid(ent)
+	if uid ~= nil then
+		return uid
+	end
+	local d = ent:GetData()
+	uid = d[M.PROJECTILE_UID_KEY]
+	if uid ~= nil then
+		return uid
+	end
+	local spawner = ent.SpawnerEntity
+	if spawner then
+		return M.get_uid(spawner)
+	end
+	return nil
+end
+
+function M.get_projectile_air(ent)
+	if not ent or not ent.GetData then
+		return nil
+	end
+	return ent:GetData()[M.PROJECTILE_AIR_KEY]
 end
 
 return M

@@ -281,7 +281,13 @@ local function evidence_from_entity(ent)
 	evidence.parent_seed=related_seed(ent,"Parent")
 	return evidence
 end
+local function room_unload_mark(id)
+	local pending=runtime.room_exit_pending
+	if not pending or pending.sealed or not pending.records or id==nil then return nil end
+	return pending.records[tostring(id)]
+end
 local function update_record_evidence(record,ent)
+	if record and room_unload_mark(record.id) then return end
 	if record and record.evidence_enabled==true and ent then record.evidence=evidence_from_entity(ent) end
 end
 local function fingerprint(identity,match)
@@ -408,12 +414,15 @@ local function remove_from_index(store,record)
 		end
 	end
 end
-local function drop_record(id)
+local function drop_record(id,reason)
 	local store=ensure_store() id=tostring(id)
 	local record=store.records[id] if not record then return false end
-	remove_from_index(store,record) store.records[id]=nil release_record_claim(id) runtime.pending_remove[id]=nil return true
+	remove_from_index(store,record) store.records[id]=nil release_record_claim(id) runtime.pending_remove[id]=nil
+	local pending=runtime.room_exit_pending
+	if pending and pending.records then pending.records[id]=nil end
+	return true
 end
-function item.drop_record(id) return drop_record(id) end
+function item.drop_record(id) return drop_record(id,"public_drop_record") end
 local function add_record(owner,data,identity,match,params,ent)
 	local store=ensure_store() local id=tostring(store.next_record_id) store.next_record_id=store.next_record_id+1
 	local record={id=id,owner=owner,data=auxi.deepCopy(data or {}),identity=identity,match=match,scope=normalize_scope(params),retain_on_remove=params and params.consistance==true or false,zero_subtype_is_transient=params and params.zero_subtype_is_transient==true or false,evidence_enabled=false}
@@ -606,11 +615,13 @@ function item.try_hold_entity(ent,checkname,params,params2)
 		if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
 		note_lifecycle("REMATCH",{owner=checkname,ptr=entity_ptr_hash(ent),new_subtype=subtype,new_family=family_key(family_identity_from_entity(ent))})
 	else
-		record.data=auxi.deepCopy(data._Data[checkname])
-		update_record_evidence(record,ent)
-		if scope_params_changed(params) then record.scope=normalize_scope(params) end
-		if params.consistance~=nil then record.retain_on_remove=params.consistance==true end
-		if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
+		if not room_unload_mark(id) then
+			record.data=auxi.deepCopy(data._Data[checkname])
+			update_record_evidence(record,ent)
+			if scope_params_changed(params) then record.scope=normalize_scope(params) end
+			if params.consistance~=nil then record.retain_on_remove=params.consistance==true end
+			if params.zero_subtype_is_transient~=nil then record.zero_subtype_is_transient=params.zero_subtype_is_transient==true end
+		end
 	end
 	if runtime.claims[id]==nil then claim_record(id) end
 	names[checkname]=id
@@ -693,7 +704,7 @@ function item.try_remove_entity(ent,checkname,params)
 	if ent==nil then return false end params=params or {}
 	local data=safe_get_data(ent) if not data then return false end data._Data=data._Data or {}
 	local names=get_runtime_names_from_data(data) local ids=resolve_remove_ids(ent,checkname,params,names) local removed=false
-	for _,id in ipairs(ids) do removed=drop_record(id) or removed end
+	for _,id in ipairs(ids) do removed=drop_record(id,"try_remove_entity") or removed end
 	if checkname then data._Data[checkname]=nil names[checkname]=nil else data._Data={} data._Consistance_holder_names={} end
 	refresh_tracked_entity(ent,data)
 	if params.printname then for _,id in ipairs(ids) do print(id) end end return removed
@@ -741,7 +752,7 @@ function item.supersede_entity(ent)
 	end
 	local dropped=0
 	for _,entry in ipairs(snapshot.entries or {}) do
-		if drop_record(entry.id) then dropped=dropped+1 end
+		if drop_record(entry.id,"supersede_entity") then dropped=dropped+1 end
 	end
 	item.debug.supersede_records_dropped=(item.debug.supersede_records_dropped or 0)+dropped
 	if #snapshot.entries==0 then
@@ -778,7 +789,7 @@ function item.supersede_family(identity)
 	local snapshot=item.get_family_snapshot(identity)
 	local dropped=0
 	for _,entry in ipairs(snapshot.entries or {}) do
-		if drop_record(entry.id) then dropped=dropped+1 end
+		if drop_record(entry.id,"supersede_family") then dropped=dropped+1 end
 	end
 	item.debug.family_supersedes=(item.debug.family_supersedes or 0)+1
 	item.debug.family_records_dropped=(item.debug.family_records_dropped or 0)+dropped
@@ -834,7 +845,7 @@ function item.drop_family_state(identity,subtype,owner)
 		end
 	end
 	for _,id in ipairs(remove) do
-		drop_record(id)
+		drop_record(id,"drop_family_state")
 	end
 	item.debug.family_states_dropped=(item.debug.family_states_dropped or 0)+#remove
 	note_lifecycle("FAMILY_STATE_DROP",{old_family=family_key(identity),old_subtype=subtype,dropped=#remove,owner=owner})
@@ -946,7 +957,7 @@ function item.purge_owners_by_prefix(prefix)
 			remove[#remove+1]=tostring(id)
 		end
 	end
-	for _,id in ipairs(remove) do drop_record(id) end
+	for _,id in ipairs(remove) do drop_record(id,"purge_owners_by_prefix") end
 	return #remove
 end
 
@@ -983,7 +994,7 @@ local function cleanup_scope(event,opts)
 		elseif event=="level" and record.scope~="run" then table.insert(remove,id) end
 		-- 临时 promote（scope=run + _promoted_cross_floor）在 PRE_NEW_LEVEL 里先清旧再 preserve，此处勿再删
 	end
-	for _,id in ipairs(remove) do drop_record(id) end item.debug.last_event=event.." cleanup: "..tostring(#remove) return #remove
+	for _,id in ipairs(remove) do drop_record(id,"scope_cleanup:"..tostring(event)) end item.debug.last_event=event.." cleanup: "..tostring(#remove) return #remove
 end
 function item.cleanup_scope(event,opts) return cleanup_scope(event,opts) end
 
@@ -1142,7 +1153,7 @@ local function drop_stale_cross_floor_promotions(keep_seeds)
 	for _, id in ipairs(stale) do
 		local record = store.records[id]
 		if record then forget_cross_floor_seed(record.identity and record.identity.init_seed) end
-		drop_record(id)
+		drop_record(id,"cross_floor_stale")
 	end
 	return #stale
 end
@@ -1158,15 +1169,34 @@ local function process_removed_snapshot(snapshot)
 		local ok,err=pcall(function()
 			local record=store.records[entry.id]
 			if record then
-				local key=seed_key(record.identity and record.identity.init_seed)
-				local in_transfer=key~=nil and seeds()[key]==true
-				-- 搬家盒：PRE_USE 可能已 promote，此时向量仍空；勿因 not in_transfer 而 drop
-				if record.retain_on_remove or in_transfer or record._promoted_cross_floor then
-					record.data=auxi.deepCopy(entry.data) record.evidence=auxi.deepCopy(snapshot.evidence)
-					if in_transfer or record._promoted_cross_floor then
-						promote_cross_floor_record(record)
+				local id=tostring(entry.id)
+				local mark=room_unload_mark(id)
+				if mark then
+					if record.scope=="room" then
+						drop_record(id,"scope_cleanup:room")
+					elseif record.scope=="room_restore" then
+						-- 后悔药 / room_restore 仍由既有 cleanup_scope 时机处理，这里只结束卸载分类。
+						release_record_claim(id)
+						if runtime.room_exit_pending and runtime.room_exit_pending.records then runtime.room_exit_pending.records[id]=nil end
+					else
+						release_record_claim(id)
+						if runtime.room_exit_pending and runtime.room_exit_pending.records then runtime.room_exit_pending.records[id]=nil end
 					end
-				else drop_record(entry.id) end
+				else
+					local key=seed_key(record.identity and record.identity.init_seed)
+					local in_transfer=key~=nil and seeds()[key]==true
+					-- 搬家盒：PRE_USE 可能已 promote，此时向量仍空；勿因 not in_transfer 而 drop
+					if record.retain_on_remove or in_transfer or record._promoted_cross_floor then
+						record.data=auxi.deepCopy(entry.data) record.evidence=auxi.deepCopy(snapshot.evidence)
+						if in_transfer or record._promoted_cross_floor then
+							promote_cross_floor_record(record)
+						end
+					else
+						drop_record(id,"entity_removed_not_retained")
+					end
+				end
+			elseif runtime.room_exit_pending and runtime.room_exit_pending.records then
+				runtime.room_exit_pending.records[tostring(entry.id)]=nil
 			end
 		end)
 		if not ok then note_error("removed record "..tostring(entry.id),err) end
@@ -1192,11 +1222,17 @@ local function sweep_removed_tracked_entities()
 			if not success then note_error("removed tracked snapshot",err) end
 		end
 	end
+	local pending=runtime.room_exit_pending
+	if pending and pending.saw_pre_new_room and not pending.sealed then
+		pending.records={}
+		pending.sealed=true
+		runtime.room_exit_pending=nil
+	end
 end
 function item.run_duplicate_spawn_test()
 	if Game():GetRoom():GetFrameCount()==0 then item.debug.last_duplicate_test={ok=false,phase="room_frame_zero",record_ids={}} return false end
 	local previous=item.debug.last_duplicate_test
-	if previous and previous.record_ids then for _,id in ipairs(previous.record_ids) do drop_record(id) end end
+	if previous and previous.record_ids then for _,id in ipairs(previous.record_ids) do drop_record(id,"duplicate_spawn_test") end end
 	for _,ent in ipairs(runtime.duplicate_test_entities or {}) do
 		local ok,exists=pcall(function() return ent:Exists() end)
 		if ok and exists then pcall(function() ent:Remove() end) end
@@ -1558,7 +1594,7 @@ function item.check_table()
 end
 
 table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_GAME_STARTED,params=nil,Function=function(_,continue)
-	item.reset_debug_stats() clear_claims() if not continue then save.elses.Consistance_holder=new_store() end local store=ensure_store() rebuild_index(store)
+	item.reset_debug_stats() clear_claims() runtime.room_exit_pending=nil if not continue then save.elses.Consistance_holder=new_store() end local store=ensure_store() rebuild_index(store)
 	runtime.keep_room_restore_once=continue==true
 	runtime.preserve_room_restore_this_room=false
 	item.debug.last_event=continue and "continued run initialized" or "new run initialized"
@@ -1616,6 +1652,7 @@ table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_LEVEL,params=ni
 	-- 换层：keep = 当前向量 ∪ 打包时记下的 InitSeed；向量读空时不删 promote
 	runtime.keep_room_restore_once=false
 	runtime.preserve_room_restore_this_room=false
+	runtime.room_exit_pending=nil
 	clear_claims()
 	local live = collect_cross_floor_init_seeds()
 	local keep = union_keep_seeds(live)
@@ -1623,6 +1660,47 @@ table.insert(item.pre_myToCall,{CallBack=enums.Callbacks.PRE_NEW_LEVEL,params=ni
 	item.preserve_cross_floor_records()
 	cleanup_scope("level")
 	item.debug.last_event = string.format("new-level keep=%d dropped=%d", count(keep), dropped)
+end})
+local function capture_room_exit_records()
+	runtime.room_exit_seq=(runtime.room_exit_seq or 0)+1
+	local epoch=runtime.room_exit_seq
+	local records={}
+	local store=ensure_store()
+	for ptr,ent in pairs(runtime.tracked_entities) do
+		local ok,exists=pcall(function() return ent:Exists() end)
+		local snapshot=runtime.tracked[ptr]
+		if ok and exists==true and snapshot then
+			for _,entry in ipairs(snapshot.entries or {}) do
+				local id=tostring(entry.id)
+				local record=store.records[id]
+				if record and not records[id] then
+					local data_copy=entry.data~=nil and auxi.deepCopy(entry.data) or auxi.deepCopy(record.data or {})
+					local evidence_copy=snapshot.evidence~=nil and auxi.deepCopy(snapshot.evidence) or nil
+					records[id]={record_id=id,epoch=epoch,scope=record.scope,snapshot_data=data_copy,snapshot_evidence=evidence_copy}
+					if record.scope~="room" and record.scope~="room_restore" then
+						record.data=auxi.deepCopy(data_copy)
+						if evidence_copy~=nil then record.evidence=auxi.deepCopy(evidence_copy) end
+					end
+				end
+			end
+		end
+	end
+	runtime.room_exit_pending={epoch=epoch,records=records,saw_pre_new_room=false,sealed=false}
+end
+table.insert(item.ToCall,{CallBack=ModCallbacks.MC_PRE_ROOM_EXIT,params=nil,Function=function(_,_,newLevel)
+	local frame=0
+	pcall(function() frame=Game():GetFrameCount() end)
+	if runtime.room_exit_frame==frame then return end
+	runtime.room_exit_frame=frame
+	-- 普通换房只登记仍有效的跟踪记录。跨楼层和后悔药过滤不建立卸载保留，并清掉上一轮临时标记。
+	if newLevel==true or item[item.own_key.."filter"]==true then
+		runtime.room_exit_pending=nil
+	else
+		capture_room_exit_records()
+	end
+end})
+table.insert(item.ToCall,{CallBack=ModCallbacks.MC_PRE_NEW_ROOM,params=nil,Function=function()
+	if runtime.room_exit_pending and not runtime.room_exit_pending.sealed then runtime.room_exit_pending.saw_pre_new_room=true end
 end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_UPDATE,params=nil,Function=function()
 	if not item[item.own_key.."filter"] and Game():GetRoom():GetFrameCount()>0 then sweep_removed_tracked_entities() end
@@ -1951,42 +2029,6 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_UPDATE,params=nil,Functi
 	tick_state_switch_followups()
 end})
 
---- DEBUG-ONLY：单 owner 的 record / binding / data 三层（供 lifecycle probe）。
-function item.debug_binding_layer(ent,owner)
-	if ent==nil or owner==nil then return nil end
-	local data=safe_get_data(ent)
-	local names=(data and data._Consistance_holder_names) or {}
-	local bound_id=names[owner] and tostring(names[owner]) or nil
-	local store=ensure_store()
-	local record=bound_id and store.records[bound_id] or nil
-	local store_id=nil
-	local store_ignore=nil
-	if record==nil then
-		for id,rec in pairs(store.records or {}) do
-			if rec and rec.owner==owner and record_matches_entity(rec,ent) then
-				store_id=tostring(id)
-				store_ignore=rec.match and rec.match.ignore_subtype==true or false
-				break
-			end
-		end
-	end
-	local ignore=nil
-	if record and record.match then
-		ignore=record.match.ignore_subtype==true
-	else
-		ignore=store_ignore
-	end
-	return {
-		bound_record_id=bound_id,
-		record_exists=(record~=nil) or (store_id~=nil),
-		record_ignore_subtype=ignore==true,
-		owner_data_exists=data~=nil and data._Data~=nil and data._Data[owner]~=nil,
-		store_record_id=record and bound_id or store_id,
-		matches_entity=record~=nil and record_matches_entity(record,ent)==true or (store_id~=nil),
-		claimed=(bound_id and runtime.claims[bound_id]~=nil) or (store_id and runtime.claims[store_id]~=nil) or false,
-	}
-end
-
 function item.get_last_state_switch_trace()
 	return item.debug.last_state_switch
 end
@@ -2089,7 +2131,7 @@ table.insert(item.ToCall,{CallBack=ModCallbacks.MC_USE_ITEM,params=CollectibleTy
 	item[item.own_key.."moving_box_was_empty"] = nil
 	item.reconcile_moving_box_after_use(packed)
 end})
-table.insert(item.ToCall,{CallBack=ModCallbacks.MC_PRE_GAME_EXIT,params=nil,Function=function() cleanup_scope("room") clear_claims() end})
+table.insert(item.ToCall,{CallBack=ModCallbacks.MC_PRE_GAME_EXIT,params=nil,Function=function() cleanup_scope("room") clear_claims() runtime.room_exit_pending=nil end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_POST_GAME_END,params=nil,Function=function(_,shouldsave) clear_claims() if not shouldsave then save.elses.Consistance_holder=new_store() end end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_EXECUTE_CMD,params=nil,Function=function(_,str,params)
 	if string.lower(str)=="meus" and params~=nil then local command=tostring(params):match("^%s*(%S+)") if command=="check" then item.check_table() end end

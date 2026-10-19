@@ -78,7 +78,7 @@ function pixel_ui.measure_text(text, scale, font)
 	if not font or not font.GetStringWidthUTF8 then
 		return 0
 	end
-	local base = font:GetStringWidthUTF8(text) or 0
+	local base = gui.measure_text_units and gui.measure_text_units(text, font) or (font:GetStringWidthUTF8(text) or 0)
 	return base * scale
 end
 
@@ -90,7 +90,10 @@ function pixel_ui.draw_text(pos, text, scale, color, opts)
 	color = color or KColor(1, 1, 1, 1)
 	local font = resolve_font(opts.font)
 	pos = pixel_ui.snap(pos)
-	-- Screen-space draw (has_count_world = true means pos is already screen).
+	if gui.draw_text_units then
+		gui.draw_text_units(text, pos.X, pos.Y, scale, scale, color, font)
+		return
+	end
 	font:DrawStringScaledUTF8(text, pos.X, pos.Y, scale, scale, color, 0, false)
 end
 

@@ -202,6 +202,11 @@ local function bind_data(fam)
 	return fam and fam:GetData()[item.own_key..BIND_KEY]
 end
 
+--- 只读 bind；自家 Item 禁止直接读 Craft_Familiar_holder_bind 私钥。
+function item.get_bind(fam)
+	return bind_data(fam)
+end
+
 local function is_bound(fam)
 	return bind_data(fam) ~= nil
 end
@@ -344,6 +349,52 @@ local function dir_to_direction(vec)
 	return auxi.GetDirectionByAngle(vec:GetAngleDegrees())
 end
 
+-- 稳定拓扑仍写在 bind.follow_leader；运行时跟随目标可临时绕过离队成员。
+local function formation_member_active(fam, air)
+	if not auxi.check_all_exists(fam) then return false end
+	local bind = bind_data(fam)
+	if not bind or bind.air_ptr ~= GetPtrHash(air) then
+		return false
+	end
+	local adapter = item.ADAPTERS[fam.Variant]
+	if not adapter or adapter.exclude_from_formation then
+		return false
+	end
+	if adapter.is_leaving_formation then
+		local ok, leaving = pcall(adapter.is_leaving_formation, adapter, fam, bind)
+		if ok and leaving then
+			return false
+		end
+	end
+	return true
+end
+
+local function resolve_live_follow_leader(air, bind)
+	if not air then return nil end
+	local leader = bind and bind.follow_leader or air
+	local seen = {}
+	local air_ptr = GetPtrHash(air)
+	while leader do
+		if not auxi.check_all_exists(leader) then
+			return air
+		end
+		local ptr = GetPtrHash(leader)
+		if ptr == air_ptr then
+			return air
+		end
+		if seen[ptr] then
+			return air
+		end
+		seen[ptr] = true
+		if formation_member_active(leader, air) then
+			return leader
+		end
+		local leader_bind = bind_data(leader)
+		leader = leader_bind and leader_bind.follow_leader or air
+	end
+	return air
+end
+
 local function follow_slot(air, fam)
 	local bind = bind_data(fam)
 	local idx = bind and bind.slot_index or 0
@@ -357,11 +408,10 @@ local function follow_slot(air, fam)
 		return air.Position + Vector.FromAngle(angle) * (item.friendship_radius or 44)
 	end
 
-	-- 普通队形：链式软约束；前一只已移除时回退到 Flight，避免断链钉死。
-	local leader = bind and bind.follow_leader or air
+	-- 普通队形：链式软约束。follow_leader 只表示稳定拓扑；离队成员运行时跳过。
+	local leader = resolve_live_follow_leader(air, bind)
 	if not auxi.check_all_exists(leader) then
 		leader = air
-		if bind then bind.follow_leader = air end
 	end
 	local leashed = player and player:HasTrinket(TrinketType.TRINKET_CHILD_LEASH)
 	local start_distance = leashed and 20 or (item.follow_start_distance or 40)
@@ -624,6 +674,22 @@ local function get_intent(air)
 		return Air.get_craft_aux_fire_intent(air)
 	end
 	return {should_shoot = false, aim_direction = nil, aim_pos = nil}
+end
+
+function item.get_control_context(fam)
+	local bind = bind_data(fam)
+	if not bind then return nil end
+	local intent = bind.last_intent
+	if bind.air then
+		intent = get_intent(bind.air) or intent
+	end
+	return {
+		air = bind.air,
+		player = bind.player,
+		profile = bind.profile,
+		craft_uid = bind.craft_uid,
+		intent = intent or {should_shoot = false, aim_direction = nil, aim_pos = nil},
+	}
 end
 
 -- synthetic 宝宝直接 Remove；禁止改 Player / 禁止改玩家一命库存。
@@ -975,6 +1041,7 @@ local function find_unbound(player, variant)
 	return nil
 end
 
+
 local function find_bound_for_air(air, variant)
 	local all = find_all_bound_for_air(air, variant)
 	return all[1]
@@ -1044,6 +1111,12 @@ local function adapter_desired_count(adapter, extras, player, rec, profile)
 		end
 	end
 	if copies <= 0 then copies = 1 end
+	if type(adapter.desired_count) == "function" then
+		local ok, n = pcall(adapter.desired_count, adapter, copies, extras, player, rec, profile)
+		if ok and tonumber(n) then
+			return math.max(0, math.floor(tonumber(n)))
+		end
+	end
 	local per = math.max(1, tonumber(adapter.instances) or 1)
 	return copies * per
 end
@@ -1800,6 +1873,42 @@ local function update_bound_move_only(fam, air, player, bind, adapter, d)
 	end
 	local intent = get_intent(air)
 	bind.last_intent = intent
+	-- custom_move / 脱队：放行自家 Update 写下的 Velocity，不要再 FollowPosition 盖掉。
+	if adapter.custom_move then
+		do_follow(fam, air, d, adapter, bind, intent)
+		if adapter.update then
+			pcall(adapter.update, adapter, {
+				familiar = fam,
+				player = player,
+				air = air,
+				bind = bind,
+				intent = intent,
+				aim_vector = Vector(0, 0),
+				holder = item,
+				control_mode = keeps_vanilla_ai(adapter) and "keep_vanilla_ai" or "move_only",
+			})
+		end
+		return
+	end
+	if adapter.is_leaving_formation then
+		local ok, leaving = pcall(adapter.is_leaving_formation, adapter, fam, bind)
+		if ok and leaving then
+			do_follow(fam, air, d, adapter, bind, intent)
+			if adapter.update then
+				pcall(adapter.update, adapter, {
+					familiar = fam,
+					player = player,
+					air = air,
+					bind = bind,
+					intent = intent,
+					aim_vector = Vector(0, 0),
+					holder = item,
+					control_mode = keeps_vanilla_ai(adapter) and "keep_vanilla_ai" or "move_only",
+				})
+			end
+			return
+		end
+	end
 	if keeps_vanilla_ai(adapter) then
 		-- 棱镜/My Emblem 路线：FollowPosition + 强 Velocity（软弹簧盖不过原版跟随 AI）
 		-- 若仍带 trail_follow（兼容旧标记）：必须清 MoveDelay，否则吃玩家延迟队列互拖
@@ -1821,7 +1930,7 @@ local function update_bound_move_only(fam, air, player, bind, adapter, d)
 				target = follow_slot(air, fam)
 			else
 				d[item.own_key.."duct_position"] = nil
-				local leader = bind.follow_leader or air
+				local leader = resolve_live_follow_leader(air, bind)
 				if not auxi.check_all_exists(leader) then leader = air end
 				target = leader.Position
 			end
@@ -1840,7 +1949,7 @@ local function update_bound_move_only(fam, air, player, bind, adapter, d)
 			target = follow_slot(air, fam)
 		else
 			d[item.own_key.."duct_position"] = nil
-			local leader = bind.follow_leader or air
+			local leader = resolve_live_follow_leader(air, bind)
 			if not auxi.check_all_exists(leader) then leader = air end
 			target = leader.Position
 		end
@@ -2318,6 +2427,26 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		local rec = player and bp.find_craft(player, bind.craft_uid)
 		if rec and CraftDyn and CraftDyn.floor_key then
 			rec.milk_broken_floor = CraftDyn.floor_key()
+		end
+	end,
+})
+
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_GAME_STARTED,
+	params = nil,
+	Function = function(_)
+		if item._compat_audit_done then return end
+		item._compat_audit_done = true
+		local CraftProfile = get_craft_profile()
+		if not (CraftProfile and CraftProfile.compatibility_audit) then return end
+		local report = CraftProfile.compatibility_audit()
+		if not report or report.ok then return end
+		for i, issue in ipairs(report.issues or {}) do
+			if i > 24 then
+				print("[Qing Craft Compat] ...")
+				break
+			end
+			print("[Qing Craft Compat] " .. tostring(issue))
 		end
 	end,
 })

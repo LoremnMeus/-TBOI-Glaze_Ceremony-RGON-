@@ -222,11 +222,30 @@ function bank.resolve_owner(loan)
 	return Game():GetPlayer(0)
 end
 
+local function debit_coins(player, amount)
+	local before = player:GetNumCoins()
+	if before < amount then return false end
+	player:AddCoins(-amount)
+	local lost = before - player:GetNumCoins()
+	if lost == amount then return true end
+	if lost > 0 then player:AddCoins(lost) end
+	return false
+end
+
+local function credit_coins(player, amount)
+	local before = player:GetNumCoins()
+	player:AddCoins(amount)
+	local gained = player:GetNumCoins() - before
+	if gained == amount then return true end
+	if gained > 0 then player:AddCoins(-gained) end
+	return false
+end
+
 function bank.deposit(player, amount)
 	amount = math.floor(tonumber(amount) or 0)
 	if amount <= 0 or not player then return false, "bad_amount" end
 	if player:GetNumCoins() < amount then return false, "insufficient_coins" end
-	player:AddCoins(-amount)
+	if not debit_coins(player, amount) then return false, "coin_mismatch" end
 	local b = bank.get()
 	b.deposit = b.deposit + amount
 	b.stats.total_deposited = (b.stats.total_deposited or 0) + amount
@@ -238,8 +257,8 @@ function bank.withdraw(player, amount)
 	if amount <= 0 or not player then return false, "bad_amount" end
 	local b = bank.get()
 	if b.deposit < amount then return false, "insufficient_deposit" end
+	if not credit_coins(player, amount) then return false, "coin_cap" end
 	b.deposit = b.deposit - amount
-	player:AddCoins(amount)
 	b.stats.total_withdrawn = (b.stats.total_withdrawn or 0) + amount
 	return true
 end
@@ -348,6 +367,7 @@ function bank.issue_loan(player, item_id)
 	if b.active_loan then return false, "loan_exists" end
 	if not bank.collateral_eligible(player, item_id) then return false, "ineligible" end
 	local value = bank.value_of(item_id)
+	if not credit_coins(player, value) then return false, "coin_cap" end
 	local count = player:GetCollectibleNum(item_id, true)
 	local cycle = b.branch.current_cycle_id or b.branch.last_cycle_id
 	b.active_loan = {
@@ -360,7 +380,6 @@ function bank.issue_loan(player, item_id)
 		payment_due = false,
 		owner_index = owner_key(player),
 	}
-	player:AddCoins(value)
 	b.stats.total_borrowed = (b.stats.total_borrowed or 0) + value
 	b.stats.loans_issued = (b.stats.loans_issued or 0) + 1
 	return true
@@ -374,7 +393,7 @@ function bank.repay_loan(player)
 	if not player then return false, "no_player" end
 	local due = loan.remaining or loan.principal or 0
 	if player:GetNumCoins() < due then return false, "insufficient_coins" end
-	player:AddCoins(-due)
+	if not debit_coins(player, due) then return false, "coin_mismatch" end
 	b.stats.total_repaid = (b.stats.total_repaid or 0) + due
 	b.stats.loans_repaid = (b.stats.loans_repaid or 0) + 1
 	b.active_loan = nil

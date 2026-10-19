@@ -6,6 +6,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local danger_data = require("Qing_Remaster_scripts.others.Danger_Data")
 local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -344,7 +345,9 @@ Function = function(_,ent)
 		end
 	end
 	if d[item.own_key.."state"] == 0 then		--飘向角色
-		ent:FollowPosition(player.Position)
+		if QF.should_player_follow(ent) then
+			ent:FollowPosition(player.Position)
+		end
 	elseif d[item.own_key.."state"] == 1 then
 		if auxi.check_all_exists(d[item.own_key.."target"]) then
 			if (ent.Position - d[item.own_key.."target"].Position):Length() > 150 then
@@ -373,6 +376,19 @@ Function = function(_)
 		v:GetSprite():Play("Float")
 	end
 end,
+})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "cloundy",
+	zh = "云玩大佬",
+	en = "Cloundy",
+	movement = "follow",
+	control_mode = "move_only",
+	is_leaving_formation = function(_, fam)
+		return tonumber(fam:GetData()[item.own_key.."state"]) == 1
+	end,
 })
 
 return item

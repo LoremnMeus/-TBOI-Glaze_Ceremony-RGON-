@@ -7,6 +7,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
 local Tecrorun = require("Qing_Remaster_scripts.player.player_Tecrorun")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local TK = Tecrorun.own_key
 
@@ -344,14 +345,22 @@ Function = function(_, ent)
 	ent.CollisionDamage = 0
 	ent.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_WALLS
 	if not d[item.own_key.."IsFollow"] then
-		ent:AddToFollowers()
+		if QF.should_player_follow(ent) then
+			ent:AddToFollowers()
+		end
 		d[item.own_key.."IsFollow"] = true
 	end
 
 	local chargeData = ensure_charge(d)
-	local input = safe_input_dir(player)
-	local isInput = input ~= nil
-	local releasing = chargeData.lastInput and not isInput
+	local ac = QF.resolve_attack_control(ent, player, safe_input_dir(player))
+	local input = ac.aim
+	local isInput = ac.want == true
+	local releasing = false
+	if ac.auto_fire_when_full then
+		releasing = false
+	else
+		releasing = chargeData.lastInput and not isInput
+	end
 	local rate = charge_rate(chargeData)
 	local now_layer = layer_from_rate(rate)
 
@@ -368,12 +377,23 @@ Function = function(_, ent)
 		Baby_Anim.reset(ent, item.own_key.."float")
 		if not s:IsPlaying("Idle") then s:Play("Idle", true) end
 		set_face_dir(ent, aim)
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
 		if now_layer ~= nil then
 			ensure_preview_laser(ent, player, aim, now_layer)
 		elseif get_laser(d) then
 			fade_out_laser(d)
 		end
+		if ac.auto_fire_when_full and chargeData.progress >= chargeData.maxCharge then
+			releasing = true
+		end
+	elseif ac.cancel_on_window_end and chargeData.lastInput then
+		if get_laser(d) then fade_out_laser(d) end
+		clear_face(ent)
+		chargeData.progress = 0
+		chargeData.prev_axes = 0
+		chargeData.axis_grace = 0
 	elseif releasing then
 		-- 完全松手处理在下方
 	else
@@ -386,7 +406,9 @@ Function = function(_, ent)
 			idle_max = 180,
 		})
 		if Baby_Anim.is_float_idle_anim(s:GetAnimation()) then
-			ent:FollowParent()
+			if QF.should_player_follow(ent) then
+				ent:FollowParent()
+			end
 		end
 	end
 
@@ -404,7 +426,9 @@ Function = function(_, ent)
 				sound_tracker.PlayStackedSound(SoundEffect.SOUND_SHELLGAME, 0.7, 1.1, false, 0, 2)
 			else
 				fade_out_laser(d)
-				ent:AddToFollowers()
+				if QF.should_player_follow(ent) then
+					ent:AddToFollowers()
+				end
 				d[item.own_key.."IsFollow"] = true
 				ent.GridCollisionClass = EntityGridCollisionClass.GRIDCOLL_WALLS
 			end
@@ -418,6 +442,19 @@ Function = function(_, ent)
 
 	chargeData.lastInput = isInput
 end,
+})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "baby_tecro",
+	zh = "宝宝泰克罗",
+	en = "Baby Tecro",
+	movement = "follow",
+	control_mode = "move_only",
+	is_leaving_formation = function(_, fam)
+		return fam:GetData()[item.own_key.."launchData"] ~= nil
+	end,
 })
 
 return item

@@ -28,6 +28,10 @@ local QUOTE_RESOLVED = "resolved"
 -- See codex_work/notes/price_holder_native_refresh_timing.md
 local PRICE_VISUAL_COMMIT_KEY = item.own_key .. "native_visual_commit"
 
+local function set_auto_update_price(ent, value)
+	ent.AutoUpdatePrice = value
+end
+
 local function ensure_record(ent)
 	if not ent then return nil end
 	local d = ent:GetData()
@@ -289,7 +293,7 @@ function item.lock_price(ent, price, opts)
 	if (ent.ShopItemId or 0) <= 0 then
 		ent.ShopItemId = -1
 	end
-	ent.AutoUpdatePrice = false
+	set_auto_update_price(ent, false)
 	ent.Price = price
 	local rec = ensure_record(ent)
 	rec.quote_state = QUOTE_RESOLVED
@@ -317,7 +321,7 @@ function item.unlock_price(ent)
 	local rec = get_record(ent)
 	if not rec then return false end
 	rec.locked = false
-	ent.AutoUpdatePrice = true
+	set_auto_update_price(ent, true)
 	bump_revision(rec)
 	return true
 end
@@ -332,7 +336,7 @@ local function apply_locked_to_entity(ent, rec)
 	if (ent.ShopItemId or 0) == 0 then
 		ent.ShopItemId = -1
 	end
-	ent.AutoUpdatePrice = false
+	set_auto_update_price(ent, false)
 	local wrote = false
 	if ent.Price ~= rec.price then
 		ent.Price = rec.price
@@ -351,17 +355,14 @@ local function apply_locked_to_entity(ent, rec)
 	end
 end
 
-table.insert(item.ToCall, #item.ToCall + 1, {
-	CallBack = ModCallbacks.MC_POST_PICKUP_UPDATE,
-	params = nil,
-	Function = function(_, ent)
-		-- VISUAL COMMIT：须在 FINALIZE 之后的下一帧；同帧 schedule 不会在此触发。
-		try_commit_native_price_visual(ent)
+local function update_entity(ent)
+	-- VISUAL COMMIT：须在 FINALIZE 之后的下一帧；同帧 schedule 不会在此触发。
+	try_commit_native_price_visual(ent)
 
-		local d = ent:GetData()
-		d._Data = d._Data or {}
-		local rec = d._Data[item.own_key]
-		local succ = consistance_holder.try_check_entity(ent, item.own_key)
+	local d = ent:GetData()
+	d._Data = d._Data or {}
+	local rec = d._Data[item.own_key]
+	local succ = consistance_holder.try_check_entity(ent, item.own_key)
 
 		-- Fixed quote contract：即使某帧 Price 被打成 0 也恢复，绝不卸 hold
 		if rec and rec.locked == true then
@@ -382,7 +383,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 				bump_revision(rec)
 			end
 			if ent.Price ~= rec.set_the_price then
-				ent.AutoUpdatePrice = false
+				set_auto_update_price(ent, false)
 				ent.Price = rec.set_the_price
 				consistance_holder.try_hold_entity(ent, item.own_key, {ignore_subtype = true})
 				-- FINALIZE writeback → schedule VISUAL COMMIT（下一帧 Price=Price）
@@ -390,9 +391,16 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 			end
 		elseif rec and rec.locked ~= true then
 			clear_native_price_visual_commit(ent)
-			ent.AutoUpdatePrice = true
+			set_auto_update_price(ent, true)
 			consistance_holder.try_remove_entity(ent, item.own_key, {ignore_subtype = true})
 		end
+	end
+
+table.insert(item.ToCall, #item.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_PICKUP_UPDATE,
+	params = nil,
+	Function = function(_, ent)
+		update_entity(ent)
 	end,
 })
 
@@ -421,7 +429,7 @@ function item.reset_price(ents)
 				if succ then
 					-- INVALIDATE：清旧 visual commit，等 NATIVE REPRICE → FINALIZE 再 schedule。
 					clear_native_price_visual_commit(ent)
-					ent.AutoUpdatePrice = true
+					set_auto_update_price(ent, true)
 					if rec then
 						rec.set_the_price = nil
 						rec.quote_state = QUOTE_UNRESOLVED

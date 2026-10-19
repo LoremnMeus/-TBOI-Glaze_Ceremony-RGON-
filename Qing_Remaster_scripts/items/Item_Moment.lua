@@ -160,6 +160,21 @@ function item.should_reverse()
 	return false
 end
 
+--- Flight：只读已计算完的净属性（含 reverse）；不暴露 save table，不复制攻击附加行为。
+function item.get_stat_bonus(player)
+	local idx, buff, reverse = get_player_state(player)
+	if idx == nil then return nil end
+	buff = buff or {}
+	local rev = reverse[idx] or 1
+	return {
+		damage = (math.sqrt((buff.damage or 0) + 16) - 4) * 0.34 * rev,
+		tear = (math.sqrt((buff.tear or 0) + 16) - 4) * 0.3 * rev,
+		range = math.sqrt((buff.range or 0)) * 3 * rev,
+		speed = math.sqrt((buff.speed or 0)) * 0.03 * rev,
+		luck = (math.sqrt((buff.luck or 0) + 16) - 4) * 0.28 * rev,
+	}
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
 	if auxi.has_have_coll(player,item.entity) then

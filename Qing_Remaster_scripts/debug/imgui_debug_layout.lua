@@ -285,10 +285,10 @@ function layout.render_control(parent_id, module_id, control, opts)
 		local min_v = tonumber(control.min) or 0
 		local max_v = tonumber(control.max) or 100
 		local fmt = control.fmt or "%d"
-		if kind == "slider_int" and ImGui.AddSliderInt then
-			ImGui.AddSliderInt(parent_id, id, label, write_num, read_num(), min_v, max_v, fmt)
+		if kind == "slider_int" and ImGui.AddSliderInteger then
+			ImGui.AddSliderInteger(parent_id, id, label, write_num, read_num(), min_v, max_v, fmt)
 		else
-			ImGui.AddDragInt(parent_id, id, label, write_num, read_num(), speed, min_v, max_v, fmt)
+			ImGui.AddDragInteger(parent_id, id, label, write_num, read_num(), speed, min_v, max_v, fmt)
 		end
 		ImGui.AddCallback(id, ImGuiCallback.Render, function()
 			ImGui.UpdateData(id, ImGuiData.Value, read_num())

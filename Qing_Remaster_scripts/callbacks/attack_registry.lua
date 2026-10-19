@@ -6,6 +6,8 @@ local callback_manager = require("Qing_Remaster_scripts.core.callback_manager")
 local M = {
 	own_key = "attack_trigger_holder_",
 	TOMBSTONE_FRAMES = 45,
+	LASER_AIM_READY = "qing_laser_aim_ready",
+	LASER_AIM_ATTACK = "qing_laser_aim_attack",
 	DAMAGE_REMEMBER_FRAMES = 6,
 	-- Epic/Dr explosions often attribute damage to the player after the projectile is gone.
 	PLAYER_BLAST_REMEMBER_FRAMES = 12,
@@ -194,6 +196,7 @@ function M.CreateAttack(player, family, opts)
 		collector = opts.collector,
 	}
 	M.attacks[attack.id] = attack
+	attack.direction_state = nil
 	debug_emit("create", attack, {
 		synthetic = attack.synthetic,
 		synthetic_kind = attack.synthetic_kind,
@@ -205,6 +208,93 @@ function M.CreateAttack(player, family, opts)
 		source_kind = attack.source and attack.source.kind or nil,
 	})
 	return attack
+end
+
+local function flush_direction_waiters(attack, state)
+	local waiters = attack.direction_waiters
+	attack.direction_waiters = nil
+	if not waiters then return end
+	local direction = state == "resolved" and attack.direction or nil
+	for i = 1, #waiters do
+		waiters[i](attack, direction, state)
+	end
+end
+
+--- Brimstone / Technology stay pending until INIT_2 writes the real angle.
+--- The first pending member owns the slot. A later member cannot replace it.
+function M.MarkDirectionPending(attack, ent)
+	if not attack or attack.direction_state == "resolved" or attack.direction_state == "unavailable" then
+		return false
+	end
+	attack.direction_state = "pending"
+	attack.direction = nil
+	if ent and not attack.direction_member_hash then
+		attack.direction_member_hash = GetPtrHash(ent)
+		attack.direction_member_seed = ent.InitSeed
+	end
+	if ent then
+		ent:GetData()[M.LASER_AIM_ATTACK] = attack.id
+	end
+	return true
+end
+
+--- Write one resolved direction. Refuses a different member and a second write.
+function M.ResolveAttackDirection(attack, direction, reason, ent)
+	if not attack or attack.direction_state == "resolved" or attack.direction_state == "unavailable" then
+		return false
+	end
+	if ent then
+		local hash = GetPtrHash(ent)
+		local seed = ent.InitSeed
+		if attack.direction_member_hash and attack.direction_member_hash ~= hash then
+			return false
+		end
+		if attack.direction_member_seed and attack.direction_member_seed ~= seed then
+			return false
+		end
+	end
+	if not direction or direction:Length() <= 0.01 then
+		return false
+	end
+	attack.direction = direction:Normalized()
+	attack.direction_state = "resolved"
+	attack.direction_reason = reason or "resolved"
+	attack.direction_resolved_frame = game_frame()
+	if ent and not attack.position then
+		attack.position = ent.Position
+	end
+	flush_direction_waiters(attack, "resolved")
+	return true
+end
+
+function M.MarkDirectionUnavailable(attack)
+	if not attack or attack.direction_state ~= "pending" then
+		return false
+	end
+	attack.direction_state = "unavailable"
+	attack.direction = nil
+	attack.direction_reason = "unavailable"
+	flush_direction_waiters(attack, "unavailable")
+	return true
+end
+
+--- Run fn(attack, direction, state) once the snapshot exists.
+--- Already resolved or unavailable callbacks run immediately. Once is not emitted again.
+function M.WhenAttackDirectionReady(attack, fn)
+	if not attack or type(fn) ~= "function" then
+		return false
+	end
+	if attack.direction_state == "resolved" and attack.direction then
+		fn(attack, attack.direction, "resolved")
+		return true
+	end
+	if attack.direction_state == "unavailable" then
+		fn(attack, nil, "unavailable")
+		return true
+	end
+	attack.direction_waiters = attack.direction_waiters or {}
+	attack.direction_waiters[#attack.direction_waiters + 1] = fn
+	return true
 end
 
 function M.SetTag(attack, key, value)
@@ -309,6 +399,16 @@ function M.BindMember(attack, ent, opts)
 	local pos = opts.position or ent.Position
 	local dir = opts.direction or attack.direction
 	local bind_reason = opts.reason or "bind"
+	if opts.direction_state == "pending" and attack.direction_state ~= "resolved" then
+		M.MarkDirectionPending(attack, ent)
+		dir = nil
+	elseif opts.direction_state == "resolved" and opts.direction and opts.direction:Length() > 0.01
+		and attack.direction_state ~= "resolved" and attack.direction_state ~= "pending" then
+		attack.direction = opts.direction:Normalized()
+		attack.direction_state = "resolved"
+		attack.direction_reason = opts.direction_reason or bind_reason
+		dir = attack.direction
+	end
 	M.dispatch(enums.Callbacks.POST_ATTACK_MEMBER_BOUND, M.make_event(attack, {
 		member = ent,
 		generation = generation,

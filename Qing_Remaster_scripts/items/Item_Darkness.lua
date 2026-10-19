@@ -67,6 +67,19 @@ local function get_black_heart_count(player)
 	return auxi.Count_Flags(mask)
 end
 
+--- Flight 只继承伤害部分；生命类型/黑心机制仍属玩家。
+function item.get_craft_damage_bonus(player)
+	if not player then return nil end
+	local cnt = player:GetCollectibleNum(item.entity) or 0
+	if cnt <= 0 then return nil end
+	local q1 = get_black_heart_count(player)
+	return {
+		black_hearts = q1,
+		damage_mul = 1 + q1 * 0.003,
+		damage_add = q1 * 0.8 * (cnt + 3) / 4,
+	}
+end
+
 local function get_pure_soul_half_hearts(player)
 	return math.max(0,player:GetSoulHearts() - get_black_heart_count(player) * 2)
 end

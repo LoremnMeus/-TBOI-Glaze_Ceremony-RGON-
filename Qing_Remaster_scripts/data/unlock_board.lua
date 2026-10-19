@@ -1723,6 +1723,17 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：超级撒旦
+			["MegaSatan"] = {
+				{
+					uid = "Tiny_Update",
+					id = "175",
+					enum_key = "Tiny_Update",
+					name = "Tiny Update",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：祸兽
 			["Beast"] = {
 				{

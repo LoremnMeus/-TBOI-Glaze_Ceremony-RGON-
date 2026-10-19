@@ -218,18 +218,19 @@ local function remove_bar(air, kind)
 	Charging_Bar_holder.remove_charge_bar(air, bar_id(kind, air))
 end
 
-local function render_bar(air, kind, ratio01, show)
+local function render_bar(air, kind, ratio01, show, loadname)
 	if not air then return end
 	local id = bar_id(kind, air)
 	local pct = math.max(0, math.min(100, math.floor((tonumber(ratio01) or 0) * 100 + 0.5)))
 	set_bar_counter(air, kind, ratio01)
+	loadname = loadname or CHARGE_BAR_ANM2
 	if not show or pct <= 5 then
 		-- 仍调用一次以驱动消失动画；check1 失败时 holder 会 Disappear
 		Charging_Bar_holder.render_me(air, {
 			name1 = id,
 			name2 = id,
 			name3 = id,
-			loadname = CHARGE_BAR_ANM2,
+			loadname = loadname,
 			NoOffset = true,
 			check1 = function() return false end,
 			check2 = function() return false end,
@@ -241,7 +242,7 @@ local function render_bar(air, kind, ratio01, show)
 		name1 = id,
 		name2 = id,
 		name3 = id,
-		loadname = CHARGE_BAR_ANM2,
+		loadname = loadname,
 		NoOffset = true,
 		check1 = function() return pct > 5 end,
 		check2 = function() return pct >= 100 end,
@@ -478,6 +479,45 @@ function item.get_neptune_fire_rate_mul(air)
 	return tonumber(air:GetData()[item.own_key.."nep_fire_rate_mul"]) or 1
 end
 
+local function external_bars(air, create)
+	if not air then return nil end
+	local d = air:GetData()
+	local bars = d[item.own_key.."external_bars"]
+	if type(bars) ~= "table" and create then
+		bars = {}
+		d[item.own_key.."external_bars"] = bars
+	end
+	return bars
+end
+
+--- Display-only Flight bar. Never drives Subera / other item fire.
+function item.publish_bar(air, key, opts)
+	if not air or type(key) ~= "string" or key == "" then return end
+	opts = opts or {}
+	local bars = external_bars(air, true)
+	if not bars then return end
+	local ratio = tonumber(opts.ratio) or 0
+	if ratio < 0 then ratio = 0 elseif ratio > 1 then ratio = 1 end
+	local visible = opts.visible
+	if visible == nil then visible = opts.show end
+	if visible == nil then visible = ratio > 0.05 end
+	bars[key] = {
+		ratio = ratio,
+		visible = visible == true,
+		anm2 = opts.anm2 or opts.loadname,
+		priority = tonumber(opts.priority) or 30,
+	}
+end
+
+item.set_external_bar = item.publish_bar
+
+function item.clear_external_bar(air, key)
+	if not air or type(key) ~= "string" then return end
+	local bars = external_bars(air, false)
+	if bars then bars[key] = nil end
+	remove_bar(air, "ext_" .. key)
+end
+
 function item.tick_flight(air, player, craft_prof, attacking, aim_dir)
 	if not air or not player or not craft_prof then return end
 	local full = math.max(1, math.floor(tonumber(cfg("charge_full_frames")) or 71))
@@ -531,17 +571,45 @@ end
 function item.render_flight_bars(air, craft_prof)
 	if not air or not craft_prof then return end
 	local d = air:GetData()
+	local queue = {}
+	local function push(kind, ratio, show, priority, anm2)
+		queue[#queue + 1] = {
+			kind = kind,
+			ratio = tonumber(ratio) or 0,
+			show = show == true,
+			priority = tonumber(priority) or 30,
+			anm2 = anm2,
+		}
+	end
 	if count_of(craft_prof, IDS.MAW) > 0 then
 		local c = tonumber(d[item.own_key.."maw_bar"]) or 0
-		render_bar(air, "maw", c, c > 0.05)
+		push("maw", c, c > 0.05, 10)
 	end
 	if count_of(craft_prof, IDS.REVELATION) > 0 then
 		local c = tonumber(d[item.own_key.."rev_bar"]) or 0
-		render_bar(air, "rev", c, c > 0.05)
+		push("rev", c, c > 0.05, 20)
 	end
 	if count_of(craft_prof, IDS.NEPTUNE) > 0 then
 		local c = tonumber(d[item.own_key.."nep_bar"]) or 0
-		render_bar(air, "nep", c, c > 0.05)
+		push("nep", c, c > 0.05, 40)
+	end
+	local bars = external_bars(air, false)
+	if bars then
+		for key, rec in pairs(bars) do
+			if type(key) == "string" and type(rec) == "table" then
+				push("ext_" .. key, rec.ratio, rec.visible, rec.priority, rec.anm2)
+			end
+		end
+	end
+	table.sort(queue, function(a, b)
+		if a.priority ~= b.priority then
+			return a.priority < b.priority
+		end
+		return a.kind < b.kind
+	end)
+	for i = 1, #queue do
+		local e = queue[i]
+		render_bar(air, e.kind, e.ratio, e.show, e.anm2)
 	end
 end
 
@@ -566,6 +634,15 @@ function item.clear_flight(air)
 	d[item.own_key.."sticky_target"] = nil
 	d[item.own_key.."charge_grace"] = nil
 	d[item.own_key.."was_attacking"] = nil
+	local bars = d[item.own_key.."external_bars"]
+	if type(bars) == "table" then
+		for key, _ in pairs(bars) do
+			if type(key) == "string" then
+				remove_bar(air, "ext_" .. key)
+			end
+		end
+	end
+	d[item.own_key.."external_bars"] = nil
 end
 
 -- Maw：跟 Flight 位置。启示：与天依相同，生成后不再改 Angle。

@@ -10,7 +10,7 @@ your Isaac `mods` directory.
 
 ## ⚠ Alpha Testing Version
 
-**Current version: alpha-0.1.1**
+**Current version: alpha-0.1.2**
 
 This is the first public Alpha test of *Glaze Ceremony: Promised Land*. It is not
 a finished remaster.

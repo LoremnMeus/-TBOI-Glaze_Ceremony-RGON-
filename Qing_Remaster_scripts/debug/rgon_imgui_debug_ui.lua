@@ -804,6 +804,68 @@ local function add_bloody_map_group(parent_id)
 })
 end
 
+local function add_tiny_update_group(parent_id)
+	local group = add_group(parent_id, "QingRemasterOptions_GroupTinyUpdate", text("group_tiny_update"))
+	add_text(group, text("tiny_update_help"))
+	local tiny = require("Qing_Remaster_scripts.items.Item_Tiny_Update")
+	local status_id = "QingRemasterOptions_TinyUpdateStatus"
+	imgui_layout.add_wrapped_text(group, status_id, "Tiny Update")
+	ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+		local body = string.format("%s\nseed:%d", tiny.debug_status_text(), tiny.debug_seed or 0)
+		imgui_layout.update_text(status_id, body)
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdateForce", text("tiny_update_force"), function()
+		if tiny.debug_force_update then tiny.debug_force_update() end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdatePreview", text("tiny_update_preview"), function()
+		if tiny.debug_preview then tiny.debug_preview() end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdateLast", text("tiny_update_last"), function()
+		if tiny.debug_show_last then tiny.debug_show_last() end
+	end)
+	local seed_id = "QingRemasterOptions_TinyUpdateSeed"
+	ImGui.AddDragFloat(group, seed_id, text("tiny_update_seed"), function(value)
+		tiny.debug_seed = math.max(0, math.floor(tonumber(value) or 0))
+	end, 0, 1, 0, 999999, "%.0f")
+	ImGui.AddCallback(seed_id, ImGuiCallback.Render, function()
+		ImGui.UpdateData(seed_id, ImGuiData.Value, tiny.debug_seed or 0)
+	end)
+	local function add_visual_drag(id, label_key, field, default, speed, min_value, max_value, fmt)
+		ImGui.AddDragFloat(group, id, text(label_key), function(value)
+			if tiny.debug_visual_set then tiny.debug_visual_set(field, value) end
+		end, default, speed, min_value, max_value, fmt)
+		ImGui.AddCallback(id, ImGuiCallback.Render, function()
+			local value = tiny.debug_visual_get and tiny.debug_visual_get(field) or default
+			ImGui.UpdateData(id, ImGuiData.Value, value)
+		end)
+	end
+	add_visual_drag("QingRemasterOptions_TinyUpdateOffsetX", "tiny_update_offset_x", "offset_x", 0, 1, -40, 40, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateOffsetY", "tiny_update_offset_y", "offset_y", 8, 1, -40, 40, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateCloseX", "tiny_update_close_x", "close_x", 0, 1, -32, 32, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateCloseY", "tiny_update_close_y", "close_y", 0, 1, -32, 32, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdatePoolIconX", "tiny_update_pool_icon_x", "pool_icon_x", 0, 1, -16, 16, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdatePoolIconY", "tiny_update_pool_icon_y", "pool_icon_y", 6, 1, -16, 16, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateFooterTextY", "tiny_update_footer_text_y", "footer_text_y", -8, 1, -16, 16, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateChangeLine", "tiny_update_change_line_height", "change_line_height", 19, 1, 14, 30, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateRowGap", "tiny_update_item_row_gap", "item_row_gap", 9, 1, 0, 24, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateKeyScroll", "tiny_update_key_scroll_speed", "key_scroll_speed", 3, 1, 1, 10, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateEnterMargin", "tiny_update_enter_margin", "enter_margin", 8, 1, 0, 64, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateExitDistance", "tiny_update_exit_distance", "exit_distance", 32, 1, 0, 96, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateEnterFrames", "tiny_update_enter_frames", "enter_frames", 22, 1, 1, 40, "%.0f")
+	add_visual_drag("QingRemasterOptions_TinyUpdateExitFrames", "tiny_update_exit_frames", "exit_frames", 10, 1, 1, 30, "%.0f")
+	local bounds_id = "QingRemasterOptions_TinyUpdateBounds"
+	ImGui.AddCheckbox(group, bounds_id, text("tiny_update_show_bounds"), function(value)
+		if tiny.debug_visual_set then tiny.debug_visual_set("show_bounds", value == true) end
+	end, false)
+	ImGui.AddCallback(bounds_id, ImGuiCallback.Render, function()
+		local shown = tiny.debug_visual_get and tiny.debug_visual_get("show_bounds") == true
+		ImGui.UpdateData(bounds_id, ImGuiData.Value, shown)
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdateRestoreVisual", text("tiny_update_restore_visual"), function()
+		if tiny.debug_visual_restore then tiny.debug_visual_restore() end
+	end)
+end
+
 local function add_zero_presence_group(parent_id)
 	local group = add_group(parent_id,"QingRemasterOptions_GroupZeroPresence",text("group_zero_presence"))
 	add_text(group,text("zero_presence_help"))
@@ -1723,7 +1785,7 @@ local function add_glaze_crown_group(parent_id)
 	local function p0()
 		return Game():GetPlayer(0)
 	end
-	local add_slider = ImGui.AddSliderInteger or ImGui.AddSliderInt
+	local add_slider = ImGui.AddSliderInteger
 	if add_slider then
 		add_slider(group, "QingRemasterOptions_GlazeCrownStack", "Crown Stack", function(v)
 			local player = p0()
@@ -3234,6 +3296,66 @@ end
 			push_notice(table.concat(parts, "  "))
 		end)
 	end
+	local bank_lab_group = start_mod(
+		"bank_test_lab",
+		DEBUG_PAGE.tests,
+		"贪婪银行测试台",
+		"QingRemasterOptions_GroupBankTestLab",
+		{path = {"贪婪银行测试台"}, kind = "test"}
+	)
+	do
+		local ok_bank, bank_debug = pcall(require, "Qing_Remaster_scripts.threads.bank.bank_debug")
+		if ok_bank and bank_debug and bank_debug.build_lab then
+			bank_debug.build_lab(bank_lab_group)
+		else
+			add_text(bank_lab_group, "无法加载贪婪银行测试台")
+		end
+	end
+	local bard_lab_group = start_mod(
+		"bard_beggar_test_lab",
+		DEBUG_PAGE.tests,
+		"吟游乞丐测试台",
+		"QingRemasterOptions_GroupBardBeggarLab",
+		{path = {"吟游乞丐测试台"}, kind = "test"}
+	)
+	do
+		local bard = require("Qing_Remaster_scripts.slots.Slot_Bard_Beggar")
+		add_text(bard_lab_group, "四种即时覆盖彼此独立；正式预约仍保持单一祝福。")
+		for _, kind in ipairs({"coin", "key", "bomb", "heart"}) do
+			local callback_kind = kind
+			local id = "QingRemasterOptions_Bard_" .. callback_kind
+			ImGui.AddCheckbox(bard_lab_group, id, "Immediate " .. callback_kind, nil, bard.debug_is_override(callback_kind))
+			ImGui.AddCallback(id, ImGuiCallback.Render, function()
+				ImGui.UpdateData(id, ImGuiData.Value, bard.debug_is_override(callback_kind))
+			end)
+			ImGui.AddCallback(id, ImGuiCallback.Edited, function(value)
+				bard.debug_set_override(callback_kind, value)
+			end)
+			ImGui.AddButton(bard_lab_group, id .. "_Next", "Schedule next floor: " .. callback_kind, function()
+				bard.debug_schedule(callback_kind)
+			end)
+		end
+		ImGui.AddButton(bard_lab_group, "QingRemasterOptions_BardSpawn", "Spawn Bard Beggar", bard.debug_spawn_bard)
+		ImGui.AddButton(bard_lab_group, "QingRemasterOptions_BardHearts", "Spawn 40 red hearts", function() bard.debug_spawn_hearts(40) end)
+		ImGui.AddButton(bard_lab_group, "QingRemasterOptions_BardRoute", "Rebuild treasure route", bard.debug_rebuild_route)
+		ImGui.AddButton(bard_lab_group, "QingRemasterOptions_BardPrices", "Recalculate shop prices", bard.debug_reset_prices)
+		ImGui.AddButton(bard_lab_group, "QingRemasterOptions_BardCopySummary", "Copy Summary", bard.debug_copy_summary)
+		ImGui.AddButton(bard_lab_group, "QingRemasterOptions_BardCopyFull", "Copy Full Report", bard.debug_copy_full_report)
+		local bard_status_id = "QingRemasterOptions_BardStatus"
+		imgui_layout.add_wrapped_text(bard_lab_group, bard_status_id, "Idle")
+		ImGui.AddCallback(bard_status_id, ImGuiCallback.Render, function()
+			local state = bard.debug_get_state()
+			local route = state.route
+			local body = string.format(
+				"coin=%s key=%s bomb=%s heart=%s | route=%s edges=%d | discounts=%d explosions=%d heart=%d/%d",
+				tostring(bard.debug_is_override("coin")), tostring(bard.debug_is_override("key")), tostring(bard.debug_is_override("bomb")), tostring(bard.debug_is_override("heart")),
+				route and tostring(route.target) or "none", route and #(route.edges or {}) or 0,
+				state.stats.discounts or 0, state.stats.explosions or 0,
+				state.stats.heart_converts or 0, state.stats.heart_rolls or 0
+			)
+			imgui_layout.update_text(bard_status_id, body)
+		end)
+	end
 	local consistance_lab_group = start_mod("audit_consistance_test_lab", DEBUG_PAGE.tests, "Consistance Test Lab", "QingRemasterOptions_GroupConsistanceTestLab", {path = {"Consistance Test Lab"}, kind = "test"})
 	do
 		add_text(consistance_lab_group, "Unique：Native ESSM ≠ Generation。Consumer：GenerationAuditHolder（Empress/Live）。Appear2 已拆除。")
@@ -3784,6 +3906,8 @@ end
 
 	add_zero_presence_group(items_tab)
 
+	add_tiny_update_group(items_tab)
+
 	add_glaze_crown_group(items_tab)
 
 	add_abiogenesis_group(items_tab)
@@ -3844,6 +3968,7 @@ end
 	register_built("item_bloody_map", DEBUG_PAGE.items, text("group_bloody_map"), "QingRemasterOptions_GroupBloodyMap", {path = {"Bloody Map"}, kind = "tool"})
 	register_built("item_perhaps_chosen", DEBUG_PAGE.items, text("group_perhaps_chosen"), "QingRemasterOptions_GroupPerhapsChosen", {path = {"Perhaps Chosen"}, kind = "tool"})
 	register_built("item_zero_presence", DEBUG_PAGE.items, text("group_zero_presence"), "QingRemasterOptions_GroupZeroPresence", {path = {"Zero Presence"}, kind = "tool"})
+	register_built("item_tiny_update", DEBUG_PAGE.items, text("group_tiny_update"), "QingRemasterOptions_GroupTinyUpdate", {path = {"Tiny Update"}, kind = "tool"})
 	register_built("item_glaze_crown", DEBUG_PAGE.items, text("group_glaze_crown"), "QingRemasterOptions_GroupGlazeCrown", {path = {"Glaze Crown"}, kind = "tool"})
 	register_built("item_abiogenesis", DEBUG_PAGE.items, text("group_abiogenesis"), "QingRemasterOptions_GroupAbiogenesis", {path = {"Abiogenesis"}, kind = "tool"})
 	register_built("item_tianyi", DEBUG_PAGE.items, text("group_tianyi"), "QingRemasterOptions_GroupTianYi", {path = {"Tianyi"}, kind = "tool"})

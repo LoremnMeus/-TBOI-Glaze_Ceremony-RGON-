@@ -62,42 +62,66 @@ local function inherit_opts(attack, emitter, reason, damage_scale)
 	}
 end
 
-local function fire_bonus(player, pos, vel, rng, damage_scale, force_direction, attack, emitter, luck, count)
-	if player == nil or not attack then return end
+local function aim_fire_opts(attack, emitter, reason, damage_scale)
+	local opts = inherit_opts(attack, emitter, reason, damage_scale)
+	if not attack or not attack.active or attack.ending then
+		opts.mode = "untracked"
+		opts.attack = nil
+	end
+	return opts
+end
+
+local function roll_bonus(rng, luck, count)
+	luck = tonumber(luck) or 0
+	count = math.max(1, math.floor(tonumber(count) or 1))
+	if rng:RandomInt(1000) > math.max(600, 1000 - count * 60 - luck * 10) then
+		return {kind = "techx", radius = rng:RandomInt(50) + 20}
+	end
+	if rng:RandomInt(1000) > math.max(800, 1000 - count * 100 - luck * 5) then
+		return {kind = "tech"}
+	end
+	if rng:RandomInt(1000) > math.max(900, 1000 - count * 30 - luck * 3) then
+		return {kind = "tech_eye"}
+	end
+	if rng:RandomInt(1000) > math.max(500, 1000 - count * 50 - luck * 35) then
+		return {kind = "tech_onehit"}
+	end
+	return nil
+end
+
+local function apply_bonus(player, pos, vel, damage_scale, force_direction, attack, emitter, plan)
+	if not plan or player == nil or not attack or not vel then return end
 	if pos == nil then pos = player.Position end
 	local shot_vel = as_shot_velocity(player, vel, force_direction)
 	local dir = normalize_dir(player, shot_vel)
-	rng = rng or player:GetCollectibleRNG(item.entity)
 	damage_scale = damage_scale or 1
-	luck = tonumber(luck) or (player.Luck or 0)
-	count = math.max(1, math.floor(tonumber(count) or player:GetCollectibleNum(item.entity) or 1))
-	if rng:RandomInt(1000) > math.max(600, 1000 - count * 60 - luck * 10) then
-		local radius = rng:RandomInt(50) + 20
+	if plan.kind == "techx" then
+		local radius = plan.radius
 		local q = attack_holder.FireTechXLaser(
 			player,
 			pos,
 			shot_vel * ((auxi.random_1() + 1) / 2),
 			radius,
-			inherit_opts(attack, emitter, "tech9_techx", (radius / 70) * damage_scale)
+			aim_fire_opts(attack, emitter, "tech9_techx", (radius / 70) * damage_scale)
 		)
 		mark_laser(q, item.own_key.."techx_laser")
 		return true
 	end
-	if rng:RandomInt(1000) > math.max(800, 1000 - count * 100 - luck * 5) then
-		local opts = inherit_opts(attack, emitter, "tech9_tech", 0.75 * damage_scale)
+	if plan.kind == "tech" then
+		local opts = aim_fire_opts(attack, emitter, "tech9_tech", 0.75 * damage_scale)
 		opts.offset_id = LaserOffset.LASER_TECH1_OFFSET
 		mark_laser(attack_holder.FireTechLaser(player, pos, dir, opts))
 		return true
 	end
-	if rng:RandomInt(1000) > math.max(900, 1000 - count * 30 - luck * 3) then
-		local opts = inherit_opts(attack, emitter, "tech9_tech_eye", 0.75 * damage_scale)
+	if plan.kind == "tech_eye" then
+		local opts = aim_fire_opts(attack, emitter, "tech9_tech_eye", 0.75 * damage_scale)
 		opts.offset_id = LaserOffset.LASER_TECH1_OFFSET
 		opts.left_eye = true
 		mark_laser(attack_holder.FireTechLaser(player, pos, dir, opts))
 		return true
 	end
-	if rng:RandomInt(1000) > math.max(500, 1000 - count * 50 - luck * 35) then
-		local opts = inherit_opts(attack, emitter, "tech9_tech_onehit", 1.3 * damage_scale)
+	if plan.kind == "tech_onehit" then
+		local opts = aim_fire_opts(attack, emitter, "tech9_tech_onehit", 1.3 * damage_scale)
 		opts.offset_id = LaserOffset.LASER_TECH1_OFFSET
 		opts.one_hit = true
 		mark_laser(attack_holder.FireTechLaser(player, pos, dir, opts))
@@ -106,16 +130,11 @@ local function fire_bonus(player, pos, vel, rng, damage_scale, force_direction, 
 	return false
 end
 
-local function try_fire_bonus(player, pos, vel, source, damage_scale, rng, force_direction, attack, luck, count)
-	if not attack then return end
-	-- Player path still requires inventory Tech IX; mimic path is gated by SourceCanConsume upstream.
-	if classifier.IsPlayerAttackSource(attack.source) and player_has_item(player) ~= true then return end
-	if source then
-		local d = source:GetData()
-		if d[item.own_key.."laser"] == true or d[item.own_key.."techx_laser"] == true then return end
-	end
+local function fire_bonus(player, pos, vel, rng, damage_scale, force_direction, attack, emitter, luck, count)
+	if player == nil or not attack or not vel then return end
 	rng = rng or player:GetCollectibleRNG(item.entity)
-	fire_bonus(player, pos, vel, rng, damage_scale, force_direction, attack, source, luck, count)
+	local plan = roll_bonus(rng, luck, count)
+	return apply_bonus(player, pos, vel, damage_scale, force_direction, attack, emitter, plan)
 end
 
 local function resolve_tech9_roll_stats(player, attack, source)
@@ -152,11 +171,24 @@ Function = function(_, event)
 	if d[item.own_key.."laser"] == true or d[item.own_key.."techx_laser"] == true then return end
 	local rng = player:GetCollectibleRNG(item.entity)
 	local aim = classifier.GetAttackAimContext(source, attack, event)
-	local pos = (aim and aim.position) or player.Position
-	local dir = (aim and aim.direction) or Vector(1, 0)
 	local luck, count = resolve_tech9_roll_stats(player, attack, source)
-	-- force_direction: treat resolved aim as facing, not a short Velocity sample.
-	try_fire_bonus(player, pos, dir, ent, 1, rng, true, attack, luck, count)
+	local plan = roll_bonus(rng, luck, count)
+	if not plan then return end
+	local function launch(pos, dir)
+		if not dir then return end
+		apply_bonus(player, pos, dir, 1, true, attack, ent, plan)
+	end
+	if aim and aim.state == "pending" then
+		attack_holder.WhenAttackDirectionReady(attack, function(atk, dir, state)
+			if state ~= "resolved" or not dir then return end
+			local pos = (aim and aim.position) or (atk and atk.position) or player.Position
+			launch(pos, dir)
+		end)
+		return
+	end
+	local dir = aim and aim.direction
+	if not dir then return end
+	launch((aim and aim.position) or player.Position, dir)
 end
 })
 

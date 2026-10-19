@@ -428,6 +428,9 @@
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" id="1000" name="Abiogenesis Avatar" variant="2444" collisionRadius="0" numGridCollisionPoints="0" friction="1" shadowSize="0">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
 	</entity>
+	<entity anm2path="tears/Matryoshka_Marbles_Tear.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="0" friction="0" id="1000" name="Matryoshka Marble Visual" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2461">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" id="1000" name="Art Effect" variant="2450" collisionRadius="0" numGridCollisionPoints="0" collisionMass="0" friction="1" shadowSize="0">
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
 	</entity>

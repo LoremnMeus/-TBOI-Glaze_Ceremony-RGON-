@@ -5,6 +5,10 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local selection_holder = require("Qing_Remaster_scripts.others.selection_holder")
 local bank_state = require("Qing_Remaster_scripts.threads.bank.bank_state")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
+local pixel_ui = require("Qing_Remaster_scripts.auxiliary.pixel_ui")
+local bank_panel = require("Qing_Remaster_scripts.threads.bank.bank_panel_renderer")
+local slot_offer_lift = require("Qing_Remaster_scripts.slots.slot_offer_lift")
+local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 
 local branch = {
 	ToCall = {},
@@ -81,6 +85,7 @@ function branch.scrub_runtime()
 	-- Boundary-safe: only clear module Lua. Never touch Player:GetData() here.
 	runtime.sessions = {}
 	runtime.cleanup_generation = (runtime.cleanup_generation or 0) + 1
+	branch._coin_fly = nil
 end
 
 local function flush_player_boundary_cleanup(player)
@@ -94,11 +99,6 @@ local function flush_player_boundary_cleanup(player)
 	d[DATA_KEY] = nil
 	local h = player_hash(player)
 	if h then runtime.sessions[h] = nil end
-	pcall(function()
-		if player:IsHoldingItem() then
-			player:AnimateCollectible(0, "HideItem", "PlayerPickup")
-		end
-	end)
 end
 
 function branch.install(item_table)
@@ -210,6 +210,44 @@ function branch.find_nearest(player, max_dist)
 	return best
 end
 
+function branch.describe_room()
+	local out = {}
+	if not branch.entity then return out end
+	for _, ent in ipairs(Isaac.FindByType(branch.entity.Type, branch.entity.Variant, -1, false, false)) do
+		if ent and ent:Exists() then
+			local d = ent:GetData()
+			out[#out + 1] = {
+				ptr = GetPtrHash(ent),
+				x = ent.Position.X,
+				y = ent.Position.Y,
+				closed = branch.is_closed(ent),
+				broken = branch.is_broken(ent),
+				cycle = d.BankCycleId,
+				busy = d.BankBusyPlayerHash ~= nil,
+				debug_spawn = d.BankDebugSpawn == true,
+				ent = ent,
+			}
+		end
+	end
+	return out
+end
+
+function branch.mark_debug_spawn(ent)
+	if ent then ent:GetData().BankDebugSpawn = true end
+	return ent
+end
+
+function branch.remove_debug_spawns()
+	local n = 0
+	for _, row in ipairs(branch.describe_room()) do
+		if row.debug_spawn and row.ent and row.ent:Exists() then
+			row.ent:Remove()
+			n = n + 1
+		end
+	end
+	return n
+end
+
 function branch.spawn(pos, state)
 	state = state or "open"
 	if not branch.entity then return nil end
@@ -304,36 +342,10 @@ local function try_claim_busy(ent, player)
 	return d[BUSY_KEY] == h
 end
 
-local function stop_lift(player)
-	pcall(function()
-		if player:IsHoldingItem() then
-			player:AnimateCollectible(0, "HideItem", "PlayerPickup")
-		end
-	end)
-end
-
-local function refresh_loan_lift(player, sess)
-	if not sess or sess.mode ~= "loan" then return end
-	if sess.page ~= "pick" and sess.page ~= "replace" then
-		stop_lift(player)
-		return
-	end
-	local list = sess.candidates or {}
-	local row = list[sess.cursor]
-	if not row then
-		stop_lift(player)
-		return
-	end
-	pcall(function()
-		player:AnimateCollectible(row.id, "LiftItem", "PlayerPickup")
-	end)
-end
-
 function branch.close_panel(player)
 	local sess = get_session(player)
 	if not sess then return end
 	selection_holder.remove_select(player, branch.SELECTION_KEY)
-	stop_lift(player)
 	if sess.branch_ptr then
 		for _, ent in ipairs(Isaac.FindByType(branch.entity.Type, branch.entity.Variant, -1, false, false)) do
 			if branch_ptr(ent) == sess.branch_ptr then
@@ -361,6 +373,7 @@ local function open_panel(player, ent, mode)
 		input_armed = false,
 		opened_frame = Game():GetFrameCount(),
 		candidates = nil,
+		loan_ui = nil,
 	}
 	if sess.mode == "loan" then
 		if loan and loan.payment_due then
@@ -372,14 +385,21 @@ local function open_panel(player, ent, mode)
 		else
 			sess.page = "pick"
 			sess.candidates = bank_state.list_collateral_candidates(player)
+			sess.loan_ui = {
+				phase = "browse",
+				focus_index = 1,
+				selected_item_id = nil,
+				page = 1,
+				confirm_cursor = 1,
+			}
 			if #sess.candidates == 0 then
 				sess.page = "empty"
+				sess.loan_ui = nil
 			end
 		end
 	end
 	set_session(player, sess)
 	selection_holder.try_select(player, branch.SELECTION_KEY)
-	refresh_loan_lift(player, sess)
 	return true
 end
 
@@ -402,13 +422,117 @@ local function menu_options(sess)
 			return {"repay", "replace", "exit"}
 		end
 		if sess.page == "pick" or sess.page == "replace" then
-			return sess.candidates or {}
+			return {"confirm_loan", "reselect", "back"}
 		end
 		if sess.page == "empty" then
 			return {"exit"}
 		end
 	end
 	return {"exit"}
+end
+
+local SUCCESS_FRAMES = 45
+local ERROR_FRAMES = 60
+local FLY_STEPS = 36
+
+local function set_feedback(sess, kind, message, then_mode)
+	sess.feedback = {
+		kind = kind,
+		message = message,
+		started_frame = Game():GetFrameCount(),
+	}
+	sess.feedback_then = then_mode
+	sess.input_armed = false
+end
+
+local function finish_feedback(player, sess)
+	local then_mode = sess.feedback_then
+	sess.feedback = nil
+	sess.feedback_then = nil
+	sess.input_armed = false
+	if then_mode == "close" then
+		branch.close_panel(player)
+		return
+	end
+	if then_mode == "root" then
+		sess.page = "root"
+		sess.cursor = 1
+	elseif then_mode == "manage" then
+		sess.page = "manage"
+		sess.cursor = 1
+		sess.candidates = nil
+	end
+end
+
+local function money_message(page, all, amount, reason)
+	if reason == nil then
+		if page == "deposit" then
+			if all then return tr(string.format("已存入全部 %d¢", amount), string.format("Deposited all %d¢", amount)) end
+			return tr(string.format("已存入 %d¢", amount), string.format("Deposited %d¢", amount))
+		end
+		if all then return tr(string.format("已取出全部 %d¢", amount), string.format("Withdrew all %d¢", amount)) end
+		return tr(string.format("已取出 %d¢", amount), string.format("Withdrew %d¢", amount))
+	end
+	if reason == "coin_cap" then
+		return tr("硬币已达上限，无法足额取出", "Not enough room for the full withdrawal")
+	end
+	if page == "deposit" then
+		if all or reason == "bad_amount" then
+			return tr("没有可存入的硬币", "No coins to deposit")
+		end
+		return tr("硬币不足", "Not enough coins")
+	end
+	if all or reason == "bad_amount" then
+		return tr("银行没有存款", "The bank has no deposit")
+	end
+	return tr("存款不足", "Not enough in the bank")
+end
+
+local function loan_fail_message(reason)
+	if reason == "coin_cap" then
+		return tr("硬币已达上限，无法足额发放贷款", "Not enough room for the full loan")
+	end
+	if reason == "loan_exists" then
+		return tr("已有贷款", "A loan is already open")
+	end
+	if reason == "headquarters" then
+		return tr("此处无法办理贷款", "Loans are not issued here")
+	end
+	return tr("无有效抵押品", "No valid collateral")
+end
+
+local function spawn_loan_fly(player)
+	local metrics = bank_panel.metrics and bank_panel.metrics() or nil
+	local start = Vector(240, 96)
+	if metrics and metrics.x and metrics.y then
+		start = Vector(metrics.x + 36, metrics.y + 56)
+	end
+	local target = slot_offer_lift.get_pickup_hud_screen_pos(player, "coin", 0)
+	branch._coin_fly = {
+		sprite = slot_offer_lift.make_creditor_hud_fly_sprite("coin"),
+		start = start,
+		target = target,
+		step = 0,
+	}
+	sound_tracker.PlayStackedSound(SoundEffect.SOUND_PENNYPICKUP, 0.9, 1, false, 0, 1)
+end
+
+local function tick_coin_fly()
+	local fly = branch._coin_fly
+	if not fly then return end
+	fly.step = (fly.step or 0) + 1
+	if fly.step >= FLY_STEPS then
+		branch._coin_fly = nil
+	end
+end
+
+local function render_coin_fly()
+	local fly = branch._coin_fly
+	if not fly or not fly.sprite or not fly.start or not fly.target then return end
+	local t = math.min(1, (fly.step or 0) / FLY_STEPS)
+	local eased = 1 - (1 - t) ^ 3
+	local pos = fly.start * (1 - eased) + fly.target * eased
+	fly.sprite:Render(pos, Vector(0, 0), Vector(0, 0))
 end
 
 local function confirm_saving(player, sess)
@@ -437,40 +561,231 @@ local function confirm_saving(player, sess)
 	else
 		amount = tonumber(choice) or 0
 	end
+	local ok, reason
 	if sess.page == "deposit" then
-		bank_state.deposit(player, amount)
+		ok, reason = bank_state.deposit(player, amount)
 	else
-		bank_state.withdraw(player, amount)
+		ok, reason = bank_state.withdraw(player, amount)
 	end
-	sess.page = "root"
-	sess.cursor = 1
+	if not ok then
+		set_feedback(sess, "error", money_message(sess.page, choice == "all", amount, reason or "bad_amount"), nil)
+		return
+	end
+	set_feedback(sess, "success", money_message(sess.page, choice == "all", amount, nil), "root")
+end
+
+local GRID_COLS = 4
+local GRID_PAGE = 16
+
+local function ensure_loan_ui(sess)
+	local count = #(sess.candidates or {})
+	local ui = sess.loan_ui
+	if type(ui) ~= "table" then
+		ui = {
+			phase = "browse",
+			focus_index = 1,
+			selected_item_id = nil,
+			page = 1,
+			confirm_cursor = 1,
+		}
+		sess.loan_ui = ui
+	end
+	if count < 1 then
+		ui.focus_index = 1
+	elseif ui.focus_index < 1 then
+		ui.focus_index = 1
+	elseif ui.focus_index > count then
+		ui.focus_index = count
+	end
+	ui.page = math.floor((ui.focus_index - 1) / GRID_PAGE) + 1
+	if ui.phase ~= "confirm" then ui.phase = "browse" end
+	if (ui.confirm_cursor or 1) < 1 then ui.confirm_cursor = 1 end
+	if ui.confirm_cursor > 3 then ui.confirm_cursor = 3 end
+	return ui
+end
+
+local function find_candidate(list, item_id)
+	if not item_id then return nil end
+	for _, row in ipairs(list or {}) do
+		if row.id == item_id then return row end
+	end
+	return nil
+end
+
+local function move_collateral_focus(ui, count, dx, dy)
+	if count < 1 then return end
+	local index = ui.focus_index or 1
+	local local_i = (index - 1) % GRID_PAGE
+	local col = local_i % GRID_COLS
+	local row = math.floor(local_i / GRID_COLS)
+	local page0 = math.floor((index - 1) / GRID_PAGE)
+	if dx < 0 then
+		if col > 0 then
+			index = index - 1
+		elseif page0 > 0 then
+			index = (page0 - 1) * GRID_PAGE + row * GRID_COLS + GRID_COLS
+		end
+	elseif dx > 0 then
+		if col < GRID_COLS - 1 and index < count then
+			index = index + 1
+		elseif col == GRID_COLS - 1 then
+			local next_index = (page0 + 1) * GRID_PAGE + row * GRID_COLS + 1
+			local next_page_first = (page0 + 1) * GRID_PAGE + 1
+			if next_index <= count then
+				index = next_index
+			elseif next_page_first <= count then
+				index = next_page_first
+			end
+		end
+	end
+	if dy < 0 and row > 0 then
+		index = index - GRID_COLS
+	elseif dy > 0 then
+		local below = index + GRID_COLS
+		local page_end = (page0 + 1) * GRID_PAGE
+		if row < 3 and below <= count and below <= page_end then
+			index = below
+		end
+	end
+	if index < 1 then index = 1 end
+	if index > count then index = count end
+	ui.focus_index = index
+	ui.page = math.floor((index - 1) / GRID_PAGE) + 1
+end
+
+local function leave_collateral(player, sess)
+	if sess.page == "replace" then
+		sess.page = "missing"
+		sess.cursor = 1
+		sess.candidates = nil
+		sess.loan_ui = nil
+		return
+	end
+	branch.close_panel(player)
+end
+
+local function replace_fail_message(reason, loan)
+	if reason == "value_too_low" then
+		local need = loan and (loan.remaining or loan.principal or 0) or 0
+		return tr(
+			string.format("抵押物价值不足，需至少 %d¢", need),
+			string.format("Collateral is too low; at least %d¢ is required", need)
+		)
+	end
+	if reason == "ineligible" then
+		return tr("道具不符合抵押资格", "This item cannot be pledged")
+	end
+	if reason == "no_loan" or reason == "no_player" then
+		return tr("当前没有有效贷款", "There is no open loan")
+	end
+	return tr("交易状态失效", "The trade is no longer valid")
+end
+
+local function confirm_selected_collateral(player, sess)
+	local ui = ensure_loan_ui(sess)
+	local row = find_candidate(sess.candidates, ui.selected_item_id)
+	if not row then
+		set_feedback(sess, "error", loan_fail_message("ineligible"), nil)
+		return
+	end
+	if sess.page == "replace" then
+		local loan_before = bank_state.get_active_loan()
+		local ok, reason = bank_state.replace_collateral(player, row.id)
+		local loan = bank_state.get_active_loan()
+		if not ok then
+			set_feedback(sess, "error", replace_fail_message(reason, loan_before), nil)
+			return
+		end
+		if not loan or loan.item_id ~= row.id then
+			set_feedback(sess, "error", replace_fail_message("state", loan), nil)
+			return
+		end
+		set_feedback(sess, "success", tr("已更换抵押物", "Collateral replaced"), "manage")
+		return
+	end
+	local ok, reason = bank_state.issue_loan(player, row.id)
+	if not ok then
+		set_feedback(sess, "error", loan_fail_message(reason), nil)
+		return
+	end
+	spawn_loan_fly(player)
+	set_feedback(sess, "success", tr(string.format("获得贷款 %d¢", row.value or 0), string.format("Loan received %d¢", row.value or 0)), "close")
+end
+
+local function tick_collateral(player, sess)
+	local ui = ensure_loan_ui(sess)
+	local count = #(sess.candidates or {})
+	local function pressed(a, b)
+		return peek_triggered(player, a) or (b and peek_triggered(player, b))
+	end
+	if ui.phase == "confirm" then
+		if pressed(ButtonAction.ACTION_SHOOTUP, ButtonAction.ACTION_UP) then
+			ui.confirm_cursor = ((ui.confirm_cursor - 2) % 3) + 1
+		elseif pressed(ButtonAction.ACTION_SHOOTDOWN, ButtonAction.ACTION_DOWN) then
+			ui.confirm_cursor = (ui.confirm_cursor % 3) + 1
+		end
+		if peek_triggered(player, ButtonAction.ACTION_DROP) then
+			ui.phase = "browse"
+			ui.selected_item_id = nil
+			return
+		end
+		if peek_triggered(player, ButtonAction.ACTION_ITEM)
+			or peek_triggered(player, ButtonAction.ACTION_MENUCONFIRM) then
+			if ui.confirm_cursor == 2 then
+				ui.phase = "browse"
+				ui.selected_item_id = nil
+				return
+			end
+			if ui.confirm_cursor == 3 then
+				leave_collateral(player, sess)
+				return
+			end
+			confirm_selected_collateral(player, sess)
+		end
+		return
+	end
+	if pressed(ButtonAction.ACTION_SHOOTLEFT, ButtonAction.ACTION_LEFT) then
+		move_collateral_focus(ui, count, -1, 0)
+	elseif pressed(ButtonAction.ACTION_SHOOTRIGHT, ButtonAction.ACTION_RIGHT) then
+		move_collateral_focus(ui, count, 1, 0)
+	elseif pressed(ButtonAction.ACTION_SHOOTUP, ButtonAction.ACTION_UP) then
+		move_collateral_focus(ui, count, 0, -1)
+	elseif pressed(ButtonAction.ACTION_SHOOTDOWN, ButtonAction.ACTION_DOWN) then
+		move_collateral_focus(ui, count, 0, 1)
+	end
+	if peek_triggered(player, ButtonAction.ACTION_DROP) then
+		leave_collateral(player, sess)
+		return
+	end
+	if peek_triggered(player, ButtonAction.ACTION_ITEM)
+		or peek_triggered(player, ButtonAction.ACTION_MENUCONFIRM) then
+		local row = (sess.candidates or {})[ui.focus_index]
+		if not row then return end
+		ui.selected_item_id = row.id
+		ui.phase = "confirm"
+		ui.confirm_cursor = 1
+	end
 end
 
 local function confirm_loan(player, sess)
 	local opts = menu_options(sess)
 	local choice = opts[sess.cursor]
-	if sess.page == "pick" then
-		local row = choice
-		if type(row) == "table" and row.id then
-			bank_state.issue_loan(player, row.id)
-			branch.close_panel(player)
-		end
-		return
-	end
-	if sess.page == "replace" then
-		local row = choice
-		if type(row) == "table" and row.id then
-			bank_state.replace_collateral(player, row.id)
-			sess.page = "manage"
-			sess.cursor = 1
-			sess.candidates = nil
-			stop_lift(player)
-		end
+	if sess.page == "pick" or sess.page == "replace" then
 		return
 	end
 	if choice == "repay" then
-		local ok = bank_state.repay_loan(player)
-		if ok then branch.close_panel(player) end
+		local loan = bank_state.get_active_loan()
+		local due = loan and (loan.remaining or loan.principal or 0) or 0
+		local ok, reason = bank_state.repay_loan(player)
+		if not ok then
+			local message = tr("硬币不足", "Not enough coins")
+			if reason == "no_loan" or reason == "no_player" then
+				message = tr("当前没有有效贷款", "There is no open loan")
+			end
+			set_feedback(sess, "error", message, nil)
+			return
+		end
+		set_feedback(sess, "success", tr(string.format("已偿还 %d¢", due), string.format("Repaid %d¢", due)), "close")
 		return
 	end
 	if choice == "forfeit" then
@@ -482,11 +797,39 @@ local function confirm_loan(player, sess)
 		sess.page = "replace"
 		sess.candidates = bank_state.list_replacement_candidates(player)
 		sess.cursor = 1
-		refresh_loan_lift(player, sess)
+		sess.loan_ui = {
+			phase = "browse",
+			focus_index = 1,
+			selected_item_id = nil,
+			page = 1,
+			confirm_cursor = 1,
+		}
 		return
 	end
 	if choice == "exit" then
 		branch.close_panel(player)
+	end
+end
+
+local function feedback_limit(sess)
+	if sess.feedback and sess.feedback.kind == "error" then return ERROR_FRAMES end
+	return SUCCESS_FRAMES
+end
+
+local function tick_feedback(player, sess)
+	local age = Game():GetFrameCount() - (sess.feedback.started_frame or 0)
+	local expired = age >= feedback_limit(sess)
+	if not sess.input_armed then
+		if panel_keys_held(player) then return end
+		sess.input_armed = true
+		if expired then finish_feedback(player, sess) end
+		return
+	end
+	local dismiss = peek_triggered(player, ButtonAction.ACTION_ITEM)
+		or peek_triggered(player, ButtonAction.ACTION_MENUCONFIRM)
+		or peek_triggered(player, ButtonAction.ACTION_DROP)
+	if expired or dismiss then
+		finish_feedback(player, sess)
 	end
 end
 
@@ -495,6 +838,10 @@ local function tick_panel(player, sess)
 	if Game():GetFrameCount() <= (sess.opened_frame or 0) then return end
 	if not selection_holder.check_select(player, branch.SELECTION_KEY) then
 		branch.close_panel(player)
+		return
+	end
+	if sess.feedback then
+		tick_feedback(player, sess)
 		return
 	end
 	if not sess.input_armed then
@@ -509,38 +856,24 @@ local function tick_panel(player, sess)
 
 	local function move(delta)
 		sess.cursor = ((sess.cursor - 1 + delta) % n) + 1
-		refresh_loan_lift(player, sess)
 	end
 
 	if sess.page == "pick" or sess.page == "replace" then
-		if peek_triggered(player, ButtonAction.ACTION_SHOOTLEFT)
-			or peek_triggered(player, ButtonAction.ACTION_LEFT) then
-			move(-1)
-		elseif peek_triggered(player, ButtonAction.ACTION_SHOOTRIGHT)
-			or peek_triggered(player, ButtonAction.ACTION_RIGHT) then
-			move(1)
-		end
-	else
-		if peek_triggered(player, ButtonAction.ACTION_SHOOTUP)
-			or peek_triggered(player, ButtonAction.ACTION_UP) then
-			move(-1)
-		elseif peek_triggered(player, ButtonAction.ACTION_SHOOTDOWN)
-			or peek_triggered(player, ButtonAction.ACTION_DOWN) then
-			move(1)
-		end
+		tick_collateral(player, sess)
+		return
+	end
+	if peek_triggered(player, ButtonAction.ACTION_SHOOTUP)
+		or peek_triggered(player, ButtonAction.ACTION_UP) then
+		move(-1)
+	elseif peek_triggered(player, ButtonAction.ACTION_SHOOTDOWN)
+		or peek_triggered(player, ButtonAction.ACTION_DOWN) then
+		move(1)
 	end
 
 	if peek_triggered(player, ButtonAction.ACTION_DROP) then
 		if sess.mode == "saving" and (sess.page == "deposit" or sess.page == "withdraw") then
 			sess.page = "root"
 			sess.cursor = 1
-			return
-		end
-		if sess.mode == "loan" and sess.page == "replace" then
-			sess.page = "missing"
-			sess.cursor = 1
-			sess.candidates = nil
-			stop_lift(player)
 			return
 		end
 		branch.close_panel(player)
@@ -558,6 +891,10 @@ local function tick_panel(player, sess)
 end
 
 function branch.tick_interaction(player)
+	local main = Game():GetPlayer(0)
+	if player and main and GetPtrHash(player) == GetPtrHash(main) then
+		tick_coin_fly()
+	end
 	flush_player_boundary_cleanup(player)
 
 	local sess = get_session(player)
@@ -616,35 +953,21 @@ function branch.bank_font()
 	return gui.f2 or gui.f
 end
 
-local function draw_rect_outline(x, y, w, h, col)
-	if not Isaac.DrawLine then return end
-	col = col or KColor(0.85, 0.75, 0.45, 1)
-	local a = Vector(x, y)
-	local b = Vector(x + w, y)
-	local c = Vector(x + w, y + h)
-	local d = Vector(x, y + h)
-	Isaac.DrawLine(a, b, col, col, 1)
-	Isaac.DrawLine(b, c, col, col, 1)
-	Isaac.DrawLine(c, d, col, col, 1)
-	Isaac.DrawLine(d, a, col, col, 1)
-end
-
-local function draw_zone_marker(world_pos, label, active)
+local function draw_zone_marker(world_pos, kind, label, active)
 	if not world_pos then return end
+	-- World point only. Do not add the player render offset or PositionOffset.
 	local screen = Isaac.WorldToScreen(world_pos)
-	local half = 16
-	local col = active and KColor(1, 0.92, 0.35, 1) or KColor(0.65, 0.65, 0.7, 0.9)
-	draw_rect_outline(screen.X - half, screen.Y - half, half * 2, half * 2, col)
+	bank_panel.draw_zone_icon(screen, kind, active)
 	local font = branch.bank_font()
-	if font then
-		font:DrawStringScaledUTF8(label, screen.X, screen.Y - 6, 1, 1, col, 0, true)
-	end
+	if not font then return end
+	local col = active and KColor(1, 0.92, 0.55, 1) or KColor(0.85, 0.78, 0.62, 1)
+	pixel_ui.draw_text_centered(screen.X, screen.Y + 4, label, 1, col, {font = font, context = "bank_zone"})
 end
 
 function branch.render_zone_markers(player, ent, active_zone)
 	if not ent then return end
-	draw_zone_marker(branch.get_savings_zone(ent), tr("储蓄", "Savings"), active_zone == "saving")
-	draw_zone_marker(branch.get_loan_zone(ent), tr("贷款", "Loan"), active_zone == "loan")
+	draw_zone_marker(branch.get_savings_zone(ent), "saving", tr("储蓄", "Savings"), active_zone == "saving")
+	draw_zone_marker(branch.get_loan_zone(ent), "loan", tr("贷款", "Loan"), active_zone == "loan")
 end
 
 function branch.render_prompt(player)
@@ -686,111 +1009,24 @@ function branch.render_prompt(player)
 	font:DrawStringScaledUTF8(text, screen.X, screen.Y + 18, 1, 1, KColor(1, 1, 1, 1), 0, true)
 end
 
-local function build_panel_lines(player, sess)
-	local lines = {}
-	lines[#lines + 1] = "BANK OF BUM"
-	if sess.mode == "saving" then
-		lines[#lines + 1] = tr("储蓄", "SAVINGS")
-		lines[#lines + 1] = string.format(tr("现金  %d¢", "Cash  %d¢"), player:GetNumCoins())
-		lines[#lines + 1] = string.format(tr("存款  %d¢", "Deposit  %d¢"), bank_state.get_deposit())
-		lines[#lines + 1] = string.format(tr("下次结算  +%d¢", "Next return  +%d¢"), bank_state.preview_interest())
-		lines[#lines + 1] = "────────"
-		local opts = menu_options(sess)
-		local labels = {
-			deposit = tr("存入", "Deposit"),
-			withdraw = tr("取出", "Withdraw"),
-			exit = tr("返回", "Exit"),
-			all = tr("全部", "ALL"),
-		}
-		for i, opt in ipairs(opts) do
-			local mark = (i == sess.cursor) and "> " or "  "
-			local label = labels[opt] or (tostring(opt) .. "¢")
-			lines[#lines + 1] = mark .. label
-		end
-	else
-		lines[#lines + 1] = tr("贷款", "LOAN")
-		local loan = bank_state.get_active_loan()
-		if sess.page == "pick" or sess.page == "replace" then
-			local row = (sess.candidates or {})[sess.cursor]
-			if row then
-				lines[#lines + 1] = tr("选择抵押物", "Choose collateral")
-				lines[#lines + 1] = "< " .. tostring(row.name or row.id) .. " >"
-				lines[#lines + 1] = string.format(tr("估值 %d¢", "Value %d¢"), row.value)
-				lines[#lines + 1] = string.format(tr("贷款 %d¢", "Loan %d¢"), row.value)
-				lines[#lines + 1] = tr("使用键确认 / RT取消", "Item confirm / Drop cancel")
-			else
-				lines[#lines + 1] = tr("无可抵押道具", "No collateral")
-			end
-		elseif sess.page == "due" and loan then
-			lines[#lines + 1] = tr("还款到期", "PAYMENT DUE")
-			lines[#lines + 1] = string.format("%d¢", loan.remaining or loan.principal or 0)
-			local opts = menu_options(sess)
-			local labels = {
-				repay = tr("偿还", "Repay all"),
-				forfeit = tr("放弃抵押物", "Forfeit"),
-				exit = tr("返回", "Exit"),
-			}
-			for i, opt in ipairs(opts) do
-				local mark = (i == sess.cursor) and "> " or "  "
-				lines[#lines + 1] = mark .. (labels[opt] or tostring(opt))
-			end
-		elseif sess.page == "missing" and loan then
-			lines[#lines + 1] = tr("抵押物缺失", "COLLATERAL MISSING")
-			lines[#lines + 1] = string.format(tr("欠款 %d¢", "Due %d¢"), loan.remaining or 0)
-			local opts = menu_options(sess)
-			local labels = {
-				repay = tr("偿还", "Repay"),
-				replace = tr("重新抵押", "Re-collateral"),
-				exit = tr("返回", "Exit"),
-			}
-			for i, opt in ipairs(opts) do
-				local mark = (i == sess.cursor) and "> " or "  "
-				lines[#lines + 1] = mark .. (labels[opt] or tostring(opt))
-			end
-		elseif sess.page == "manage" and loan then
-			local cfg = Isaac.GetItemConfig():GetCollectible(loan.item_id)
-			lines[#lines + 1] = tr("抵押：", "Collateral: ") .. tostring(cfg and cfg.Name or loan.item_id)
-			lines[#lines + 1] = string.format(tr("剩余 %d¢", "Remaining %d¢"), loan.remaining or 0)
-			local opts = menu_options(sess)
-			local labels = {
-				repay = tr("偿还", "Repay all"),
-				exit = tr("返回", "Exit"),
-			}
-			for i, opt in ipairs(opts) do
-				local mark = (i == sess.cursor) and "> " or "  "
-				lines[#lines + 1] = mark .. (labels[opt] or tostring(opt))
-			end
-		else
-			lines[#lines + 1] = tr("无可抵押道具", "No collateral items")
-			lines[#lines + 1] = "> " .. tr("返回", "Exit")
-		end
-	end
-	return lines
-end
-
-function branch.render_panel(player)
-	local sess = get_session(player)
-	if not sess or sess.state ~= "panel" then return end
+function branch.render_terminal_ui()
 	local font = branch.bank_font()
 	if not font then return end
-	local lines = build_panel_lines(player, sess)
-	local line_h = (font.GetLineHeight and font:GetLineHeight() or 12) + 2
-	local pad = 10
-	local max_w = 180
-	local panel_h = pad * 2 + #lines * line_h
-	local screen = gui.GetScreenSize and gui.GetScreenSize() or Vector(480, 270)
-	local x = math.floor((screen.X - max_w) * 0.5 + 0.5)
-	local y = math.floor((screen.Y - panel_h) * 0.5 + 0.5)
-	draw_rect_outline(x, y, max_w, panel_h, KColor(0.9, 0.8, 0.45, 1))
-	-- Inner guide line (placeholder chrome).
-	draw_rect_outline(x + 2, y + 2, max_w - 4, panel_h - 4, KColor(0.35, 0.3, 0.2, 0.8))
-	for i, line in ipairs(lines) do
-		local col = KColor(1, 1, 1, 1)
-		if line:sub(1, 1) == ">" then
-			col = KColor(1, 0.92, 0.35, 1)
-		end
-		font:DrawStringScaledUTF8(line, x + pad, y + pad + (i - 1) * line_h, 1, 1, col, 0, false)
+	if bank_panel.preview_active() then
+		bank_panel.render_preview(font)
+		return
 	end
+	local count = Game():GetNumPlayers()
+	for i = 0, count - 1 do
+		local player = Isaac.GetPlayer(i)
+		local sess = player and get_session(player)
+		if sess and sess.state == "panel" then
+			bank_panel.render(player, sess, font)
+			render_coin_fly()
+			return
+		end
+	end
+	render_coin_fly()
 end
 
 function branch.block_input(player, hook, action)
@@ -799,15 +1035,22 @@ function branch.block_input(player, hook, action)
 	end
 	local sess = get_session(player)
 	if not sess then return nil end
-	if hook ~= InputHook.IS_ACTION_TRIGGERED and hook ~= InputHook.IS_ACTION_PRESSED then
+	if hook ~= InputHook.IS_ACTION_TRIGGERED
+		and hook ~= InputHook.IS_ACTION_PRESSED
+		and hook ~= InputHook.GET_ACTION_VALUE then
 		return nil
+	end
+
+	local function deny()
+		if hook == InputHook.GET_ACTION_VALUE then return 0 end
+		return false
 	end
 
 	-- Prompt: bank consumes ACTION_ITEM to open; do not fire active item. Bomb stays free.
 	if sess.state == "prompt" then
 		if action == ButtonAction.ACTION_ITEM
 			or action == ButtonAction.ACTION_MENUCONFIRM then
-			return false
+			return deny()
 		end
 		return nil
 	end
@@ -828,9 +1071,30 @@ function branch.block_input(player, hook, action)
 		or action == ButtonAction.ACTION_SHOOTUP
 		or action == ButtonAction.ACTION_SHOOTDOWN
 	then
-		return false
+		return deny()
 	end
 	return nil
+end
+
+function branch.debug_sample_item_block(player)
+	if not player then return nil end
+	local prev = get_session(player)
+	local planted = false
+	if not prev or prev.state ~= "panel" then
+		set_session(player, {state = "panel", mode = "saving", page = "root", cursor = 1, input_armed = false})
+		planted = true
+	end
+	local sample = {
+		active = player:GetActiveItem(0),
+		planted = planted,
+		triggered = branch.block_input(player, InputHook.IS_ACTION_TRIGGERED, ButtonAction.ACTION_ITEM),
+		pressed = branch.block_input(player, InputHook.IS_ACTION_PRESSED, ButtonAction.ACTION_ITEM),
+		value = branch.block_input(player, InputHook.GET_ACTION_VALUE, ButtonAction.ACTION_ITEM),
+	}
+	if planted then
+		if prev then set_session(player, prev) else clear_session(player) end
+	end
+	return sample
 end
 
 function branch._wire_callbacks()
@@ -862,7 +1126,15 @@ function branch._wire_callbacks()
 		params = nil,
 		Function = function(_, player, _offset)
 			branch.render_prompt(player)
-			branch.render_panel(player)
+		end,
+	})
+
+	local terminal_render_cb = (REPENTOGON and ModCallbacks.MC_POST_HUD_RENDER) or ModCallbacks.MC_POST_RENDER
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = terminal_render_cb,
+		params = nil,
+		Function = function(_)
+			branch.render_terminal_ui()
 		end,
 	})
 
@@ -929,6 +1201,7 @@ function branch._wire_callbacks()
 		params = nil,
 		Function = function()
 			branch.scrub_runtime()
+			bank_panel.clear_item_sprites()
 			-- Unresolved due loan: leaving a bank node (no branch in this room) forfeits.
 			-- Do not touch Player:GetData() on this boundary.
 			local loan = bank_state.get_active_loan()

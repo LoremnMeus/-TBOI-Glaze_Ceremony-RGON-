@@ -145,5 +145,6 @@ end
 
 registry.finalize()
 registry.validate()
+require("Qing_Remaster_scripts.cards.card_mapping").validate()
 
 return registry

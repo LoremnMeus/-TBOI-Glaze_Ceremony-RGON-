@@ -59,6 +59,12 @@ local function get_duplicate_mul(player)
 	return mul
 end
 
+--- Blueprint / Flight：只读重复道具计数（资格开关，不按模块份数再乘）。
+function item.get_duplicate_mul(player)
+	if not player then return 0 end
+	return get_duplicate_mul(player)
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
 	if not is_stat_cache(cacheFlag) then return end

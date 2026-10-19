@@ -86,6 +86,7 @@
 		<Item DecreaseBy="1" Name="Blue Print" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Perhaps Chosen" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Zero Presence" RemoveOn="0.1" Weight="1" />
+		<Item DecreaseBy="1" Name="Matryoshka Marbles" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Remaster!" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="shop">

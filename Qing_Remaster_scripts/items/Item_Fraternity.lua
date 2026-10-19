@@ -5,6 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -14,6 +15,9 @@ local item = {
 	familiar = enums.Familiars.Fraternity,
 	own_key = "Item_Fraternity_",
 }
+
+local CENTER_Y_LOW = -10
+local CENTER_Y_LERP = 0.18
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = nil,
 Function = function(_,player,cacheFlag)
@@ -28,7 +32,7 @@ table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_FAMILIAR_I
 Function = function(_,ent)
 	local s = ent:GetSprite()
 	local d = ent:GetData()
-	ent.PositionOffset = Vector(0,-10)
+	ent.PositionOffset = Vector(0, CENTER_Y_LOW)
 	ent.DepthOffset = -100
 end,
 })
@@ -58,10 +62,54 @@ Function = function(_,ent)
 			tg = d[item.own_key.."tg"]
 		end
 		d[item.own_key.."counter"] = (d[item.own_key.."counter"] or 0) + 1
-		local dir = (tg.Position + tg.PositionOffset - ent.Position)
-		ent.Velocity = dir:Normalized() * math.min(40,dir:Length() * 0.4) * math.min(1,0.2 + d[item.own_key.."counter"]/60)
+		if auxi.check_all_exists(d[item.own_key.."tg"]) then
+			local dir = (tg.Position + tg.PositionOffset - ent.Position)
+			ent.Velocity = dir:Normalized() * math.min(40,dir:Length() * 0.4) * math.min(1,0.2 + d[item.own_key.."counter"]/60)
+		elseif QF.should_player_follow(ent) then
+			local dir = (tg.Position + tg.PositionOffset - ent.Position)
+			ent.Velocity = dir:Normalized() * math.min(40,dir:Length() * 0.4) * math.min(1,0.2 + d[item.own_key.."counter"]/60)
+		end
 	end
 end,
+})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "fraternity",
+	zh = "博爱",
+	en = "Fraternity",
+	movement = "follow",
+	control_mode = "move_only",
+	is_leaving_formation = function(_, fam)
+		return auxi.check_all_exists(fam:GetData()[item.own_key.."tg"]) == true
+	end,
+	update = function(_, ctx)
+		local fam = ctx and ctx.familiar
+		local air = ctx and ctx.air
+		if not fam then return end
+		local d = fam:GetData()
+		local has_target = auxi.check_all_exists(d[item.own_key.."tg"]) == true
+		local target_y = CENTER_Y_LOW
+		if QF.blueprint_owned(fam)
+			and not has_target
+			and air
+			and air.PositionOffset
+		then
+			target_y = air.PositionOffset.Y
+		end
+		local stored = d[item.own_key.."center_y"]
+		if stored == nil then
+			stored = (fam.PositionOffset or Vector.Zero).Y
+		end
+		local next_y = stored + (target_y - stored) * CENTER_Y_LERP
+		if math.abs(next_y - target_y) < 0.2 then
+			next_y = target_y
+		end
+		d[item.own_key.."center_y"] = next_y
+		local cur = fam.PositionOffset or Vector.Zero
+		fam.PositionOffset = Vector(cur.X, next_y)
+	end,
 })
 
 return item

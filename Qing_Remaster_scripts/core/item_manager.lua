@@ -138,6 +138,8 @@ function Item_manager.Init(mod)
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Ember"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Perhaps_Chosen"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Zero_Presence"))
+	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Tiny_Update"))
+	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Matryoshka_Marbles"))
 
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Tecro"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Anna"))

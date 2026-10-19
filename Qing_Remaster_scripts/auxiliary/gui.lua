@@ -268,12 +268,101 @@ function item.format_font_load_report()
 	end
 	append_slot("f", "f")
 	append_slot("f2", "f2")
+	append_slot("f2_cover", "f2_cover")
 	return table.concat(lines, "\n")
 end
 
 if item.f == nil then
 	item.f = load_font_slot("f", FONT_CONFIG.latin)
 	item.f2 = load_font_slot("f2", FONT_CONFIG.cjk)
+	local cover, cover_report = load_vanilla_font("font/upheavalextended.fnt")
+	item.f2_cover = cover
+	item.font_load_report.f2_cover = {
+		slot = "f2_cover",
+		loaded = cover ~= nil,
+		chosen = cover_report,
+		attempts = {cover_report},
+		mod_root = item.get_mod_root(),
+		reason = cover and nil or (cover_report and cover_report.reason or "cover_unavailable"),
+	}
+end
+
+-- Glyphs absent from eid_cn_default.fnt and present in vanilla upheavalextended.
+local COVER_GLYPHS = "佬冕喽囤嫖帧忒慵斓楔泯湮漩焙篱籁萦诶谶遐邃锚锥镰靶鲛"
+local cover_glyph_set = {}
+
+local function utf8_char_len(byte)
+	if not byte then return 1 end
+	if byte < 0x80 then return 1 end
+	if byte < 0xE0 then return 2 end
+	if byte < 0xF0 then return 3 end
+	return 4
+end
+
+local function each_glyph(text)
+	text = text or ""
+	local i = 1
+	local n = #text
+	return function()
+		if i > n then return nil end
+		local len = utf8_char_len(string.byte(text, i))
+		local glyph = string.sub(text, i, i + len - 1)
+		i = i + len
+		return glyph
+	end
+end
+
+do
+	for glyph in each_glyph(COVER_GLYPHS) do
+		cover_glyph_set[glyph] = true
+	end
+end
+
+local function glyph_width(font, glyph)
+	if not font or not font.GetStringWidthUTF8 then return 0 end
+	return font:GetStringWidthUTF8(glyph) or 0
+end
+
+function item.font_for_glyph(font, glyph)
+	font = font or item.f2 or item.f
+	local cover = item.f2_cover
+	if not cover or cover == font or not cover.IsLoaded or cover:IsLoaded() ~= true then
+		return font
+	end
+	if cover_glyph_set[glyph] then return cover end
+	if glyph_width(font, glyph) > 0 then return font end
+	if glyph_width(cover, glyph) > 0 then return cover end
+	return font
+end
+
+function item.measure_text_units(text, font)
+	text = text or ""
+	font = font or item.f
+	if text == "" or not font or not font.GetStringWidthUTF8 then return 0 end
+	if not item.f2_cover then
+		return font:GetStringWidthUTF8(text) or 0
+	end
+	local total = 0
+	for glyph in each_glyph(text) do
+		total = total + glyph_width(item.font_for_glyph(font, glyph), glyph)
+	end
+	return total
+end
+
+function item.draw_text_units(text, x, y, sx, sy, color, font)
+	text = text or ""
+	font = font or item.f
+	if text == "" or not font or not font.DrawStringScaledUTF8 then return end
+	if not item.f2_cover then
+		font:DrawStringScaledUTF8(text, x, y, sx, sy, color, 0, false)
+		return
+	end
+	local cursor = x
+	for glyph in each_glyph(text) do
+		local chosen = item.font_for_glyph(font, glyph)
+		chosen:DrawStringScaledUTF8(glyph, cursor, y, sx, sy, color, 0, false)
+		cursor = cursor + glyph_width(chosen, glyph) * sx
+	end
 end
 
 item.GetScreenSize = auxi.GetScreenSize
@@ -286,7 +375,11 @@ function item.draw_ch(pos,targ,sx,sy,Kcol,has_count_world,font)
 	targ = targ or ""
 	font = font or item.f
 	if not has_count_world then pos = Isaac.WorldToScreen(pos) end
-	font:DrawStringScaledUTF8(targ,pos.X,pos.Y,sx,sy,Kcol,0,false)
+	if item.draw_text_units then
+		item.draw_text_units(targ, pos.X, pos.Y, sx, sy, Kcol, font)
+	else
+		font:DrawStringScaledUTF8(targ,pos.X,pos.Y,sx,sy,Kcol,0,false)
+	end
 end
 
 -- 屏幕空间探针十字：中心严格落在 pos（与 codex_work/probes/gemini_motion_probe.lua 一致）。
@@ -311,7 +404,7 @@ function item.draw_ch_with_time_to_move_out(startpos,dir,targ,params)		--sx,sy,R
 		Kcol = KColor(params.R,params.G,params.B,params.A)
 		local r_pos = params.pos
 		if params.tsc ~= true then r_pos = Isaac.WorldToScreen(r_pos) end 
-		params.font:DrawStringScaledUTF8(params.targ,r_pos.X,r_pos.Y,params.sx,params.sy,Kcol,0,false)
+		item.draw_text_units(params.targ, r_pos.X, r_pos.Y, params.sx, params.sy, Kcol, params.font)
 		if Game():IsPaused() ~= true or params.ignore_stop then	params.pos = params.pos + params.dir end
 		auxi.check_if_any(params.special,params)
 		if r_pos.X < -120 or r_pos.Y < -120 or r_pos.X > out_pos.X + 120 or r_pos.Y > out_pos.Y + 120 then return false
@@ -342,7 +435,7 @@ function item.draw_ch_with_time_to_dispair(startpos,delatapos,targ,delay,params)
 			Kcol = KColor(params.R,params.G,params.B,(params.delay - params.i + 1)/params.delay)
 			local pos = params.pos
 			if params.tsc ~= true then pos = Isaac.WorldToScreen(pos) end
-			params.font:DrawStringScaledUTF8(params.targ,pos.X,pos.Y,params.sx,params.sy,Kcol,0,false)
+			item.draw_text_units(params.targ, pos.X, pos.Y, params.sx, params.sy, Kcol, params.font)
 			auxi.check_if_any(params.special,params)
 		end,tbl,i,true,params.ros)
 	end

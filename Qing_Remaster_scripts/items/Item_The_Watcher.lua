@@ -1629,6 +1629,11 @@ end
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = CacheFlag.CACHE_SPEED,
 Function = function(_, player, cacheFlag)
 	if cacheFlag == CacheFlag.CACHE_SPEED and auxi.has_have_coll(player, item.entity) then
+		local ok_c, CraftW = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Watcher_holder")
+		if ok_c and CraftW and CraftW.player_watcher_is_redirected
+			and CraftW.player_watcher_is_redirected(player) then
+			return
+		end
 		if player.MoveSpeed < item.min_speed then
 			player.MoveSpeed = item.min_speed
 		end
@@ -2007,6 +2012,20 @@ end,
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_, player)
 	local d = player:GetData()
+	-- Watcher Network：所有持有的监视已被 Blueprint 装入 Flight 时，关闭玩家中心监视器。
+	do
+		local ok_c, CraftW = pcall(require, "Qing_Remaster_scripts.mimics.Craft_Watcher_holder")
+		if ok_c and CraftW and CraftW.player_watcher_is_redirected
+			and CraftW.player_watcher_is_redirected(player) then
+			if d[item.own_key.."watch"] then
+				release_watcher_nil(d[item.own_key.."watch"])
+				wipe_watch_reticles(d[item.own_key.."watch"])
+				d[item.own_key.."watch"] = nil
+			end
+			d[item.own_key.."shoot"] = nil
+			return
+		end
+	end
 	if not auxi.has_have_coll(player, item.entity) then
 		if d[item.own_key.."watch"] then
 			release_watcher_nil(d[item.own_key.."watch"])

@@ -174,6 +174,8 @@ local function bind_from_candidate(ent, family, opts)
 				role = role,
 				reason = opts.reason or ctx.reason or "fire_new_attack",
 				direction = opts.direction,
+				direction_state = opts.direction_state,
+				direction_reason = opts.direction_reason,
 				position = opts.position,
 				allow_sealed = opts.allow_sealed,
 			})
@@ -211,6 +213,8 @@ local function bind_from_candidate(ent, family, opts)
 			role = role,
 			reason = opts.reason or "inherit",
 			direction = opts.direction,
+			direction_state = opts.direction_state,
+			direction_reason = opts.direction_reason,
 			position = opts.position,
 		})
 		if ok then
@@ -235,6 +239,8 @@ local function bind_from_candidate(ent, family, opts)
 			role = role,
 			reason = opts.reason or resolved.mode,
 			direction = opts.direction,
+			direction_state = opts.direction_state,
+			direction_reason = opts.direction_reason,
 			position = opts.position,
 			allow_sealed = opts.allow_sealed,
 		})
@@ -354,18 +360,24 @@ table.insert(M.ToCall, #M.ToCall + 1, {
 end
 
 -- Incubus/Twisted brim / tech via familiar fire APIs (whitelist only via ResolveCandidate).
+local laser_aim_choice
+local finish_laser_init2
 if ModCallbacks.MC_POST_FAMILIAR_FIRE_BRIMSTONE then
 table.insert(M.ToCall, #M.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_FAMILIAR_FIRE_BRIMSTONE,
 	params = nil,
 	Function = function(_, ent)
 		if should_ignore(ent) then return end
+		local direction, direction_state, direction_reason = laser_aim_choice(ent, "brimstone")
 		bind_from_candidate(ent, "brimstone", {
 			from_fire_callback = true,
 			allow_create = true,
 			allow_mimic_create = true,
 			max_frame_delta = 1,
 			position = ent.Position,
+			direction = direction,
+			direction_state = direction_state,
+			direction_reason = direction_reason,
 			reason = "familiar_fire_brimstone",
 		})
 	end,
@@ -378,12 +390,17 @@ table.insert(M.ToCall, #M.ToCall + 1, {
 	params = nil,
 	Function = function(_, ent)
 		if should_ignore(ent) then return end
-		bind_from_candidate(ent, laser_family(ent), {
+		local family = laser_family(ent)
+		local direction, direction_state, direction_reason = laser_aim_choice(ent, family)
+		bind_from_candidate(ent, family, {
 			from_fire_callback = true,
 			allow_create = true,
 			allow_mimic_create = true,
 			max_frame_delta = 1,
 			position = ent.Position,
+			direction = direction,
+			direction_state = direction_state,
+			direction_reason = direction_reason,
 			reason = "familiar_fire_tech",
 		})
 	end,
@@ -419,6 +436,13 @@ table.insert(M.ToCall, #M.ToCall + 1, {
 		local binding = registry.bindings[hash]
 		if binding then
 			local attack = registry.GetAttack(binding.attack_id)
+			if attack and attack.direction_state == "pending" and ent.Type == EntityType.ENTITY_LASER then
+				local same_member = (not attack.direction_member_hash or attack.direction_member_hash == hash)
+					and (not attack.direction_member_seed or attack.direction_member_seed == ent.InitSeed)
+				if same_member then
+					registry.MarkDirectionUnavailable(attack)
+				end
+			end
 			-- Bomb/Epic explode after remove; sword melee attributes via ExtraSource and may
 			-- land the same frame the hitbox is removed — remember briefly.
 			if attack and (attack.family == "bomb" or attack.family == "epic" or attack.family == "sword" or attack.family == "bone_club") then
@@ -436,13 +460,64 @@ table.insert(M.ToCall, #M.ToCall + 1, {
 	end,
 })
 
+local function laser_angle_direction(ent)
+	if not ent then return nil end
+	local ang = ent.AngleDegrees
+	if ang == nil then ang = ent.Angle end
+	if type(ang) ~= "number" then return nil end
+	return auxi.MakeVector(ang)
+end
+
+laser_aim_choice = function(ent, family)
+	if family == "techx" then
+		if ent.Velocity and ent.Velocity:Length() > 0.01 then
+			return ent.Velocity, "resolved", "techx_velocity"
+		end
+		return nil, "pending", nil
+	end
+	if family == "brimstone" or family == "technology" then
+		if ent:GetData()[registry.LASER_AIM_READY] == true then
+			local dir = laser_angle_direction(ent)
+			if dir then
+				return dir, "resolved", "laser_angle"
+			end
+		end
+		return nil, "pending", nil
+	end
+	return nil, nil, nil
+end
+
+finish_laser_init2 = function(ent)
+	if should_ignore(ent) or not is_weapon_laser(ent) then return end
+	if ent.SubType == 1 then return end
+	ent:GetData()[registry.LASER_AIM_READY] = true
+	local family = laser_family(ent)
+	local attack = registry.GetAttack(ent:GetData()[registry.LASER_AIM_ATTACK])
+	if not attack then
+		attack = select(1, registry.GetAttackForMember(ent))
+	end
+	if not attack or attack.direction_state ~= "pending" then return end
+	if family == "techx" then
+		if ent.Velocity and ent.Velocity:Length() > 0.01 then
+			registry.ResolveAttackDirection(attack, ent.Velocity, "techx_velocity", ent)
+		end
+	elseif family == "brimstone" or family == "technology" then
+		local dir = laser_angle_direction(ent)
+		if dir then
+			registry.ResolveAttackDirection(attack, dir, "laser_angle", ent)
+		end
+	end
+end
+
 local function try_bind_laser(ent)
 	if should_ignore(ent) then return end
 	if not is_weapon_laser(ent) then return end
 	-- Persistent ludo ring: synthetic cadence in UPDATE, not init bind-once.
 	if ent.SubType == 1 then return end
 	local hash = GetPtrHash(ent)
-	if registry.bindings[hash] then return end
+	if registry.bindings[hash] then
+		return
+	end
 
 	local family = laser_family(ent)
 	local max_delta = 0
@@ -452,6 +527,7 @@ local function try_bind_laser(ent)
 	if family == "techx" then
 		max_delta = 0
 	end
+	local direction, direction_state, direction_reason = laser_aim_choice(ent, family)
 
 	-- Familiar lasers (Little Brimstone, etc.) ignore; Incubus/mimic create; parent proxy inherits.
 	bind_from_candidate(ent, family, {
@@ -459,6 +535,9 @@ local function try_bind_laser(ent)
 		allow_mimic_create = true,
 		max_frame_delta = max_delta,
 		position = ent.Position,
+		direction = direction,
+		direction_state = direction_state,
+		direction_reason = direction_reason,
 		reason = "laser_bind",
 	})
 end
@@ -476,6 +555,7 @@ table.insert(M.myToCall, #M.myToCall + 1, {
 	params = nil,
 	Function = function(_, ent)
 		try_bind_laser(ent)
+		finish_laser_init2(ent)
 	end,
 })
 
@@ -489,6 +569,9 @@ table.insert(M.ToCall, #M.ToCall + 1, {
 		if ent.SubType == 2 then
 			try_bind_laser(ent)
 			local attack = select(1, registry.GetAttackForMember(ent))
+			if attack and attack.direction_state == "pending" and ent.Velocity and ent.Velocity:Length() > 0.01 then
+				registry.ResolveAttackDirection(attack, ent.Velocity, "techx_velocity", ent)
+			end
 			if attack and attack.open_for_members and ent.FrameCount >= 2 then
 				grouping.seal_attack_and_clear(attack)
 			end

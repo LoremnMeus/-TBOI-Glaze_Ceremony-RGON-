@@ -2,6 +2,7 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -154,7 +155,9 @@ Function = function(_, ent)
 	local d = ent:GetData()
 	local s = ent:GetSprite()
 	if not d[item.own_key.."IsFollow"] then
-		ent:AddToFollowers()
+		if QF.should_player_follow(ent) then
+			ent:AddToFollowers()
+		end
 		d[item.own_key.."IsFollow"] = true
 	end
 	local st = player_state(player)
@@ -162,7 +165,9 @@ Function = function(_, ent)
 	local anim = s:GetAnimation()
 
 	if is_transition_anim(anim) then
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
 		if s:IsFinished(anim) then
 			s:Play(loop_anim(mode), true)
 			d[item.own_key.."shown_mode"] = mode
@@ -180,7 +185,9 @@ Function = function(_, ent)
 		s:Play(loop_anim(mode), true)
 	end
 
-	ent:FollowParent()
+	if QF.should_player_follow(ent) then
+		ent:FollowParent()
+	end
 end,
 })
 

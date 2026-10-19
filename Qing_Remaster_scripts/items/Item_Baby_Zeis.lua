@@ -7,6 +7,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
 local Familiar_Follower_Arbiter = require("Qing_Remaster_scripts.mimics.Familiar_Follower_Arbiter")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 -- Zeis 单体 dogma chromatic（与 player_Zeis / temp_hud 同源）
 local temp_hud = nil
@@ -380,6 +381,10 @@ end
 local function ensure_following(ent, on)
 	local rt = runtime(ent)
 	local want = on == true
+	if QF.blueprint_owned(ent) then
+		rt.following = want
+		return
+	end
 	if rt.following == want then
 		if not want then
 			Familiar_Follower_Arbiter.maintain(ent)
@@ -429,6 +434,7 @@ local function target_still_valid(ent)
 	local tg = rt.target_ref
 	if auxi.check_all_exists(tg) ~= true then return false end
 	if (tg.SubType or 0) <= 0 then return false end
+	if tg.SubType == item.entity then return false end
 	local owner = tg:GetData()[item.own_key .. OWNER_KEY]
 	local self_ptr = ptr_of(ent)
 	if owner ~= nil and self_ptr ~= nil and owner ~= self_ptr then
@@ -441,6 +447,7 @@ local function find_pedestal(ent)
 	local self_ptr = ptr_of(ent)
 	return auxi.getothers(nil, 5, 100, nil, function(pick)
 		if (pick.SubType or 0) == 0 then return false end
+		if pick.SubType == item.entity then return false end
 		local owner = pick:GetData()[item.own_key .. OWNER_KEY]
 		if owner ~= nil and owner ~= self_ptr then
 			-- 占用者仍存活则跳过
@@ -600,7 +607,9 @@ local function update_sleep(ent, player, slot)
 	local s = ent:GetSprite()
 	Baby_Anim.tick_float_idle(ent, item.own_key .. "sleep", item.sleep_opts)
 	if Baby_Anim.is_float_idle_anim(s:GetAnimation(), item.sleep_opts) then
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
 	end
 	if is_fam_finished(ent, player) then
 		enter_phase(ent, player, slot, PHASE.DONE)
@@ -620,7 +629,9 @@ local function update_wake(ent, player, slot)
 		return
 	end
 	ensure_following(ent, true)
-	ent:FollowParent()
+	if QF.should_player_follow(ent) then
+		ent:FollowParent()
+	end
 	local s = ent:GetSprite()
 	if s:IsFinished("Wake") then
 		enter_phase(ent, player, slot, PHASE.DETACH)
@@ -676,8 +687,8 @@ end
 local function update_return(ent, player, slot)
 	ensure_following(ent, false)
 	play_once(ent, "Float")
-	local player_pos = player.Position
-	local dist = steer_to(ent, player_pos, RETURN_MAX_SPEED, RETURN_ACCEL)
+	local home_pos = QF.home_position(ent, player) or player.Position
+	local dist = steer_to(ent, home_pos, RETURN_MAX_SPEED, RETURN_ACCEL)
 	if dist <= RETURN_ARRIVAL then
 		ent.Velocity = ent.Velocity * 0.3
 		ensure_following(ent, true)
@@ -694,7 +705,9 @@ local function update_done(ent, player, slot)
 	local s = ent:GetSprite()
 	Baby_Anim.tick_float_idle(ent, item.own_key .. "float", { locked = item.float_lock })
 	if Baby_Anim.is_float_idle_anim(s:GetAnimation()) then
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
 	end
 end
 
@@ -816,6 +829,29 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		else
 			update_done(ent, player, slot)
 		end
+	end,
+})
+
+function item.is_detached_phase(ent)
+	local rt = runtime(ent)
+	local p = rt and rt.phase
+	return p == PHASE.DETACH
+		or p == PHASE.APPROACH
+		or p == PHASE.OBSERVE
+		or p == PHASE.COPY
+		or p == PHASE.RETURN
+end
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "baby_zeis",
+	zh = "宝宝泽伊斯",
+	en = "Baby Zeis",
+	movement = "follow",
+	control_mode = "move_only",
+	is_leaving_formation = function(_, fam)
+		return item.is_detached_phase(fam)
 	end,
 })
 

@@ -1,5 +1,5 @@
--- HUD 主动充能条格线：原版 ui_chargebar 没有的上限（目前 10 格）叠在 ChargeBarOffset 上。
--- 倍增重刃 XML 10 格、罐中雷暴把上限改到 10 时都会走到这里。
+-- HUD 主动充能条格线：原版 ui_chargebar 没有的 7/9/10/11 格叠在 ChargeBarOffset 上。
+-- 画布与 BarOverlay10 相同：16×32，XPivot=8，YPivot=16。
 local time_holder = require("Qing_Remaster_scripts.others.Time_holder")
 
 local item = {
@@ -15,7 +15,10 @@ local VANILLA_OVERLAY = {
 }
 
 local CUSTOM_ANIM = {
+	[7] = "BarOverlay7",
+	[9] = "BarOverlay9",
 	[10] = "BarOverlay10",
+	[11] = "BarOverlay11",
 }
 
 local overlay_spr = nil
@@ -35,7 +38,7 @@ local function displayed_max_charge(player, slot, cid)
 	if player.GetActiveMaxCharge then
 		max_charge = player:GetActiveMaxCharge(slot)
 	end
-	if type(max_charge) ~= "number" or max_charge <= 0 then
+	if type(max_charge) ~= "number" then
 		local cfg = cid and Isaac.GetItemConfig():GetCollectible(cid)
 		max_charge = cfg and cfg.MaxCharges or 0
 	end
@@ -55,15 +58,29 @@ function item.render(player, slot, charge_bar_offset, alpha, scale, cid)
 	if not cid or cid <= 0 then return end
 	local cfg = Isaac.GetItemConfig():GetCollectible(cid)
 	if not cfg then return end
-	if (cfg.MaxCharges or 0) <= 0 then return end
-	-- 计时充能没有格线。
-	if (cfg.ChargeType or 0) == 1 then return end
-	local anim = item.overlay_anim(displayed_max_charge(player, slot, cid))
-	if not anim then return end
+	local charge_type = cfg.ChargeType or 0
+	if charge_type == (ItemConfig.CHARGE_TIMED or 1) or charge_type == (ItemConfig.CHARGE_SPECIAL or 2) then
+		return
+	end
+	local max_charge = displayed_max_charge(player, slot, cid)
+	local anim = item.overlay_anim(max_charge)
 	alpha = tonumber(alpha)
 	if alpha == nil then alpha = 1 end
-	if alpha <= 0 then return end
 	scale = tonumber(scale) or 1
+	local drawn = anim ~= nil and alpha > 0
+	item.last_hud = {
+		frame = Isaac.GetFrameCount(),
+		slot = slot,
+		item_id = cid,
+		max_charge = max_charge,
+		anim = anim,
+		offset_x = charge_bar_offset.X,
+		offset_y = charge_bar_offset.Y,
+		scale = scale,
+		alpha = alpha,
+		drawn = drawn,
+	}
+	if not drawn then return end
 	local spr = ensure_sprite()
 	spr:SetFrame(anim, 0)
 	spr.Scale = Vector(scale, scale)

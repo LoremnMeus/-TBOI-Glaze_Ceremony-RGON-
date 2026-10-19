@@ -8,9 +8,11 @@ local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_hol
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local every_entity_holder = require("Qing_Remaster_scripts.callbacks.every_entity_holder")
 local slot_offer_lift = require("Qing_Remaster_scripts.slots.slot_offer_lift")
+local price_holder = require("Qing_Remaster_scripts.callbacks.price_holder")
 
 local item = {
 	myToCall = {},
+	post_myToCall = {},
 	ToCall = {},
 	entity = enums.Slots.Bard_beggar,
 	own_key = "Slot_Bard_Beggar_",
@@ -31,10 +33,10 @@ local item = {
 				coin = {
 					first = {
 						"五枚金币，正好够写一个副歌。",
-						"下一次付账时，听听它们怎么滚回来。",
+						"下一层，店里的硬币价会跟着旋律低两拍。",
 					},
 					repeat_say = {
-						"副歌已经写好了，下次付账时听听回响。",
+						"副歌已经写好了，下一层的正价商品都会便宜些。",
 					},
 				},
 				key = {
@@ -48,29 +50,29 @@ local item = {
 				},
 				bomb = {
 					first = {
-						"一枚炸弹，换三段战歌。",
-						"下一层，前三场战斗尽管放声些。",
+						"一枚炸弹，换一层战歌。",
+						"下一层，每个房间的第一声挽歌都会炸响。",
 					},
 					repeat_say = {
-						"战歌还在，前三场战斗别怯场。",
+						"战歌还在，每间房的首个敌人会为它落下重音。",
 					},
 				},
 				heart = {
 					first = {
 						"生命最适合写成安静的曲子。",
 						"这一颗心我先替你收下。",
-						"下一层第一次疼的时候，让这首安魂曲替你承受吧。",
+						"下一层，新生的红心偶尔会唱成魂心。",
 					},
 					repeat_say = {
-						"安魂曲还在，第一次疼会有歌声挡着。",
+						"安魂曲还在，留意那些刚生成的红心。",
 					},
 				},
 			},
 			bless_hud = {
-				coin = {"吟游祝福", "富饶之歌正在奏响"},
-				key = {"吟游祝福", "前路已写入歌中"},
-				bomb = {"吟游祝福", "前三场战斗奏响"},
-				heart = {"吟游祝福", "第一次伤痛将被歌声带走"},
+				coin = {"富饶之歌", "金币虽轻，却能换来更多。"},
+				key = {"旅途之歌", "通往宝藏的路，已为你敞开。"},
+				bomb = {"战歌", "第一位倒下的敌人，将为战歌奏响重音。"},
+				heart = {"安魂曲", "鲜红的心，也会偶尔泛起灵魂的蓝。"},
 			},
 			idle = {
 {
@@ -368,10 +370,10 @@ local item = {
 				coin = {
 					first = {
 						"Five coins—just enough for a chorus.",
-						"Next time you pay a bill, listen for the change rolling back.",
+						"Next floor, every positive coin price drops by two beats.",
 					},
 					repeat_say = {
-						"The chorus is written—listen for the echo when you pay.",
+						"The chorus is written—positive shop prices will be lower next floor.",
 					},
 				},
 				key = {
@@ -385,29 +387,29 @@ local item = {
 				},
 				bomb = {
 					first = {
-						"One bomb for three verses of war song.",
-						"On the next floor, let the first three battles ring louder.",
+						"One bomb for a floor-long war song.",
+						"Next floor, the first death in every room will strike an explosive note.",
 					},
 					repeat_say = {
-						"The war song remains—don't hold back in the first three fights.",
+						"The war song remains—the first enemy in each room carries its refrain.",
 					},
 				},
 				heart = {
 					first = {
 						"Life writes the quietest melodies.",
 						"I'll hold this heart for you.",
-						"When the next floor hurts you once, let this requiem take it.",
+						"Next floor, newborn red hearts may sing themselves into soul hearts.",
 					},
 					repeat_say = {
-						"The requiem still waits—the first pain won't land.",
+						"The requiem still waits—watch the red hearts that appear.",
 					},
 				},
 			},
 			bless_hud = {
-				coin = {"Bard Blessing", "Song of Plenty is playing"},
-				key = {"Bard Blessing", "The road is written in song"},
-				bomb = {"Bard Blessing", "Three battles await the chorus"},
-				heart = {"Bard Blessing", "The first pain will be sung away"},
+				coin = {"Song of Plenty", "Light coins, yet they buy you more."},
+				key = {"Song of the Road", "The road to treasure stands open."},
+				bomb = {"War Song", "The first to fall strikes the war song's beat."},
+				heart = {"Requiem", "A red heart may take on a soul's blue."},
 			},
 			idle = {
 				{"Hero, dragon, kingdom—the usual tale ends here~"},
@@ -435,9 +437,15 @@ Function = function(_,ent)
 		consistance_holder.try_hold_over_entity(ent,item.own_key)
 		consistance_holder.try_hold_entity(ent,item.own_key)
 	end
-	s:Play("Idle",true)
 	d._Data = d._Data or {}
 	d._Data[item.own_key] = d._Data[item.own_key] or {}
+	-- Accepted 只表示交易已经完成。回房后直接接现有离场，不重播支付和献唱。
+	if d._Data[item.own_key].Accepted == true then
+		s:Play("Teleport", true)
+		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	else
+		s:Play("Idle", true)
+	end
 	d._Data[item.own_key]["State"] = true
 end,
 })
@@ -617,14 +625,11 @@ local function blessing_bag()
 end
 
 local function set_blessing(kind, rng)
-	rng = auxi.rng_for_sake(rng or RNG())
 	save.elses[item.own_key.."bless"] = {
 		kind = kind,
 		pending = true,
-		shop_refund = rng:RandomInt(5) + 8,
-		bomb_left = 3,
-		heart_left = 1,
-		in_combat = false,
+		room_uses = {},
+		heart_rolls = {},
 	}
 end
 
@@ -652,8 +657,8 @@ local OFFERS = {
 		hud_num = "5",
 		title_zh = "富饶之歌",
 		title_en = "Song of Plenty",
-		eid_zh = "{{Coin}} 富饶之歌#支付5枚硬币#下层首次购物返还8-12枚硬币，不超过实际花费",
-		eid_en = "{{Coin}} Song of Plenty#Pay 5 coins#First shop buy next floor refunds 8-12¢, up to what you paid",
+		eid_zh = "{{Coin}} 富饶之歌#支付5枚硬币#下一层商店商品的硬币价格降低2",
+		eid_en = "{{Coin}} Song of Plenty#Pay 5 coins#Shop coin prices are 2 lower next floor",
 		can = function(player) return player:GetNumCoins() >= 5 end,
 		take = function(player) player:AddCoins(-5) end,
 	},
@@ -664,8 +669,8 @@ local OFFERS = {
 		hud_num = "1",
 		title_zh = "旅途之歌",
 		title_en = "Song of the Road",
-		eid_zh = "{{Key}} 旅途之歌#支付1把钥匙#下层揭示{{TreasureRoom}}宝箱房",
-		eid_en = "{{Key}} Song of the Road#Pay 1 key#Next floor reveals the {{TreasureRoom}}",
+		eid_zh = "{{Key}} 旅途之歌#支付1把钥匙#下一层揭示通往宝箱房的最短路线，并持续开启沿途的门",
+		eid_en = "{{Key}} Song of the Road#Pay 1 key#Next floor reveals the shortest route to the {{TreasureRoom}} and keeps the doors along it open",
 		can = function(player) return player:GetNumKeys() >= 1 end,
 		take = function(player) player:AddKeys(-1) end,
 	},
@@ -676,8 +681,8 @@ local OFFERS = {
 		hud_num = "1",
 		title_zh = "战歌",
 		title_en = "War Song",
-		eid_zh = "{{Bomb}} 战歌#支付1个炸弹#下层前3个战斗房{{Damage}} +1",
-		eid_en = "{{Bomb}} War Song#Pay 1 bomb#{{Damage}} +1 in the first 3 enemy rooms next floor",
+		eid_zh = "{{Bomb}} 战歌#支付1个炸弹#下一层每个房间首个敌人死亡时引发爆炸",
+		eid_en = "{{Bomb}} War Song#Pay 1 bomb#Next floor, the first enemy death in each room causes an explosion",
 		can = function(player) return player:GetNumBombs() >= 1 end,
 		take = function(player) player:AddBombs(-1) end,
 	},
@@ -700,8 +705,8 @@ local OFFERS = {
 		hud_num = "1",
 		title_zh = "安魂曲",
 		title_en = "Requiem",
-		eid_zh = "{{Heart}} 安魂曲#支付1颗心#下层第一次受伤时抵挡伤害",
-		eid_en = "{{Heart}} Requiem#Pay 1 heart#Block the first hit next floor",
+		eid_zh = "{{Heart}} 安魂曲#支付1颗心#下一层生成的红心有25%概率变成魂心",
+		eid_en = "{{Heart}} Requiem#Pay 1 heart#Red hearts generated next floor have a 25% chance to become soul hearts",
 		can = can_pay_heart,
 		take = pay_heart,
 	},
@@ -809,111 +814,298 @@ Function = function(_,ent,hook,button)
 end,
 })
 
-local function refresh_damage()
-	for i = 0,Game():GetNumPlayers() - 1 do
-		local p = Game():GetPlayer(i)
-		if p then
-			p:AddCacheFlags(CacheFlag.CACHE_DAMAGE)
-			p:EvaluateItems()
-		end
-	end
+local debug_state = {
+	overrides = {coin = nil, key = nil, bomb = nil, heart = nil},
+	room_uses = {}, heart_rolls = {}, route = nil,
+	stats = {discounts = 0, explosions = 0, heart_rolls = 0, heart_converts = 0},
+	lifecycle = {}, price_quotes = {},
+}
+
+local DEBUG_KINDS = {coin = true, key = true, bomb = true, heart = true}
+
+local function floor_key()
+	local level = Game():GetLevel()
+	local stage = level:GetStage()
+	local stage_seed = Game():GetSeeds():GetStageSeed(stage)
+	return table.concat({stage, level:GetStageType(), auxi.GetDimension() or 0, stage_seed}, ":")
 end
 
-local function reveal_treasure()
-	local level = Game():GetLevel()
-	local rooms = level:GetRooms()
-	for i = 0,rooms.Size do
-		local targ = rooms:Get(i)
-		if targ and targ.Data and targ.Data.Type == RoomType.ROOM_TREASURE then
-			local desc = level:GetRoomByIdx(targ.SafeGridIndex)
-			if desc then
-				desc.DisplayFlags = desc.DisplayFlags | 5
+local function formal_active(kind)
+	local bless = blessing_bag()
+	return bless and bless.active and bless.kind == kind
+end
+
+local function debug_active(kind)
+	return debug_state.overrides[kind] == floor_key()
+end
+
+local function effect_active(kind)
+	return formal_active(kind) or debug_active(kind)
+end
+
+local function room_key()
+	local desc = Game():GetLevel():GetCurrentRoomDesc()
+	return floor_key() .. ":" .. tostring(desc and desc.SafeGridIndex or -1)
+end
+
+local function allowed_connection(desc, slot)
+	return desc and desc.AllowedDoors and (desc.AllowedDoors & (1 << slot)) ~= 0
+end
+
+local function actual_neighbors(desc)
+	local ret = {}
+	if not desc or not desc.GetNeighboringRooms then return ret end
+	for slot, neighbor in pairs(desc:GetNeighboringRooms()) do
+		if neighbor and allowed_connection(desc, slot) then
+			local reverse_slot = nil
+			for other_slot, back in pairs(neighbor:GetNeighboringRooms()) do
+				if back and back.SafeGridIndex == desc.SafeGridIndex and allowed_connection(neighbor, other_slot) then
+					reverse_slot = other_slot
+					break
+				end
+			end
+			if reverse_slot ~= nil then
+				ret[#ret + 1] = {desc = neighbor, from_slot = slot, to_slot = reverse_slot}
 			end
 		end
+	end
+	return ret
+end
+
+local function build_treasure_route()
+	local level = Game():GetLevel()
+	local dimension = auxi.GetDimension() or 0
+	local start = level:GetRoomByIdx(level:GetStartingRoomIndex(), dimension)
+	if not start then return nil end
+	local queue, head = {start}, 1
+	local seen = {[start.SafeGridIndex] = true}
+	local parent = {}
+	local target = nil
+	while queue[head] do
+		local desc = queue[head]
+		head = head + 1
+		if desc.Data and desc.Data.Type == RoomType.ROOM_TREASURE then
+			target = desc
+			break
+		end
+		for _, edge in ipairs(actual_neighbors(desc)) do
+			local idx = edge.desc.SafeGridIndex
+			if not seen[idx] then
+				seen[idx] = true
+				parent[idx] = {from = desc.SafeGridIndex, from_slot = edge.from_slot, to_slot = edge.to_slot}
+				queue[#queue + 1] = edge.desc
+			end
+		end
+	end
+	if not target then return nil end
+	local edges, cursor = {}, target.SafeGridIndex
+	while cursor ~= start.SafeGridIndex do
+		local p = parent[cursor]
+		if not p then return nil end
+		table.insert(edges, 1, {from = p.from, to = cursor, from_slot = p.from_slot, to_slot = p.to_slot})
+		cursor = p.from
+	end
+	return {floor = floor_key(), start = start.SafeGridIndex, target = target.SafeGridIndex, edges = edges}
+end
+
+local function reveal_route(route)
+	if not route then return end
+	local level = Game():GetLevel()
+	local dimension = auxi.GetDimension() or 0
+	local indices = {[route.start] = true, [route.target] = true}
+	for _, edge in ipairs(route.edges or {}) do indices[edge.from] = true indices[edge.to] = true end
+	for idx in pairs(indices) do
+		local desc = level:GetRoomByIdx(idx, dimension)
+		if desc then desc.DisplayFlags = desc.DisplayFlags | 5 end
 	end
 	level:UpdateVisibility()
 end
 
+local function active_route()
+	local bless = blessing_bag()
+	if formal_active("key") then return bless.route end
+	if debug_active("key") then return debug_state.route end
+end
+
+local function rebuild_route()
+	local route = build_treasure_route()
+	if formal_active("key") then blessing_bag().route = route end
+	if debug_active("key") then debug_state.route = route end
+	reveal_route(route)
+	return route
+end
+
+local function open_route_doors()
+	local route = active_route()
+	if not route or route.floor ~= floor_key() then return end
+	local desc = Game():GetLevel():GetCurrentRoomDesc()
+	local room = Game():GetRoom()
+	for _, edge in ipairs(route.edges or {}) do
+		local slot = nil
+		if desc.SafeGridIndex == edge.from then slot = edge.from_slot end
+		if desc.SafeGridIndex == edge.to then slot = edge.to_slot end
+		if slot ~= nil then
+			local door = room:GetDoor(slot)
+			if door then door:Open() end
+		end
+	end
+end
+
+local function reset_prices()
+	price_holder.reset_price()
+end
+
+local COIN_QUOTE_KEY = item.own_key .. "coin_quote"
+
+local function clear_coin_quote_states()
+	for _, entity in ipairs(auxi.getothers(nil, EntityType.ENTITY_PICKUP)) do
+		local pickup = entity:ToPickup()
+		if pickup then pickup:GetData()[COIN_QUOTE_KEY] = nil end
+	end
+end
+
+table.insert(item.post_myToCall, {CallBack = enums.Callbacks.PRE_CHECK_PRICE, params = nil,
+Function = function(_, ent, val)
+	if effect_active("coin") and ent and ent:IsShopItem() and type(val) == "number" and val > 0 then
+		local data = ent:GetData()
+		local previous = data[COIN_QUOTE_KEY]
+		local reused = previous ~= nil and previous.floor == floor_key() and val == previous.final
+		local base = reused and previous.base or val
+		local final = math.max(1, base - 2)
+		local source = formal_active("coin") and "formal" or "debug"
+		data[COIN_QUOTE_KEY] = {floor = floor_key(), base = base, final = final, source = source}
+		debug_state.stats.discounts = debug_state.stats.discounts + 1
+		debug_state.price_quotes[tostring(GetPtrHash(ent))] = {
+			floor = floor_key(), room = room_key(), input = val, base = base, final = final,
+			reused_base = reused, source = source, frame = Game():GetFrameCount(),
+		}
+		return final
+	end
+end})
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_PICKUP_UPDATE, params = nil,
+Function = function(_, ent)
+	if effect_active("coin") and ent:IsShopItem() then price_holder.try_catch_price(ent) end
+end})
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_LEVEL, params = nil,
 Function = function(_)
 	local bless = blessing_bag()
-	if not bless then return end
-	if bless.pending then
-		bless.pending = false
-		bless.active = true
-		if bless.kind == "key" then reveal_treasure() end
+	if bless and bless.active and not bless.floor then
+		bless.floor = floor_key()
+		bless.room_uses = {}
+		bless.heart_rolls = {}
+		if bless.kind == "key" then rebuild_route() end
 		local hud = Game():GetHUD()
 		if hud and hud.ShowItemText then
 			local title, subtitle = bless_hud_text(bless.kind)
 			if title then hud:ShowItemText(title, subtitle or "") end
 		end
-		refresh_damage()
-	else
-		clear_blessing()
-		refresh_damage()
 	end
+	if debug_active("key") then rebuild_route() end
+	reset_prices()
 end,
 })
+
+table.insert(item.myToCall, {CallBack = enums.Callbacks.PRE_NEW_LEVEL, params = nil,
+Function = function()
+	local old_floor = floor_key()
+	debug_state.overrides = {coin = nil, key = nil, bomb = nil, heart = nil}
+	debug_state.room_uses = {}
+	debug_state.heart_rolls = {}
+	debug_state.route = nil
+	debug_state.price_quotes = {}
+	debug_state.lifecycle[#debug_state.lifecycle + 1] = {event = "pre_new_level", floor = old_floor}
+	clear_coin_quote_states()
+	local bless = blessing_bag()
+	if bless then
+		if bless.pending then
+			bless.pending = false
+			bless.active = true
+			bless.floor = nil
+		else
+			clear_blessing()
+		end
+	end
+end})
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
-	local bless = blessing_bag()
-	if not bless or not bless.active or bless.kind ~= "bomb" then return end
-	if bless.in_combat then
-		bless.bomb_left = (bless.bomb_left or 0) - 1
-		bless.in_combat = false
-		if bless.bomb_left <= 0 then bless.kind = "spent" end
-		refresh_damage()
-	end
-	local room = Game():GetRoom()
-	if (bless.bomb_left or 0) > 0 and room:GetAliveEnemiesCount() > 0 then
-		bless.in_combat = true
-		refresh_damage()
-	end
+	reveal_route(active_route())
+	open_route_doors()
 end,
 })
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_EVALUATE_CACHE, params = CacheFlag.CACHE_DAMAGE,
-Function = function(_,player,flag)
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_NPC_DEATH, params = nil,
+Function = function(_, npc)
+	if not effect_active("bomb") or not npc:IsEnemy() or npc:HasEntityFlags(EntityFlag.FLAG_FRIENDLY) then return end
+	local key = room_key()
 	local bless = blessing_bag()
-	if bless and bless.active and bless.kind == "bomb" and bless.in_combat and (bless.bomb_left or 0) > 0 then
-		player.Damage = player.Damage + 1
+	if formal_active("bomb") then
+		bless.room_uses = bless.room_uses or {}
+		if bless.room_uses[key] then return end
+		bless.room_uses[key] = true
+	elseif debug_state.room_uses[key] then
+		return
+	else
+		debug_state.room_uses[key] = true
 	end
-end,
-})
+	debug_state.stats.explosions = debug_state.stats.explosions + 1
+	debug_state.last_enemy = {type = npc.Type, variant = npc.Variant, subtype = npc.SubType, room = key}
+	Game():BombExplosionEffects(npc.Position, 100, BitSet128(0, 0), Color.Default, Game():GetPlayer(0), 1, false, false)
+end})
 
-table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = 1,
-Function = function(_,ent,amt,flag,source,cooldown)
+local function heart_roll_store(key)
 	local bless = blessing_bag()
-	if not bless or not bless.active or bless.kind ~= "heart" then return end
-	if (bless.heart_left or 0) <= 0 then return end
-	if amt <= 0 then return end
-	if flag & DamageFlag.DAMAGE_FAKE ~= 0 then return end
-	local player = ent:ToPlayer()
-	if not player then return end
-	bless.heart_left = 0
-	bless.kind = "spent"
-	player:SetMinDamageCooldown(30)
-	return false
-end,
-})
-
-if ModCallbacks.MC_POST_PICKUP_SHOP_PURCHASE then
-	table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_SHOP_PURCHASE, params = nil,
-	Function = function(_,pickup,player,moneySpent)
-		local bless = blessing_bag()
-		if not bless or not bless.active or bless.kind ~= "coin" or bless.shop_done then return end
-		if not player or (moneySpent or 0) <= 0 then return end
-		local refund = math.min(bless.shop_refund or 3,moneySpent)
-		player:AddCoins(refund)
-		bless.shop_done = true
-		bless.kind = "spent"
-	end,
-	})
+	if formal_active("heart") then
+		bless.heart_rolls = bless.heart_rolls or {}
+		return bless.heart_rolls
+	end
+	return debug_state.heart_rolls
 end
+
+table.insert(item.ToCall, {CallBack = ModCallbacks.MC_POST_PICKUP_INIT, params = PickupVariant.PICKUP_HEART,
+Function = function(_, pickup)
+	if not effect_active("heart") then return end
+	local subtype = pickup.SubType
+	if subtype ~= HeartSubType.HEART_FULL and subtype ~= HeartSubType.HEART_HALF then return end
+	local key = table.concat({room_key(), pickup.InitSeed, subtype}, ":")
+	local rolls = heart_roll_store(key)
+	if rolls[key] ~= nil then return end
+	local roll = pickup:GetDropRNG():RandomFloat()
+	local convert = roll < 0.25
+	rolls[key] = convert
+	debug_state.stats.heart_rolls = debug_state.stats.heart_rolls + 1
+	debug_state.last_heart = {
+		key = key, roll = roll, convert = convert, source = formal_active("heart") and "formal" or "debug",
+		floor = floor_key(), room = room_key(), subtype = subtype,
+	}
+	if convert then
+		debug_state.stats.heart_converts = debug_state.stats.heart_converts + 1
+		local target = subtype == HeartSubType.HEART_FULL and HeartSubType.HEART_SOUL or HeartSubType.HEART_HALF_SOUL
+		pickup:Morph(EntityType.ENTITY_PICKUP, PickupVariant.PICKUP_HEART, target, true, true, true)
+	end
+end})
+
+table.insert(item.myToCall, {CallBack = enums.Callbacks.POST_REWIND, params = nil,
+Function = function()
+	debug_state.room_uses = {}
+	debug_state.heart_rolls = {}
+	debug_state.price_quotes = {}
+	debug_state.lifecycle[#debug_state.lifecycle + 1] = {event = "post_rewind", floor = floor_key(), room = room_key()}
+	clear_coin_quote_states()
+	reset_prices()
+	if debug_active("key") then rebuild_route() end
+end})
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_GAME_STARTED, params = nil,
 Function = function(_,continue)
+	debug_state = {
+		overrides = {coin = nil, key = nil, bomb = nil, heart = nil},
+		room_uses = {}, heart_rolls = {}, route = nil,
+		stats = {discounts = 0, explosions = 0, heart_rolls = 0, heart_converts = 0},
+		lifecycle = {{event = continue and "continue" or "new_run", floor = floor_key()}}, price_quotes = {},
+	}
 	if continue then
 	else
 		clear_blessing()
@@ -921,9 +1113,62 @@ Function = function(_,continue)
 end,
 })
 
+function item.debug_get_state() return debug_state end
+function item.debug_is_override(kind) return debug_active(kind) end
+function item.debug_set_override(kind, enabled)
+	if not DEBUG_KINDS[kind] then return false end
+	debug_state.overrides[kind] = enabled == true and floor_key() or nil
+	debug_state.lifecycle[#debug_state.lifecycle + 1] = {
+		event = enabled == true and "debug_enable" or "debug_disable", kind = kind, floor = floor_key(), room = room_key(),
+	}
+	if kind == "coin" then
+		clear_coin_quote_states()
+		reset_prices()
+	end
+	if kind == "key" and enabled then rebuild_route() end
+	return true
+end
+function item.debug_schedule(kind)
+	set_blessing(kind)
+	return true
+end
+function item.debug_rebuild_route() return rebuild_route() end
+function item.debug_reset_prices() reset_prices() end
+function item.debug_spawn_bard()
+	local player = Game():GetPlayer(0)
+	local ent = Isaac.Spawn(item.entity.Type, item.entity.Variant, 0, player.Position + Vector(80, 0), Vector.Zero, player)
+	every_entity_holder.init_slot(ent)
+	return ent
+end
+function item.debug_spawn_hearts(count)
+	local player = Game():GetPlayer(0)
+	for i = 1, (count or 40) do
+		local subtype = i % 2 == 0 and HeartSubType.HEART_FULL or HeartSubType.HEART_HALF
+		local pos = Game():GetRoom():FindFreePickupSpawnPosition(player.Position + Vector((i % 8 - 4) * 30, math.floor(i / 8) * 24), 0, true)
+		Isaac.Spawn(EntityType.ENTITY_PICKUP, PickupVariant.PICKUP_HEART, subtype, pos, Vector.Zero, player)
+	end
+end
+function item.debug_copy_summary()
+	local output = require("Qing_Remaster_scripts.debug.probe_output")
+	return output.copy_summary({
+		floor = floor_key(), room = room_key(),
+		overrides = {
+			coin = debug_active("coin"), key = debug_active("key"),
+			bomb = debug_active("bomb"), heart = debug_active("heart"),
+		},
+		stats = debug_state.stats,
+		last_heart = debug_state.last_heart,
+		route = debug_state.route and {target = debug_state.route.target, edges = #debug_state.route.edges} or nil,
+	})
+end
+function item.debug_copy_full_report()
+	local output = require("Qing_Remaster_scripts.debug.probe_output")
+	return output.copy_json({debug = debug_state, formal = blessing_bag(), floor = floor_key(), room = room_key()})
+end
+
 local function static_eid()
 	if slot_offer_lift.lang_zh() then
-		return "赠予一份资源，换取下层祝福"..
+		return "交付一份资源，获得下一层的祝福"..
 			"#靠近后左右切换馈赠，走进确认"..
 			"#按{{ButtonRT}}取消"
 	end

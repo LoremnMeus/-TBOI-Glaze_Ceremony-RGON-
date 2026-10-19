@@ -152,6 +152,8 @@ enums.Items = {
 	Ember = Isaac.GetItemIdByName("Ember"),
 	Perhaps_Chosen = Isaac.GetItemIdByName("Perhaps Chosen"),
 	Zero_Presence = Isaac.GetItemIdByName("Zero Presence"),
+	Tiny_Update = Isaac.GetItemIdByName("Tiny Update"),
+	Matryoshka_Marbles = Isaac.GetItemIdByName("Matryoshka Marbles"),
 	
 	Baby_Tecro = Isaac.GetItemIdByName("Baby Tecro"),
 	Baby_Anna = Isaac.GetItemIdByName("Baby Anna"),
@@ -536,6 +538,7 @@ enums.Entities = {
 	ZeistosHelper2 = Isaac.GetEntityVariantByName("ZeistosHelper2"),
 	Hyper_Velocity_Track = Isaac.GetEntityVariantByName("Hyper Velocity Track"),
 	Art_Effect = Isaac.GetEntityVariantByName("Art Effect"),
+	Matryoshka_Marble_Visual = Isaac.GetEntityVariantByName("Matryoshka Marble Visual"),
 	Death_Field_Proxy = Isaac.GetEntityVariantByName("Death Field Proxy"),
 	Bank_Room_Marker = Isaac.GetEntityVariantByName("Bank Room Marker"),
 	Stone_Room_Marker = Isaac.GetEntityVariantByName("Stone Room Marker"),

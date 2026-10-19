@@ -2,6 +2,9 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
 local tear_snapshot = require("Qing_Remaster_scripts.auxiliary.tear_snapshot")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
+local CraftFam = require("Qing_Remaster_scripts.mimics.Craft_Familiar_holder")
+local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 
 -- 灵摆之星：单一 Pivot 父节点 + 必然交叉主摆 + 张开期扰动。
 -- Pivot 帧时钟低频游走；主摆 ±side*sin（摆幅缓慢呼吸）；扰动仅在 openness 高时。
@@ -253,6 +256,71 @@ local function player_state(player)
 	return st
 end
 
+local PENDULUM_CRAFT_STATES = {}
+
+local function pendulum_state(ent, player)
+	if QF.blueprint_owned(ent) then
+		local ctx = CraftFam.get_control_context(ent)
+		if ctx and ctx.craft_uid then
+			local uid = ctx.craft_uid
+			if type(PENDULUM_CRAFT_STATES[uid]) ~= "table" then
+				PENDULUM_CRAFT_STATES[uid] = {
+					phase = 0,
+					phase_bootstrapped = false,
+					memory = {},
+					left_ent = nil,
+					right_ent = nil,
+					left_ptr = nil,
+					right_ptr = nil,
+					control_dir = Vector(1, 0),
+					target_control_dir = Vector(1, 0),
+					recent_shot_dir = nil,
+					recent_shot_frame = -999,
+					pivot = nil,
+					pivot_prev = nil,
+					pivot_velocity = Vector(0, 0),
+					desired_left = nil,
+					desired_right = nil,
+					prev_left_pos = nil,
+					prev_right_pos = nil,
+					curr_left_pos = nil,
+					curr_right_pos = nil,
+					last_phase_frame = -1,
+					motion_frame = -1,
+					openness = 0,
+					capture_enabled = false,
+					phase_name = "CAPTURE",
+					left_history = {},
+					right_history = {},
+					capture_flash = 0,
+					capture_side = 0,
+					release_flash = 0,
+					last_cross = nil,
+					last_left_error = nil,
+					last_right_error = nil,
+					move_debug = nil,
+				}
+			end
+			local st = PENDULUM_CRAFT_STATES[uid]
+			st.craft_uid = uid
+			st.memory = st.memory or {}
+			st.left_history = st.left_history or {}
+			st.right_history = st.right_history or {}
+			if not st.control_dir or st.control_dir:LengthSquared() < 0.001 then
+				st.control_dir = Vector(1, 0)
+			end
+			if not st.target_control_dir or st.target_control_dir:LengthSquared() < 0.001 then
+				st.target_control_dir = Vector(st.control_dir.X, st.control_dir.Y)
+			end
+			if not st.pivot_velocity then
+				st.pivot_velocity = Vector(0, 0)
+			end
+			return st, ctx
+		end
+	end
+	return player_state(player), nil
+end
+
 local function phase_label(openness, crossed_bottom)
 	if crossed_bottom then
 		return "RELEASE"
@@ -271,16 +339,23 @@ local function read_fire_input_dir(player)
 	return nil
 end
 
-local function update_control_dir(player, st, gf)
-	if st.recent_shot_dir
-		and st.recent_shot_dir:LengthSquared() > 0.001
-		and (gf - (st.recent_shot_frame or -999)) <= item.RECENT_SHOT_KEEP
-	then
-		st.target_control_dir = st.recent_shot_dir:Normalized()
+local function update_control_dir(player, st, gf, ctx)
+	if ctx then
+		local aim = ctx.intent and ctx.intent.aim_direction
+		if aim and aim:LengthSquared() > 0.001 then
+			st.target_control_dir = aim:Normalized()
+		end
 	else
-		local input_dir = read_fire_input_dir(player)
-		if input_dir then
-			st.target_control_dir = input_dir
+		if st.recent_shot_dir
+			and st.recent_shot_dir:LengthSquared() > 0.001
+			and (gf - (st.recent_shot_frame or -999)) <= item.RECENT_SHOT_KEEP
+		then
+			st.target_control_dir = st.recent_shot_dir:Normalized()
+		else
+			local input_dir = read_fire_input_dir(player)
+			if input_dir then
+				st.target_control_dir = input_dir
+			end
 		end
 	end
 
@@ -384,19 +459,27 @@ local function get_player_screen(player)
 	return Isaac.WorldToScreen(world)
 end
 
-local function collect_player_pendulums(player)
+local function collect_player_pendulums(player, craft_uid)
 	local list = {}
 	local found = Isaac.FindByType(EntityType.ENTITY_FAMILIAR, item.familiar, -1, false, false)
 	for _, ent in ipairs(found) do
 		local fam = ent:ToFamiliar()
 		if fam and fam.Player and auxi.check_for_the_same(fam.Player, player) then
-			table.insert(list, fam)
+			local owned = QF.blueprint_owned(fam)
+			if craft_uid then
+				local ctx = CraftFam.get_control_context(fam)
+				if ctx and ctx.craft_uid == craft_uid then
+					table.insert(list, fam)
+				end
+			elseif owned ~= true then
+				table.insert(list, fam)
+			end
 		end
 	end
 	return list
 end
 
-local function familiar_valid_for_side(ent, player, side)
+local function familiar_valid_for_side(ent, player, side, craft_uid)
 	if not ent or not ent.Exists or not ent:Exists() then return false end
 	if ent:IsDead() then return false end
 	if ent.Type ~= EntityType.ENTITY_FAMILIAR or ent.Variant ~= item.familiar then return false end
@@ -405,20 +488,28 @@ local function familiar_valid_for_side(ent, player, side)
 		owner = ent.SpawnerEntity:ToPlayer()
 	end
 	if not owner or not auxi.check_for_the_same(owner, player) then return false end
+	if craft_uid then
+		local ctx = CraftFam.get_control_context(ent)
+		if not ctx or ctx.craft_uid ~= craft_uid then
+			return false
+		end
+	elseif QF.blueprint_owned(ent) then
+		return false
+	end
 	return ent:GetData()[SIDE_KEY] == side
 end
 
-local function ensure_pair_binding(player)
-	local st = player_state(player)
-	if familiar_valid_for_side(st.left_ent, player, -1)
-		and familiar_valid_for_side(st.right_ent, player, 1)
+local function ensure_pair_binding(player, st, craft_uid)
+	st = st or player_state(player)
+	if familiar_valid_for_side(st.left_ent, player, -1, craft_uid)
+		and familiar_valid_for_side(st.right_ent, player, 1, craft_uid)
 	then
 		st.left_ptr = GetPtrHash(st.left_ent)
 		st.right_ptr = GetPtrHash(st.right_ent)
 		return true
 	end
 
-	local list = collect_player_pendulums(player)
+	local list = collect_player_pendulums(player, craft_uid)
 	if #list < 2 then
 		st.left_ent = nil
 		st.right_ent = nil
@@ -525,11 +616,11 @@ end
 
 local function get_anchor_ent(st, player, anchor_side)
 	if anchor_side == -1 then
-		if familiar_valid_for_side(st.left_ent, player, -1) then
+		if familiar_valid_for_side(st.left_ent, player, -1, st.craft_uid) then
 			return st.left_ent
 		end
 	elseif anchor_side == 1 then
-		if familiar_valid_for_side(st.right_ent, player, 1) then
+		if familiar_valid_for_side(st.right_ent, player, 1, st.craft_uid) then
 			return st.right_ent
 		end
 	end
@@ -625,6 +716,15 @@ local function tick_release_anim_cds(st)
 	end
 	if (st.right_release_anim_cd or 0) > 0 then
 		st.right_release_anim_cd = st.right_release_anim_cd - 1
+	end
+end
+
+local function tick_state_visuals(st)
+	if (st.capture_flash or 0) > 0 then
+		st.capture_flash = st.capture_flash - 1
+	end
+	if (st.release_flash or 0) > 0 then
+		st.release_flash = st.release_flash - 1
 	end
 end
 
@@ -818,8 +918,8 @@ end
 local function update_release_sweep(player, st)
 	local left = st.left_ent
 	local right = st.right_ent
-	if not familiar_valid_for_side(left, player, -1) then return end
-	if not familiar_valid_for_side(right, player, 1) then return end
+	if not familiar_valid_for_side(left, player, -1, st.craft_uid) then return end
+	if not familiar_valid_for_side(right, player, 1, st.craft_uid) then return end
 
 	local prev_l = st.prev_left_pos or left.Position
 	local prev_r = st.prev_right_pos or right.Position
@@ -1011,25 +1111,26 @@ local function perturb_gate_from_openness(openness)
 end
 
 --- 仅逻辑 Left 调用：Pivot 帧时钟游走 → sin 主摆交叉 → 张开期扰动 → drive
-local function update_pair_motion(player, st)
+local function update_pair_motion(player, st, ctx)
 	local gf = Game():GetFrameCount()
 	if st.motion_frame == gf then
 		return
 	end
 	st.motion_frame = gf
+	tick_state_visuals(st)
 
-	if not ensure_pair_binding(player) then
+	if not ensure_pair_binding(player, st, ctx and ctx.craft_uid) then
 		return
 	end
 	local left = st.left_ent
 	local right = st.right_ent
-	if not familiar_valid_for_side(left, player, -1) then return end
-	if not familiar_valid_for_side(right, player, 1) then return end
+	if not familiar_valid_for_side(left, player, -1, st.craft_uid) then return end
+	if not familiar_valid_for_side(right, player, 1, st.craft_uid) then return end
 
 	st.prev_left_pos = st.curr_left_pos or Vector(left.Position.X, left.Position.Y)
 	st.prev_right_pos = st.curr_right_pos or Vector(right.Position.X, right.Position.Y)
 
-	update_control_dir(player, st, gf)
+	update_control_dir(player, st, gf, ctx)
 
 	local old_sin = math.sin(st.phase)
 	st.phase = st.phase + item.PHASE_SPEED
@@ -1054,12 +1155,13 @@ local function update_pair_motion(player, st)
 		+ math.sin(t * item.PIVOT_SIDE_FREQ_2 + 1.37) * item.PIVOT_SIDE_AMP_2
 	local forward_drift = math.sin(t * item.PIVOT_FORWARD_FREQ_1 + 2.03) * item.PIVOT_FORWARD_AMP_1
 		+ math.sin(t * item.PIVOT_FORWARD_FREQ_2 + 0.41) * item.PIVOT_FORWARD_AMP_2
-	local pivot_target = player.Position
+	local anchor = (ctx and auxi.check_all_exists(ctx.air) and ctx.air) or player
+	local pivot_target = anchor.Position
 		+ forward * item.FORWARD_DISTANCE
 		+ Vector(0, -item.PENDULUM_LENGTH)
 		+ side * side_drift
 		+ forward * forward_drift
-		+ player.Velocity * item.PLAYER_VELOCITY_LEAD
+		+ (anchor.Velocity or Vector.Zero) * item.PLAYER_VELOCITY_LEAD
 
 	update_pivot(st, pivot_target)
 
@@ -1245,8 +1347,8 @@ end
 
 local function render_pendulum_visuals(player, st)
 	if Game():GetRoom():GetRenderMode() == RenderMode.RENDER_WATER_REFLECT then return end
-	if not familiar_valid_for_side(st.left_ent, player, -1) then return end
-	if not familiar_valid_for_side(st.right_ent, player, 1) then return end
+	if not familiar_valid_for_side(st.left_ent, player, -1, st.craft_uid) then return end
+	if not familiar_valid_for_side(st.right_ent, player, 1, st.craft_uid) then return end
 
 	local left_render = get_familiar_render_position(st.left_ent)
 	local right_render = get_familiar_render_position(st.right_ent)
@@ -1431,8 +1533,8 @@ local function render_pendulum_visuals(player, st)
 	)
 end
 
-local function reset_room_runtime(player)
-	local st = player_state(player)
+local function reset_pendulum_fields(st)
+	if type(st) ~= "table" then return end
 	st.phase = 0
 	st.phase_bootstrapped = false
 	st.memory = {}
@@ -1463,6 +1565,10 @@ local function reset_room_runtime(player)
 	local aim = normalize_dir(st.control_dir, Vector(1, 0))
 	st.control_dir = Vector(aim.X, aim.Y)
 	st.target_control_dir = Vector(aim.X, aim.Y)
+end
+
+local function reset_room_runtime(player)
+	reset_pendulum_fields(player_state(player))
 end
 
 table.insert(item.ToCall, #item.ToCall + 1, {
@@ -1507,6 +1613,9 @@ table.insert(item.myToCall, #item.myToCall + 1, {
 				reset_room_runtime(p)
 			end
 		end
+		for _, st in pairs(PENDULUM_CRAFT_STATES) do
+			reset_pendulum_fields(st)
+		end
 	end,
 })
 
@@ -1531,13 +1640,6 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 				st.target_control_dir = input_dir
 			end
 		end
-
-		if st.capture_flash and st.capture_flash > 0 then
-			st.capture_flash = st.capture_flash - 1
-		end
-		if st.release_flash and st.release_flash > 0 then
-			st.release_flash = st.release_flash - 1
-		end
 	end,
 })
 
@@ -1547,10 +1649,10 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	Function = function(_, ent)
 		local player = resolve_player_from_familiar(ent)
 		if not player then return end
-		if not auxi.has_have_coll(player, item.entity) then return end
+		local st, ctx = pendulum_state(ent, player)
+		if not ctx and not auxi.has_have_coll(player, item.entity) then return end
 
-		local st = player_state(player)
-		ensure_pair_binding(player)
+		ensure_pair_binding(player, st, ctx and ctx.craft_uid)
 
 		local side = ent:GetData()[SIDE_KEY]
 		if side ~= -1 and side ~= 1 then
@@ -1560,7 +1662,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		if side == -1 then
 			st.left_ent = ent
 			st.left_ptr = GetPtrHash(ent)
-			update_pair_motion(player, st)
+			update_pair_motion(player, st, ctx)
 		else
 			st.right_ent = ent
 			st.right_ptr = GetPtrHash(ent)
@@ -1607,16 +1709,32 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		end
 
 		local player = auxi.check_spawner_player(tear)
-		if not player or not auxi.has_have_coll(player, item.entity) then
-			d[item.own_key .. "prev"] = tear.Position
-			return
-		end
-		if tear.SpawnerType == EntityType.ENTITY_FAMILIAR then
+		if not player then
 			d[item.own_key .. "prev"] = tear.Position
 			return
 		end
 
-		local st = player_state(player)
+		local prev_key = item.own_key .. "prev"
+		local craft_uid = CraftIdentity.get_projectile_uid(tear)
+		local craft_mode = craft_uid ~= nil
+		local st
+		if craft_mode then
+			st = PENDULUM_CRAFT_STATES[craft_uid]
+			if not st then
+				d[prev_key] = tear.Position
+				return
+			end
+		else
+			if tear.SpawnerType == EntityType.ENTITY_FAMILIAR then
+				d[prev_key] = tear.Position
+				return
+			end
+			if not auxi.has_have_coll(player, item.entity) then
+				d[prev_key] = tear.Position
+				return
+			end
+			st = player_state(player)
+		end
 
 		if not d[item.own_key .. "seen_for_aim"] then
 			d[item.own_key .. "seen_for_aim"] = true
@@ -1626,10 +1744,10 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 			end
 		end
 
-		if not familiar_valid_for_side(st.left_ent, player, -1)
-			or not familiar_valid_for_side(st.right_ent, player, 1)
+		if not familiar_valid_for_side(st.left_ent, player, -1, craft_uid)
+			or not familiar_valid_for_side(st.right_ent, player, 1, craft_uid)
 		then
-			d[item.own_key .. "prev"] = tear.Position
+			d[prev_key] = tear.Position
 			return
 		end
 
@@ -1684,7 +1802,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 			}
 
 			local star = (st.capture_side == -1) and st.left_ent or st.right_ent
-			if familiar_valid_for_side(star, player, st.capture_side) then
+			if familiar_valid_for_side(star, player, st.capture_side, craft_uid) then
 				play_star_anim(star, "Idle2")
 			end
 		end
@@ -1699,7 +1817,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		if side ~= -1 and side ~= 1 then return end
 		ent.SpriteRotation = 0
 		local player = resolve_player_from_familiar(ent)
-		local st = player and player_state(player) or nil
+		local st = player and select(1, pendulum_state(ent, player)) or nil
 		local star_render = cache_familiar_render_position(ent, offset)
 		local pivot_render = get_pivot_screen(st)
 		apply_rope_rotation(ent, pivot_render, star_render)
@@ -1716,10 +1834,11 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		if side ~= 1 then return end
 
 		local player = resolve_player_from_familiar(ent)
-		if not player or not auxi.has_have_coll(player, item.entity) then return end
+		if not player then return end
+		local st, ctx = pendulum_state(ent, player)
+		if not ctx and not auxi.has_have_coll(player, item.entity) then return end
 
-		local st = player_state(player)
-		ensure_pair_binding(player)
+		ensure_pair_binding(player, st, ctx and ctx.craft_uid)
 		render_pendulum_visuals(player, st)
 	end,
 })
@@ -1729,6 +1848,25 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	params = item.familiar,
 	Function = function(_, ent, col, low)
 		return true
+	end,
+})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "pendulum_star",
+	zh = "灵摆之星",
+	en = "Pendulum Star",
+	movement = "free",
+	control_mode = "move_only",
+	custom_move = true,
+	exclude_from_formation = true,
+	desired_count = function(_, copies)
+		return (tonumber(copies) or 0) > 0 and 2 or 0
+	end,
+	spawn = function(_, air, player)
+		local pos = (air and air.Position) or (player and player.Position) or Vector.Zero
+		return Isaac.Spawn(EntityType.ENTITY_FAMILIAR, item.familiar, 0, pos, Vector.Zero, player)
 	end,
 })
 

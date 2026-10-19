@@ -36,6 +36,8 @@ function callback_manager.Init(mod)
 	table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.tear_trigger_holder"))
 	-- M8: tear_trigger_holder is a no-op shim; Attack semantics are attack_trigger_holder only.
 	table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.attack_trigger_holder"))
+	table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.attack_weapon_adapters"))
+	table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.attack_damage_binding"))
 	if REPENTOGON then
 		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.repentogon_holder"))
 		table.insert(callback_manager.items,#callback_manager.items + 1,require("Qing_Remaster_scripts.callbacks.rgon_imgui_options_holder"))

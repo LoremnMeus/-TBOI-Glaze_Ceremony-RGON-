@@ -92,8 +92,8 @@ function item.plan_a_bfs()
 	local desc = level:GetCurrentRoomDesc()
 	local stage = Game():GetLevel():GetStage()
 	local stageType = level:GetStageType()
-	local rng = Game():GetPlayer(0):GetCollectibleRNG(33)
-	rng:SetSeed(Game():GetSeeds():GetStageSeed(Game():GetLevel():GetStage()),0)
+	local rng = RNG()
+	rng:SetSeed(Game():GetSeeds():GetStageSeed(Game():GetLevel():GetStage()), 0)
 	
 	local rooms = level:GetRooms()
 	local tg = {}

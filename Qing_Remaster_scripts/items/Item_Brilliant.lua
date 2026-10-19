@@ -13,6 +13,7 @@ local item = {
 	post_ToCall = {},
 	entity = enums.Items.Brilliant,
 }
+local DEBUG_PRICE_TEST_KEY = "Item_Brilliant_debug_price_test"
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_GAIN_COLLECTIBLE, params = item.entity,
 Function = function(_,player,collid,cnt,touched)
@@ -26,7 +27,7 @@ table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_CH
 Function = function(_,ent,val)
 	local v = val
 	if val == -1000 then v = 0 end
-	if auxi.have_player_has_collectible(item.entity) and v >= 0 then
+	if (auxi.have_player_has_collectible(item.entity) or ent:GetData()[DEBUG_PRICE_TEST_KEY] == true) and v >= 0 then
 		for playerNum = 1, Game():GetNumPlayers() do
 			local player = Game():GetPlayer(playerNum - 1)
 			v = math.max(0,v - player:GetGoldenHearts())
@@ -37,6 +38,13 @@ Function = function(_,ent,val)
 	end
 end,
 })
+
+-- Debug lab only: exercise the real Brilliant callback without mutating inventory/history.
+function item.debug_set_price_test(ent, enabled)
+	if not ent then return false end
+	ent:GetData()[DEBUG_PRICE_TEST_KEY] = enabled == true or nil
+	return true
+end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PICKUP_UPDATE, params = nil,
 Function = function(_,ent)

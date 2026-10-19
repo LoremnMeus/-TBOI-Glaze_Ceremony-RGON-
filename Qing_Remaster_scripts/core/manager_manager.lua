@@ -36,11 +36,27 @@ function manager.Make(mod)
 	for k = 1,#manager.items do
 		manager.items[k].Init(mod)
 	end
-	local preload_manager = require("Qing_Remaster_scripts.core.preload_manager")
-	local missing = preload_manager.collect_missing_callback_modules(manager.items)
-	if #missing > 0 then
-		for _, module in ipairs(missing) do if module.Init then module.Init(mod) end end
-		table.insert(manager.items, {items = missing, Init = function() end})
+	-- Read-only: warn when a callback-bearing preload module never entered any
+	-- business manager.items. Compare by module table identity (same package.loaded).
+	-- Does not register or repair — unlike the old collect_missing fallback.
+	do
+		local preload_manager = require("Qing_Remaster_scripts.core.preload_manager")
+		local registered = {}
+		for _, group in ipairs(manager.items) do
+			for _, module in ipairs(group.items or {}) do
+				registered[module] = true
+			end
+		end
+		for module, info in pairs(preload_manager.callback_candidates or {}) do
+			if not registered[module] then
+				print(
+					"[Qing Preload][Unowned Callback] "
+					.. tostring(info.path)
+					.. " [" .. tostring(info.summary) .. "] "
+					.. "Preloaded module defines callbacks but is not registered by any business manager."
+				)
+			end
+		end
 	end
 	for uk = 1,3 do
 		for k = 1,#manager.items do

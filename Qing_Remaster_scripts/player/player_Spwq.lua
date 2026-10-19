@@ -26,28 +26,182 @@ local function get_blueprint()
 end
 
 local function spawn_command_mark(player, pos)
-	local q = Isaac.Spawn(1000, enums.Entities.QingsMarks, 0, pos or player.Position, Vector(0, 0), player)
-	q:GetData().Player = player
+	local origin = pos or player.Position
+	local q = Isaac.Spawn(1000, enums.Entities.QingsMarks, 0, origin, Vector(0, 0), player)
+	local md = q:GetData()
+	md.Player = player
 	q.GridCollisionClass = 3
+	q.DepthOffset = item.MARK_DEPTH_OFFSET
+	local spr = q:GetSprite()
+	if spr then
+		-- anm2 Default=GuardLock；显式 Play 保证首帧呼吸轴一致
+		if spr.IsPlaying and not spr:IsPlaying("GuardLock") then
+			spr:Play("GuardLock", true)
+		elseif spr.Play then
+			spr:Play("GuardLock", true)
+		end
+	end
+	if origin:Distance(player.Position) <= item.MARK_HIDE_RADIUS then
+		md.qing_near_hidden = true
+		md.qing_mark_alpha = 0
+		q.Position = player.Position
+		q.Velocity = Vector.Zero
+		q.Visible = false
+	end
 	return q
 end
 
-local function apply_mark_visual(sprite, control)
+-- 火控定色相：Lock 冷青蓝 / Suppress 警戒红；阵型只换中心符号
+local MARK_LOCK_OUTER = Color(0.388, 0.741, 0.922, 1, 0, 0, 0) -- #63BDEB
+local MARK_LOCK_INNER = Color(0.757, 0.898, 0.969, 1, 0, 0, 0) -- #C1E5F7
+local MARK_SUPPRESS_OUTER = Color(0.933, 0.361, 0.408, 1, 0, 0, 0) -- #EE5C68
+local MARK_SUPPRESS_INNER = Color(0.976, 0.741, 0.757, 1, 0, 0, 0) -- #F9BDC1
+
+local function get_mark_anim(is_guard, is_suppress)
+	if is_guard then
+		return is_suppress and "GuardSuppress" or "GuardLock"
+	end
+	return is_suppress and "AttackSuppress" or "AttackLock"
+end
+
+--- 切四姿态动画时保留当前帧，避免呼吸环跳回第 0 帧。
+local function play_mark_anim_keep_frame(sprite, anim)
+	if not sprite or not anim then return end
+	local old_anim = sprite.GetAnimation and sprite:GetAnimation() or nil
+	if old_anim == anim then
+		if sprite.IsPlaying and not sprite:IsPlaying(anim) and sprite.Play then
+			sprite:Play(anim, true)
+		end
+		return
+	end
+	local old_frame = (sprite.GetFrame and sprite:GetFrame()) or 0
+	sprite:Play(anim, true)
+	local len = 4
+	if sprite.GetCurrentAnimationData then
+		local ok, data = pcall(function() return sprite:GetCurrentAnimationData() end)
+		if ok and data and data.GetLength then
+			local ok2, l = pcall(function() return data:GetLength() end)
+			if ok2 and type(l) == "number" and l > 0 then
+				len = l
+			end
+		end
+	end
+	local frame = math.min(math.max(0, old_frame), math.max(0, len - 1))
+	if sprite.SetFrame then
+		local ok = pcall(function() sprite:SetFrame(anim, frame) end)
+		if not ok then
+			pcall(function() sprite:SetFrame(frame) end)
+		end
+	end
+end
+
+local function set_mark_layer_color(sprite, layer_name, color)
+	if not sprite or not sprite.GetLayer or not color then return end
+	local ok, layer = pcall(function() return sprite:GetLayer(layer_name) end)
+	if ok and layer and layer.SetColor then
+		layer:SetColor(color)
+	end
+end
+
+local function apply_mark_visual(sprite, control, alpha)
 	if not sprite then return end
-	local c = Color(1, 1, 1)
+	alpha = tonumber(alpha)
+	if alpha == nil then alpha = 1 end
+	if alpha < 0 then
+		alpha = 0
+	elseif alpha > 1 then
+		alpha = 1
+	end
+	local BW = get_bandwidth()
 	local fire = control and control.fire_control_mode or 0
 	local form = control and control.formation_mode or 0
-	if fire == 1 then
-		-- FORCE：实心偏红；标记大小暂与其它模式一致，只靠颜色区分
-		c = Color(1, 0.45, 0.32, 1)
-		c:SetColorize(2.35, 0.08, 0.04, 1)
-	elseif form == 1 then
-		c:SetColorize(0.2, 0.88, 1.45, 1)
+	local is_guard = form == (BW.FORMATION_GUARD or 1)
+	local is_suppress = fire == (BW.FIRE_FORCE or 1)
+	local anim = get_mark_anim(is_guard, is_suppress)
+	play_mark_anim_keep_frame(sprite, anim)
+
+	-- 整体 alpha / 近身缩放；层色按火控：Outer 主色 + Inner 同系高亮
+	local scale = 0.75 + 0.25 * alpha
+	sprite.Scale = Vector(scale, scale)
+	sprite.Color = Color(1, 1, 1, alpha, 0, 0, 0)
+	local outer_color, inner_color
+	if is_suppress then
+		outer_color = MARK_SUPPRESS_OUTER
+		inner_color = MARK_SUPPRESS_INNER
 	else
-		c:SetColorize(1.08, 1.08, 1.08, 1)
+		outer_color = MARK_LOCK_OUTER
+		inner_color = MARK_LOCK_INNER
 	end
-	sprite.Scale = Vector(1, 1)
-	sprite.Color = c
+	set_mark_layer_color(sprite, "Outer", outer_color)
+	set_mark_layer_color(sprite, "Inner", inner_color)
+end
+
+local function snap_mark_toward_player(ent, player)
+	local delta = player.Position - ent.Position
+	if delta:Length() < item.MARK_SNAP_PIN then
+		ent.Position = player.Position
+	else
+		ent.Position = ent.Position + delta * item.MARK_SNAP_BLEND
+	end
+	ent.Velocity = Vector.Zero
+end
+
+local function update_command_mark_near(player, ent, desired_vel, use_mouse)
+	local md = ent:GetData()
+	local dist = ent.Position:Distance(player.Position)
+	local mouse_delta
+	local mouse_dist
+	if use_mouse then
+		mouse_delta = auxi.mouse_world_pos() - player.Position
+		mouse_dist = mouse_delta:Length()
+	end
+
+	if md.qing_near_hidden == true then
+		snap_mark_toward_player(ent, player)
+		local should_unhide = false
+		local exit_dir
+		if use_mouse then
+			if mouse_dist >= item.MARK_SHOW_RADIUS then
+				should_unhide = true
+				exit_dir = mouse_delta:Normalized()
+			end
+		elseif desired_vel:Length() > item.MARK_UNHIDE_VEL then
+			should_unhide = true
+			exit_dir = desired_vel:Normalized()
+		end
+		if should_unhide == true and exit_dir then
+			ent.Position = player.Position + exit_dir * item.MARK_SHOW_RADIUS
+			ent.Velocity = desired_vel
+			md.qing_near_hidden = false
+		end
+	else
+		ent.Velocity = desired_vel
+		local want_hide = dist <= item.MARK_HIDE_RADIUS
+		if want_hide then
+			if use_mouse then
+				want_hide = mouse_dist <= item.MARK_HIDE_RADIUS
+			else
+				want_hide = desired_vel:Length() <= item.MARK_UNHIDE_VEL
+			end
+		end
+		if want_hide then
+			md.qing_near_hidden = true
+			snap_mark_toward_player(ent, player)
+		end
+	end
+
+	local target_alpha = (md.qing_near_hidden == true) and 0 or 1
+	local alpha = tonumber(md.qing_mark_alpha)
+	if alpha == nil then
+		alpha = target_alpha
+	end
+	alpha = alpha + (target_alpha - alpha) * item.MARK_ALPHA_SPEED
+	if math.abs(alpha - target_alpha) < 0.02 then
+		alpha = target_alpha
+	end
+	md.qing_mark_alpha = alpha
+	ent.Visible = alpha > 0.01
+	return alpha
 end
 
 local function clear_blueprint_hold(player)
@@ -145,6 +299,15 @@ item = {
 	entity = enums.Players.Spwq,
 	own_key = "Player_Spwq_",
 	HOLD_OPEN_FRAMES = 26,
+	-- 准星近身：18 吸附隐藏 / 28 推出显示；24 才更新 BW aim（围绕原 note_aim 中线）
+	MARK_HIDE_RADIUS = 18,
+	MARK_SHOW_RADIUS = 28,
+	MARK_AIM_RADIUS = 24,
+	MARK_DEPTH_OFFSET = -20,
+	MARK_UNHIDE_VEL = 0.5,
+	MARK_SNAP_BLEND = 0.45,
+	MARK_SNAP_PIN = 1,
+	MARK_ALPHA_SPEED = 0.3,
 	Special_Des = {
 		["zh"] = {
 			["Item"] = {
@@ -241,20 +404,29 @@ Function = function(_,ent)
 				d2[item.own_key.."time"] = Game():GetFrameCount()
 			end
 			if ent.Variant == enums.Entities.QingsMarks then
-				ent.Velocity = auxi.qing_mark_velocity(
+				local mouse_opts = {block_mouse = blueprint_panel_open(player)}
+				local desired_vel = auxi.qing_mark_velocity(
 					player,
 					ent,
 					ModConfig.ModConfigSettings.mouseSupport1,
 					ModConfig.ModConfigSettings.mouseSupport2,
-					{block_mouse = blueprint_panel_open(player)}
+					mouse_opts
 				)
+				local use_mouse = auxi.qing_mark_mouse_follow(
+					player,
+					ModConfig.ModConfigSettings.mouseSupport1,
+					ModConfig.ModConfigSettings.mouseSupport2,
+					mouse_opts
+				)
+				local alpha = update_command_mark_near(player, ent, desired_vel, use_mouse)
+				ent.DepthOffset = item.MARK_DEPTH_OFFSET
 				local BW = get_bandwidth()
 				local control = BW.get_control(player)
 				local aim = ent.Position - player.Position
-				if aim:Length() > 24 then
+				if aim:Length() > item.MARK_AIM_RADIUS then
 					BW.note_aim(player, aim)
 				end
-				apply_mark_visual(s, control)
+				apply_mark_visual(s, control, alpha)
 			end
 		end
 	end

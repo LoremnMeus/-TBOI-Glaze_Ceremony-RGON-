@@ -367,6 +367,35 @@ function item.check_description(tp,id,Name,Description,player)			--必须要传�
 	return ret
 end
 
+-- Read-only display text. Same check_name_data + PRE_DESCRIPT_ITEM chain as pickup text.
+-- Does not show HUD text and does not run POST_DESCRIPT_ITEM.
+function item.resolve_display_text(player, typ, id)
+	typ = typ or "Item"
+	local fallback = tostring(id)
+	if typ ~= "Item" then
+		return {Name = fallback, Description = ""}
+	end
+	local cfg = Isaac.GetItemConfig():GetCollectible(id)
+	if not cfg then
+		return {Name = fallback, Description = ""}
+	end
+	local ret = item.check_description(
+		typ,
+		id,
+		auxi.check_name_data(cfg.Name),
+		auxi.check_name_data(cfg.Description),
+		player
+	)
+	if type(ret) ~= "table" then
+		ret = {Name = cfg.Name, Description = cfg.Description}
+	end
+	local shown = ret.Name
+	if type(shown) ~= "string" or shown == "" or shown:sub(1, 1) == "#" then
+		ret.Name = fallback
+	end
+	return ret
+end
+
 table.insert(item.post_myToCall,#item.post_myToCall + 1,{CallBack = enums.Callbacks.PRE_DESCRIPT_ITEM, params = nil,
 Function = function(_,player,tp,id,value)
 	value.Name = auxi.protect_text(value.Name or "")

@@ -93,7 +93,7 @@
 	gfx="collectibles_LuoTianYi.png" quality="2" craftquality="2" tags="summonable"
 	/>
 	<passive name="Colorblindness" description="Pride or Prejudice" id="31"
-	gfx="collectibles_colorblindness.png" quality = "0" tags="summonable offensive" cache="tearcolor tearflag range damage"
+	gfx="collectibles_colorblindness.png" quality = "0" tags="summonable offensive"
 	/>
 	<passive name="Field" description="Those who rise up must be drifting down." id="32"
 	gfx="collectibles_Field.png" quality = "2" craftquality = "2" tags="summonable offensive" cache="firedelay"
@@ -503,6 +503,12 @@
 	/>
 	<passive name="Zero Presence" description="You forgot it." id="174"
 	gfx="collectibles_Zero_Presence.png" quality="1" craftquality="1" tags="summonable"
+	/>
+	<passive name="Tiny Update" description="Fixed some known issues" id="175"
+	gfx="collectibles_Tiny_Update.png" quality="1" craftquality="1" tags="summonable"
+	/>
+	<passive name="Matryoshka Marbles" description="One after another!" id="176"
+	gfx="collectibles_Matryoshka_Marbles.png" quality="2" craftquality="2" tags="summonable"
 	/>
 
 

@@ -1183,6 +1183,14 @@ add("Item",enums.Items.Zero_Presence,{
 		achievement = false,
 		achievement_path = "",
 })
+add("Item",enums.Items.Tiny_Update,{
+		content_type = "Item",
+		key = "Tiny_Update",
+		name = "Tiny Update",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
 add("Trinket",enums.Trinkets.Pacification_Mark,{
 		content_type = "Trinket",
 		key = "Pacification_Mark",

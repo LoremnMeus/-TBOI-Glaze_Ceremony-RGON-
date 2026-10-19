@@ -1,75 +1,36 @@
--- Bank Branch + HQ debug ImGui (Story Test / Coin).
+-- Bank Branch debug: story descriptor + Bank Test Lab UI.
 
 local imgui_layout = require("Qing_Remaster_scripts.debug.imgui_debug_layout")
-local bank_state = require("Qing_Remaster_scripts.threads.bank.bank_state")
-local bank_branch = require("Qing_Remaster_scripts.threads.bank.bank_branch")
 local bank_rooms = require("Qing_Remaster_scripts.threads.bank.bank_rooms")
+local tests = require("Qing_Remaster_scripts.threads.bank.bank_debug_tests")
+local bank_panel = require("Qing_Remaster_scripts.threads.bank.bank_panel_renderer")
 
-local debug = {
-	last_action = nil,
-}
+local debug = {}
 
 local function tr(zh, en)
 	local language = Options and Options.Language
 	return (language == "en") and en or zh
 end
 
-local function set_action(ok, msg)
-	debug.last_action = string.format("[%s] %s", ok and "OK" or "FAIL", tostring(msg))
-end
-
-local function status_text()
-	local snap = bank_state.debug_snapshot()
-	local lines = {
-		tr("银行支行 / 总部调试", "Bank Branch / HQ Debug"),
-		"────────────────",
-		tr("上次动作：", "Last action: ") .. tostring(debug.last_action or "-"),
-		"────────────────",
-		tr("周期：", "Cycle: ") .. tostring(snap.cycle_id or "-"),
-		tr("上次周期：", "Last cycle: ") .. tostring(snap.last_cycle_id or "-"),
-		tr("存款：", "Deposit: ") .. tostring(snap.deposit),
-		tr("累计利息：", "Interest earned: ") .. tostring(snap.interest_earned),
-		tr("结息次数：", "Deposit cycles: ") .. tostring(snap.deposit_cycles),
-		tr("关闭挂起：", "Closed pending: ") .. tostring(snap.closed_pending),
-		tr("有贷款：", "Active loan: ") .. tostring(snap.active_loan),
-		tr("抵押道具：", "Collateral: ") .. tostring(snap.loan_item or "-"),
-		tr("剩余：", "Remaining: ") .. tostring(snap.loan_remaining or "-"),
-		tr("Secured：", "Secured: ") .. tostring(snap.secured),
-		tr("到期：", "Payment due: ") .. tostring(snap.payment_due),
-		tr("没收数：", "Seized: ") .. tostring(snap.seized_count),
-		tr("HQ 进入：", "HQ entered: ") .. tostring(snap.hq_entered),
-		tr("HQ 结算：", "HQ settled: ") .. tostring(snap.hq_settled),
-		tr("存款已领：", "Deposit claimed: ") .. tostring(snap.hq_deposit_claimed),
-	}
-	return table.concat(lines, "\n")
-end
-
-local function goto_hq(id)
-	local ok, reason = bank_rooms.enter(id)
-	if ok then
-		set_action(true, "goto HQ/" .. tostring(id))
-	else
-		local extra = ""
-		if reason == "room_not_loaded" then
-			local def = bank_rooms.HQ and bank_rooms.HQ[id]
-			extra = tr(
-				"。房间未载入，请重新导出 content/rooms/greed/00.special rooms.stb",
-				". Room not loaded; re-export content/rooms/greed/00.special rooms.stb"
-			)
-			if def then
-				extra = extra .. string.format(" (variant=%s)", tostring(def.variant))
-			end
-		end
-		set_action(false, "goto HQ/" .. tostring(id) .. " reason=" .. tostring(reason) .. extra)
-	end
-end
+local HQ = {
+	{"entrance", "前往银行总部入口"},
+	{"main", "前往银行大厅"},
+	{"records", "前往账目室"},
+	{"deposit", "前往存款库"},
+	{"repossession", "前往没收库"},
+	{"settlement", "前往结算室"},
+	{"boss", "前往乞丐皇帝房间"},
+	{"treasury", "前往银行宝库"},
+}
 
 function debug.get_test_descriptor()
 	return {
 		id = "chapter1.coin",
 		title = {zh = "银行 / Bum Emperor", en = "Bank / Bum Emperor"},
-		-- Bank can appear on many pre-Mausoleum floors; use current floor as go-to no-op.
-		floor_preset = "current",
+		go_to_test_location = function()
+			local row = tests.travel("entrance")
+			return row.ok == true or row.code == "submitted", row.message
+		end,
 		start_step = "chapter1.coin.before",
 		checkpoints = {
 			{step = "chapter1.coin.before", label = {zh = "支行出现前", en = "Before branch"}},
@@ -79,232 +40,211 @@ function debug.get_test_descriptor()
 			{step = "chapter1.coin.repeat_acquisition", label = {zh = "重复取得素材", en = "Repeat acquisition"}},
 		},
 		notes = tr(
-			"前往测试楼层：银行可用当前任意适用层；也可先手动切层再开始测试。",
-			"Go to floor: bank uses current applicable floor; change stage manually then Start Test."
+			"金融业务测试在 Debug → 测试 → 贪婪银行测试台。这里只保留剧情检查点。前往按钮会直接尝试进入总部入口，并在测试台核对是否真正到达。",
+			"Banking mechanics live under Debug → Tests → Bank Test Lab. This page keeps story checkpoints only."
 		),
-		build_advanced = function(parent_id)
-			debug.build_advanced(parent_id)
-		end,
 	}
 end
 
-function debug.build_advanced(parent_id)
+local function bind_text(parent_id, element_id, getter)
+	imgui_layout.add_wrapped_text(parent_id, element_id, "")
+	ImGui.AddCallback(element_id, ImGuiCallback.Render, function()
+		tests.note_travel_progress()
+		imgui_layout.update_text(element_id, getter())
+	end)
+end
+
+local function button(parent_id, id, label, fn, same)
+	if same then
+		ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
+	end
+	ImGui.AddButton(parent_id, id, label, fn)
+end
+
+function debug.build_lab(parent_id)
 	if not ImGui or not parent_id then return end
-	local prefix = parent_id .. "_BankBranch"
+	local prefix = parent_id .. "_BankLab"
 
-	ImGui.AddElement(
-		parent_id, "", ImGuiElement.SeparatorText or ImGuiElement.Separator,
-		tr("银行支行 / 总部沙盒", "Bank Branch / HQ sandbox")
+	imgui_layout.add_wrapped_text(
+		parent_id, prefix .. "_Banner",
+		"独立运行态调试。不自动推进第一章剧情，也不修改永久剧情进度。普通模式可以沙盒跳转，但不能当作贪婪模式验收。"
 	)
+	bind_text(parent_id, prefix .. "_Status", tests.environment_text)
 
-	imgui_layout.add_wrapped_text(parent_id, prefix .. "_Status", "")
-	ImGui.AddCallback(prefix .. "_Status", ImGuiCallback.Render, function()
-		imgui_layout.update_text(prefix .. "_Status", status_text())
-	end)
-
-	ImGui.AddButton(parent_id, prefix .. "_Spawn", tr("生成支行", "Spawn Branch"), function()
-		local cycle = bank_state.get().branch.current_cycle_id or "debug_spawn"
-		bank_state.on_branch_arrival(cycle, false)
-		local ent = bank_branch.spawn(nil, "open")
-		if ent then
-			set_action(true, "Spawn Branch OK ptr=" .. tostring(GetPtrHash(ent)))
-		else
-			set_action(false, "Spawn Branch FAILED: branch.entity=" .. tostring(bank_branch.entity ~= nil))
-		end
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_SpawnClosed", tr("生成关闭支行", "Spawn Closed"), function()
-		local ent = bank_branch.spawn(nil, "closed")
-		if ent then
-			set_action(true, "Spawn Closed OK ptr=" .. tostring(GetPtrHash(ent)))
-		else
-			set_action(false, "Spawn Closed FAILED")
-		end
-	end)
-
-	ImGui.AddButton(parent_id, prefix .. "_DepM10", "-10¢", function()
-		local b = bank_state.get()
-		b.deposit = math.max(0, b.deposit - 10)
-		set_action(true, "deposit=" .. tostring(b.deposit))
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_DepM1", "-1¢", function()
-		local b = bank_state.get()
-		b.deposit = math.max(0, b.deposit - 1)
-		set_action(true, "deposit=" .. tostring(b.deposit))
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_Dep0", "0", function()
-		bank_state.get().deposit = 0
-		set_action(true, "deposit=0")
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_DepP1", "+1¢", function()
-		bank_state.get().deposit = bank_state.get().deposit + 1
-		set_action(true, "deposit=" .. tostring(bank_state.get().deposit))
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_DepP10", "+10¢", function()
-		bank_state.get().deposit = bank_state.get().deposit + 10
-		set_action(true, "deposit=" .. tostring(bank_state.get().deposit))
-	end)
-
-	ImGui.AddButton(parent_id, prefix .. "_Interest", tr("结算利息", "Apply Interest"), function()
-		local before = bank_state.get().deposit
-		bank_state.apply_interest()
-		set_action(true, string.format("interest deposit %s -> %s", tostring(before), tostring(bank_state.get().deposit)))
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_NextCycle", tr("下一银行周期", "Next Bank Cycle"), function()
-		local ent, cycle, closed = bank_rooms.debug_advance_cycle()
-		set_action(
-			ent ~= nil,
-			string.format("cycle=%s closed=%s entity=%s", tostring(cycle), tostring(closed), tostring(ent ~= nil))
-		)
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_AutoSpawn", tr("尝试自动生成", "Try Auto Spawn"), function()
-		local ent, reason = bank_rooms.try_auto_spawn_branch()
-		if ent then
-			set_action(true, "auto spawn OK ptr=" .. tostring(GetPtrHash(ent)))
-		else
-			set_action(false, "auto spawn: " .. tostring(reason))
-		end
-	end)
-
-	ImGui.AddButton(parent_id, prefix .. "_ClearLoan", tr("清除贷款", "Clear Loan"), function()
-		bank_state.get().active_loan = nil
-		set_action(true, "loan cleared")
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_ForceLoan", tr("强制有抵押贷款", "Force Secured Loan"), function()
-		local p = Game():GetPlayer(0)
-		local list = bank_state.list_collateral_candidates(p)
-		if #list <= 0 then
-			set_action(false, "ForceLoan: no collateral candidates")
-			return
-		end
-		bank_state.get().active_loan = nil
-		local hq = bank_state.get().headquarters
-		local was = hq.entered
-		hq.entered = false
-		local ok = bank_state.issue_loan(p, list[1].id)
-		hq.entered = was
-		hq.settled = false
-		set_action(ok == true, "ForceLoan item=" .. tostring(list[1].id))
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_Missing", tr("强制抵押缺失", "Force Missing"), function()
-		local loan = bank_state.get_active_loan()
-		if not loan then
-			set_action(false, "Force Missing: no active loan")
-			return
-		end
-		local owner = bank_state.resolve_owner(loan)
-		if owner and bank_state.collateral_still_present(owner, loan) then
-			owner:RemoveCollectible(loan.item_id)
-		end
-		bank_state.check_collateral()
-		set_action(true, "collateral check after force missing")
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_RestoreCol", tr("恢复测试抵押物", "Restore Collateral"), function()
-		local loan = bank_state.get_active_loan()
-		if not loan or not loan.item_id then
-			set_action(false, "Restore: no loan item")
-			return
-		end
-		local owner = bank_state.resolve_owner(loan)
-		if not owner then
-			set_action(false, "Restore: no owner")
-			return
-		end
-		local need = loan.count_at_issue or 1
-		local have = owner:GetCollectibleNum(loan.item_id, true)
-		for _ = have + 1, need do
-			owner:AddCollectible(loan.item_id, 0, false)
-		end
-		bank_state.check_collateral()
-		set_action(true, "collateral restored item=" .. tostring(loan.item_id))
-	end)
-
-	ImGui.AddButton(parent_id, prefix .. "_Rob", tr("抢劫支行", "Rob Branch"), function()
-		local p = Game():GetPlayer(0)
-		local ent = bank_branch.find_nearest(p, 9999)
-		if ent then
-			bank_state.rob(p, ent)
-			ent:GetData().BankBroken = true
-			ent:GetSprite():Play("Teleport", true)
-			ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-			set_action(true, "robbed nearest branch")
-		else
-			bank_state.rob(p, nil)
-			set_action(true, "robbed (no branch entity)")
-		end
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_Reset", tr("重置 BankRun", "Reset BankRun"), function()
-		bank_state.reset()
-		set_action(true, "BankRun reset")
-	end)
-
-	ImGui.AddElement(
-		parent_id, "", ImGuiElement.SeparatorText or ImGuiElement.Separator,
-		tr("银行总部 HEADQUARTERS", "HEADQUARTERS")
-	)
-
-	local hq_buttons = {
-		{ "Ent", "entrance", "入口 Entrance" },
-		{ "Main", "main", "大厅 Main" },
-		{ "Rec", "records", "账目 Records" },
-		{ "Dep", "deposit", "金库 Deposit" },
-		{ "Rep", "repossession", "没收库 Repossession" },
-		{ "Set", "settlement", "结算 Settlement" },
-		{ "Boss", "boss", "Boss" },
-		{ "Tre", "treasury", "宝库 Treasury" },
-	}
-	for i, row in ipairs(hq_buttons) do
-		ImGui.AddButton(parent_id, prefix .. "_HQ_" .. row[1], tr(row[3], row[3]), function()
-			goto_hq(row[2])
-		end)
-		if i < #hq_buttons then
-			ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-		end
+	local env = imgui_layout.add_section(parent_id, prefix .. "_Env", "01  环境与快捷传送")
+	button(env, prefix .. "_Refresh", "刷新环境检查", tests.refresh_env)
+	button(env, prefix .. "_Rooms", "检查总部房间资源", tests.check_rooms, true)
+	button(env, prefix .. "_FinalBoss", "前往贪婪最终 Boss 房", tests.goto_greed_final_boss)
+	button(env, prefix .. "_FinalDoor", "检查最终 Boss 银行入口", tests.check_final_boss_entrance, true)
+	for i, row in ipairs(HQ) do
+		local id = row[1]
+		button(env, prefix .. "_Go_" .. id, row[2], function()
+			tests.travel(id)
+		end, i > 1 and (i % 2 == 0))
 	end
 
-	ImGui.AddButton(parent_id, prefix .. "_AddSeized", tr("添加测试没收品", "Add Seized Test Item"), function()
-		local p = Game():GetPlayer(0)
-		local list = bank_state.list_collateral_candidates(p)
-		local item_id = (list[1] and list[1].id) or CollectibleType.COLLECTIBLE_SAD_ONION
-		local d = p and p:GetData()
-		bank_state.debug_add_seized(item_id, d and d.__Index)
-		set_action(true, "seized item=" .. tostring(item_id))
-	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_ClearSeized", tr("清空没收品", "Clear Seized Assets"), function()
-		bank_state.debug_clear_seized()
-		set_action(true, "seized cleared")
-	end)
+	local branch = imgui_layout.add_section(parent_id, prefix .. "_Branch", "02  支行生成与检查")
+	button(branch, prefix .. "_Open", "生成营业支行", tests.spawn_open)
+	button(branch, prefix .. "_Closed", "生成停业支行", tests.spawn_closed, true)
+	button(branch, prefix .. "_Auto", "尝试正常生成", tests.try_auto_spawn)
+	button(branch, prefix .. "_Cycle", "模拟下一银行周期", tests.next_cycle, true)
+	button(branch, prefix .. "_Clean", "清理测试支行", tests.cleanup_debug)
+	bind_text(branch, prefix .. "_BranchList", tests.branch_text)
+	button(branch, prefix .. "_RobEnt", "测试真实支行破坏", tests.break_branch)
+	button(branch, prefix .. "_RobLedger", "模拟支行抢劫结算", tests.rob_settle, true)
 
-	ImGui.AddButton(parent_id, prefix .. "_EnterHQ", tr("标记进入总部", "Mark HQ Entered"), function()
-		bank_state.enter_headquarters()
-		set_action(true, "HQ entered marked")
+	local money = imgui_layout.add_section(parent_id, prefix .. "_Money", "03  存取款与利息")
+	local amount_id = prefix .. "_Amount"
+	ImGui.AddDragInteger(
+		money,
+		amount_id,
+		"测试金额（硬币）",
+		function(value)
+			tests.set_amount(value)
+		end,
+		tests.amount,
+		1,
+		1,
+		999,
+		"%d"
+	)
+	ImGui.AddCallback(amount_id, ImGuiCallback.Render, function()
+		ImGui.UpdateData(amount_id, ImGuiData.Value, tests.amount)
 	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_SettleHQ", tr("强制 HQ 结算完成", "Force HQ Settled"), function()
-		bank_state.get().active_loan = nil
-		bank_state.mark_settled()
-		set_action(true, "HQ settled")
+	button(money, prefix .. "_Dep", "存入指定金额", tests.deposit_amount)
+	button(money, prefix .. "_Wd", "取出指定金额", tests.withdraw_amount, true)
+	button(money, prefix .. "_DepAll", "全部存入", tests.deposit_all)
+	button(money, prefix .. "_WdAll", "全部取出", tests.withdraw_all, true)
+	button(money, prefix .. "_Int", "结算利息", tests.apply_interest)
+	ImGui.AddElement(money, "", ImGuiElement.SeparatorText, "测试状态注入（不计入真实交易）")
+	button(money, prefix .. "_InjP", "注入 +10¢", function() tests.inject_deposit(10) end)
+	button(money, prefix .. "_InjM", "注入 -10¢", function() tests.inject_deposit(-10) end, true)
+	button(money, prefix .. "_Inj0", "清空存款", tests.clear_deposit)
+
+	local loan = imgui_layout.add_section(parent_id, prefix .. "_Loan", "04  抵押贷款")
+	ImGui.AddCombobox(loan, prefix .. "_Col", "抵押道具", function(index)
+		tests.collateral_index = index or 0
+	end, {"（无合格抵押）"}, 0)
+	ImGui.AddCallback(prefix .. "_Col", ImGuiCallback.Render, function()
+		local labels = tests.collateral_labels()
+		ImGui.UpdateData(prefix .. "_Col", ImGuiData.ListValues, labels)
+		if tests.collateral_index >= #labels then tests.collateral_index = 0 end
+		ImGui.UpdateData(prefix .. "_Col", ImGuiData.Value, tests.collateral_index)
 	end)
-	ImGui.AddElement(parent_id, "", ImGuiElement.SameLine)
-	ImGui.AddButton(parent_id, prefix .. "_ResetHQ", tr("重置 HQ 状态", "Reset HQ State"), function()
-		bank_state.reset_headquarters()
-		set_action(true, "HQ state reset")
+	button(loan, prefix .. "_Issue", "发放贷款", tests.issue_loan)
+	button(loan, prefix .. "_Repay", "偿还贷款", tests.repay_loan, true)
+	button(loan, prefix .. "_Due", "模拟下一周期到期", tests.force_due)
+	button(loan, prefix .. "_Miss", "移除测试抵押物（会删掉玩家道具）", tests.force_missing, true)
+	button(loan, prefix .. "_Replace", "更换抵押物", tests.replace_collateral)
+	button(loan, prefix .. "_Forfeit", "放弃抵押物", tests.forfeit, true)
+	button(loan, prefix .. "_Broke", "余额不足还款", tests.repay_when_broke)
+
+	local hq = imgui_layout.add_section(parent_id, prefix .. "_HQ", "05  银行总部")
+	for i, row in ipairs(HQ) do
+		local id = row[1]
+		button(hq, prefix .. "_HQ_" .. id, tests.hq_label(id), function()
+			tests.travel(id)
+		end, i > 1 and (i % 4 ~= 1))
+	end
+
+	local log = imgui_layout.add_section(parent_id, prefix .. "_Log", "06  自动验收与日志")
+	button(log, prefix .. "_Cfg", "静态检查房间资源", tests.check_rooms)
+	button(log, prefix .. "_ClearLog", "清空结果", tests.clear_log, true)
+	button(log, prefix .. "_Copy", "复制诊断文本", tests.copy_log)
+	bind_text(log, prefix .. "_LogBody", tests.log_text)
+
+	local trade = imgui_layout.add_section(parent_id, prefix .. "_Trade", "08  交易结果与主动键")
+	button(trade, prefix .. "_ZeroDep", "零硬币存款", tests.deposit_zero_cash)
+	button(trade, prefix .. "_ZeroWd", "零存款取款", tests.withdraw_zero_deposit, true)
+	button(trade, prefix .. "_LoanOk", "正常贷款", tests.issue_loan)
+	button(trade, prefix .. "_LoanNo", "贷款失败", tests.loan_rejected, true)
+	button(trade, prefix .. "_Active", "主动键拦截抽样", tests.active_key_block)
+	button(trade, prefix .. "_Layout", "测量 270 视口抵押页", tests.collateral_layout, true)
+
+	local preview = imgui_layout.add_section(parent_id, prefix .. "_Preview", "09  交易面板预览")
+	local pages = {
+		"saving_root", "deposit", "withdraw", "pick", "manage", "due", "missing",
+	}
+	local page_labels = {
+		"储蓄首页", "存款金额页", "取款金额页", "选择抵押物", "贷款管理", "还款到期", "抵押物缺失",
+	}
+	debug._preview = debug._preview or {
+		on = false,
+		page = 0,
+		cash = 99,
+		deposit = 40,
+		loan = 15,
+		name_len = 12,
+		bounds = false,
+		feedback = false,
+		cursor = 1,
+	}
+	local state = debug._preview
+	ImGui.AddCheckbox(preview, prefix .. "_PrevOn", "强制显示预览（不办理业务）", function(value)
+		state.on = value == true
+		if not state.on then bank_panel.set_preview(nil) end
+	end, state.on)
+	ImGui.AddCombobox(preview, prefix .. "_PrevPage", "页面", function(index)
+		state.page = index or 0
+	end, page_labels, state.page)
+	local function drag(id, label, key, max_value)
+		ImGui.AddDragInteger(preview, prefix .. id, label, function(value)
+			state[key] = value or 0
+		end, state[key], 1, 0, max_value, "%d")
+	end
+	drag("_PrevCash", "测试现金", "cash", 99999)
+	drag("_PrevDep", "测试存款", "deposit", 99999)
+	drag("_PrevLoan", "测试待还", "loan", 99999)
+	drag("_PrevName", "抵押物名称长度", "name_len", 48)
+	ImGui.AddCheckbox(preview, prefix .. "_PrevBox", "显示外框边界", function(value)
+		state.bounds = value == true
+	end, state.bounds)
+	ImGui.AddCheckbox(preview, prefix .. "_PrevFeedback", "附带失败反馈", function(value)
+		state.feedback = value == true
+	end, state.feedback == true)
+	ImGui.AddCallback(prefix .. "_PrevOn", ImGuiCallback.Render, function()
+		if not state.on then
+			bank_panel.set_preview(nil)
+			return
+		end
+		local n = math.max(1, math.floor(state.name_len or 1))
+		local name = string.rep("甲", n)
+		bank_panel.set_preview({
+			page = pages[(state.page or 0) + 1] or "saving_root",
+			cash = state.cash,
+			deposit = state.deposit,
+			loan_remaining = state.loan,
+			item_name = name,
+			item_id = 1,
+			show_bounds = state.bounds,
+			show_feedback = state.feedback == true,
+			cursor = state.cursor,
+		})
+		local metrics = bank_panel.preview_metrics()
+		local line = "预览已打开。进入一局后看画面。"
+		if metrics then
+			line = string.format(
+				"外框 %d / 上限 %d  %s",
+				metrics.outer_h or 0,
+				metrics.max_h or 0,
+				metrics.fits and "装得下" or "仍超出"
+			)
+		end
+		imgui_layout.update_text(prefix .. "_PrevStatus", line)
 	end)
+	imgui_layout.add_wrapped_text(preview, prefix .. "_PrevStatus", "预览关闭")
 end
 
 function debug.build(parent_id)
-	debug.build_advanced(parent_id)
+	if not ImGui or not parent_id then return end
+	imgui_layout.add_wrapped_text(
+		parent_id, parent_id .. "_BankMoved",
+		"银行金融业务已移到 Debug → 测试 → 贪婪银行测试台。本页只保留剧情进度检查。"
+	)
+end
+
+function debug.build_advanced(parent_id)
+	debug.build(parent_id)
 end
 
 return debug

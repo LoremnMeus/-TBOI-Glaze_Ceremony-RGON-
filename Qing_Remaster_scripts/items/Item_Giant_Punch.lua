@@ -82,6 +82,20 @@ local function get_megamorph_state(player)
 	return 0
 end
 
+--- Flight：读取所属玩家相对正常容量的状态，同步伤害倍率与机体缩放。
+function item.get_craft_modifiers(player)
+	if not player then
+		return {damage_mul = 1, body_scale_mul = 1}
+	end
+	local state = get_megamorph_state(player)
+	if state > 0 then
+		return {damage_mul = 2, body_scale_mul = 1.25}
+	elseif state < 0 then
+		return {damage_mul = 0.5, body_scale_mul = 0.75}
+	end
+	return {damage_mul = 1, body_scale_mul = 1}
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
 	if not continue then save.elses[item.own_key.."run"] = {} end

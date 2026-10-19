@@ -7,6 +7,8 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local player_offset_holder = require("Qing_Remaster_scripts.callbacks.player_offset_holder")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
 local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
+local CraftCharge = require("Qing_Remaster_scripts.others.craft_charge_weapons")
 
 local item = {
 	ToCall = {},
@@ -36,13 +38,48 @@ local item = {
 }
 auxi.add_to_seija(item.entity)
 
+local function torch_center(ent, player)
+	local home = QF.home_entity(ent, player) or player
+	return home
+end
+
+local function torch_copies(ent, player)
+	if QF.blueprint_owned(ent) then
+		return QF.recipe_copies(ent, item.entity, 1)
+	end
+	return math.max(1, player:GetCollectibleNum(item.entity))
+end
+
+local function has_player_controlled_torch(player)
+	if not player then return false end
+	for _, ent in ipairs(Isaac.FindByType(
+		EntityType.ENTITY_FAMILIAR,
+		item.familiar,
+		-1,
+		false,
+		false
+	)) do
+		local fam = ent:ToFamiliar()
+		if fam then
+			local owner = auxi.check_spawner_player(fam)
+			if owner
+				and auxi.check_for_the_same(owner, player)
+				and not QF.blueprint_owned(fam)
+			then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_RENDER, params = nil,
 Function = function(_,player,offset)
 	local room = Game():GetRoom()
 	local s = player:GetSprite()
 	local d = player:GetData()
 	if (Game():GetRoom():GetRenderMode() ~= RenderMode.RENDER_WATER_REFLECT) then
-		if auxi.has_have_coll(player,item.entity) then
+		if has_player_controlled_torch(player) then
 			d[item.own_key.."counter"] = d[item.own_key.."counter"] or 0
 			local cnt = d[item.own_key.."counter"]
 			Charging_Bar_holder.render_me(player,{name1 = item.own_key.."counter",name2 = item.own_key.."sprite",name3 = item.own_key,loadname = "gfx/effects/chargebar/chargebar_Subera_Light.anm2",
@@ -59,6 +96,8 @@ Function = function(_,player,offset)
 					d[item.own_key.."active"] = true
 				end,
 			})
+		else
+			Charging_Bar_holder.remove_charge_bar(player,item.own_key)
 		end
 	end
 end,
@@ -79,7 +118,7 @@ Function = function(_)
 		local ctrlid = player.ControllerIndex
 		local d = player:GetData()
 		if auxi.g_dir_can_work(player) then
-			if auxi.has_have_coll(player,item.entity) then
+			if has_player_controlled_torch(player) then
 				local act = false
 				for i = 4,7 do
 					if (Input.IsActionTriggered(i,ctrlid)) or (Input.IsActionPressed(i,ctrlid)) then
@@ -91,6 +130,9 @@ Function = function(_)
 					if d[item.own_key.."active"] then d[item.own_key.."active"] = nil d[item.own_key.."fire"] = true end
 					d[item.own_key.."counter"] = 0 
 				end
+			else
+				d[item.own_key.."counter"] = 0
+				d[item.own_key.."active"] = nil
 			end
 		end
 		if d[item.own_key.."fired"] then 
@@ -120,10 +162,21 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_FAMILIAR_RENDER, params = item.familiar,
 Function = function(_,ent,offset)
 	local player = auxi.check_spawner_player(ent)
+	if not player then return end
 	local d = ent:GetData()
 	local d2 = player:GetData()
 	if (Game():GetRoom():GetRenderMode() ~= RenderMode.RENDER_WATER_REFLECT) then
-		local pos = Isaac.WorldToScreen(player.Position + player_offset_holder.GetPlayerOffset(player)) + Vector(0,-16) * player.SpriteScale.Y
+		local home = torch_center(ent, player)
+		local pos
+		if QF.blueprint_owned(ent) then
+			local room = Game():GetRoom()
+			pos = Isaac.WorldToScreen(ent.Position + (ent.PositionOffset or Vector.Zero))
+				+ offset
+				- room:GetRenderScrollOffset()
+				+ Vector(0, -16)
+		else
+			pos = Isaac.WorldToScreen(player.Position + player_offset_holder.GetPlayerOffset(player)) + Vector(0,-16) * player.SpriteScale.Y
+		end
 		d[item.own_key.."sprite"] = d[item.own_key.."sprite"] or {}
 		d[item.own_key.."record"] = d[item.own_key.."record"] or {}
 		for i = 1,2 do
@@ -141,8 +194,19 @@ Function = function(_,ent,offset)
 		if tg then ddir = (tg.Position - ent.Position):GetAngleDegrees() end
 		d[item.own_key.."tg"] = tg
 		local gdir = (d[item.own_key.."dir"] or Vector(1,0)):GetAngleDegrees()
-		local mx = 6 + (player:GetCollectibleNum(item.entity) - 1) * 2
-		if auxi.should_do_Seija(player) then mx = 1 + (player:GetCollectibleNum(item.entity) - 1) end
+		local copies = torch_copies(ent, player)
+		local mx = 6 + (copies - 1) * 2
+		if auxi.should_do_Seija(player) then mx = 1 + (copies - 1) end
+		local charge_src = d2
+		local fire_key = item.own_key.."fire"
+		local fired_key = item.own_key.."fired"
+		local counter_key = item.own_key.."counter"
+		if QF.blueprint_owned(ent) then
+			charge_src = d
+			fire_key = item.own_key.."craft_fire"
+			fired_key = item.own_key.."craft_fired"
+			counter_key = item.own_key.."craft_counter"
+		end
 		for i = 1,mx do
 			d[item.own_key.."record"][i] = d[item.own_key.."record"][i] or {}
 			local dir = ddir
@@ -154,9 +218,9 @@ Function = function(_,ent,offset)
 			local col = auxi.table2color(auxi.check_lerp((ii * 6) % item.Colorinfo.total,item.Colorinfo))
 			d[item.own_key.."record"][i][0] = auxi.checkrounded(d[item.own_key.."record"][i][0] or rot,rot,0.8,0.2,360)
 			s1.Rotation = d[item.own_key.."record"][i][0]
-			local cnt = math.max((d2[item.own_key.."fired"] or {}).counter or d2[item.own_key.."counter"] or 0,d2[item.own_key.."counter"] or 0)
+			local cnt = math.max((charge_src[fired_key] or {}).counter or charge_src[counter_key] or 0,charge_src[counter_key] or 0)
 			local basecolor = Color(1,1,1,auxi.check_lerp(cnt,item.Color_base_info).A or 0)
-			if player:GetData()[item.own_key.."fire"] then basecolor = Color(1,1,1,1) end
+			if charge_src[fire_key] then basecolor = Color(1,1,1,1) end
 			col = auxi.MulColor(col,basecolor)
 			s1.Color = auxi.AddColor(basecolor,col,0.8,0.2)
 			s1:Render(pos,Vector(0,0),Vector(0,0))
@@ -192,22 +256,68 @@ Function = function(_,ent)
 	local s = ent:GetSprite()
 	local d = ent:GetData()
 	local d2 = player:GetData()
-	ent.Position = player.Position + Vector(0,-1)
+	local home = torch_center(ent, player)
+	ent.Position = home.Position + Vector(0,-1)
 	ent.Velocity = Vector(0,0)
 	ent.DepthOffset = -10
 	d[item.own_key.."record"] = d[item.own_key.."record"] or {}
-	local ggdir = auxi.ggdir(player)
-	if ggdir:Length() > 0.05 then d[item.own_key.."dir"] = ggdir end
+	local ggdir = QF.resolve_control_dir(ent, player, auxi.ggdir(player))
+	if ggdir and ggdir:Length() > 0.05 then d[item.own_key.."dir"] = ggdir end
 	local gdir = (d[item.own_key.."dir"] or Vector(1,0)):GetAngleDegrees()
-	local mx = 6 + (player:GetCollectibleNum(item.entity) - 1) * 2
+	local copies = torch_copies(ent, player)
+	local mx = 6 + (copies - 1) * 2
 	if auxi.should_do_Seija(player) then 
 		d[item.own_key.."counter"] = (d[item.own_key.."counter"] or 0) + 0.02
-		mx = 1 + (player:GetCollectibleNum(item.entity) - 1)
+		mx = 1 + (copies - 1)
 	end
-	if d2[item.own_key.."fire"] then
+	local charge_src = d2
+	local fire_key = item.own_key.."fire"
+	local fired_key = item.own_key.."fired"
+	local counter_key = item.own_key.."counter"
+	if QF.blueprint_owned(ent) then
+		charge_src = d
+		fire_key = item.own_key.."craft_fire"
+		fired_key = item.own_key.."craft_fired"
+		counter_key = item.own_key.."craft_counter"
+		if d[fired_key] then
+			d[fired_key].counter = (d[fired_key].counter or 0) - item.step_time
+			if d[fired_key].counter < 0 then d[fired_key] = nil end
+		end
+		local ac = QF.resolve_attack_control(ent, player, nil)
+		if d[fired_key] then
+			d[counter_key] = 0
+		elseif ac.want then
+			d[counter_key] = (d[counter_key] or 0) + 1
+			if (d[counter_key] or 0) >= item.time_counter then
+				d[fire_key] = true
+				d[counter_key] = 0
+			end
+		else
+			d[counter_key] = 0
+			d[fire_key] = nil
+		end
+		if auxi.check_all_exists(home) and home ~= player then
+			local cnt = tonumber(d[counter_key]) or 0
+			local ratio = math.max(0, math.min(1, cnt / item.time_counter))
+			CraftCharge.publish_bar(home, "subera", {
+				ratio = ratio,
+				visible = ratio > 0.05,
+				anm2 = "gfx/effects/chargebar/chargebar_Subera_Light.anm2",
+				priority = 30,
+			})
+			d[item.own_key.."bar_air"] = home
+		end
+	else
+		local prev_air = d[item.own_key.."bar_air"]
+		if auxi.check_all_exists(prev_air) then
+			CraftCharge.clear_external_bar(prev_air, "subera")
+		end
+		d[item.own_key.."bar_air"] = nil
+	end
+	if charge_src[fire_key] then
 		for i = 1,mx do
 			d[item.own_key.."record"][i] = d[item.own_key.."record"][i] or {}
-			local pos = d[item.own_key.."record"][i][10] or player.Position
+			local pos = d[item.own_key.."record"][i][10] or home.Position
 			local ii = i * 6/mx
 			if auxi.should_do_Seija(player) then ii = ii + (d[item.own_key.."counter"] or 0) end
 			local dir = auxi.get_by_rotate(nil,ii * 60 + gdir - 90)
@@ -233,14 +343,14 @@ Function = function(_,ent)
 			--for i = 0,1 do s:ReplaceSpritesheet(i,"gfx/effects/lasers/tecro_laser_brimstone.png") end s:LoadGraphics() 
 		end
 		delay_buffer.addeffe(function(params) SFXManager():Stop(276) end,{},1)
-		d2[item.own_key.."fire"] = nil
-		d2[item.own_key.."fired"] = {counter = 60 + 20 * item.step_time,}
+		charge_src[fire_key] = nil
+		charge_src[fired_key] = {counter = 60 + 20 * item.step_time,}
 	end
 	for i = 1,mx do
 		d[item.own_key.."record"][i] = d[item.own_key.."record"][i] or {}
 		if auxi.check_all_exists(d[item.own_key.."record"][i].brim) then
 			local q = d[item.own_key.."record"][i].brim
-			local pos = d[item.own_key.."record"][i][10] or player.Position
+			local pos = d[item.own_key.."record"][i][10] or home.Position
 			local ii = i * 6/mx
 			if auxi.should_do_Seija(player) then 
 				ii = ii + (d[item.own_key.."counter"] or 0)
@@ -255,6 +365,18 @@ Function = function(_,ent)
 		end
 	end
 end,
+})
+
+QF.register_mod_familiar({
+	collectible = item.entity,
+	variant = item.familiar,
+	key = "subera_light",
+	zh = "次时代炬火",
+	en = "Subera Light",
+	movement = "follow",
+	control_mode = "move_only",
+	custom_move = true,
+	exclude_from_formation = true,
 })
 
 return item

@@ -191,15 +191,130 @@ function rooms.lookup_room_config(def)
 	return nil, "room_not_loaded"
 end
 
-function rooms.enter(id)
+local function room_identity()
+	local desc = Game():GetLevel():GetCurrentRoomDesc()
+	if not desc or not desc.Data then return nil end
+	return {
+		type = desc.Data.Type,
+		variant = desc.Data.Variant,
+		index = desc.ListIndex or desc.SafeGridIndex,
+	}
+end
+
+local function same_room(a, b)
+	if not a or not b then return false end
+	return a.type == b.type and a.variant == b.variant and a.index == b.index
+end
+
+--- 提交 goto，并记下待核对的目标。返回值里的 pending 只表示指令已提交。
+function rooms.begin_travel(id, request_id)
 	local def = rooms.HQ[id]
-	if not def then return false, "unknown" end
+	if not def then
+		rooms._travel = {
+			request_id = request_id,
+			phase = "failed",
+			ok = false,
+			code = "unknown",
+			message = "传送失败：未知总部房间。",
+		}
+		return rooms._travel
+	end
+	if rooms.get_current_id() == id then
+		rooms._travel = {
+			request_id = request_id,
+			id = id,
+			variant = def.variant,
+			phase = "arrived",
+			ok = true,
+			code = "already_there",
+			message = string.format("已在目标房间（%s）。", tostring(def.variant)),
+		}
+		return rooms._travel
+	end
 	local cfg, reason = rooms.lookup_room_config(def)
 	if not cfg then
-		return false, reason or "room_not_loaded"
+		rooms._travel = {
+			request_id = request_id,
+			id = id,
+			variant = def.variant,
+			phase = "failed",
+			ok = false,
+			code = reason or "room_not_loaded",
+			message = "传送失败：目标银行房间未载入。请检查 STB 导出结果。",
+		}
+		return rooms._travel
 	end
+	rooms._travel = {
+		request_id = request_id,
+		id = id,
+		variant = def.variant,
+		room_type = def.type,
+		phase = "submitted",
+		ok = false,
+		pending = true,
+		code = "submitted",
+		from = room_identity(),
+		submitted_frame = Game():GetFrameCount(),
+		message = string.format("已提交传送，等待进入 %s（%s）。", tostring(id), tostring(def.variant)),
+	}
 	Isaac.ExecuteCommand("goto " .. goto_command_for(def))
-	return true
+	return rooms._travel
+end
+
+--- 在进房或后续帧里核对是否真的到达。超时约 3 秒（Game 帧 30Hz）。
+function rooms.poll_travel()
+	local t = rooms._travel
+	if not t or t.phase ~= "submitted" then return t end
+	if rooms.get_current_id() == t.id then
+		t.phase = "arrived"
+		t.ok = true
+		t.pending = false
+		t.code = "arrived"
+		t.message = string.format("已进入 %s（%s）。", tostring(t.id), tostring(t.variant))
+		return t
+	end
+	local now_id = room_identity()
+	local moved = t.from and now_id and not same_room(t.from, now_id)
+	local timed_out = (Game():GetFrameCount() - (t.submitted_frame or 0)) >= 90
+	if moved or timed_out then
+		t.phase = "failed"
+		t.ok = false
+		t.pending = false
+		t.code = "not_arrived"
+		t.message = "传送失败：已提交指令，但玩家没有进入指定房间。"
+	end
+	return t
+end
+
+function rooms.travel_state()
+	return rooms._travel
+end
+
+function rooms.diagnose_room_configs()
+	local rows = {}
+	local order = {
+		"entrance", "main", "records", "deposit",
+		"repossession", "settlement", "boss", "treasury",
+	}
+	for _, id in ipairs(order) do
+		local def = rooms.HQ[id]
+		local cfg, reason = rooms.lookup_room_config(def)
+		rows[#rows + 1] = {
+			id = id,
+			variant = def and def.variant or nil,
+			ok = cfg ~= nil,
+			code = cfg and "loaded" or (reason or "room_not_loaded"),
+		}
+	end
+	return rows
+end
+
+function rooms.enter(id)
+	local result = rooms.begin_travel(id)
+	if result and result.phase == "failed" then
+		return false, result.code
+	end
+	return true, result and result.code or "submitted"
 end
 
 function rooms.marker_type()
@@ -991,6 +1106,7 @@ table.insert(rooms.ToCall, #rooms.ToCall + 1, {
 	params = nil,
 	Function = function(_)
 		rooms.on_new_room()
+		rooms.poll_travel()
 		rooms.try_auto_spawn_branch()
 	end,
 })
@@ -1000,6 +1116,7 @@ table.insert(rooms.ToCall, #rooms.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_UPDATE,
 	params = nil,
 	Function = function(_)
+		rooms.poll_travel()
 		if not Game():IsGreedMode() then return end
 		if (Game():GetFrameCount() % 15) ~= 0 then return end
 		rooms.try_auto_spawn_branch()

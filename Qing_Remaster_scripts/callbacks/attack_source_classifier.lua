@@ -145,7 +145,7 @@ end
 function M.GetPreferredAimDirection(source, attack, event)
 	local resolver = require("Qing_Remaster_scripts.callbacks.attack_aim_resolver")
 	local ctx = resolver.GetAttackAimContext(source, attack, event)
-	return (ctx and ctx.direction) or Vector(1, 0)
+	return ctx and ctx.direction or nil
 end
 
 function M.GetAttackAimContext(source, attack, event)

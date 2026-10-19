@@ -2768,13 +2768,13 @@ item.Collectibles = {
         zh = {
             Name = "宝宝安娜",
             Desc = "我来吞噬！",
-            Description = "{{Chargeable}} 蓄力后向瞄准方向高速发射宝宝"..
+            Description = "{{Chargeable}} 蓄满后向瞄准方向高速发射宝宝"..
             "#飞行过程中在身后留下{{Collectible118}}硫磺火尾迹",
         },
         en = {
             Name = "Baby Anna",
             Desc = "I devour!",
-            Description = "{{Chargeable}} Charge, then launch the familiar toward your aim"..
+            Description = "{{Chargeable}} At full charge, launch the familiar toward your aim"..
             "#Leaves a {{Collectible118}} Brimstone trail while flying",
         },
     },
@@ -3545,6 +3545,46 @@ item.Collectibles = {
             "#When gaining a new item, it may return to that item's pedestal",
         },
     },
+    [164] = {
+        Name = "微型更新",
+        id = Items.Tiny_Update,
+        type = "passive",
+        xmlId = 175,
+        zh = {
+            Name = "微型更新",
+            Desc = "修复了一些已知问题",
+            Description = "#有概率发布一次微型更新"..
+            "#随机增强或削弱其他道具的属性、生命奖励与充能需求"..
+            "#也可能改变道具池中的道具分布",
+        },
+        en = {
+            Name = "Tiny Update",
+            Desc = "Fixed some known issues",
+            Description = "#Chance to publish a Tiny Update"..
+            "#Randomly buffs or nerfs other items' stats, heart rewards, and charge requirements"..
+            "#May also change item pool contents",
+        },
+    },
+    [165] = {
+        Name = "套娃弹珠",
+        id = Items.Matryoshka_Marbles,
+        type = "passive",
+        xmlId = 176,
+        zh = {
+            Name = "套娃弹珠",
+            Desc = "一颗接着一颗！",
+            Description = "#概率将眼泪变为套娃弹珠"..
+            "#套娃弹珠命中敌人后会弹起，并分裂成两颗更小的弹珠，最多分裂3次"..
+            "#弹珠始终受到沿原始发射方向的重力",
+        },
+        en = {
+            Name = "Matryoshka Marbles",
+            Desc = "One after another!",
+            Description = "#Chance to turn tears into matryoshka marbles"..
+            "#Marbles bounce off enemies and split into two smaller marbles, up to 3 times"..
+            "#Marbles are constantly pulled in their original firing direction",
+        },
+    },
 }
 
 item.Trinkets = {
@@ -3850,8 +3890,8 @@ item.Cards = {
             Name = "琉璃的骰子碎片",
             Desc = "我的模仿者在何方？何方？何方？",
             Description = "将房间内的道具随机变为同色道具"..
-            "#常见基础掉落变为对应的琉璃版本 {{Coin}}{{Heart}}{{Key}}{{Bomb}}{{GrabBag}}{{Battery}}{{Poop}}"..
-            "#敌人琉璃化",
+            "#将常见掉落物转化为对应的琉璃版本 {{Coin}}{{Heart}}{{Key}}{{Bomb}}{{GrabBag}}{{Battery}}{{Poop}}"..
+            "#使房间内的敌人琉璃化",
             Frame = 0,
         },
         en = {
@@ -5864,13 +5904,13 @@ item.Pickups = {
         SubType = Pickups.Glaze_heart.SubType,
         zh = {
             Name = "琉璃之心",
-            Description = "根据当前生命模仿一种可获得的心"..
+            Description = "模仿当前生命槽内的一颗心"..
             "#优先抵消{{BrokenHeart}}碎心与{{RottenHeart}}腐心",
         },
         en = {
             Name = "Glaze Heart",
-            Description = "Imitates an obtainable heart based on your health"..
-            "#Priority: remove {{BrokenHeart}} Broken Hearts and {{RottenHeart}} Rotten Hearts",
+            Description = "Copies a heart from your current health bar"..
+            "#Prioritizes removing {{BrokenHeart}} Broken Hearts and {{RottenHeart}} Rotten Hearts",
         },
     },
     [2] = {
@@ -5878,13 +5918,13 @@ item.Pickups = {
         SubType = Pickups.Glaze_heart_half.SubType,
         zh = {
             Name = "琉璃之半心",
-            Description = "根据当前生命模仿一种可获得的心（半颗）"..
+            Description = "模仿当前生命槽内的半颗心"..
             "#优先抵消{{BrokenHeart}}碎心与{{RottenHeart}}腐心",
         },
         en = {
             Name = "Half of a Glaze Heart",
-            Description = "Imitates an obtainable heart based on your health (half)"..
-            "#Priority: remove {{BrokenHeart}} Broken Hearts and {{RottenHeart}} Rotten Hearts",
+            Description = "Copies half a heart from your current health bar"..
+            "#Prioritizes removing {{BrokenHeart}} Broken Hearts and {{RottenHeart}} Rotten Hearts",
         },
     },
 
@@ -5893,13 +5933,13 @@ item.Pickups = {
         SubType = Pickups.Glaze_key.SubType,
         zh = {
             Name = "琉璃之匙",
-            Description = "优先揭示未探索的{{TreasureRoom}}/{{Shop}}/{{BossRoom}}等特殊房（不含隐藏系）"..
-            "#没有则揭示最多3个普通房间",
+            Description = "揭示一个随机的未探索房间"..
+            "#优先揭示特殊房间",
         },
         en = {
             Name = "Glaze Key",
-            Description = "Reveal an unexplored special room (Treasure/Shop/Boss; not secret)"..
-            "#If none, reveal up to 3 normal rooms",
+            Description = "Reveals one random unexplored room"..
+            "#Prioritizes special rooms",
         },
     },
     [4] = {
@@ -5919,17 +5959,13 @@ item.Pickups = {
         SubType = Pickups.Glaze_grabbag.SubType,
         zh = {
             Name = "琉璃之福袋",
-            Description = "消耗富余的硬币/钥匙/炸弹，生成对应琉璃掉落"..
-            "#硬币>5、钥匙>1、炸弹>1才会计入"..
-            "#最多约3份"..
-            "#{{PoopPickup}} 没有可消耗资源时生成琉璃便便",
+            Description = "消耗硬币、钥匙或炸弹，将其转化为对应的琉璃掉落物"..
+            "#{{PoopPickup}} 没有可转换的资源时生成琉璃之便便",
         },
         en = {
             Name = "Glaze Grabbag",
-            Description = "Convert surplus coins/keys/bombs into glazed pickups"..
-            "#Only coins>5, keys>1, bombs>1 count"..
-            "#Up to about 3"..
-            "#{{PoopPickup}} Spawns a glaze poop if nothing to convert",
+            Description = "Consumes coins, keys, or bombs and converts them into matching glazed pickups"..
+            "#{{PoopPickup}} Spawns a Glaze Poop if nothing can be converted",
         },
     },
     [6] = {
@@ -5937,7 +5973,7 @@ item.Pickups = {
         SubType = Pickups.Glaze_battery.SubType,
         zh = {
             Name = "琉璃之电池",
-            Description = "下次使用普通主动时，返还一半消耗的充能（向上取整）",
+            Description = "下次使用普通主动道具时，返还一半消耗的充能",
         },
         en = {
             Name = "Glaze Battery",
@@ -5949,17 +5985,15 @@ item.Pickups = {
         SubType = Pickups.Glaze_chest.SubType,
         zh = {
             Name = "琉璃之宝箱",
-            Description = "本层另一个房间会出现对应钥匙，钥匙房会在地图上标记"..
-            "#只有对应钥匙才能打开宝箱"..
-            "#60%：生成4~7个随机琉璃掉落"..
-            "#40%：复制一个当前持有的随机道具",
+            Description = "本层另一房间会出现对应钥匙，位置会在地图上标记"..
+            "#找到钥匙后可以打开宝箱"..
+            "#开箱时获得大量琉璃掉落物，或复制一件持有的道具",
         },
         en = {
             Name = "Glaze Chest",
-            Description = "A matching key appears in another room on this floor; its room is marked on the map"..
-            "#Only that key can open the chest"..
-            "#60%: spawns 4~7 random glazed pickups"..
-            "#40%: duplicates a random item you currently own",
+            Description = "A matching key appears in another room on this floor, marked on the map"..
+            "#Find the key to open the chest"..
+            "#Opening it grants several glazed pickups or duplicates one of your items",
         },
     },
     [8] = {
@@ -5968,12 +6002,12 @@ item.Pickups = {
         zh = {
             Name = "琉璃之便便",
             Description = "将队首便便复制到队列末尾"..
-            "#空队列时获得基础便便",
+            "#空队列时获得基础便便，并增加便便法力",
         },
         en = {
             Name = "Glaze poop",
             Description = "Copy the front poop spell to the end of the queue"..
-            "#Empty queue grants a basic poop",
+            "#An empty queue grants a basic poop and adds poop mana",
         },
     },
     [10] = {
@@ -5984,12 +6018,12 @@ item.Pickups = {
         zh = {
             Name = "琉璃硬币",
             Description = "#缓缓吸引周围的掉落物"..
-                "#{{Coin}} 拾取：90%获得1枚硬币，10%获得5枚",
+                "#{{Coin}} 拾取时有概率获得更多硬币",
         },
         en = {
             Name = "Glaze Coin",
             Description = "#Slowly attracts nearby pickups"..
-                "#{{Coin}} On pickup: 90% for 1 coin, 10% for 5",
+                "#{{Coin}} May grant extra coins when collected",
         },
     },
     -- SubType 运行时为对应收藏品 ID；实际 Name/Desc 由 pickup_blueprint_prototype.load_EID / get_texts 动态覆盖
@@ -6018,7 +6052,7 @@ item.Slots = {
         id = enums.Slots.Bard_beggar.Variant,
         zh = {
             Name = "吟游乞丐",
-            Description = "赠予一份资源，换取下层祝福"..
+            Description = "交付一份资源，获得下一层的祝福"..
             "#靠近后左右切换馈赠，走进确认"..
             "#按{{ButtonRT}}取消",
         },

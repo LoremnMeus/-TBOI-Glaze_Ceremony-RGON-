@@ -117,9 +117,12 @@ local function build_thread_panel(parent_id, prefix, desc)
 
 	imgui_layout.add_wrapped_text(hdr, hdr .. "_Env", "")
 	ImGui.AddCallback(hdr .. "_Env", ImGuiCallback.Render, function()
-		local lines = {
-			tr("目标楼层：", "Target floor: ") .. floor_label(desc.floor_preset),
-		}
+		local lines = {}
+		if desc.floor_preset then
+			lines[#lines + 1] = tr("目标楼层：", "Target floor: ") .. floor_label(desc.floor_preset)
+		elseif desc.go_to_test_location then
+			lines[#lines + 1] = tr("目标：银行总部入口（到达结果在贪婪银行测试台核对）", "Target: bank HQ entrance")
+		end
 		if desc.notes then lines[#lines + 1] = tostring(desc.notes) end
 		imgui_layout.update_text(hdr .. "_Env", table.concat(lines, "\n"))
 	end)
@@ -129,6 +132,15 @@ local function build_thread_panel(parent_id, prefix, desc)
 		tr("测试入口", "Test entry")
 	)
 	ImGui.AddButton(hdr, hdr .. "_Floor", tr("前往测试楼层", "Go to test floor"), function()
+		if type(desc.go_to_test_location) == "function" then
+			local ok, msg = desc.go_to_test_location()
+			session.last_message = msg or (ok and tr("已提交银行传送", "Bank travel submitted") or tr("银行传送失败", "Bank travel failed"))
+			return
+		end
+		if not desc.floor_preset then
+			session.last_message = tr("此支线没有可前往的测试位置", "This thread has no test location")
+			return
+		end
 		go_to_floor(desc.floor_preset)
 	end)
 	ImGui.AddButton(hdr, hdr .. "_Start", tr("开始支线测试", "Start side-event test"), function()

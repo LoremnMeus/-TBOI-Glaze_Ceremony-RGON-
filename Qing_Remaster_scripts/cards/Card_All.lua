@@ -8,7 +8,30 @@ local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_h
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 
+local card_registry = require("Qing_Remaster_scripts.cards.card_registry")
+local card_mapping = require("Qing_Remaster_scripts.cards.card_mapping")
+
 local Cards = enums.Cards
+
+-- 仅供普通卡池生成。自定义倒位透特不会进入引擎倒位候选，
+-- 所以每张正位来源对应一张倒位目标。这不是卡牌翻面关系。
+local natural_reverse_overrides = {
+	[Cards.Witch] = Cards.Sage_r,
+	[Cards.Invoker] = Cards.Corpse_r,
+	[Cards.Wizard] = Cards.Death_r,
+	[Cards.Faint] = Cards.Faint_r,
+}
+
+local function choose_natural_reverse(card, rng)
+	local override = natural_reverse_overrides[card]
+	if override then return override end
+	return card_mapping.flip(card, rng)
+end
+
+local function book_of_thoth_held()
+	return auxi.have_player_has_collectible(enums.Items.Book_of_Thoth) ~= nil
+end
+
 local item = {
 	pre_ToCall = {},
 	ToCall = {},
@@ -64,7 +87,6 @@ local function appear_rates_bag()
 end
 
 function item.list_configurable_cards()
-	local card_registry = require("Qing_Remaster_scripts.cards.card_registry")
 	local list = {}
 	for _, card_id in ipairs(card_registry.get_thoth_cards()) do
 		local meta = card_registry.get(card_id)
@@ -127,18 +149,15 @@ end,
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_GET_CARD, params = nil,
 Function = function(_,rng,card,playing,rune,onlyrune)
 	local ret = card
-	if auxi.is_origin_card_map(card) then
+	if card_registry.is_thoth(card) and not book_of_thoth_held() then
 		rng = auxi.rng_for_sake(rng)
-		local rnd = rng:RandomInt(10)
-		if rnd < 10 then ret = auxi.get_origin_card_map(card,rng) end
-	end
-	if auxi.is_thoth_card(ret) then
-		rng = auxi.rng_for_sake(rng)
-		local rnd = rng:RandomInt(1000)/1000
-		-- 出现率：低于该概率则映射回原版对应卡
+		local meta = card_registry.get(card)
+		if meta and not meta.reversed and rng:RandomInt(10) < 4 then
+			ret = choose_natural_reverse(card, rng) or card
+		end
+		local rnd = rng:RandomInt(1000) / 1000
 		if rnd >= item.get_card_appear_rate(ret) then
-			local mapped = auxi.get_maped_card(card,rng)
-			if mapped then ret = mapped end
+			ret = card_mapping.to_vanilla(ret) or ret
 		end
 	end
 	if ret ~= card then return ret end

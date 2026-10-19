@@ -4,9 +4,17 @@
 --
 -- 规则：
 -- 1. register_compat / EXTRA_IMPL 只表示已实装，不等于自动有 pedestal EID。
--- 2. CRAFT_EXCLUDED / ingredient banned 只服务制造页与审计，不产生 pedestal EID。
+-- 2. CRAFT_EXCLUDED / ingredient banned / INHERITED_PLAYER_EFFECT
+--    只服务制造页与审计，不产生 pedestal EID。
 -- 3. Blueprint EID 只写装入飞行器后玩家可观察的差异；一般 1 行，最多 2 行。
 -- 4. 有定制 lines 且已含属性时设 suppress_auto_stats，禁止再拼泛化属性句。
+-- 5. 最终行数审计以 collectible_craft_eid_lines / export_eid_audit 输出为准
+--    （codex_work/logs/blueprint_eid_audit_{zh,en}.json）；
+--    scripts/dev/audit_blueprint_craft_eid.py 消费该 JSON 做 FINAL_EID_*。
+-- 6. 多属性永远合并为一行「飞行器获得：…」；完整机制句可 covers 其固有 tear effect。
+-- 7. 属性行未覆盖的实际兼容能力必须另写；被 covers 覆盖的细节不重复。
+-- 8. EID 属性显示：range=内部/40；firedelay 加算取反为 Tears；*_mul 跟在同属性后；
+--    firedelay_mul 按 Tear Delay 乘区显示为射速×(1/mul)。不改写 STAT_DELTA。
 local enums = require("Qing_Remaster_scripts.core.enums")
 local json = require("json")
 local dev_env = require("Qing_Remaster_scripts.core.dev_environment")
@@ -21,7 +29,17 @@ local WEAPON_FULL = {
 	[5] = {zh = "胎儿博士", en = "Dr. Fetus"},
 	[6] = {zh = "史诗胎儿", en = "Epic Fetus"},
 	[7] = {zh = "萌死戳的肺", en = "Monstro's Lung"},
-	[8] = {zh = "鲁多维科科技", en = "Ludovico Technique"},
+	-- Ludo 作为完整攻击方式，固有幽灵/穿透/可控已由 weapon 句覆盖。
+	[8] = {
+		zh = "鲁多维科科技",
+		en = "Ludovico Technique",
+		covers = {
+			spectral = true,
+			piercing = true,
+			spectral_piercing = true,
+			controlled = true,
+		},
+	},
 	[9] = {zh = "科技X", en = "Tech X"},
 	[10] = {zh = "骨棒", en = "Bone Club"},
 	[13] = {zh = "英灵剑", en = "Spirit Sword"},
@@ -185,6 +203,32 @@ M.CRAFT_EID_META = {
 		module_zh = {"九命猫跟随飞行器；坠毁时使其复原，最多9次。"},
 		module_en = {"Dead Cat follows the Air Flight; crashes restore it up to 9 times."},
 	},
+	-- Revive-only craft sources（无跟随演出；勿写角色复生/账本细节）
+	[688] = {
+		status = "supported",
+		module_zh = {"飞行器首次坠毁时，使其复原。"},
+		module_en = {"Restores the Air Flight after its first crash."},
+	},
+	[212] = {
+		status = "supported",
+		module_zh = {"飞行器坠毁时，有50%概率使其复原。"},
+		module_en = {"Has a 50% chance to restore the Air Flight after a crash."},
+	},
+	[332] = {
+		status = "supported",
+		module_zh = {"飞行器首次坠毁时，使其复原。"},
+		module_en = {"Restores the Air Flight after its first crash."},
+	},
+	[161] = {
+		status = "supported",
+		module_zh = {"飞行器首次坠毁时，使其复原。"},
+		module_en = {"Restores the Air Flight after its first crash."},
+	},
+	[311] = {
+		status = "supported",
+		module_zh = {"飞行器首次坠毁时，使其复原。"},
+		module_en = {"Restores the Air Flight after its first crash."},
+	},
 	[436] = {
 		status = "supported",
 		movement = "follow",
@@ -271,22 +315,22 @@ M.CRAFT_EID_META = {
 	[560] = {
 		status = "supported",
 		module_zh = {
-			"所属玩家受伤后，飞行器环射大血泪并留下血迹。",
-			"本房间提高飞行器射速。",
+			"玩家受伤后，飞行器环射大血泪并留下血迹。",
+			"同时提高本房间的飞行器射速。",
 		},
 		module_en = {
-			"After the owning player takes damage, the Air Flight fires large blood tears with creep.",
-			"Raises the Air Flight's fire rate for the room.",
+			"After the player takes damage, the Air Flight fires large blood tears with creep.",
+			"Also raises the Air Flight's fire rate for the room.",
 		},
 	},
 	[502] = {
 		status = "supported",
 		module_zh = {
-			"所属玩家受伤后，飞行器发射减速痘泪并留下白水迹。",
+			"玩家受伤后，飞行器发射减速痘泪并留下白水迹。",
 			"基础齐射时有概率额外发射一发痘泪。",
 		},
 		module_en = {
-			"After the owner takes damage, the Air Flight fires a slowing booger tear that leaves white creep.",
+			"After the player takes damage, the Air Flight fires a slowing booger tear that leaves white creep.",
 			"Base volleys have a chance to fire an extra booger tear.",
 		},
 	},
@@ -340,6 +384,17 @@ M.CRAFT_EID_META = {
 		status = "unsupported",
 		module_zh = {"原版已无受伤触发效果；制造侧受伤虚空环兼容已停用。"},
 		module_en = {"Vanilla no longer triggers on hurt; craft Athame Maw-ring compat disabled."},
+	},
+	-- 495/616 共用 EXTRA_IMPL=candle；分道具 EID（原生火焰机制不写进文案）
+	[495] = {
+		status = "supported",
+		module_zh = {"飞行器攻击时有概率额外生成蓝色火焰。"},
+		module_en = {"The Air Flight's attacks have a chance to spawn a Blue Flame."},
+	},
+	[616] = {
+		status = "supported",
+		module_zh = {"飞行器攻击时有概率额外生成红色火焰。"},
+		module_en = {"The Air Flight's attacks have a chance to spawn a Red Flame."},
 	},
 	[573] = {
 		status = "supported",
@@ -537,6 +592,27 @@ local EXTRA_EID = {
 		lines_zh = {"使飞行器蓄力齐射；蓄力时所属玩家受伤，会传送飞行器及关联宝宝。"},
 		lines_en = {"Makes the Air Flight charge multi-shots; taking damage while charging teleports it and linked familiars."},
 	},
+	-- Revive craft sources（与 CRAFT_EID_META 对齐；无跟随演出）
+	inner_child = {
+		lines_zh = {"飞行器首次坠毁时，使其复原。"},
+		lines_en = {"Restores the Air Flight after its first crash."},
+	},
+	guppys_collar = {
+		lines_zh = {"飞行器坠毁时，有50%概率使其复原。"},
+		lines_en = {"Has a 50% chance to restore the Air Flight after a crash."},
+	},
+	lazarus_rags = {
+		lines_zh = {"飞行器首次坠毁时，使其复原。"},
+		lines_en = {"Restores the Air Flight after its first crash."},
+	},
+	ankh = {
+		lines_zh = {"飞行器首次坠毁时，使其复原。"},
+		lines_en = {"Restores the Air Flight after its first crash."},
+	},
+	judas_shadow = {
+		lines_zh = {"飞行器首次坠毁时，使其复原。"},
+		lines_en = {"Restores the Air Flight after its first crash."},
+	},
 	-- Batch-1 / 1.2 / 2：只写玩家可观察效果；register_compat ≠ 自动有 EID。
 	-- 有 STAT_DELTA 且文案已含属性时设 suppress_auto_stats，避免再拼泛化属性句。
 	cursed_mask = {
@@ -576,6 +652,43 @@ local EXTRA_EID = {
 		lines_zh = {"飞行器根据所属玩家当前的辉片层数获得攻击与幸运"},
 		lines_en = {"The Air Flight gains Damage and Luck from the owner's current Crown shards"},
 	},
+	mental_hypnosis = {
+		lines_zh = {"继承精神控制当前累计的属性变化。"},
+		lines_en = {"Inherits the stat changes currently accumulated by Mental Hypnosis."},
+	},
+	cheater_blessing = {
+		suppress_auto_stats = true,
+		lines_zh = {"每份模块为飞行器提供微量攻击、射速、射程、移速、幸运与弹速。"},
+		lines_en = {"Each copy grants the Air Flight tiny Damage, Tears, Range, Speed, Luck and Shot Speed."},
+	},
+	hypermnesia = {
+		lines_zh = {"根据所属玩家身上的重复道具数量，为飞行器提供属性加成。"},
+		lines_en = {"Grants the Air Flight stats based on the owner's duplicate collectible count."},
+	},
+	darkness = {
+		lines_zh = {"根据所属玩家当前黑心数量，提高飞行器伤害。"},
+		lines_en = {"Increases Air Flight Damage based on the owner's current Black Hearts."},
+	},
+	dragon_tooth = {
+		lines_zh = {"飞行器伤害 ×1.5，并加上已开启龙房提供的固定伤害。"},
+		lines_en = {"Air Flight Damage ×1.5, plus flat Damage from opened Dragon rooms."},
+	},
+	giant_punch = {
+		lines_zh = {"根据所属玩家相对正常血量容量的状态，同步飞行器伤害与机体体型。"},
+		lines_en = {"Syncs Air Flight Damage and body scale to the owner's fill vs normal health capacity."},
+	},
+	moment = {
+		lines_zh = {"继承妖星·一瞬当前累计的属性变化。"},
+		lines_en = {"Inherits the stat changes currently accumulated by Moment."},
+	},
+	sacred_mind_shield = {
+		lines_zh = {"继承心灵冲击波累计的攻击与弹速变化。"},
+		lines_en = {"Inherits Damage and Shot Speed accumulated by Sacred Mind Shield shockwaves."},
+	},
+	watcher = {
+		lines_zh = {"飞行器会锁定并攻击监视范围内的玩家和敌人。"},
+		lines_en = {"The Air Flight locks on to and attacks players and enemies within its surveillance range."},
+	},
 	tech9 = {
 		lines_zh = {"飞行器攻击时有概率追加科技激光或科技X激光环"},
 		lines_en = {"Air Flight attacks have a chance to add a Technology laser or Tech X ring"},
@@ -603,6 +716,168 @@ local EXTRA_EID = {
 	gospel = {
 		lines_zh = {"飞行器每4次攻击中有一次成为福音攻击"},
 		lines_en = {"Every 4th Air Flight attack becomes a Gospel attack"},
+	},
+	-- EXTRA_IMPL 行为债（属性由 sentence_stat_summary 自动层处理；此处只写行为）
+	tough_love = {
+		lines_zh = {"飞行器的泪弹有概率变为高伤害牙齿泪弹。"},
+		lines_en = {"The Air Flight's tears have a chance to become high-damage tooth tears."},
+	},
+	chemical_peel = {
+		lines_zh = {"飞行器左眼的泪弹获得 +2 伤害并变为血泪。"},
+		lines_en = {"The Air Flight's left-eye tears gain +2 Damage and become bloody tears."},
+	},
+	dollar_bill = {
+		lines_zh = {"飞行器的泪弹效果会周期性随机变化。"},
+		lines_en = {"The Air Flight's tear effects periodically change at random."},
+	},
+	moms_wig = {
+		lines_zh = {"飞行器攻击时有概率生成蓝蜘蛛。"},
+		lines_en = {"The Air Flight's attacks have a chance to spawn blue spiders."},
+	},
+	experimental = {
+		lines_zh = {"飞行器随机获得4项属性提升和2项属性降低。"},
+		lines_en = {"The Air Flight randomly gains 4 stat increases and 2 stat decreases."},
+	},
+	hive_mind = {
+		lines_zh = {"配合妈妈的假发时，飞行器生成的蓝蜘蛛上限提高至10只。"},
+		lines_en = {"With Mom's Wig, the Air Flight's blue spider cap increases to 10."},
+	},
+	blood_clot = {
+		lines_zh = {"飞行器左眼的泪弹获得 +1 伤害、+2.75 射程并变为血泪。"},
+		lines_en = {"The Air Flight's left-eye tears gain +1 Damage, +2.75 Range, and become bloody tears."},
+	},
+	libra = {
+		lines_zh = {"持续平衡飞行器的伤害、射速、射程与移速。"},
+		lines_en = {"Continuously balances the Air Flight's Damage, Fire Rate, Range, and Speed."},
+	},
+	number_two = {
+		lines_zh = {"飞行器持续攻击一段时间后会在脚下生成大便炸弹。"},
+		lines_en = {"After firing continuously for a while, the Air Flight drops a Butt Bomb."},
+	},
+	fruit_cake = {
+		lines_zh = {"飞行器的每发泪弹都会随机获得一种泪弹效果。"},
+		lines_en = {"Each Air Flight tear gains a random tear effect."},
+	},
+	kidney = {
+		lines_zh = {"飞行器会偶尔停止攻击并蓄力发射肾结石与泪弹齐射。"},
+		lines_en = {"The Air Flight occasionally stops to charge and fire a kidney stone barrage."},
+	},
+	dark_princes_crown = {
+		lines_zh = {"所属玩家恰有1个完整红心时，飞行器获得射速、射程与弹速加成。"},
+		lines_en = {"With exactly 1 full Red Heart, the Air Flight gains Fire Rate, Range, and Shot Speed."},
+	},
+	lead_pencil = {
+		lines_zh = {"飞行器每15次攻击额外发射一轮高伤害泪弹。"},
+		lines_en = {"Every 15 Air Flight attacks, fires an extra burst of high-damage tears."},
+	},
+	eye_of_greed = {
+		lines_zh = {"飞行器每20次攻击额外发射金色泪弹。"},
+		lines_en = {"Every 20 Air Flight attacks, fires an extra golden tear."},
+	},
+	parasitoid = {
+		lines_zh = {"飞行器的攻击命中后有概率生成蓝蜘蛛或蓝苍蝇。"},
+		lines_en = {"Air Flight attacks have a chance to spawn a blue spider or blue fly on hit."},
+	},
+	adrenaline = {
+		lines_zh = {"根据所属玩家的空红心容器数量提高飞行器伤害。"},
+		lines_en = {"Increases the Air Flight's Damage based on the owner's empty Red Heart containers."},
+	},
+	eye = {
+		lines_zh = {"飞行器有概率向其他方向额外发射泪弹。"},
+		lines_en = {"The Air Flight has a chance to fire extra tears in other directions."},
+	},
+	rock_bottom = {
+		lines_zh = {"飞行器的属性保持在历史最高值。"},
+		lines_en = {"The Air Flight's stats remain at their historical highest values."},
+	},
+	eye_drops = {
+		lines_zh = {"飞行器左眼的射速提高。"},
+		lines_en = {"The Air Flight's left eye fires faster."},
+	},
+	scooper = {
+		lines_zh = {"飞行器右眼的泪弹获得 ×1.35 伤害。"},
+		lines_en = {"The Air Flight's right-eye tears gain ×1.35 Damage."},
+	},
+	red_stew = {
+		lines_zh = {"飞行器获得会随时间衰减的临时伤害加成，击杀可延长持续时间。"},
+		lines_en = {"The Air Flight gains a temporary Damage bonus that decays over time; kills extend it."},
+	},
+	false_phd = {
+		lines_zh = {"玩家使用属性下降药丸时，提高飞行器伤害。"},
+		lines_en = {"Stat-down pills taken by the owner increase the Air Flight's Damage."},
+	},
+	binge_eater = {
+		lines_zh = {"配方中的食物会为飞行器提供对应属性；获得新食物时暂时提高伤害。"},
+		lines_en = {"Food in the recipe grants the Air Flight its corresponding stats; new food temporarily boosts Damage."},
+	},
+	candy_heart = {
+		lines_zh = {"拾取红心时，为飞行器随机提供属性加成。"},
+		lines_en = {"Red Heart pickups grant the Air Flight random stat bonuses."},
+	},
+	soul_locket = {
+		lines_zh = {"拾取魂心或黑心时，为飞行器随机提供属性加成。"},
+		lines_en = {"Soul or Black Heart pickups grant the Air Flight random stat bonuses."},
+	},
+	heartbreak = {
+		lines_zh = {"每个破碎之心使飞行器伤害提高0.25。"},
+		lines_en = {"Each Broken Heart increases the Air Flight's Damage by 0.25."},
+	},
+	keepers_sack = {
+		lines_zh = {"购买商店物品时，为飞行器随机提供伤害、射程或移速加成。"},
+		lines_en = {"Shop purchases randomly grant the Air Flight Damage, Range, or Speed."},
+	},
+	stye = {
+		lines_zh = {"飞行器右眼的泪弹获得 ×1.28 伤害、+6.5 射程与 -0.3 弹速。"},
+		lines_en = {"The Air Flight's right-eye tears gain ×1.28 Damage, +6.5 Range, and -0.3 Shot Speed."},
+	},
+	-- 本模组宝宝：只写装入后最核心的变化，一行。
+	baby_marri = {
+		lines_zh = {"跟随飞行器。"},
+		lines_en = {"Follows the Air Flight."},
+	},
+	baby_lu = {
+		lines_zh = {"跟随飞行器。"},
+		lines_en = {"Follows the Air Flight."},
+	},
+	regenesis = {
+		lines_zh = {"跟随飞行器。"},
+		lines_en = {"Follows the Air Flight."},
+	},
+	fraternity = {
+		lines_zh = {"默认跟随飞行器。"},
+		lines_en = {"Follows the Air Flight by default."},
+	},
+	baby_zeis = {
+		lines_zh = {"默认跟随飞行器。"},
+		lines_en = {"Follows the Air Flight by default."},
+	},
+	cloundy = {
+		lines_zh = {"默认跟随飞行器。"},
+		lines_en = {"Follows the Air Flight by default."},
+	},
+	baby_tecro = {
+		lines_zh = {"跟随飞行器攻击。"},
+		lines_en = {"Attacks with the Air Flight."},
+	},
+	baby_anna = {
+		lines_zh = {"跟随飞行器攻击。"},
+		lines_en = {"Attacks with the Air Flight."},
+	},
+	subera_light = {
+		lines_zh = {"以飞行器为中心攻击。"},
+		lines_en = {"Attacks from the Air Flight."},
+	},
+	brimstream = {
+		lines_zh = {"返航至飞行器。"},
+		lines_en = {"Uses the Air Flight as its return point."},
+	},
+	pendulum_star = {
+		lines_zh = {"以飞行器为摆动中心。"},
+		lines_en = {"Swings around the Air Flight."},
+	},
+	baby_autio = {
+		lines_zh = {"攻击后返回飞行器。"},
+		lines_en = {"Returns to the Air Flight after attacking."},
 	},
 }
 
@@ -660,6 +935,14 @@ local function find_familiar_row(key)
 	return nil
 end
 
+local function find_orbital_row(key)
+	local CP = profile()
+	for _, row in ipairs(CP.CRAFT_ORBITAL_EXTRAS or {}) do
+		if row.key == key then return row end
+	end
+	return nil
+end
+
 local function resolve_meta(id)
 	local CP = profile()
 	id = tonumber(id)
@@ -669,11 +952,17 @@ local function resolve_meta(id)
 		meta[k] = v
 	end
 
-	-- 审计排除 / 禁材料：不进 pedestal Blueprint EID（制造页可另显示不适用）
+	-- 审计排除 / 禁材料 / FireTear 原生继承：不进 pedestal Blueprint EID
 	if CP.is_ingredient_banned and CP.is_ingredient_banned(id) then
 		return nil
 	end
 	if CP.is_craft_excluded and CP.is_craft_excluded(id) then
+		return nil
+	end
+	if CP.is_inherited_player_effect and CP.is_inherited_player_effect(id) then
+		return nil
+	end
+	if meta.no_pedestal_eid == true then
 		return nil
 	end
 
@@ -711,6 +1000,7 @@ local function resolve_meta(id)
 	if fn and (fn.eid_zh or fn.eid_en) then
 		meta.tear_effect_zh = meta.tear_effect_zh or fn.eid_zh
 		meta.tear_effect_en = meta.tear_effect_en or fn.eid_en
+		meta.tear_effect_key = meta.tear_effect_key or fn.effect_key
 		meta.status = meta.status or "supported"
 	end
 
@@ -730,6 +1020,13 @@ local function resolve_meta(id)
 			meta.module_zh = meta.module_zh or row.module_zh
 			meta.module_en = meta.module_en or row.module_en
 			meta.status = meta.status or (row.status or "supported")
+		end
+		local orow = find_orbital_row(ek)
+		if orow then
+			meta.movement = meta.movement or "orbit"
+			meta.familiar_zh = meta.familiar_zh or orow.zh
+			meta.familiar_en = meta.familiar_en or orow.en
+			meta.status = meta.status or "supported"
 		end
 		local ex = EXTRA_EID[ek]
 		if ex then
@@ -798,49 +1095,113 @@ local function sentence_weapon(meta, zh)
 	return "Changes the Air Flight's primary attack to "..name.."."
 end
 
---- 有 STAT_DELTA 时写具体数值行；有定制文案且 suppress_auto_stats 时跳过。
-local STAT_LINE_LABEL = {
-	damage = {zh = "{{Damage}} 飞行器攻击", en = "{{Damage}} Air Flight Damage"},
-	firedelay = {zh = "{{Tears}} 飞行器射速", en = "{{Tears}} Air Flight Tears"},
-	range = {zh = "{{Range}} 飞行器射程", en = "{{Range}} Air Flight Range"},
-	shotspeed = {zh = "{{Shotspeed}} 飞行器弹速", en = "{{Shotspeed}} Air Flight Shot Speed"},
-	speed = {zh = "{{Speed}} 飞行器移速", en = "{{Speed}} Air Flight Speed"},
-	luck = {zh = "{{Luck}} 飞行器幸运", en = "{{Luck}} Air Flight Luck"},
-}
+local function weapon_covers(meta)
+	local w = meta and meta.weapon
+	local info = w and WEAPON_FULL[w]
+	return (info and info.covers) or {}
+end
 
-local function format_signed_stat(n)
+--- 多属性永远合成一行；内部 STAT_DELTA → 玩家显示单位。
+--- range 内部 = EID×40；firedelay 加算 = -Tears；firedelay_mul 乘 Tear Delay（显示为 FR×1/mul）。
+local function fmt_display_num(n)
 	n = tonumber(n)
 	if n == nil then return nil end
+	local CP = profile()
+	if CP.fmt_num then
+		return CP.fmt_num(n, 2)
+	end
 	local s
 	if math.abs(n - math.floor(n + 0.0000001)) < 0.0000001 then
 		s = tostring(math.floor(n + 0.0000001))
 	else
 		s = string.format("%.2f", n):gsub("0+$", ""):gsub("%.$", "")
 	end
-	if n >= 0 then return "+" .. s end
 	return s
 end
 
-local function sentence_stat_lines(meta, zh)
+local function format_signed_display(n)
+	n = tonumber(n)
+	if n == nil then return nil end
+	local s = fmt_display_num(math.abs(n))
+	if not s then return nil end
+	if n > 0 then return "+" .. s end
+	if n < 0 then return "-" .. s end
+	return s
+end
+
+local function format_mul_display(n)
+	n = tonumber(n)
+	if n == nil then return nil end
+	local s = fmt_display_num(n)
+	if not s then return nil end
+	return "×" .. s
+end
+
+--- STAT_DELTA 加算 → 玩家可见数值（不改写 delta 本身）。
+local function display_add_value(key, raw)
+	raw = tonumber(raw)
+	if raw == nil then return nil end
+	if key == "range" then
+		return raw / 40
+	end
+	if key == "firedelay" then
+		return -raw
+	end
+	return raw
+end
+
+--- STAT_DELTA *_mul → 玩家可见倍率；firedelay_mul 是 delay 乘区，显示为射速乘区 1/mul。
+local function display_mul_value(key, raw)
+	raw = tonumber(raw)
+	if raw == nil or raw == 1 then return nil end
+	if key == "firedelay" then
+		if raw == 0 then return nil end
+		return 1 / raw
+	end
+	return raw
+end
+
+local function sentence_stat_summary(meta, zh)
 	if not meta or meta.suppress_auto_stats then return nil end
 	local delta = meta.stat_delta
 	if type(delta) ~= "table" then return nil end
-	local out = {}
+	local parts = {}
 	for _, row in ipairs(STAT_ICON_ORDER) do
-		local v = delta[row.key]
-		if v ~= nil and v ~= 0 then
-			local label = STAT_LINE_LABEL[row.key]
-			local signed = format_signed_stat(v)
-			if label and signed then
-				out[#out + 1] = (zh and label.zh or label.en) .. " " .. signed
+		local add_raw = delta[row.key]
+		local mul_raw = delta[row.also]
+		local has_add = add_raw ~= nil and add_raw ~= 0
+		local has_mul = mul_raw ~= nil and mul_raw ~= 1
+		if has_add or has_mul then
+			local frag = "{{"..row.icon.."}}"
+			if has_add then
+				local signed = format_signed_display(display_add_value(row.key, add_raw))
+				if signed then
+					frag = frag.." "..signed
+				end
 			end
+			if has_mul then
+				local mul_s = format_mul_display(display_mul_value(row.key, mul_raw))
+				if mul_s then
+					frag = frag.." "..mul_s
+				end
+			end
+			parts[#parts + 1] = frag
 		end
 	end
-	return #out > 0 and out or nil
+	if #parts == 0 then return nil end
+	local body = table.concat(parts, "  ")
+	if zh then
+		return "飞行器获得："..body
+	end
+	return "Air Flight: "..body
 end
 
---- eid_* 已是完整句，原样返回
+--- eid_* 已是完整句；若已被完整武器机制 covers，则跳过。
 local function sentence_tear(meta, zh)
+	local key = meta and meta.tear_effect_key
+	if key and weapon_covers(meta)[key] then
+		return nil
+	end
 	return finish_sentence(zh and meta.tear_effect_zh or meta.tear_effect_en, zh)
 end
 
@@ -937,12 +1298,7 @@ function M.collectible_craft_eid_lines(id, zh)
 	end
 
 	push_line(lines, sentence_weapon(meta, zh))
-	local stat_lines = sentence_stat_lines(meta, zh)
-	if stat_lines then
-		for _, s in ipairs(stat_lines) do
-			push_line(lines, s)
-		end
-	end
+	push_line(lines, sentence_stat_summary(meta, zh))
 	push_line(lines, sentence_tear(meta, zh))
 	push_line(lines, sentence_bomb(meta, zh))
 
@@ -984,7 +1340,9 @@ local function line_too_long(s, zh)
 	return #s > EN_LINE_SOFT
 end
 
---- 导出全部可组装蓝图 EID，供长度审计
+--- 导出全部可组装蓝图 EID，供长度 / 最终行数审计。
+--- 输出：codex_work/logs/blueprint_eid_audit_{zh,en}.json
+--- 消费者：scripts/dev/audit_blueprint_craft_eid.py（FINAL_EID_*）。
 function M.export_eid_audit(zh)
 	if not dev_env.probes_allowed() then
 		return false, "public release: probes disabled", {count = 0, rows = {}}

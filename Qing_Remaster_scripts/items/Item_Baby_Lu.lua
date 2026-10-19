@@ -4,6 +4,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
 local Baby_Anim = require("Qing_Remaster_scripts.others.Baby_Anim_holder")
+local QF = require("Qing_Remaster_scripts.mimics.Craft_Qing_Familiars_holder")
 
 local item = {
 	ToCall = {},
@@ -761,7 +762,9 @@ local function sync_lu_ceremony_motion(ent, d, s)
 	end
 	local base = d[item.own_key.."ceremony_so_base"]
 	ent.SpriteOffset = Vector(base.X, base.Y + ceremony_lift())
-	ent.Velocity = Vector.Zero
+	if QF.should_player_follow(ent) then
+		ent.Velocity = Vector.Zero
+	end
 	local flash = ceremony_flash_mul()
 	if flash < 0.999 then
 		if d[item.own_key.."ceremony_tint"] == nil then
@@ -994,12 +997,16 @@ Function = function(_, ent)
 	emit_probe_sample(ent, player, "pre_follow")
 
 	if not d[item.own_key.."IsFollow"] then
-		ent:AddToFollowers()
+		if QF.should_player_follow(ent) then
+			ent:AddToFollowers()
+		end
 		d[item.own_key.."IsFollow"] = true
 	end
 	Baby_Anim.tick_float_idle(ent, item.own_key.."float")
 	if Baby_Anim.is_float_idle_anim(s:GetAnimation()) then
-		ent:FollowParent()
+		if QF.should_player_follow(ent) then
+			ent:FollowParent()
+		end
 	end
 	sync_lu_ceremony_motion(ent, d, s)
 	emit_probe_sample(ent, player, "post_sync")

@@ -3,6 +3,19 @@
 Public Alpha notes for Glaze Ceremony: Promised Land. This file belongs to the
 public GitHub repository overlay; it is not shipped inside the player ZIP.
 
+## alpha-0.1.2
+
+### Fixed
+
+- Zeis notice boards keep gray dogma noise. The sign no longer stays blue from a negative red/green color offset.
+- Greed bank loans and cash trades commit only when the full coin amount arrives.
+- A Bard Beggar that has already been paid resumes into its exit.
+
+### Added
+
+- Greed bank collateral is chosen on the terminal, in pages of sixteen.
+- Upright Thoth cards can draw one reverse face from the normal pool.
+
 ## alpha-0.1.1
 
 Fixes for Glowing Hourglass and native `rewind` restoring room-linked state.

@@ -35,6 +35,15 @@ local function get_counter_state()
 	return state
 end
 
+--- Blueprint：模块存在即开启 ×1.5；固定加成为已开启龙房 counter（不按模块份数重复 ×1.5）。
+function item.get_damage_state()
+	local state = get_counter_state()
+	return {
+		mul = 1.5,
+		add = tonumber(state.counter) or 0,
+	}
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,
 Function = function(_,continue)
 	if not continue then

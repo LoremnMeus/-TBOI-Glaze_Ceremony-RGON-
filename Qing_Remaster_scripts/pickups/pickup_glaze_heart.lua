@@ -33,24 +33,33 @@ function item.try_collect(player,ent,toHeal)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
 	local succ = false
 	local toplay = {id = SoundEffect.SOUND_HOLY,vol = 1,pit = 1}
-	for i = 1,1 do if CustomHealthAPI then
-		if CustomHealthAPI.Library and CustomHealthAPI.PersistentData and CustomHealthAPI.PersistentData.HealthDefinitions then
-			for u,v in pairs(CustomHealthAPI.PersistentData.HealthDefinitions) do
-				if not item.Banishedlist[u] and CustomHealthAPI.Library.GetHPOfKey(player,u) > 0 then 
-					CustomHealthAPI.Library.AddHealth(player,u,toHeal) succ = true 
-					local info = CustomHealthAPI.Library.GetInfoOfKey(v,"SumptoriumCollectSoundSettings")
-					if info then toplay.id = info.ID toplay.vol = info.Volume toplay.pit = info.Pitch end
-				break end
-			end
-		end
-	end end
-	if succ then
-	elseif player:GetBrokenHearts() > 0 then
+	if player:GetBrokenHearts() > 0 then
 		player:AddBrokenHearts(-1)
-		if toHeal == 2 then player:AddSoulHearts(1)	end
+		if toHeal == 2 then player:AddSoulHearts(1) end
+		succ = true
 	elseif player:GetRottenHearts() > 0 then
 		player:AddRottenHearts(-1)
-		if toHeal == 1 then	player:AddHearts(-1) end
+		if toHeal == 1 then player:AddHearts(-1) end
+		succ = true
+	end
+	if not succ and CustomHealthAPI then
+		if CustomHealthAPI.Library and CustomHealthAPI.PersistentData and CustomHealthAPI.PersistentData.HealthDefinitions then
+			for u,v in pairs(CustomHealthAPI.PersistentData.HealthDefinitions) do
+				local before = CustomHealthAPI.Library.GetHPOfKey(player,u)
+				if not item.Banishedlist[u] and before > 0 then
+					CustomHealthAPI.Library.AddHealth(player,u,toHeal)
+					local after = CustomHealthAPI.Library.GetHPOfKey(player,u)
+					if after > before then
+						succ = true
+						local info = CustomHealthAPI.Library.GetInfoOfKey(v,"SumptoriumCollectSoundSettings")
+						if info then toplay.id = info.ID toplay.vol = info.Volume toplay.pit = info.Pitch end
+					end
+					if succ then break end
+				end
+			end
+		end
+	end
+	if succ then
 	elseif player:GetEternalHearts() > 0 and math.random(1000) > 900 then
 		player:AddEternalHearts(1)
 		if toHeal == 2 then	player:AddSoulHearts(1) end

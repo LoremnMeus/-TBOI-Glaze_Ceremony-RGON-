@@ -438,6 +438,8 @@ function item.apply_to_stats(stats, ctx)
 	local fire_rate_mul = 1
 	local fire_rate_add = 0
 	local flag_extra = 0
+	-- Affine damage transforms applied after (base+add)*mul: stats = stats * mul + add
+	local damage_affine = {}
 
 	local function copies(id)
 		return ncount(counts, id)
@@ -495,6 +497,120 @@ function item.apply_to_stats(stats, ctx)
 				fire_rate_add = fire_rate_add + (tonumber(Wav.tears_bonus_from_gaze(st.gaze)) or 0)
 				tags[#tags + 1] = "wavering"
 			end
+		end
+		local id_mental = enums.Items.Mental_Hypnosis
+		if id_mental and id_mental > 0 and copies(id_mental) > 0 and player then
+			local ok, Mental = pcall(require, "Qing_Remaster_scripts.items.Item_Mental_Hypnosis")
+			if ok and Mental and Mental.get_stat_buff then
+				local b = Mental.get_stat_buff(player)
+				if b then
+					add.damage = add.damage + (b.damage or 0)
+					fire_rate_add = fire_rate_add + (b.tear or 0)
+					add.shotspeed = add.shotspeed + (b.shotspeed or 0)
+					add.range = add.range + (b.range or 0)
+					add.speed = add.speed + (b.speed or 0)
+					add.luck = add.luck + (b.luck or 0)
+					body_extra = body_extra * (b.size or 1)
+					tags[#tags + 1] = "mental_hypnosis"
+				end
+			end
+		end
+		-- Cheater's Blessing Tears: STAT_DELTA covers other stats; TearsUp → fire_rate_add × copies.
+		local id_cheat = enums.Items.Cheater_s_Blessing
+		if id_cheat and id_cheat > 0 and copies(id_cheat) > 0 then
+			fire_rate_add = fire_rate_add + 0.01 * copies(id_cheat)
+			tags[#tags + 1] = "cheater_blessing"
+		end
+		local id_hyper = enums.Items.Hypermnesia
+		if id_hyper and id_hyper > 0 and copies(id_hyper) > 0 and player then
+			local ok, Hyper = pcall(require, "Qing_Remaster_scripts.items.Item_Hypermnesia")
+			if ok and Hyper and Hyper.get_duplicate_mul then
+				local mul = tonumber(Hyper.get_duplicate_mul(player)) or 0
+				add.speed = add.speed + mul * 0.05
+				fire_rate_add = fire_rate_add + mul * 0.15
+				add.damage = add.damage + mul * 0.5
+				add.range = add.range + mul * 40
+				add.luck = add.luck + mul
+				tags[#tags + 1] = "hypermnesia"
+			end
+		end
+		local id_dark = enums.Items.Darkness
+		if id_dark and id_dark > 0 and copies(id_dark) > 0 and player then
+			local ok, Dark = pcall(require, "Qing_Remaster_scripts.items.Item_Darkness")
+			if ok and Dark and Dark.get_craft_damage_bonus then
+				local b = Dark.get_craft_damage_bonus(player)
+				if b then
+					damage_affine[#damage_affine + 1] = {
+						mul = tonumber(b.damage_mul) or 1,
+						add = tonumber(b.damage_add) or 0,
+					}
+					tags[#tags + 1] = "darkness"
+				end
+			end
+		end
+		local id_dragon = enums.Items.Dragon_Tooth
+		if id_dragon and id_dragon > 0 and copies(id_dragon) > 0 then
+			local ok, Dragon = pcall(require, "Qing_Remaster_scripts.items.Item_Dragon_Tooth")
+			if ok and Dragon and Dragon.get_damage_state then
+				local b = Dragon.get_damage_state()
+				if b then
+					damage_affine[#damage_affine + 1] = {
+						mul = tonumber(b.mul) or 1,
+						add = tonumber(b.add) or 0,
+					}
+					tags[#tags + 1] = "dragon_tooth"
+				end
+			end
+		end
+		local id_punch = enums.Items.Giant_Punch
+		if id_punch and id_punch > 0 and copies(id_punch) > 0 and player then
+			local ok, Punch = pcall(require, "Qing_Remaster_scripts.items.Item_Giant_Punch")
+			if ok and Punch and Punch.get_craft_modifiers then
+				local b = Punch.get_craft_modifiers(player)
+				if b then
+					mul.damage = mul.damage * (tonumber(b.damage_mul) or 1)
+					body_extra = body_extra * (tonumber(b.body_scale_mul) or 1)
+					tags[#tags + 1] = "giant_punch"
+				end
+			end
+		end
+		local id_moment = enums.Items.Moment
+		if id_moment and id_moment > 0 and copies(id_moment) > 0 and player then
+			local ok, Moment = pcall(require, "Qing_Remaster_scripts.items.Item_Moment")
+			if ok and Moment and Moment.get_stat_bonus then
+				local b = Moment.get_stat_bonus(player)
+				if b then
+					add.damage = add.damage + (b.damage or 0)
+					fire_rate_add = fire_rate_add + (b.tear or 0)
+					add.range = add.range + (b.range or 0)
+					add.speed = add.speed + (b.speed or 0)
+					add.luck = add.luck + (b.luck or 0)
+					tags[#tags + 1] = "moment"
+				end
+			end
+		end
+		local id_sms = enums.Items.Sacred_Mind_Shield
+		if id_sms and id_sms > 0 and copies(id_sms) > 0 and player then
+			local ok, Sms = pcall(require, "Qing_Remaster_scripts.items.Item_Sacred_Mind_Shield")
+			if ok and Sms and Sms.get_stat_bonus then
+				local b = Sms.get_stat_bonus(player)
+				if b then
+					mul.damage = mul.damage * (tonumber(b.damage_mul) or 1)
+					add.shotspeed = add.shotspeed + (tonumber(b.shotspeed) or 0)
+					tags[#tags + 1] = "sacred_mind_shield"
+				end
+			end
+		end
+		local id_watch = enums.Items.The_Watcher
+		if id_watch and id_watch > 0 and copies(id_watch) > 0 then
+			local min_spd = 1.5
+			local ok_w, Watch = pcall(require, "Qing_Remaster_scripts.items.Item_The_Watcher")
+			if ok_w and Watch and tonumber(Watch.min_speed) then
+				min_spd = tonumber(Watch.min_speed)
+			end
+			-- applied after add.speed merge below via pending flag
+			extras.watcher_min_speed = min_spd
+			tags[#tags + 1] = "watcher"
 		end
 	end
 
@@ -799,11 +915,18 @@ function item.apply_to_stats(stats, ctx)
 	-- 合并加算/乘算；Fire Rate 加算按当前 delay 反算（可突破软上限语义）
 	-- Libra / Rock Bottom 改在 craft_combat_profile.build_profile 武器倍率之后执行
 	stats.damage = (stats.damage + add.damage) * mul.damage
+	for i = 1, #damage_affine do
+		local af = damage_affine[i]
+		stats.damage = stats.damage * (af.mul or 1) + (af.add or 0)
+	end
 	stats.firedelay = apply_fire_rate_bonus(stats.firedelay + add.firedelay, fire_rate_add)
 	stats.shotspeed = stats.shotspeed + add.shotspeed
 	stats.range = stats.range + add.range
 	stats.luck = stats.luck + add.luck
 	stats.speed = stats.speed + add.speed
+	if extras.watcher_min_speed then
+		stats.speed = math.max(stats.speed, tonumber(extras.watcher_min_speed) or 1.5)
+	end
 	stats.fire_rate_mul = (tonumber(stats.fire_rate_mul) or 1) * fire_rate_mul
 
 	if copies(304) > 0 then

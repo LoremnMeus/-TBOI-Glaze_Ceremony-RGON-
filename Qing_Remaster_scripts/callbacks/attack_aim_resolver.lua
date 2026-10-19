@@ -2,6 +2,7 @@
 -- PreferredAimEntity answers "who controls"; this answers "where / which way to fire".
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local classifier = require("Qing_Remaster_scripts.callbacks.attack_source_classifier")
+local registry = require("Qing_Remaster_scripts.callbacks.attack_registry")
 
 local M = {
 	own_key = "attack_aim_resolver_",
@@ -57,12 +58,33 @@ local function velocity_or_random(ent, owner)
 	return auxi.MakeVector(rng:RandomInt(360))
 end
 
-local function make_ctx(ent, position, direction, reason)
+local function make_ctx(ent, position, direction, reason, state)
+	local pos = position or (ent and ent.Position) or Vector.Zero
+	if state == "pending" then
+		return {
+			entity = ent,
+			position = pos,
+			direction = nil,
+			reason = "pending",
+			state = "pending",
+		}
+	end
+	local usable = direction and direction:Length() > 0.01 and direction:Normalized() or nil
+	if not usable or state == "unavailable" then
+		return {
+			entity = ent,
+			position = pos,
+			direction = nil,
+			reason = "unavailable",
+			state = "unavailable",
+		}
+	end
 	return {
 		entity = ent,
-		position = position or (ent and ent.Position) or Vector.Zero,
-		direction = (direction and direction:Length() > 0.01 and direction:Normalized()) or Vector(1, 0),
-		reason = reason or "fallback",
+		position = pos,
+		direction = usable,
+		reason = reason or "resolved",
+		state = "resolved",
 	}
 end
 
@@ -84,6 +106,42 @@ function M.GetAttackAimContext(source, attack, event)
 	local member = event and event.member
 	local family = (event and event.family) or (attack and attack.family)
 	local owner = classifier.GetAttackOwnerPlayer(attack) or (event and event.player)
+	local pos = (event and event.position) or (member and member.Position) or (owner and owner.Position)
+
+	if family == "brimstone" or family == "technology" then
+		if attack and attack.direction_state == "pending" then
+			return make_ctx(member, pos, nil, "pending", "pending")
+		end
+		if attack and attack.direction_state == "resolved" and attack.direction and attack.direction:Length() > 0.01 then
+			return make_ctx(member, pos, attack.direction, attack.direction_reason or "laser_angle")
+		end
+		local ready = member and member.Type == EntityType.ENTITY_LASER and member:GetData()[registry.LASER_AIM_READY] == true
+		if ready then
+			local dir = laser_direction(member)
+			if dir then
+				return make_ctx(member, pos, dir, "laser_angle")
+			end
+		end
+		if member and member.Type == EntityType.ENTITY_LASER and not ready then
+			return make_ctx(member, pos, nil, "pending", "pending")
+		end
+		return make_ctx(member, pos, nil, "unavailable", "unavailable")
+	end
+	if family == "techx" then
+		if attack and attack.direction_state == "pending" then
+			return make_ctx(member, pos, nil, "pending", "pending")
+		end
+		if attack and attack.direction_state == "resolved" and attack.direction and attack.direction:Length() > 0.01 then
+			return make_ctx(member, pos, attack.direction, attack.direction_reason or "techx_velocity")
+		end
+		if member and member.Velocity and member.Velocity:Length() > 0.01 then
+			return make_ctx(member, pos, member.Velocity, "techx_velocity")
+		end
+		if member then
+			return make_ctx(member, pos, nil, "pending", "pending")
+		end
+		return make_ctx(member, pos, nil, "unavailable", "unavailable")
+	end
 
 	-- Explicit family geometry (adapter-owned), not entity-type guessing.
 	if family == "ludo" and member then
@@ -130,8 +188,8 @@ function M.GetAttackAimContext(source, attack, event)
 		end
 	end
 
-	-- Laser member (Brimstone / Tech / Tech X rings): Angle owns facing.
-	if member and member.Type == EntityType.ENTITY_LASER then
+	-- Other laser members. Brimstone, Technology and Tech X return above.
+	if member and member.Type == EntityType.ENTITY_LASER and family ~= "techx" and family ~= "brimstone" and family ~= "technology" then
 		local dir = laser_direction(member)
 		if dir then
 			return make_ctx(member, member.Position, dir, "laser")
@@ -187,7 +245,7 @@ function M.GetAttackAimContext(source, attack, event)
 	end
 
 	local ent = member or aim_ent or soft_player or owner
-	return make_ctx(ent, (ent and ent.Position) or Vector.Zero, Vector(1, 0), "fallback")
+	return make_ctx(ent, (ent and ent.Position) or Vector.Zero, nil, "unavailable", "unavailable")
 end
 
 return M

@@ -174,15 +174,11 @@ local function apply_notice_dogma(sprite)
 	if not REPENTOGON or not sprite then return end
 	local temp_hud = require("Qing_Remaster_scripts.callbacks.temp_item_hud_holder")
 	temp_hud.apply_sprite_shader(sprite, temp_hud.DOGMA_CHROMATIC_SHADER)
-	local col = sprite.Color
+	local alpha = sprite.Color.A
 	local t = temp_hud.dogma_shader_time()
-	if col.SetColorize then
-		local next_col = Color(col.R, col.G, col.B, col.A, col.RO, col.GO, col.BO)
-		next_col:SetColorize(0, 0, 0, t)
-		sprite.Color = next_col
-	else
-		sprite.Color = Color(col.R, col.G, col.B, col.A, col.RO, col.GO, col.BO, 0, 0, 0, t)
-	end
+	local col = Color(1, 1, 1, alpha, 0, 0, 0)
+	col:SetColorize(0, 0, 0, t)
+	sprite.Color = col
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = nil,
