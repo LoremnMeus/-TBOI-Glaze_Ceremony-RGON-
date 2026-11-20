@@ -379,15 +379,6 @@ Function = function(_, player, offset)
 end,
 })
 
-table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
-Function = function(_, player, collid, count)
-	local cfg = FACTORS[collid]
-	if cfg and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player, "Iliaster_" .. cfg.key)
-	end
-end,
-})
-
 --- 当前 cycle 是否仅为三因子（允许表含/不含当前 SubType）
 local function factor_cycle_is_clean(pickup)
 	if not pickup.GetCollectibleCycle then return false end
@@ -572,4 +563,13 @@ end,
 item.FACTORS = FACTORS
 item.FACTOR_ORDER = FACTOR_ORDER
 
+for factor_id, cfg in pairs(FACTORS) do
+	local collectible = factor_id
+	Charging_Bar_holder.register_bar({
+		id = "Iliaster_" .. cfg.key,
+		owner = {type = "custom", valid = function(player)
+			return player:ToPlayer() and player_has_factor(player, collectible)
+		end},
+	})
+end
 return item

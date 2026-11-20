@@ -12,7 +12,7 @@ local item = {
 local GAIN_KIND = {coin = "coin", key = "key", bomb = "bomb", heart = "soul"}
 local ARRIVE_SOUND = {
 	coin = SoundEffect.SOUND_PENNYPICKUP,
-	key = SoundEffect.SOUND_KEYPICKUP,
+	key = SoundEffect.SOUND_KEYPICKUP_GAUNTLET,
 	bomb = SoundEffect.SOUND_THUMBSUP,
 	heart = SoundEffect.SOUND_HEARTOUT,
 	soul = SoundEffect.SOUND_HEARTOUT,

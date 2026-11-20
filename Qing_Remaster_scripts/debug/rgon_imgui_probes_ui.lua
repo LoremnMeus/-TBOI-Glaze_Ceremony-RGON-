@@ -43,26 +43,46 @@ function M.build(api)
 	local systems_tab = api.systems_tab
 	local visual_tab = api.visual_tab
 	local data_tab = api.data_tab
-	local tests_tab = api.tests_tab
 	local story_test_tab = api.story_test_tab
 
 	-- RGON AddDragFloat(parent, id, label, cb, default, speed, min, max, format).
 	-- Never omit speed. See codex_work/notes/rgon_imgui_dragfloat_signature_pitfall.md
+	-- While dragging: Edited applies live; skip Render→UpdateData so we don't
+	-- rubber-band the widget back to the pre-drag getter every frame.
+	local probe_drag_active = {}
 	local function add_probe_drag(parent, id, label, setter, getter, default, speed, min_v, max_v, fmt)
+		local function apply(value)
+			if setter then setter(value) end
+		end
 		ImGui.AddDragFloat(
 			parent,
 			id,
 			label,
-			function(value)
-				if setter then setter(value) end
-			end,
+			apply,
 			default,
 			speed,
 			min_v,
 			max_v,
 			fmt or "%.0f"
 		)
+		ImGui.AddCallback(id, ImGuiCallback.Edited, function(value)
+			probe_drag_active[id] = true
+			apply(value)
+		end)
+		if ImGuiCallback.DeactivatedAfterEdit then
+			ImGui.AddCallback(id, ImGuiCallback.DeactivatedAfterEdit, function()
+				probe_drag_active[id] = nil
+			end)
+		end
+		if ImGuiCallback.Deactivated then
+			ImGui.AddCallback(id, ImGuiCallback.Deactivated, function()
+				probe_drag_active[id] = nil
+			end)
+		end
 		ImGui.AddCallback(id, ImGuiCallback.Render, function()
+			if probe_drag_active[id] then
+				return
+			end
 			local v = getter and getter() or default
 			ImGui.UpdateData(id, ImGuiData.Value, tonumber(v) or default or 0)
 		end)
@@ -194,6 +214,18 @@ local function add_attack_audit_group(group)
 end
 
 
+	local incandescence_flame_group = start_probe_module(
+		"audit_incandescence_flame",
+		"焚火视觉探针",
+		"QingRemasterOptions_GroupIncandescenceFlameProbe"
+	)
+	if incandescence_flame_group then
+		local flame_probe = dev_env.require_probe("Qing_Remaster_scripts.debug.incandescence_flame_probe")
+		if flame_probe and flame_probe.install_ui then
+			flame_probe.install_ui(incandescence_flame_group, add_text)
+		end
+	end
+
 	local seeker_wall_probe_group = start_probe_module("item_seeker_wall_probe", text("group_seeker_wall_probe"), "QingRemasterOptions_GroupSeekerWallProbe")
 	do
 		local status_id = "QingRemasterOptions_SeekerWallProbeStatus"
@@ -235,272 +267,165 @@ end
 		end)
 	end
 	do
+		local anna_range_group = start_probe_module(
+			"audit_anna_attack_range",
+			"里安娜攻击范围",
+			"QingRemasterOptions_GroupAnnaAttackRange"
+		)
+		if anna_range_group then
+			local live = require("Qing_Remaster_scripts.debug.probe_live_cache")
+			local function anna_probe()
+				return dev_env.require_probe("Qing_Remaster_scripts.debug.anna_attack_range_probe")
+			end
+			add_text(anna_range_group, "环不继承角色或幻影的动画 Scale。两项射程系数都以 260 为参考射程：0 表示射程不影响大小，1 表示按 √(当前射程 / 260) 缩放。判定半径 = 实际判定大小 × 武器 rangerate × 射程倍率；角色射程增量通过属性缓存写入。测试参数仅在探针启用时生效。")
+			if ImGui.AddInputFloat then
+				local controls = {
+					{"ring_base_scale", "环基础大小比例", 1, 0, 3},
+					{"ring_range_scale", "射程对环的放缩比例", 1, 0, 2},
+					{"range_delta", "角色射程增量", 0, -300, 600},
+					{"hit_base_size", "实际判定大小", 50, 0, 200},
+					{"hit_range_scale", "射程对判定大小的放缩比例", 1, 0, 3},
+				}
+				for _, control in ipairs(controls) do
+					local key, label, initial = control[1], control[2], control[3]
+					local id = "QingRemasterOptions_AnnaAttackRange_" .. key
+					ImGui.AddInputFloat(anna_range_group, id, label, function(value)
+						local p = anna_probe()
+						if p and p.set_tuning then p.set_tuning(key, value) end
+					end, initial, key == "range_delta" and 10 or 0.1, key == "range_delta" and 100 or 1)
+				end
+			end
+			ImGui.AddButton(anna_range_group, "QingRemasterOptions_AnnaAttackRangeResetTuning", "重置范围参数", function()
+				local p = anna_probe()
+				if p and p.reset_tuning then
+					p.reset_tuning()
+					for key, value in pairs(p.get_tuning()) do
+						ImGui.UpdateData("QingRemasterOptions_AnnaAttackRange_" .. key, ImGuiData.Value, value)
+					end
+				end
+			end)
+			add_text(anna_range_group, "只在里安娜 anna_attack 真正结算时画本次攻击圆。青色是判定圆心和半径。洋红十字是 params.pos，只有它和判定圆心分开时才出现。绿色敌人圆是旧中心点规则和新碰撞圆都会命中；黄色是只有算上 Size 才命中；红色是未命中。轮廓保留 18 个游戏帧。记录会一直留着，Copy Full Report 包含本段开启后的每一次攻击。默认关闭。")
+			local status_id = "QingRemasterOptions_AnnaAttackRangeStatus"
+			imgui_layout.add_wrapped_text(anna_range_group, status_id, "off")
+			local enable_id = "QingRemasterOptions_AnnaAttackRangeEnable"
+			ImGui.AddCheckbox(anna_range_group, enable_id, "启用里安娜攻击范围", nil, false)
+			ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+				local p = anna_probe()
+				live.update_checkbox_if_changed(enable_id, p and p.is_enabled and p.is_enabled() == true)
+				imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "off")
+			end)
+			ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+				local p = anna_probe()
+				if p and p.set_enabled then p.set_enabled(value == true) end
+			end)
+			ImGui.AddButton(anna_range_group, "QingRemasterOptions_AnnaAttackRangeCopy", "Copy Summary", function()
+				local p = anna_probe()
+				if p and p.copy_summary then p.copy_summary() end
+			end)
+			ImGui.AddElement(anna_range_group, "", ImGuiElement.SameLine)
+			ImGui.AddButton(anna_range_group, "QingRemasterOptions_AnnaAttackRangeFull", "Copy Full Report", function()
+				local p = anna_probe()
+				if p and p.copy_full_report then p.copy_full_report() end
+			end)
+			ImGui.AddButton(anna_range_group, "QingRemasterOptions_AnnaAttackRangeClear", "清空", function()
+				local p = anna_probe()
+				if p and p.clear then p.clear() end
+			end)
+			ImGui.AddElement(anna_range_group, "", ImGuiElement.SameLine)
+			ImGui.AddButton(anna_range_group, "QingRemasterOptions_AnnaAttackRangeExport", "Export", function()
+				local p = anna_probe()
+				if p and p.export then p.export() end
+			end)
+		end
+	end
+	do
 		local attack_audit_group = start_probe_module("audit_attack_audit", "Attack Audit", "QingRemasterOptions_GroupAttackAudit")
 		add_attack_audit_group(attack_audit_group)
 	end
 
-	local spirit_sword_group = start_probe_module(
-		"audit_spirit_sword_lifecycle",
-		"Spirit Sword Lifecycle",
-		"QingRemasterOptions_GroupSpiritSwordLifecycle"
+	local player_identity_group = start_probe_module(
+		"audit_player_identity",
+		"玩家身份识别",
+		"QingRemasterOptions_GroupPlayerIdentity"
 	)
-	if spirit_sword_group then
+	if player_identity_group then
 	do
-		local function ss_probe()
-			return dev_env.require_probe("Qing_Remaster_scripts.debug.spirit_sword_lifecycle_probe")
+		local live = require("Qing_Remaster_scripts.debug.probe_live_cache")
+		local function id_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.player_identity_probe")
 		end
 		add_text(
-			spirit_sword_group,
-			"纯观察原版英灵剑全生命周期（输入/蓄力/主剑/CLUB_HITBOX/Beam）。默认关，不写存档、不改实体。日志：codex_work/logs/spirit_sword_lifecycle_probe.jsonl"
+			player_identity_group,
+			"三层对照：实体分类模拟（Variant/BabySkin/auxi/双生）· 引擎身份（RGON index/Controller/Seed）· 模组 __Index。不改匹配规则。keep_existing_index 已边沿去重。"
 		)
-		local status_id = "QingRemasterOptions_SpiritSwordLifecycleStatus"
-		imgui_layout.add_wrapped_text(spirit_sword_group, status_id, "Idle")
-		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
-			local p = ss_probe()
-			local body = (p and p.get_status_text and p.get_status_text()) or "probe unavailable"
-			imgui_layout.update_text(status_id, body)
-		end)
-		local enable_id = "QingRemasterOptions_SpiritSwordLifecycleEnabled"
-		ImGui.AddCheckbox(spirit_sword_group, enable_id, "Enable", nil, false)
+		local enable_id = "QingRemasterOptions_PlayerIdentityEnabled"
+		ImGui.AddCheckbox(player_identity_group, enable_id, "启用玩家身份探针", nil, false)
 		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
-			local p = ss_probe()
-			local on = p and p.get_config and p.get_config().enabled == true
-			ImGui.UpdateData(enable_id, ImGuiData.Value, on == true)
+			local p = id_probe()
+			live.update_checkbox_if_changed(enable_id, p and p.is_enabled and p.is_enabled() == true)
 		end)
 		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
-			local p = ss_probe()
+			local p = id_probe()
 			if p and p.set_enabled then p.set_enabled(value == true) end
 		end)
-		imgui_layout.add_small_action_row(spirit_sword_group, {
-			{id = "QingRemasterOptions_SpiritSwordLifecycleClear", label = "Clear", on_click = function()
-				local p = ss_probe(); if p and p.clear_events then p.clear_events() end
-			end},
-			{id = "QingRemasterOptions_SpiritSwordLifecycleFlush", label = "Flush", on_click = function()
-				local p = ss_probe(); if p and p.export_jsonl then p.export_jsonl(true) end
-			end},
-		})
-		add_text(spirit_sword_group, "Manual markers（测试分段）：")
-		imgui_layout.add_action_row(spirit_sword_group, {
-			{id = "QingRemasterOptions_SSLMarkerQuick", label = "Quick Tap", on_click = function()
-				local p = ss_probe(); if p and p.manual_marker then p.manual_marker("quick_tap") end
-			end},
-			{id = "QingRemasterOptions_SSLMarkerHalf", label = "Half Charge", on_click = function()
-				local p = ss_probe(); if p and p.manual_marker then p.manual_marker("half_charge") end
-			end},
-			{id = "QingRemasterOptions_SSLMarkerFull", label = "Full Charge", on_click = function()
-				local p = ss_probe(); if p and p.manual_marker then p.manual_marker("full_charge") end
-			end},
-		})
-		imgui_layout.add_small_action_row(spirit_sword_group, {
-			{id = "QingRemasterOptions_SSLMarkerTurn", label = "Turn During Charge", on_click = function()
-				local p = ss_probe(); if p and p.manual_marker then p.manual_marker("turn_during_charge") end
-			end},
-			{id = "QingRemasterOptions_SSLMarkerMove", label = "Moving", on_click = function()
-				local p = ss_probe(); if p and p.manual_marker then p.manual_marker("moving") end
-			end},
-		})
-		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
-		probe_output.add_probe_output_controls(spirit_sword_group, ss_probe, {
-			id_prefix = "QingRemasterOptions_SpiritSwordLifecycleOut",
-			export_label = "Export / Flush JSONL",
-		})
-	end
-	end
-
-	local spirit_sword_spin_group = start_probe_module(
-		"audit_spirit_sword_spin_replay",
-		"Spirit Sword Spin Probe",
-		"QingRemasterOptions_GroupSpiritSwordSpinReplay"
-	)
-	if spirit_sword_spin_group then
-	do
-		local function spin_probe()
-			return dev_env.require_probe("Qing_Remaster_scripts.debug.spirit_sword_spin_replay_probe")
-		end
-		add_text(
-			spirit_sword_spin_group,
-			"验证 fire_Sword 后手工 Play(Spin*) 是否自动生成 CLUB_HITBOX / Sword Beam。默认关。日志：codex_work/logs/spirit_sword_spin_replay_probe.jsonl"
-		)
-		local status_id = "QingRemasterOptions_SpiritSwordSpinStatus"
-		imgui_layout.add_wrapped_text(spirit_sword_spin_group, status_id, "Idle")
+		local overlay_id = "QingRemasterOptions_PlayerIdentityOverlay"
+		ImGui.AddCheckbox(player_identity_group, overlay_id, "在玩家头顶显示 ID", nil, true)
+		ImGui.AddCallback(overlay_id, ImGuiCallback.Render, function()
+			local p = id_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(overlay_id, cfg.overlay == true)
+		end)
+		ImGui.AddCallback(overlay_id, ImGuiCallback.Edited, function(value)
+			local p = id_probe()
+			if p and p.set_overlay then p.set_overlay(value == true) end
+		end)
+		local class_id = "QingRemasterOptions_PlayerIdentityShowClass"
+		ImGui.AddCheckbox(player_identity_group, class_id, "头顶显示分类模拟（FS?/SM?/…）", nil, true)
+		ImGui.AddCallback(class_id, ImGuiCallback.Render, function()
+			local p = id_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(class_id, cfg.show_class ~= false)
+		end)
+		ImGui.AddCallback(class_id, ImGuiCallback.Edited, function(value)
+			local p = id_probe()
+			if p and p.set_show_class then p.set_show_class(value == true) end
+		end)
+		local seed_id = "QingRemasterOptions_PlayerIdentityShowSeed"
+		ImGui.AddCheckbox(player_identity_group, seed_id, "头顶显示详细 Seed 信息", nil, false)
+		ImGui.AddCallback(seed_id, ImGuiCallback.Render, function()
+			local p = id_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(seed_id, cfg.show_seed == true)
+		end)
+		ImGui.AddCallback(seed_id, ImGuiCallback.Edited, function(value)
+			local p = id_probe()
+			if p and p.set_show_seed then p.set_show_seed(value == true) end
+		end)
+		local rec_id = "QingRemasterOptions_PlayerIdentityRecord"
+		ImGui.AddCheckbox(player_identity_group, rec_id, "记录身份变化事件", nil, true)
+		ImGui.AddCallback(rec_id, ImGuiCallback.Render, function()
+			local p = id_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(rec_id, cfg.record_events ~= false)
+		end)
+		ImGui.AddCallback(rec_id, ImGuiCallback.Edited, function(value)
+			local p = id_probe()
+			if p and p.set_record_events then p.set_record_events(value == true) end
+		end)
+		ImGui.AddButton(player_identity_group, "QingRemasterOptions_PlayerIdentityClear", "Clear Events", function()
+			local p = id_probe(); if p and p.clear then p.clear() end
+		end)
+		local status_id = "QingRemasterOptions_PlayerIdentityStatus"
+		imgui_layout.add_wrapped_text(player_identity_group, status_id, "idle")
 		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
-			local p = spin_probe()
-			local body = (p and p.get_status_text and p.get_status_text()) or "probe unavailable"
-			imgui_layout.update_text(status_id, body)
+			local p = id_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(status_id, ImGuiData.Label, text_body)
 		end)
-		local enable_id = "QingRemasterOptions_SpiritSwordSpinEnabled"
-		ImGui.AddCheckbox(spirit_sword_spin_group, enable_id, "Enable", nil, false)
-		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
-			local p = spin_probe()
-			local on = p and p.get_config and p.get_config().enabled == true
-			ImGui.UpdateData(enable_id, ImGuiData.Value, on == true)
-		end)
-		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
-			local p = spin_probe()
-			if p and p.set_enabled then p.set_enabled(value == true) end
-		end)
-		add_text(spirit_sword_spin_group, "Spawn Normal:")
-		imgui_layout.add_action_row(spirit_sword_spin_group, {
-			{id = "QingRemasterOptions_SSSpinNormalRight", label = "Spawn Normal Right", on_click = function()
-				local p = spin_probe(); if p and p.spawn_normal then p.spawn_normal("Right") end
-			end},
-			{id = "QingRemasterOptions_SSSpinNormalUp", label = "Spawn Normal Up", on_click = function()
-				local p = spin_probe(); if p and p.spawn_normal then p.spawn_normal("Up") end
-			end},
-		})
-		add_text(spirit_sword_spin_group, "Spawn Spin (Attack then Play Spin*):")
-		imgui_layout.add_action_row(spirit_sword_spin_group, {
-			{id = "QingRemasterOptions_SSSpinSpinRight", label = "Spawn Spin Right", on_click = function()
-				local p = spin_probe(); if p and p.spawn_spin then p.spawn_spin("Right") end
-			end},
-			{id = "QingRemasterOptions_SSSpinSpinUp", label = "Spawn Spin Up", on_click = function()
-				local p = spin_probe(); if p and p.spawn_spin then p.spawn_spin("Up") end
-			end},
-		})
 		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
-		probe_output.add_probe_output_controls(spirit_sword_spin_group, spin_probe, {
-			id_prefix = "QingRemasterOptions_SpiritSwordSpinOut",
-			export_label = "Export / Flush JSONL",
-		})
-	end
-	end
-
-	local spirit_sword_sandbox_group = start_probe_module(
-		"audit_spirit_sword_replay_sandbox",
-		"Spirit Sword Mimic Sandbox",
-		"QingRemasterOptions_GroupSpiritSwordReplaySandbox"
-	)
-	if spirit_sword_sandbox_group then
-	do
-		local function sandbox_probe()
-			return dev_env.require_probe("Qing_Remaster_scripts.debug.spirit_sword_replay_sandbox")
-		end
-		add_text(
-			spirit_sword_sandbox_group,
-			"Spirit_Sword_holder Mimic（geometry + Lua hitbox，非 fire_Sword）。默认关。日志：codex_work/logs/spirit_sword_replay_sandbox.jsonl"
-		)
-		local status_id = "QingRemasterOptions_SpiritSwordSandboxStatus"
-		imgui_layout.add_wrapped_text(spirit_sword_sandbox_group, status_id, "Idle")
-		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
-			local p = sandbox_probe()
-			local body = (p and p.get_status_text and p.get_status_text()) or "probe unavailable"
-			imgui_layout.update_text(status_id, body)
-		end)
-		local enable_id = "QingRemasterOptions_SpiritSwordSandboxEnabled"
-		ImGui.AddCheckbox(spirit_sword_sandbox_group, enable_id, "Enable", nil, false)
-		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
-			local p = sandbox_probe()
-			local on = p and p.get_config and p.get_config().enabled == true
-			ImGui.UpdateData(enable_id, ImGuiData.Value, on == true)
-		end)
-		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
-			local p = sandbox_probe()
-			if p and p.set_enabled then p.set_enabled(value == true) end
-		end)
-		local draw_id = "QingRemasterOptions_SpiritSwordSandboxDraw"
-		ImGui.AddCheckbox(spirit_sword_sandbox_group, draw_id, "Toggle Hitbox Debug", nil, true)
-		ImGui.AddCallback(draw_id, ImGuiCallback.Render, function()
-			local p = sandbox_probe()
-			local on = p and p.get_config and p.get_config().draw_hitboxes == true
-			ImGui.UpdateData(draw_id, ImGuiData.Value, on == true)
-		end)
-		ImGui.AddCallback(draw_id, ImGuiCallback.Edited, function(value)
-			local p = sandbox_probe()
-			if p and p.set_draw_hitboxes then p.set_draw_hitboxes(value == true) end
-		end)
-		local sound_id = "QingRemasterOptions_SpiritSwordSandboxSound"
-		ImGui.AddCheckbox(spirit_sword_sandbox_group, sound_id, "Play Swing SFX", nil, true)
-		ImGui.AddCallback(sound_id, ImGuiCallback.Render, function()
-			local p = sandbox_probe()
-			local on = p and p.get_config and p.get_config().play_sound ~= false
-			ImGui.UpdateData(sound_id, ImGuiData.Value, on == true)
-		end)
-		ImGui.AddCallback(sound_id, ImGuiCallback.Edited, function(value)
-			local p = sandbox_probe()
-			if p and p.set_play_sound then p.set_play_sound(value == true) end
-		end)
-		add_text(spirit_sword_sandbox_group, "Spawn Mimic Attack:")
-		imgui_layout.add_action_row(spirit_sword_sandbox_group, {
-			{id = "QingRemasterOptions_SSMimicAttackRight", label = "Spawn Mimic Attack Right", on_click = function()
-				local p = sandbox_probe(); if p and p.spawn_attack then p.spawn_attack("Right") end
-			end},
-			{id = "QingRemasterOptions_SSMimicAttackUp", label = "Spawn Mimic Attack Up", on_click = function()
-				local p = sandbox_probe(); if p and p.spawn_attack then p.spawn_attack("Up") end
-			end},
-		})
-		add_text(spirit_sword_sandbox_group, "Spawn Mimic Spin:")
-		imgui_layout.add_action_row(spirit_sword_sandbox_group, {
-			{id = "QingRemasterOptions_SSMimicSpinRight", label = "Spawn Mimic Spin Right", on_click = function()
-				local p = sandbox_probe(); if p and p.spawn_spin then p.spawn_spin("Right") end
-			end},
-			{id = "QingRemasterOptions_SSMimicSpinUp", label = "Spawn Mimic Spin Up", on_click = function()
-				local p = sandbox_probe(); if p and p.spawn_spin then p.spawn_spin("Up") end
-			end},
-		})
-		imgui_layout.add_small_action_row(spirit_sword_sandbox_group, {
-			{id = "QingRemasterOptions_SSMimicBeamTest", label = "Spawn Beam Test", on_click = function()
-				local p = sandbox_probe(); if p and p.spawn_beam_test then p.spawn_beam_test("Right") end
-			end},
-		})
-		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
-		probe_output.add_probe_output_controls(spirit_sword_sandbox_group, sandbox_probe, {
-			id_prefix = "QingRemasterOptions_SpiritSwordSandboxOut",
-			export_label = "Export / Flush JSONL",
-		})
-	end
-	end
-
-	local spirit_sword_feel_group = start_probe_module(
-		"audit_spirit_sword_feel",
-		"Spirit Sword Feel (SFX/Knockback)",
-		"QingRemasterOptions_GroupSpiritSwordFeel"
-	)
-	if spirit_sword_feel_group then
-	do
-		local function feel_probe()
-			return dev_env.require_probe("Qing_Remaster_scripts.debug.spirit_sword_feel_probe")
-		end
-		add_text(
-			spirit_sword_feel_group,
-			"纯观察原版英灵剑手感 v4：SFX / 击退冲量(上一帧速度基线) / 玩家后坐 / 掉落物分类(heart vs battery=Variant90)。站定踢电池请确认是 5.90。默认关。日志：codex_work/logs/spirit_sword_feel_probe.jsonl"
-		)
-		local status_id = "QingRemasterOptions_SpiritSwordFeelStatus"
-		imgui_layout.add_wrapped_text(spirit_sword_feel_group, status_id, "Idle")
-		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
-			local p = feel_probe()
-			local body = (p and p.get_status_text and p.get_status_text()) or "probe unavailable"
-			imgui_layout.update_text(status_id, body)
-		end)
-		local enable_id = "QingRemasterOptions_SpiritSwordFeelEnabled"
-		ImGui.AddCheckbox(spirit_sword_feel_group, enable_id, "Enable", nil, false)
-		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
-			local p = feel_probe()
-			local on = p and p.get_config and p.get_config().enabled == true
-			ImGui.UpdateData(enable_id, ImGuiData.Value, on == true)
-		end)
-		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
-			local p = feel_probe()
-			if p and p.set_enabled then p.set_enabled(value == true) end
-		end)
-		add_text(spirit_sword_feel_group, "Manual markers（分段测试）：")
-		imgui_layout.add_action_row(spirit_sword_feel_group, {
-			{id = "QingRemasterOptions_SSFeelMarkAttack", label = "Mark Attack", on_click = function()
-				local p = feel_probe(); if p and p.set_marker then p.set_marker("attack") end
-			end},
-			{id = "QingRemasterOptions_SSFeelMarkSpin", label = "Mark Spin", on_click = function()
-				local p = feel_probe(); if p and p.set_marker then p.set_marker("spin") end
-			end},
-			{id = "QingRemasterOptions_SSFeelMarkHit", label = "Mark Hit", on_click = function()
-				local p = feel_probe(); if p and p.set_marker then p.set_marker("hit") end
-			end},
-			{id = "QingRemasterOptions_SSFeelClearMark", label = "Clear Marker", on_click = function()
-				local p = feel_probe(); if p and p.clear_marker then p.clear_marker() end
-			end},
-		})
-		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
-		probe_output.add_probe_output_controls(spirit_sword_feel_group, feel_probe, {
-			id_prefix = "QingRemasterOptions_SpiritSwordFeelOut",
-			export_label = "Export / Flush JSONL",
+		probe_output.add_probe_output_controls(player_identity_group, id_probe, {
+			id_prefix = "QingRemasterOptions_PlayerIdentityOut",
+			export_label = "Export JSONL",
 		})
 	end
 	end
@@ -1034,6 +959,1371 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 		probe_output.add_probe_output_controls(tarot_pool_group, get_tarot_probe, {
 			id_prefix = "QingRemasterOptions_TarotReversePoolOut",
 			export_label = "Export Report",
+		})
+	end
+
+	local nihilistic_eye_record_group = start_probe_module(
+		"audit_nihilistic_eye_record",
+		"虚无假眼记录",
+		"QingRemasterOptions_GroupNihilisticEyeRecordProbe"
+	)
+	if nihilistic_eye_record_group then
+	do
+		add_text(
+			nihilistic_eye_record_group,
+			"追踪 Cycle 回显时 Consistance 记录命中、companions 快照与伴生复用/重实体化。默认关闭，不写存档，不改玩法。多 Case 追加。"
+		)
+		local function eye_record_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.nihilistic_eye_record_probe")
+		end
+		local enable_id = "QingRemasterOptions_NihilisticEyeRecordEnabled"
+		ImGui.AddCheckbox(nihilistic_eye_record_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = eye_record_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = eye_record_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_NihilisticEyeRecordStatus"
+		imgui_layout.add_wrapped_text(nihilistic_eye_record_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = eye_record_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			imgui_layout.update_text(
+				status_id,
+				string.format(
+					"en=%s ev=%d cases=%d create=%d hit=%d miss=%d remat=%d rem=%d verdict=%s last=%s",
+					tostring(cfg.enabled),
+					tonumber(cfg.event_count) or 0,
+					tonumber(cfg.case_count) or 0,
+					tonumber(cfg.create_count) or 0,
+					tonumber(cfg.lookup_hit) or 0,
+					tonumber(cfg.lookup_miss) or 0,
+					tonumber(cfg.rematerialize_count) or 0,
+					tonumber(cfg.slot_removed_count) or 0,
+					tostring(cfg.last_verdict),
+					tostring(cfg.last_result)
+				)
+			)
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(nihilistic_eye_record_group, eye_record_probe, {
+			id_prefix = "QingRemasterOptions_NihilisticEyeRecordOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local celestial_stars_group = start_probe_module(
+		"audit_celestial_stars",
+		"计都星 / 罗喉星",
+		"QingRemasterOptions_GroupCelestialStarsProbe"
+	)
+	if celestial_stars_group then
+	do
+		add_text(
+			celestial_stars_group,
+			"双星轨道 / History 分行留白 / 主动下延接金币 / 饰品短区间。拖进度自动暂停（可逆向）。标记：品红锚/青投影。"
+		)
+		local function celestial_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.celestial_stars_probe")
+		end
+		local enable_id = "QingRemasterOptions_CelestialStarsEnabled"
+		ImGui.AddCheckbox(celestial_stars_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = celestial_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local function add_bool(id, label, getter, setter)
+			ImGui.AddCheckbox(celestial_stars_group, id, label, nil, true)
+			ImGui.AddCallback(id, ImGuiCallback.Render, function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				ImGui.UpdateData(id, ImGuiData.Value, cfg[getter] ~= false)
+			end)
+			ImGui.AddCallback(id, ImGuiCallback.Edited, function(value)
+				local p = celestial_probe()
+				if p and p[setter] then p[setter](value == true) end
+			end)
+		end
+		add_bool("QingRemasterOptions_CelestialDrawTracks", "Draw Tracks (仅有效区间)", "draw_tracks", "set_draw_tracks")
+		ImGui.AddCheckbox(celestial_stars_group, "QingRemasterOptions_CelestialDrawNodes", "Draw HUD Nodes", nil, false)
+		ImGui.AddCallback("QingRemasterOptions_CelestialDrawNodes", ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData("QingRemasterOptions_CelestialDrawNodes", ImGuiData.Value, cfg.draw_nodes == true)
+		end)
+		ImGui.AddCallback("QingRemasterOptions_CelestialDrawNodes", ImGuiCallback.Edited, function(value)
+			local p = celestial_probe()
+			if p and p.set_draw_nodes then p.set_draw_nodes(value == true) end
+		end)
+		add_bool(
+			"QingRemasterOptions_CelestialDrawIntervals",
+			"Draw Stage Regions (起 + 道具ID)",
+			"draw_intervals",
+			"set_draw_intervals"
+		)
+		ImGui.AddCheckbox(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialDrawMarkers",
+			"Draw Markers (品红=HUD锚 / 青=轨道投影)",
+			nil,
+			true
+		)
+		ImGui.AddCallback("QingRemasterOptions_CelestialDrawMarkers", ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData("QingRemasterOptions_CelestialDrawMarkers", ImGuiData.Value, cfg.draw_markers ~= false)
+		end)
+		ImGui.AddCallback("QingRemasterOptions_CelestialDrawMarkers", ImGuiCallback.Edited, function(value)
+			local p = celestial_probe()
+			if p and p.set_draw_markers then p.set_draw_markers(value == true) end
+		end)
+		add_bool("QingRemasterOptions_CelestialDrawBlank", "Draw Blank Segments", "draw_blank", "set_draw_blank")
+		add_bool("QingRemasterOptions_CelestialDrawWobble", "Draw Logical/Render Wobble", "draw_wobble", "set_draw_wobble")
+		ImGui.AddCheckbox(celestial_stars_group, "QingRemasterOptions_CelestialOrbitPaused", "Pause Orbit (方便拖进度)", nil, false)
+		ImGui.AddCallback("QingRemasterOptions_CelestialOrbitPaused", ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData("QingRemasterOptions_CelestialOrbitPaused", ImGuiData.Value, cfg.orbit_paused == true)
+		end)
+		ImGui.AddCallback("QingRemasterOptions_CelestialOrbitPaused", ImGuiCallback.Edited, function(value)
+			local p = celestial_probe()
+			if p and p.set_orbit_paused then p.set_orbit_paused(value == true) end
+		end)
+		ImGui.AddCheckbox(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialSimulateSeija",
+			"Simulate Seija (计都星时间强化)",
+			nil,
+			false
+		)
+		ImGui.AddCallback("QingRemasterOptions_CelestialSimulateSeija", ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData("QingRemasterOptions_CelestialSimulateSeija", ImGuiData.Value, cfg.force_seija == true)
+		end)
+		ImGui.AddCallback("QingRemasterOptions_CelestialSimulateSeija", ImGuiCallback.Edited, function(value)
+			local p = celestial_probe()
+			if p and p.set_force_seija then p.set_force_seija(value == true) end
+		end)
+		local time_status_id = "QingRemasterOptions_CelestialTimeAccelStatus"
+		imgui_layout.add_wrapped_text(celestial_stars_group, time_status_id, "time accel: idle")
+		ImGui.AddCallback(time_status_id, ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			local ta = cfg.time_accel or {}
+			local text = string.format(
+				"time accel: %s | watch=%s | extra_frames=%s | measured_rate=%s | force_seija=%s",
+				ta.active and "ON" or "off",
+				tostring(ta.broken_watch),
+				tostring(ta.extra_frames or 0),
+				ta.measured_rate ~= nil and string.format("%.3f", ta.measured_rate) or "pending",
+				tostring(cfg.force_seija == true)
+			)
+			ImGui.UpdateData(time_status_id, ImGuiData.Label, text)
+		end)
+		-- min/max slightly past [0,1] so drag can cross the seam; setter floor-wraps.
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialKetuProgress",
+			"Ketu Progress (0-1)",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_ketu_progress then p.set_ketu_progress(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.ketu_progress or 0
+			end,
+			0, 0.005, -0.05, 1.05, "%.3f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialRahuProgress",
+			"Rahu Progress (0-1)",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_rahu_progress then p.set_rahu_progress(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.rahu_progress or 0
+			end,
+			0, 0.005, -0.05, 1.05, "%.3f"
+		)
+		imgui_layout.add_action_row(celestial_stars_group, {
+			{id = "QingRemasterOptions_CelestialKetuNudgeFwd", label = "Ketu +5%", on_click = function()
+				local p = celestial_probe()
+				if p and p.nudge_ketu_progress then p.nudge_ketu_progress(0.05) end
+			end},
+			{id = "QingRemasterOptions_CelestialKetuNudgeBack", label = "Ketu -5%", on_click = function()
+				local p = celestial_probe()
+				if p and p.nudge_ketu_progress then p.nudge_ketu_progress(-0.05) end
+			end},
+			{id = "QingRemasterOptions_CelestialRahuNudgeFwd", label = "Rahu +5%", on_click = function()
+				local p = celestial_probe()
+				if p and p.nudge_rahu_progress then p.nudge_rahu_progress(0.05) end
+			end},
+			{id = "QingRemasterOptions_CelestialRahuNudgeBack", label = "Rahu -5%", on_click = function()
+				local p = celestial_probe()
+				if p and p.nudge_rahu_progress then p.nudge_rahu_progress(-0.05) end
+			end},
+		})
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialBaseSpeed",
+			"Base Speed",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_base_speed then p.set_base_speed(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.base_speed or 24
+			end,
+			24, 0.5, 1, 120, "%.1f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialBlankMult",
+			"Blank Speed Multiplier",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_blank_mult then p.set_blank_mult(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.blank_mult or 2.5
+			end,
+			2.5, 0.05, 1, 6, "%.2f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialMiniOX",
+			"Minimap Offset X",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_minimap_offset_x then p.set_minimap_offset_x(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.minimap_ox or -8
+			end,
+			-8, 0.5, -80, 80, "%.1f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialMiniOY",
+			"Minimap Offset Y",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_minimap_offset_y then p.set_minimap_offset_y(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.minimap_oy or 8
+			end,
+			8, 0.5, -80, 80, "%.1f"
+		)
+		add_text(celestial_stars_group, "—— Found HUD / 饰品标定 ——")
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialStatOX",
+			"Stat Column Offset X",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_stat_column_offset_x then p.set_stat_column_offset_x(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.stat_ox or 0
+			end,
+			0, 0.5, -40, 40, "%.1f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialStatOY",
+			"Stat Column Offset Y",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_stat_column_offset_y then p.set_stat_column_offset_y(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.stat_oy or 8
+			end,
+			8, 0.5, -40, 40, "%.1f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_CelestialTrinketRadius",
+			"Trinket Own Radius",
+			function(v)
+				local p = celestial_probe()
+				if p and p.set_trinket_own_radius then p.set_trinket_own_radius(v) end
+			end,
+			function()
+				local p = celestial_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.trinket_own_radius or 16
+			end,
+			16, 0.5, 1, 40, "%.1f"
+		)
+
+		-- Map Formation: session-only Cell X/Y + geometry overlays (runtime, not probe capture).
+		add_text(
+			celestial_stars_group,
+			"—— Map Formation ——  默认世界 Cell 11/11（实测）；GoodTrip 8x7 仅屏距参考。Scale=1。不写存档。"
+		)
+		local function celestial_runtime()
+			return require("Qing_Remaster_scripts.items.celestial.runtime")
+		end
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_RahuMapCellX",
+			"Cell X",
+			function(v)
+				local rt = celestial_runtime()
+				if rt and rt.set_map_cell_x then rt.set_map_cell_x(v) end
+			end,
+			function()
+				local rt = celestial_runtime()
+				local cfg = rt and rt.get_map_formation_debug and rt.get_map_formation_debug() or {}
+				return cfg.cell_x or 11
+			end,
+			11, 0.5, 6, 30, "%.1f"
+		)
+		add_probe_drag(
+			celestial_stars_group,
+			"QingRemasterOptions_RahuMapCellY",
+			"Cell Y",
+			function(v)
+				local rt = celestial_runtime()
+				if rt and rt.set_map_cell_y then rt.set_map_cell_y(v) end
+			end,
+			function()
+				local rt = celestial_runtime()
+				local cfg = rt and rt.get_map_formation_debug and rt.get_map_formation_debug() or {}
+				return cfg.cell_y or 11
+			end,
+			11, 0.5, 6, 30, "%.1f"
+		)
+		local function add_map_bool(id, label, getter_key, setter_name)
+			ImGui.AddCheckbox(celestial_stars_group, id, label, nil, false)
+			ImGui.AddCallback(id, ImGuiCallback.Render, function()
+				local rt = celestial_runtime()
+				local cfg = rt and rt.get_map_formation_debug and rt.get_map_formation_debug() or {}
+				ImGui.UpdateData(id, ImGuiData.Value, cfg[getter_key] == true)
+			end)
+			ImGui.AddCallback(id, ImGuiCallback.Edited, function(value)
+				local rt = celestial_runtime()
+				if rt and rt[setter_name] then rt[setter_name](value == true) end
+			end)
+		end
+		add_map_bool(
+			"QingRemasterOptions_RahuMapShowAnchors",
+			"Show Formation Anchors",
+			"show_anchors",
+			"set_map_show_anchors"
+		)
+		add_map_bool(
+			"QingRemasterOptions_RahuMapShowSpriteBounds",
+			"Show Sprite Bounds",
+			"show_sprite_bounds",
+			"set_map_show_sprite_bounds"
+		)
+		add_map_bool(
+			"QingRemasterOptions_RahuMapShowLogicalCells",
+			"Show Logical Occupied Cells",
+			"show_logical_cells",
+			"set_map_show_logical_cells"
+		)
+		add_map_bool(
+			"QingRemasterOptions_RahuMapShowSpritePivot",
+			"Show Sprite Pivot",
+			"show_sprite_pivot",
+			"set_map_show_sprite_pivot"
+		)
+		imgui_layout.add_action_row(celestial_stars_group, {
+			{id = "QingRemasterOptions_RahuMapResetFormation", label = "Reset Formation", on_click = function()
+				local rt = celestial_runtime()
+				if rt and rt.reset_map_formation_debug then rt.reset_map_formation_debug() end
+			end},
+			{id = "QingRemasterOptions_RahuMapFireVolley", label = "立刻发射地图子弹", on_click = function()
+				local rt = celestial_runtime()
+				if rt and rt.debug_fire_map_volley then
+					rt.debug_fire_map_volley(Isaac.GetPlayer(0))
+				end
+			end},
+		})
+
+		local status_id = "QingRemasterOptions_CelestialStarsStatus"
+		imgui_layout.add_wrapped_text(celestial_stars_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = celestial_probe()
+			local body = (p and p.get_summary and p.get_summary()) or "unavailable"
+			imgui_layout.update_text(status_id, body)
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(celestial_stars_group, celestial_probe, {
+			id_prefix = "QingRemasterOptions_CelestialStarsOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local celestial_tear_life_group = start_probe_module(
+		"audit_celestial_tear_lifecycle",
+		"Celestial Stars · Tear Lifecycle",
+		"QingRemasterOptions_GroupCelestialTearLifecycle"
+	)
+	if celestial_tear_life_group then
+	do
+		add_text(
+			celestial_tear_life_group,
+			"v4 原版射程物理校准。Test Mode：Vanilla Range / FS Calibration / Rahu Comparison。默认轻量 Summary；Detailed 手动开。自动 Sweep 一次只飞一颗。不改罗喉/falling_for_range/Air Flight。"
+		)
+		local function tear_life_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.celestial_tear_lifecycle_probe")
+		end
+		local enable_id = "QingRemasterOptions_CelestialTearLifeEnabled"
+		ImGui.AddCheckbox(celestial_tear_life_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = tear_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = tear_life_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local mode_combo = "QingRemasterOptions_CelestialTearLifeMode"
+		ImGui.AddCombobox(celestial_tear_life_group, mode_combo, "Test Mode", function(index)
+			local p = tear_life_probe()
+			if p and p.set_test_mode then p.set_test_mode(index) end
+		end, {"Vanilla Range", "FS Calibration", "Rahu Comparison"}, 0)
+		ImGui.AddCallback(mode_combo, ImGuiCallback.Render, function()
+			local p = tear_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(mode_combo, ImGuiData.Value, tonumber(cfg.test_mode) or 0)
+		end)
+		add_probe_drag(
+			celestial_tear_life_group,
+			"QingRemasterOptions_CelestialTearLifeRangeDisp",
+			"Test Player Range (display)",
+			function(v)
+				local p = tear_life_probe()
+				if p and p.set_range_display then p.set_range_display(v) end
+			end,
+			function()
+				local p = tear_life_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.range_display or 6.5
+			end,
+			6.5, 0.1, 0.5, 50, "%.2f"
+		)
+		local native_id = "QingRemasterOptions_CelestialTearLifeNativeRange"
+		ImGui.AddCheckbox(celestial_tear_life_group, native_id, "使用玩家原始射程", nil, false)
+		ImGui.AddCallback(native_id, ImGuiCallback.Render, function()
+			local p = tear_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(native_id, ImGuiData.Value, cfg.use_native_range == true)
+		end)
+		ImGui.AddCallback(native_id, ImGuiCallback.Edited, function(value)
+			local p = tear_life_probe()
+			if p and p.set_use_native_range then p.set_use_native_range(value == true) end
+		end)
+		local fix_ss_id = "QingRemasterOptions_CelestialTearLifeFixShot"
+		ImGui.AddCheckbox(celestial_tear_life_group, fix_ss_id, "Fix ShotSpeed (Vanilla)", nil, true)
+		ImGui.AddCallback(fix_ss_id, ImGuiCallback.Render, function()
+			local p = tear_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(fix_ss_id, ImGuiData.Value, cfg.fix_shot_speed ~= false)
+		end)
+		ImGui.AddCallback(fix_ss_id, ImGuiCallback.Edited, function(value)
+			local p = tear_life_probe()
+			if p and p.set_fix_shot_speed then p.set_fix_shot_speed(value == true) end
+		end)
+		add_probe_drag(
+			celestial_tear_life_group,
+			"QingRemasterOptions_CelestialTearLifeShotSpd",
+			"ShotSpeed (when fixed)",
+			function(v)
+				local p = tear_life_probe()
+				if p and p.set_shot_speed_display then p.set_shot_speed_display(v) end
+			end,
+			function()
+				local p = tear_life_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.shot_speed_display or 1
+			end,
+			1, 0.05, 0.2, 3, "%.2f"
+		)
+		add_text(celestial_tear_life_group, "—— FS Calibration tear ——")
+		add_probe_drag(
+			celestial_tear_life_group,
+			"QingRemasterOptions_CelestialTearLifeCalibH",
+			"Calib Height",
+			function(v)
+				local p = tear_life_probe(); if p and p.set_calib_height then p.set_calib_height(v) end
+			end,
+			function()
+				local p = tear_life_probe(); local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.calib_height or -23.75
+			end,
+			-23.75, 0.25, -150, -5, "%.2f"
+		)
+		add_probe_drag(
+			celestial_tear_life_group,
+			"QingRemasterOptions_CelestialTearLifeCalibFS",
+			"Calib FallingSpeed",
+			function(v)
+				local p = tear_life_probe(); if p and p.set_calib_fs then p.set_calib_fs(v) end
+			end,
+			function()
+				local p = tear_life_probe(); local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.calib_fs or 0
+			end,
+			0, 0.1, -20, 5, "%.2f"
+		)
+		add_probe_drag(
+			celestial_tear_life_group,
+			"QingRemasterOptions_CelestialTearLifeCalibFA",
+			"Calib FallingAcceleration",
+			function(v)
+				local p = tear_life_probe(); if p and p.set_calib_fa then p.set_calib_fa(v) end
+			end,
+			function()
+				local p = tear_life_probe(); local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.calib_fa or 0
+			end,
+			0, 0.005, -0.05, 0.5, "%.3f"
+		)
+		add_probe_drag(
+			celestial_tear_life_group,
+			"QingRemasterOptions_CelestialTearLifeCalibSpd",
+			"Calib Horizontal Speed",
+			function(v)
+				local p = tear_life_probe(); if p and p.set_calib_hspeed then p.set_calib_hspeed(v) end
+			end,
+			function()
+				local p = tear_life_probe(); local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.calib_hspeed or 10
+			end,
+			10, 0.5, 5, 25, "%.1f"
+		)
+		local detailed_id = "QingRemasterOptions_CelestialTearLifeDetailed"
+		ImGui.AddCheckbox(celestial_tear_life_group, detailed_id, "Detailed Mode", nil, false)
+		ImGui.AddCallback(detailed_id, ImGuiCallback.Render, function()
+			local p = tear_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(detailed_id, ImGuiData.Value, cfg.detailed_mode == true)
+		end)
+		ImGui.AddCallback(detailed_id, ImGuiCallback.Edited, function(value)
+			local p = tear_life_probe()
+			if p and p.set_detailed_mode then p.set_detailed_mode(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_CelestialTearLifeStatus"
+		imgui_layout.add_wrapped_text(celestial_tear_life_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = tear_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			local body = string.format(
+				"last=%s mode=%s active=%s done=%s sweep=%s TearRange=%s TearH=%s TearFS=%s ShotSpd=%s fit=%s",
+				tostring(cfg.last_result or "idle"),
+				tostring(cfg.test_mode),
+				tostring(cfg.active or 0),
+				tostring(cfg.completed or 0),
+				tostring(cfg.sweep_running == true),
+				tostring(cfg.actual_tear_range),
+				tostring(cfg.player_tear_height),
+				tostring(cfg.player_tear_fs),
+				tostring(cfg.player_shot_speed),
+				tostring(cfg.fit_ok == true)
+			)
+			imgui_layout.update_text(status_id, body)
+		end)
+		imgui_layout.add_action_row(celestial_tear_life_group, {
+			{id = "QingRemasterOptions_CelestialTearLifeFireCalib", label = "Fire Calibration Tear", on_click = function()
+				local p = tear_life_probe()
+				if p and p.fire_calibration_tear then p.fire_calibration_tear() end
+			end},
+			{id = "QingRemasterOptions_CelestialTearLifeFit", label = "Compute Fit", on_click = function()
+				local p = tear_life_probe()
+				if p and p.compute_fit then p.compute_fit() end
+			end},
+		})
+		imgui_layout.add_action_row(celestial_tear_life_group, {
+			{id = "QingRemasterOptions_CelestialTearLifeSweepV", label = "Vanilla Range Sweep", on_click = function()
+				local p = tear_life_probe()
+				if p and p.start_vanilla_range_sweep then p.start_vanilla_range_sweep() end
+			end},
+			{id = "QingRemasterOptions_CelestialTearLifeSweepFS", label = "Initial FS Sweep", on_click = function()
+				local p = tear_life_probe()
+				if p and p.start_fs_sweep then p.start_fs_sweep() end
+			end},
+		})
+		imgui_layout.add_small_action_row(celestial_tear_life_group, {
+			{id = "QingRemasterOptions_CelestialTearLifeSweepFA", label = "FA Sweep", on_click = function()
+				local p = tear_life_probe()
+				if p and p.start_fa_sweep then p.start_fa_sweep() end
+			end},
+			{id = "QingRemasterOptions_CelestialTearLifeSweepStop", label = "Stop Sweep", on_click = function()
+				local p = tear_life_probe()
+				if p and p.stop_sweep then p.stop_sweep() end
+			end},
+			{id = "QingRemasterOptions_CelestialTearLifeClear", label = "Clear Records", on_click = function()
+				local p = tear_life_probe()
+				if p and p.clear then p.clear() end
+			end},
+		})
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(celestial_tear_life_group, tear_life_probe, {
+			id_prefix = "QingRemasterOptions_CelestialTearLifeOut",
+			summary_label = "Copy Summary",
+			full_label = "Copy Detailed Trace",
+			export_label = "Export JSONL",
+		})
+	end
+	end
+
+	local isolation_spawn_group = start_probe_module(
+		"audit_isolation_spawn",
+		"孤立生成",
+		"QingRemasterOptions_GroupIsolationSpawnProbe"
+	)
+	if isolation_spawn_group then
+	do
+		add_text(
+			isolation_spawn_group,
+			"记录 Encounter / Cycle / D6 Morph / 自适应布局 V2。默认关闭。商店可展开。Force Next=下一次 Encounter 临时十人名单。看 LAYOUT_SELECTED / LAYOUT_FALLBACK。"
+		)
+		local function iso_spawn_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.others.isolation_spawn_probe")
+		end
+		local function iso_item()
+			return require("Qing_Remaster_scripts.items.Item_Isolation")
+		end
+		local enable_id = "QingRemasterOptions_IsolationSpawnEnabled"
+		ImGui.AddCheckbox(isolation_spawn_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = iso_spawn_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = iso_spawn_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local overlay_id = "QingRemasterOptions_IsolationSpawnOverlay"
+		ImGui.AddCheckbox(isolation_spawn_group, overlay_id, "Overlay crosses", nil, true)
+		ImGui.AddCallback(overlay_id, ImGuiCallback.Render, function()
+			local p = iso_spawn_probe()
+			local cfg = p and p.get_config and p.get_config() or {overlay = true}
+			ImGui.UpdateData(overlay_id, ImGuiData.Value, cfg.overlay ~= false)
+		end)
+		ImGui.AddCallback(overlay_id, ImGuiCallback.Edited, function(value)
+			local p = iso_spawn_probe()
+			if p and p.set_overlay then p.set_overlay(value == true) end
+		end)
+		local force_id = "QingRemasterOptions_IsolationForceNextEncounter"
+		ImGui.AddCheckbox(
+			isolation_spawn_group,
+			force_id,
+			"Force Next Eligible Encounter as Clique Member",
+			nil,
+			false
+		)
+		ImGui.AddCallback(force_id, ImGuiCallback.Render, function()
+			local iso = iso_item()
+			local armed = iso and iso.is_force_next_encounter_as_member
+				and iso.is_force_next_encounter_as_member() == true
+			ImGui.UpdateData(force_id, ImGuiData.Value, armed)
+		end)
+		ImGui.AddCallback(force_id, ImGuiCallback.Edited, function(value)
+			local iso = iso_item()
+			if iso and iso.set_force_next_encounter_as_member then
+				iso.set_force_next_encounter_as_member(value == true)
+			end
+			local p = iso_spawn_probe()
+			if p and p.note and p.get_config and p.get_config().enabled then
+				p.note("FORCE_ARM", {
+					armed = value == true,
+				})
+			end
+		end)
+		local status_id = "QingRemasterOptions_IsolationSpawnStatus"
+		imgui_layout.add_wrapped_text(isolation_spawn_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = iso_spawn_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			local iso = iso_item()
+			local force_armed = iso and iso.is_force_next_encounter_as_member
+				and iso.is_force_next_encounter_as_member() == true
+			local force_ov = iso and iso.has_test_members_override
+				and iso.has_test_members_override() == true
+			imgui_layout.update_text(
+				status_id,
+				string.format(
+					"en=%s ov=%s force=%s fov=%s ev=%d spawn_ok=%d spawn_fail=%d settle_ok=%d settle_fail=%d exp_noenc=%d d6m=%d d6mem=%d d6blk=%d last=%s id=%s",
+					tostring(cfg.enabled),
+					tostring(cfg.overlay),
+					tostring(force_armed),
+					tostring(force_ov),
+					tonumber(cfg.event_count) or 0,
+					tonumber(cfg.success_count) or 0,
+					tonumber(cfg.fail_count) or 0,
+					tonumber(cfg.settle_ok_count) or 0,
+					tonumber(cfg.settle_fail_count) or 0,
+					tonumber(cfg.expected_no_enc_count) or 0,
+					tonumber(cfg.d6_morph_count) or 0,
+					tonumber(cfg.d6_member_count) or 0,
+					tonumber(cfg.d6_blocked_count) or 0,
+					tostring(cfg.last_result),
+					tostring(cfg.last_collectible)
+				)
+			)
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(isolation_spawn_group, iso_spawn_probe, {
+			id_prefix = "QingRemasterOptions_IsolationSpawnOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local alien_savior_group = start_probe_module(
+		"audit_alien_savior",
+		"天外救星",
+		"QingRemasterOptions_GroupAlienSaviorProbe"
+	)
+	if alien_savior_group then
+	do
+		add_text(alien_savior_group, "天外救星 SOS / UFO 状态机探针。默认关闭。Force 按钮会调用道具公开 API。")
+		local function as_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.alien_savior_probe")
+		end
+		local enable_id = "QingRemasterOptions_AlienSaviorEnabled"
+		ImGui.AddCheckbox(alien_savior_group, enable_id, "Enable", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local function ensure_rescue(p)
+			local c = require("Qing_Remaster_scripts.items.alien_savior.controller")
+			if not c.is_active() then
+				p.force_rescue()
+			end
+		end
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceSos", "Force SOS", function()
+			local p = as_probe()
+			if p and p.force_sos then p.force_sos() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceFirstSosFx", "Force First SOS FX", function()
+			local p = as_probe()
+			if p and p.force_first_sos_fx then p.force_first_sos_fx() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorReplayFirstSosFx", "Replay First SOS FX", function()
+			local p = as_probe()
+			if p and p.replay_first_sos_fx then p.replay_first_sos_fx() end
+		end)
+		local skip_sos_fx_id = "QingRemasterOptions_AlienSaviorSkipFirstSosFx"
+		ImGui.AddCheckbox(alien_savior_group, skip_sos_fx_id, "Skip First SOS FX", nil, false)
+		ImGui.AddCallback(skip_sos_fx_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local a = p and p.get_first_sos_audit and p.get_first_sos_audit() or {}
+			ImGui.UpdateData(skip_sos_fx_id, ImGuiData.Value, a.skip == true)
+		end)
+		ImGui.AddCallback(skip_sos_fx_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_skip_first_sos_fx then p.set_skip_first_sos_fx(value == true) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorCopyFirstSosAudit", "Copy First SOS Audit", function()
+			local p = as_probe()
+			if p and p.copy_first_sos_audit then p.copy_first_sos_audit() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceRescue", "Force Rescue", function()
+			local p = as_probe()
+			if p and p.force_rescue then p.force_rescue() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceAbduct", "Force Abduction", function()
+			local p = as_probe()
+			if p then ensure_rescue(p); p.force_phase("ABDUCT_PLAYER") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceTransit", "Force Transit to Center", function()
+			local p = as_probe()
+			if p then ensure_rescue(p); p.force_phase("TRANSIT_TO_CENTER") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceCleanup", "Force Work / Cleanup", function()
+			local p = as_probe()
+			if p then ensure_rescue(p); p.force_phase("ABDUCT_TARGETS") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceDepart", "Force Departing", function()
+			local p = as_probe()
+			if p then ensure_rescue(p); p.force_phase("DEPARTING") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceLaser", "Force LASER_SWEEP", function()
+			local p = as_probe()
+			if p then ensure_rescue(p); p.force_phase("LASER_SWEEP") end
+		end)
+		local show_main_origin_id = "QingRemasterOptions_AlienSaviorShowMainLaserOrigins"
+		ImGui.AddCheckbox(alien_savior_group, show_main_origin_id, "Show Main Laser Origins", nil, false)
+		ImGui.AddCallback(show_main_origin_id, ImGuiCallback.Render, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}
+			ImGui.UpdateData(show_main_origin_id, ImGuiData.Value, d.show_main_origins == true)
+		end)
+		ImGui.AddCallback(show_main_origin_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_laser_debug then p.set_laser_debug({ show_main_origins = value == true }) end
+		end)
+		local show_lamp_origin_id = "QingRemasterOptions_AlienSaviorShowLampLaserOrigins"
+		ImGui.AddCheckbox(alien_savior_group, show_lamp_origin_id, "Show Lamp Laser Origins", nil, false)
+		ImGui.AddCallback(show_lamp_origin_id, ImGuiCallback.Render, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}
+			ImGui.UpdateData(show_lamp_origin_id, ImGuiData.Value, d.show_lamp_origins == true)
+		end)
+		ImGui.AddCallback(show_lamp_origin_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_laser_debug then p.set_laser_debug({ show_lamp_origins = value == true }) end
+		end)
+		add_text(alien_savior_group, "—— Laser Render（V10.2 着色/层级诊断）——")
+		local laser_presets = { "default", "bright_cyan", "pure_white" }
+		local laser_preset_labels = { "Default", "Bright Cyan", "Pure White" }
+		local laser_preset_id = "QingRemasterOptions_AlienSaviorLaserColorPreset"
+		ImGui.AddCombobox(alien_savior_group, laser_preset_id, "Laser Color", function(index)
+			local p = as_probe()
+			local key = laser_presets[(index or 0) + 1] or "default"
+			if p and p.set_laser_debug then p.set_laser_debug({ color_preset = key }) end
+		end, laser_preset_labels, 0)
+		ImGui.AddCallback(laser_preset_id, ImGuiCallback.Render, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}
+			local map = { default = 0, bright_cyan = 1, pure_white = 2 }
+			ImGui.UpdateData(laser_preset_id, ImGuiData.Value, map[d.color_preset or "default"] or 0)
+		end)
+		local laser_targets = { "both", "entity", "sprite" }
+		local laser_target_labels = { "Both", "Entity", "Sprite" }
+		local laser_target_id = "QingRemasterOptions_AlienSaviorLaserColorTarget"
+		ImGui.AddCombobox(alien_savior_group, laser_target_id, "Laser Color Target", function(index)
+			local p = as_probe()
+			local key = laser_targets[(index or 0) + 1] or "both"
+			if p and p.set_laser_debug then p.set_laser_debug({ color_target = key }) end
+		end, laser_target_labels, 0)
+		ImGui.AddCallback(laser_target_id, ImGuiCallback.Render, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}
+			local map = { both = 0, entity = 1, sprite = 2 }
+			ImGui.UpdateData(laser_target_id, ImGuiData.Value, map[d.color_target or "both"] or 0)
+		end)
+		local laser_layers = { "ufo_foreground", "native" }
+		local laser_layer_labels = { "UFO Foreground", "Native" }
+		local laser_layer_id = "QingRemasterOptions_AlienSaviorLaserLayerTest"
+		ImGui.AddCombobox(alien_savior_group, laser_layer_id, "Laser Layer Test", function(index)
+			local p = as_probe()
+			local key = laser_layers[(index or 0) + 1] or "ufo_foreground"
+			if p and p.set_laser_debug then p.set_laser_debug({ layer_test = key }) end
+		end, laser_layer_labels, 0)
+		ImGui.AddCallback(laser_layer_id, ImGuiCallback.Render, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}
+			local map = { ufo_foreground = 0, native = 1 }
+			ImGui.UpdateData(laser_layer_id, ImGuiData.Value, map[d.layer_test or "ufo_foreground"] or 0)
+		end)
+		local show_cone_id = "QingRemasterOptions_AlienSaviorShowConeGeometry"
+		ImGui.AddCheckbox(alien_savior_group, show_cone_id, "Show Cone Geometry", nil, false)
+		ImGui.AddCallback(show_cone_id, ImGuiCallback.Render, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}
+			ImGui.UpdateData(show_cone_id, ImGuiData.Value, d.show_cone_geometry == true)
+		end)
+		ImGui.AddCallback(show_cone_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_laser_debug then p.set_laser_debug({ show_cone_geometry = value == true }) end
+		end)
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorConeRadiusX", "Cone Radius X", function(v)
+			local p = as_probe(); if p and p.set_laser_debug then p.set_laser_debug({ cone_radius_x = v }) end
+		end, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}; return d.cone_radius_x or 95
+		end, 95, 1, 40, 160, "%.0f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorConeRadiusY", "Cone Radius Y", function(v)
+			local p = as_probe(); if p and p.set_laser_debug then p.set_laser_debug({ cone_radius_y = v }) end
+		end, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}; return d.cone_radius_y or 28
+		end, 28, 1, 10, 80, "%.0f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorConeHeight", "Cone Height", function(v)
+			local p = as_probe(); if p and p.set_laser_debug then p.set_laser_debug({ cone_height = v }) end
+		end, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}; return d.cone_height or 70
+		end, 70, 1, 30, 140, "%.0f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorConeSpeed", "Cone Speed deg/f", function(v)
+			local p = as_probe(); if p and p.set_laser_debug then p.set_laser_debug({ cone_speed = v }) end
+		end, function()
+			local laser = require("Qing_Remaster_scripts.items.alien_savior.laser_controller")
+			local d = laser.get_debug and laser.get_debug() or {}; return d.cone_speed or 3
+		end, 3, 0.25, 0.5, 12, "%.2f")
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorCopyLaserAudit", "Copy Laser Render Audit", function()
+			local p = as_probe()
+			if p and p.copy_laser_render_audit then
+				p.copy_laser_render_audit()
+			elseif p and p.copy_laser_audit then
+				p.copy_laser_audit()
+			end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceRelease", "Force Release", function()
+			local p = as_probe()
+			if p then ensure_rescue(p); p.force_phase("RELEASE_PLAYER") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorAbort", "Abort Rescue", function()
+			local p = as_probe()
+			if p and p.abort_rescue then p.abort_rescue() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorReset", "Reset State", function()
+			local p = as_probe()
+			if p and p.reset_state then p.reset_state() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorPlaySearch", "Play SOS Search", function()
+			local p = as_probe()
+			if p and p.play_sfx then p.play_sfx("search") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorPlayConnected", "Play SOS Connected", function()
+			local p = as_probe()
+			if p and p.play_sfx then p.play_sfx("connected") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorPlayArrival", "Play UFO Arrival", function()
+			local p = as_probe()
+			if p and p.play_sfx then p.play_sfx("arrival") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorPlayHover", "Play UFO Hover", function()
+			local p = as_probe()
+			if p and p.play_sfx then p.play_sfx("hover") end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorStopAudio", "Stop Alien Savior Audio", function()
+			local p = as_probe()
+			if p and p.stop_sfx then p.stop_sfx() end
+		end)
+
+		add_text(alien_savior_group, "—— UFO Motion（默认关；Scale/悬停/入场偏移/光柱）——")
+		local motion_en_id = "QingRemasterOptions_AlienSaviorMotionEnabled"
+		ImGui.AddCheckbox(alien_savior_group, motion_en_id, "Enable Motion Debug", nil, false)
+		ImGui.AddCallback(motion_en_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(motion_en_id, ImGuiData.Value, cfg.motion_enabled == true)
+		end)
+		ImGui.AddCallback(motion_en_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_motion_enabled then p.set_motion_enabled(value == true) end
+		end)
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorUfoScale", "UFO Scale", function(v)
+			local p = as_probe(); if p and p.set_ufo_scale then p.set_ufo_scale(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.ufo_scale or 1
+		end, 1.0, 0.05, 0.75, 1.25, "%.2f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorHoverH", "Hover Height", function(v)
+			local p = as_probe(); if p and p.set_hover_height then p.set_hover_height(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.hover_height or 72
+		end, 72, 1, 40, 140, "%.0f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorEntryX", "Entry X Offset", function(v)
+			local p = as_probe(); if p and p.set_entry_x then p.set_entry_x(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.entry_x or -140
+		end, -140, 1, -220, 220, "%.0f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorEntryY", "Entry Y Offset", function(v)
+			local p = as_probe(); if p and p.set_entry_y then p.set_entry_y(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.entry_y or -110
+		end, -110, 1, -220, 40, "%.0f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorBeamW", "Beam Width", function(v)
+			local p = as_probe(); if p and p.set_beam_width then p.set_beam_width(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.beam_width or 1
+		end, 1.0, 0.05, 0.4, 2.5, "%.2f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorBeamOp", "Beam Opacity", function(v)
+			local p = as_probe(); if p and p.set_beam_opacity then p.set_beam_opacity(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.beam_opacity or 0.85
+		end, 0.85, 0.01, 0, 1, "%.2f")
+		local path_id = "QingRemasterOptions_AlienSaviorShowPath"
+		ImGui.AddCheckbox(alien_savior_group, path_id, "Show Motion Path", nil, false)
+		ImGui.AddCallback(path_id, ImGuiCallback.Render, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(path_id, ImGuiData.Value, cfg.show_path == true)
+		end)
+		ImGui.AddCallback(path_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_show_path then p.set_show_path(value == true) end
+		end)
+		local mouth_id = "QingRemasterOptions_AlienSaviorShowMouth"
+		ImGui.AddCheckbox(alien_savior_group, mouth_id, "Show Mouth Anchor", nil, false)
+		ImGui.AddCallback(mouth_id, ImGuiCallback.Render, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(mouth_id, ImGuiData.Value, cfg.show_mouth == true)
+		end)
+		ImGui.AddCallback(mouth_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_show_mouth then p.set_show_mouth(value == true) end
+		end)
+		local beam_modes = { "auto", "pickup", "work", "release", "off" }
+		local beam_mode_id = "QingRemasterOptions_AlienSaviorBeamMode"
+		ImGui.AddCombobox(alien_savior_group, beam_mode_id, "Beam Mode", function(index)
+			local p = as_probe()
+			local key = beam_modes[(index or 0) + 1] or "auto"
+			if p and p.set_beam_mode then
+				if key == "auto" then p.set_beam_mode(nil) else p.set_beam_mode(key) end
+			end
+		end, beam_modes, 0)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorBeamClear", "Clear Beam Override", function()
+			local p = as_probe(); if p and p.set_beam_mode then p.set_beam_mode(nil) end
+		end)
+		add_text(alien_savior_group, "Beam Layers（默认 Cone+Ground；Core=中央长条，默认关）")
+		local function beam_layer_box(id, label, key)
+			ImGui.AddCheckbox(alien_savior_group, id, label, nil, key ~= "core")
+			ImGui.AddCallback(id, ImGuiCallback.Render, function()
+				local md = require("Qing_Remaster_scripts.items.alien_savior.motion").get_debug()
+				local on = true
+				if key == "cone" then on = md.beam_show_cone ~= false
+				elseif key == "core" then on = md.beam_show_core == true
+				elseif key == "ground" then on = md.beam_show_ground ~= false
+				end
+				ImGui.UpdateData(id, ImGuiData.Value, on)
+			end)
+			ImGui.AddCallback(id, ImGuiCallback.Edited, function(value)
+				local p = as_probe(); if p and p.set_beam_layer then p.set_beam_layer(key, value == true) end
+			end)
+		end
+		beam_layer_box("QingRemasterOptions_AlienSaviorBeamCone", "Show Beam Cone", "cone")
+		beam_layer_box("QingRemasterOptions_AlienSaviorBeamCore", "Show Beam Core (strip)", "core")
+		beam_layer_box("QingRemasterOptions_AlienSaviorBeamGround", "Show Beam Ground", "ground")
+		local seam_id = "QingRemasterOptions_AlienSaviorBeamSeam"
+		ImGui.AddCheckbox(alien_savior_group, seam_id, "Show Beam Seam Marks", nil, false)
+		ImGui.AddCallback(seam_id, ImGuiCallback.Render, function()
+			local md = require("Qing_Remaster_scripts.items.alien_savior.motion").get_debug()
+			ImGui.UpdateData(seam_id, ImGuiData.Value, md.show_beam_seam == true)
+		end)
+		ImGui.AddCallback(seam_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_show_beam_seam then p.set_show_beam_seam(value == true) end
+		end)
+		local beam_frz_id = "QingRemasterOptions_AlienSaviorBeamFreeze"
+		ImGui.AddCheckbox(alien_savior_group, beam_frz_id, "Freeze Beam Transition", nil, false)
+		ImGui.AddCallback(beam_frz_id, ImGuiCallback.Render, function()
+			local md = require("Qing_Remaster_scripts.items.alien_savior.motion").get_debug()
+			ImGui.UpdateData(beam_frz_id, ImGuiData.Value, md.beam_freeze == true)
+		end)
+		ImGui.AddCallback(beam_frz_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_beam_freeze then p.set_beam_freeze(value == true) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorBeamAudit", "Copy Beam Audit", function()
+			local p = as_probe(); if p and p.copy_beam_audit then p.copy_beam_audit() end
+		end)
+
+		add_text(alien_savior_group, "—— Player LightTravel（固定 Position；无 SpriteOffset 拉升）——")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorCaptureFrame", "Capture Frame", function(v)
+			local p = as_probe(); if p and p.set_capture_frame then p.set_capture_frame(v) end
+		end, function()
+			return require("Qing_Remaster_scripts.items.alien_savior.motion").capture_frame()
+		end, 32, 1, 1, 35)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorAnimAudit", "Copy Animation Audit", function()
+			local p = as_probe(); if p and p.copy_anim_audit then p.copy_anim_audit() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorProbeAnimateLT", "Probe AnimateLightTravel()", function()
+			local p = as_probe(); if p and p.probe_animate_light_travel then p.probe_animate_light_travel() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorProbePlayExtra", "Probe PlayExtraAnimation(LightTravel)", function()
+			local p = as_probe(); if p and p.probe_play_extra_light_travel then p.probe_play_extra_light_travel() end
+		end)
+
+		add_text(alien_savior_group, "—— Protection / Control Release（Attribute_holder + fallback）——")
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorProtAudit", "Copy Protection Audit", function()
+			local p = as_probe(); if p and p.copy_protection_audit then p.copy_protection_audit() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorCtrlAudit", "Copy Control Release Audit", function()
+			local p = as_probe(); if p and p.copy_control_release_audit then p.copy_control_release_audit() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorClearLegacyCd", "Clear Legacy Cooldown (debug)", function()
+			local p = as_probe(); if p and p.clear_legacy_cooldown then p.clear_legacy_cooldown() end
+		end)
+
+		add_text(alien_savior_group, "—— Suction（环形扫描 / 代理吸入；默认关）——")
+		local suc_en = "QingRemasterOptions_AlienSaviorSuctionEnabled"
+		ImGui.AddCheckbox(alien_savior_group, suc_en, "Enable Suction Debug", nil, false)
+		ImGui.AddCallback(suc_en, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_suction_debug then p.set_suction_debug({ enabled = value == true }) end
+		end)
+		local suc_ring = "QingRemasterOptions_AlienSaviorSuctionRings"
+		ImGui.AddCheckbox(alien_savior_group, suc_ring, "Show Scan Rings", nil, false)
+		ImGui.AddCallback(suc_ring, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_suction_debug then p.set_suction_debug({ show_rings = value == true, enabled = true }) end
+		end)
+		local suc_pause = "QingRemasterOptions_AlienSaviorSuctionPause"
+		ImGui.AddCheckbox(alien_savior_group, suc_pause, "Pause / Step Jobs", nil, false)
+		ImGui.AddCallback(suc_pause, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_suction_debug then p.set_suction_debug({ paused = value == true }) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorForceScan", "Force Scan Complete", function()
+			local p = as_probe(); if p and p.set_suction_debug then p.set_suction_debug({ force_scan = true }) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorSuctionAudit", "Copy Suction Audit", function()
+			local p = as_probe(); if p and p.copy_suction_audit then p.copy_suction_audit() end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorReapplyGrids", "Reapply Absorbed Grids", function()
+			local p = as_probe(); if p and p.reapply_absorbed_grids then p.reapply_absorbed_grids() end
+		end)
+		local bounds_id = "QingRemasterOptions_AlienSaviorShowBounds"
+		ImGui.AddCheckbox(alien_savior_group, bounds_id, "Show Flight Bounds", nil, false)
+		ImGui.AddCallback(bounds_id, ImGuiCallback.Render, function()
+			local md = require("Qing_Remaster_scripts.items.alien_savior.motion").get_debug()
+			ImGui.UpdateData(bounds_id, ImGuiData.Value, md.show_bounds == true)
+		end)
+		ImGui.AddCallback(bounds_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_show_bounds then p.set_show_bounds(value == true) end
+		end)
+		local pass_id = "QingRemasterOptions_AlienSaviorShowPass"
+		ImGui.AddCheckbox(alien_savior_group, pass_id, "Show Front/Back Pass Mark", nil, false)
+		ImGui.AddCallback(pass_id, ImGuiCallback.Render, function()
+			local md = require("Qing_Remaster_scripts.items.alien_savior.motion").get_debug()
+			ImGui.UpdateData(pass_id, ImGuiData.Value, md.show_pass == true)
+		end)
+		ImGui.AddCallback(pass_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_show_pass then p.set_show_pass(value == true) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorMotionReset", "Reset Motion Defaults", function()
+			local p = as_probe(); if p and p.reset_motion then p.reset_motion() end
+		end)
+
+		add_text(alien_savior_group, "—— Bottom Core V4（Tint/Offset/Colorize 平滑；默认关）——")
+		local core_freeze_id = "QingRemasterOptions_AlienSaviorCoreFreeze"
+		ImGui.AddCheckbox(alien_savior_group, core_freeze_id, "Freeze Core State", nil, false)
+		ImGui.AddCallback(core_freeze_id, ImGuiCallback.Render, function()
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			ImGui.UpdateData(core_freeze_id, ImGuiData.Value, dbg.core_freeze == true)
+		end)
+		ImGui.AddCallback(core_freeze_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe(); if p and p.set_core_freeze then p.set_core_freeze(value == true) end
+		end)
+		local core_phases = { "auto", "ARRIVING", "ABDUCT_PLAYER", "TRANSIT_TO_CENTER", "ABDUCT_TARGETS", "LASER_SWEEP", "RELEASE_PLAYER", "DEPARTING" }
+		local core_phase_id = "QingRemasterOptions_AlienSaviorCorePhase"
+		ImGui.AddCombobox(alien_savior_group, core_phase_id, "Force Core Target Phase", function(index)
+			local p = as_probe()
+			local key = core_phases[(index or 0) + 1] or "auto"
+			if p and p.set_core_force_phase then p.set_core_force_phase(key) end
+		end, core_phases, 0)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorCoreReset", "Reset Core Defaults", function()
+			local p = as_probe(); if p and p.reset_core_defaults then p.reset_core_defaults() end
+		end)
+
+		add_text(alien_savior_group, "—— Light Controls（默认关；仅影响当前救援视觉，不写存档）——")
+		local light_en_id = "QingRemasterOptions_AlienSaviorLightEnabled"
+		ImGui.AddCheckbox(alien_savior_group, light_en_id, "Enable Light Debug", nil, false)
+		ImGui.AddCallback(light_en_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(light_en_id, ImGuiData.Value, cfg.light_enabled == true)
+		end)
+		ImGui.AddCallback(light_en_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_light_enabled then p.set_light_enabled(value == true) end
+		end)
+
+		local mode_labels = { "彩色环绕扫描", "全部白色常亮", "关闭全部灯光" }
+		local mode_keys = { "rainbow", "white", "off" }
+		local mode_id = "QingRemasterOptions_AlienSaviorLightMode"
+		ImGui.AddCombobox(alien_savior_group, mode_id, "预览模式", function(index)
+			local p = as_probe()
+			local key = mode_keys[(index or 0) + 1] or "rainbow"
+			if p and p.set_light_mode then p.set_light_mode(key) end
+		end, mode_labels, 0)
+		ImGui.AddCallback(mode_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			local idx = 0
+			for i, key in ipairs(mode_keys) do
+				if cfg.light_mode == key then idx = i - 1 break end
+			end
+			ImGui.UpdateData(mode_id, ImGuiData.Value, idx)
+		end)
+
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorBright", "整体灯光亮度", function(v)
+			local p = as_probe(); if p and p.set_master_brightness then p.set_master_brightness(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.master_brightness or 0.75
+		end, 0.75, 0.01, 0.0, 1.0, "%.2f")
+
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorColorCycle", "颜色轮转周期(f)", function(v)
+			local p = as_probe(); if p and p.set_color_cycle then p.set_color_cycle(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.color_cycle or 90
+		end, 90, 1, 15, 240, "%.0f")
+
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorChaseCycle", "亮度追逐周期(f)", function(v)
+			local p = as_probe(); if p and p.set_chase_cycle then p.set_chase_cycle(v) end
+		end, function()
+			local p = as_probe(); local cfg = p and p.get_config and p.get_config() or {}; return cfg.chase_cycle or 45
+		end, 45, 1, 10, 180, "%.0f")
+
+		local pause_id = "QingRemasterOptions_AlienSaviorLightPause"
+		ImGui.AddCheckbox(alien_savior_group, pause_id, "Pause Light Anim", nil, false)
+		ImGui.AddCallback(pause_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(pause_id, ImGuiData.Value, cfg.paused == true)
+		end)
+		ImGui.AddCallback(pause_id, ImGuiCallback.Edited, function(value)
+			local p = as_probe()
+			if p and p.set_light_paused then p.set_light_paused(value == true) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorLightStep", "Step Light +1f", function()
+			local p = as_probe()
+			if p and p.step_light then p.step_light(1) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorLightReset", "Reset Light Config", function()
+			local p = as_probe()
+			if p and p.reset_lights then p.reset_lights() end
+		end)
+
+		local layer_combo = "QingRemasterOptions_AlienSaviorLayerSelect"
+		local layer_labels_cache = nil
+		local function layer_labels()
+			if layer_labels_cache then return layer_labels_cache end
+			local p = as_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			layer_labels_cache = cfg.layer_names or { "body" }
+			return layer_labels_cache
+		end
+		ImGui.AddCombobox(alien_savior_group, layer_combo, "Select Layer", function(index)
+			local p = as_probe()
+			if p and p.select_layer_index then p.select_layer_index(index) end
+		end, layer_labels(), 0)
+		ImGui.AddCallback(layer_combo, ImGuiCallback.Render, function()
+			local p = as_probe()
+			local idx = (p and p.get_selected_layer_index and p.get_selected_layer_index()) or 0
+			ImGui.UpdateData(layer_combo, ImGuiData.Value, idx)
+		end)
+
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorLayerR", "Layer R", function(v)
+			local p = as_probe()
+			if not p then return end
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = (dbg.layer_override[dbg.selected_layer]) or {}
+			if p.set_selected_rgba then p.set_selected_rgba(v, ov.g or 1, ov.b or 1, ov.a or 1) end
+		end, function()
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = dbg.layer_override[dbg.selected_layer]
+			return (ov and ov.r) or 1
+		end, 1, 0.01, 0, 1, "%.2f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorLayerG", "Layer G", function(v)
+			local p = as_probe()
+			if not p then return end
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = (dbg.layer_override[dbg.selected_layer]) or {}
+			if p.set_selected_rgba then p.set_selected_rgba(ov.r or 1, v, ov.b or 1, ov.a or 1) end
+		end, function()
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = dbg.layer_override[dbg.selected_layer]
+			return (ov and ov.g) or 1
+		end, 1, 0.01, 0, 1, "%.2f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorLayerB", "Layer B", function(v)
+			local p = as_probe()
+			if not p then return end
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = (dbg.layer_override[dbg.selected_layer]) or {}
+			if p.set_selected_rgba then p.set_selected_rgba(ov.r or 1, ov.g or 1, v, ov.a or 1) end
+		end, function()
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = dbg.layer_override[dbg.selected_layer]
+			return (ov and ov.b) or 1
+		end, 1, 0.01, 0, 1, "%.2f")
+		add_probe_drag(alien_savior_group, "QingRemasterOptions_AlienSaviorLayerA", "Layer A", function(v)
+			local p = as_probe()
+			if not p then return end
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = (dbg.layer_override[dbg.selected_layer]) or {}
+			if p.set_selected_rgba then p.set_selected_rgba(ov.r or 1, ov.g or 1, ov.b or 1, v) end
+		end, function()
+			local dbg = require("Qing_Remaster_scripts.items.alien_savior.light_controller").get_debug()
+			local ov = dbg.layer_override[dbg.selected_layer]
+			return (ov and ov.a) or 1
+		end, 1, 0.01, 0, 1, "%.2f")
+
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorHideLayer", "Hide Selected Layer", function()
+			local p = as_probe(); if p and p.hide_selected_layer then p.hide_selected_layer(true) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorShowLayer", "Show Selected Layer", function()
+			local p = as_probe(); if p and p.hide_selected_layer then p.hide_selected_layer(false) end
+		end)
+		ImGui.AddButton(alien_savior_group, "QingRemasterOptions_AlienSaviorClearLayerOv", "Clear Selected Override", function()
+			local p = as_probe(); if p and p.clear_selected_override then p.clear_selected_override() end
+		end)
+
+		local status_id = "QingRemasterOptions_AlienSaviorStatus"
+		imgui_layout.add_wrapped_text(alien_savior_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = as_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(alien_savior_group, as_probe, {
+			id_prefix = "QingRemasterOptions_AlienSaviorOut",
+			export_label = "Export Report",
+		})
+	end
+	end
+
+	local rooted_perf_group = start_probe_module(
+		"audit_rooted_demon_performance", "根植之魔二阶段性能",
+		"QingRemasterOptions_GroupRootedDemonPerformance")
+	if rooted_perf_group then
+		add_text(rooted_perf_group, "运行 40 道具场景后查看各步骤耗时。默认关闭；每 30 游戏帧采样一次，最多 120 次。")
+		local function perf_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.rooted_demon_performance_probe")
+		end
+		local enable_id = "QingRemasterOptions_RootedDemonPerfEnabled"
+		ImGui.AddCheckbox(rooted_perf_group, enable_id, "采集性能", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local probe = perf_probe()
+			ImGui.UpdateData(enable_id, ImGuiData.Value,
+				probe and probe.get_config and probe.get_config().enabled == true or false)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local probe = perf_probe()
+			if probe and probe.set_enabled then probe.set_enabled(value == true) end
+		end)
+		local status_id = "QingRemasterOptions_RootedDemonPerfStatus"
+		imgui_layout.add_wrapped_text(rooted_perf_group, status_id, "未采集")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local probe = perf_probe()
+			imgui_layout.update_text(status_id,
+				(probe and probe.get_summary and probe.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(rooted_perf_group, perf_probe, {
+			id_prefix = "QingRemasterOptions_RootedDemonPerfOut",
+			export_label = "导出报告",
 		})
 	end
 
@@ -1608,6 +2898,97 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
 		probe_output.add_probe_output_controls(remaster_ghost_group, ghost_probe, {
 			id_prefix = "QingRemasterOptions_RemasterGhostOut",
+			export_label = "Export JSONL",
+		})
+	end
+	end
+
+	local player_vfx_layer_group = start_probe_module(
+		"audit_player_vfx_layer",
+		"玩家特效前后层深度",
+		"QingRemasterOptions_GroupPlayerVfxLayer"
+	)
+	if player_vfx_layer_group then
+	do
+		local function get_pvfx_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.player_vfx_layer_probe")
+		end
+		add_text(
+			player_vfx_layer_group,
+			"Phase1：不透明红方块 B=背后，青方块 F=身前。先切 Behind only / Front only 看遮挡，再 Both。Effect 标记与 PRE/POST 对照可分开关。无敌时 Effect 不应闪；PRE 可能闪。启用 → 选层 → Arm case → Finish Case。默认关闭。"
+		)
+		local enable_id = "QingRemasterOptions_PlayerVfxLayerEnabled"
+		ImGui.AddCheckbox(player_vfx_layer_group, enable_id, "启用", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = get_pvfx_probe()
+			local cfg = p and p.get_config and p.get_config() or {enabled = false}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = get_pvfx_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local show_fx_id = "QingRemasterOptions_PlayerVfxLayerShowFx"
+		ImGui.AddCheckbox(player_vfx_layer_group, show_fx_id, "显示 Effect 标记", nil, true)
+		ImGui.AddCallback(show_fx_id, ImGuiCallback.Render, function()
+			local p = get_pvfx_probe()
+			local cfg = p and p.get_config and p.get_config() or {show_effect = true}
+			ImGui.UpdateData(show_fx_id, ImGuiData.Value, cfg.show_effect ~= false)
+		end)
+		ImGui.AddCallback(show_fx_id, ImGuiCallback.Edited, function(value)
+			local p = get_pvfx_probe()
+			if p and p.set_show_effect then p.set_show_effect(value == true) end
+		end)
+		local show_cb_id = "QingRemasterOptions_PlayerVfxLayerShowCb"
+		ImGui.AddCheckbox(player_vfx_layer_group, show_cb_id, "显示 PRE/POST 对照标记", nil, true)
+		ImGui.AddCallback(show_cb_id, ImGuiCallback.Render, function()
+			local p = get_pvfx_probe()
+			local cfg = p and p.get_config and p.get_config() or {show_player_cb = true}
+			ImGui.UpdateData(show_cb_id, ImGuiData.Value, cfg.show_player_cb ~= false)
+		end)
+		ImGui.AddCallback(show_cb_id, ImGuiCallback.Edited, function(value)
+			local p = get_pvfx_probe()
+			if p and p.set_show_player_cb then p.set_show_player_cb(value == true) end
+		end)
+		imgui_layout.add_small_action_row(player_vfx_layer_group, {
+			{id = "QingRemasterOptions_PlayerVfxLayerBehindOnly", label = "Behind only", on_click = function()
+				local p = get_pvfx_probe(); if p and p.set_layer_mode then p.set_layer_mode("behind") end
+			end},
+			{id = "QingRemasterOptions_PlayerVfxLayerFrontOnly", label = "Front only", on_click = function()
+				local p = get_pvfx_probe(); if p and p.set_layer_mode then p.set_layer_mode("front") end
+			end},
+			{id = "QingRemasterOptions_PlayerVfxLayerBoth", label = "Both", on_click = function()
+				local p = get_pvfx_probe(); if p and p.set_layer_mode then p.set_layer_mode("both") end
+			end},
+		})
+		imgui_layout.add_small_action_row(player_vfx_layer_group, {
+			{id = "QingRemasterOptions_PlayerVfxLayerArmNormal", label = "Arm Normal", on_click = function()
+				local p = get_pvfx_probe(); if p and p.arm_normal then p.arm_normal() end
+			end},
+			{id = "QingRemasterOptions_PlayerVfxLayerArmInvuln", label = "Arm Invuln", on_click = function()
+				local p = get_pvfx_probe(); if p and p.arm_invuln then p.arm_invuln() end
+			end},
+			{id = "QingRemasterOptions_PlayerVfxLayerArmOffset", label = "Arm Offset", on_click = function()
+				local p = get_pvfx_probe(); if p and p.arm_offset then p.arm_offset() end
+			end},
+			{id = "QingRemasterOptions_PlayerVfxLayerFinish", label = "Finish Case", on_click = function()
+				local p = get_pvfx_probe(); if p and p.finish_case then p.finish_case() end
+			end},
+		})
+		imgui_layout.add_small_action_row(player_vfx_layer_group, {
+			{id = "QingRemasterOptions_PlayerVfxLayerClear", label = "Clear Suite", on_click = function()
+				local p = get_pvfx_probe(); if p and p.clear then p.clear() end
+			end},
+		})
+		local status_id = "QingRemasterOptions_PlayerVfxLayerStatus"
+		imgui_layout.add_wrapped_text(player_vfx_layer_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = get_pvfx_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "n/a")
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(player_vfx_layer_group, get_pvfx_probe, {
+			id_prefix = "QingRemasterOptions_PlayerVfxLayerOut",
 			export_label = "Export JSONL",
 		})
 	end
@@ -3207,6 +4588,269 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 		end
 		push_notice(text("printed_notice"))
 	end)
+
+	-- Story / Wind: pipeline capture (read-only diagnostics for Storm V5).
+	local wind_pipeline_group = start_probe_module(
+		"audit_wind_pipeline",
+		(Options and Options.Language == "en") and "Wind · Pipeline Probe" or "风场 · 管线探针",
+		"QingRemasterOptions_GroupWindPipelineProbe"
+	)
+	if wind_pipeline_group then
+		local function wind_pipeline_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.threads.wind.wind_pipeline_probe")
+		end
+		add_text(
+			wind_pipeline_group,
+			"只读 120 帧采样：Story/BFS/Session/Update/Render/Physics。Force 需支线测试会话。Render()≠屏幕可见。"
+		)
+		local p = wind_pipeline_probe()
+		if p and p.build_ui then
+			p.build_ui(wind_pipeline_group, "QingRemasterOptions_WindPipeline")
+		else
+			add_text(wind_pipeline_group, (dev_env.format_probe_unavailable
+				and dev_env.format_probe_unavailable(
+					"Qing_Remaster_scripts.threads.wind.wind_pipeline_probe",
+					"风场管线探针不可用。"
+				)) or "风场管线探针不可用。")
+		end
+	end
+
+	-- Story / Stone: board + burial render diagnosis (authoritative probe UI).
+	local stone_render_group = start_probe_module(
+		"audit_stone_render",
+		(Options and Options.Language == "en") and "Stone · Render Probe" or "Stone · 渲染探针",
+		"QingRemasterOptions_GroupStoneRenderProbe"
+	)
+	if stone_render_group then
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		local function stone_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.stone_render_probe")
+		end
+		add_text(
+			stone_render_group,
+			"棋盘回调 / 门禁 / 洋红格 / Burial LayerState 时间线。默认关闭，不写存档，不改正式绘制框架。"
+		)
+		local enable_id = "QingRemasterOptions_StoneRenderEnabled"
+		ImGui.AddCheckbox(stone_render_group, enable_id, "启用探针", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(enable_id, ImGuiData.Value, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local mag_id = "QingRemasterOptions_StoneRenderMagenta"
+		ImGui.AddCheckbox(stone_render_group, mag_id, "固定洋红格", nil, false)
+		ImGui.AddCallback(mag_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(mag_id, ImGuiData.Value, cfg.magenta_tile == true)
+		end)
+		ImGui.AddCallback(mag_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({magenta_tile = value == true}) end
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		local full_id = "QingRemasterOptions_StoneRenderFull"
+		ImGui.AddCheckbox(stone_render_group, full_id, "强制满盘", nil, false)
+		ImGui.AddCallback(full_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(full_id, ImGuiData.Value, cfg.force_full_board == true)
+		end)
+		ImGui.AddCallback(full_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({force_full_board = value == true}) end
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		local cmp_id = "QingRemasterOptions_StoneRenderCompare"
+		ImGui.AddCheckbox(stone_render_group, cmp_id, "对比 POST_RENDER", nil, false)
+		ImGui.AddCallback(cmp_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(cmp_id, ImGuiData.Value, cfg.compare_post_render == true)
+		end)
+		ImGui.AddCallback(cmp_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({compare_post_render = value == true}) end
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		local route_id = "QingRemasterOptions_StoneRenderGridRoute"
+		ImGui.AddCheckbox(stone_render_group, route_id, "Grid Routing Test", nil, false)
+		ImGui.AddCallback(route_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(route_id, ImGuiData.Value, cfg.grid_routing_test == true)
+		end)
+		ImGui.AddCallback(route_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({grid_routing_test = value == true}) end
+		end)
+		add_text(
+			stone_render_group,
+			"裁剪模式（V3.1）：Full=不裁剪基线；Projection=Zeis 式 WorldToScreen；Optimized=候选+精裁。"
+		)
+		local function set_cull(mode)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({cull_mode = mode}) end
+		end
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneCullFull", "Cull: Full", function()
+			set_cull("full")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneCullProj", "Cull: Projection", function()
+			set_cull("projection")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneCullOpt", "Cull: Optimized", function()
+			set_cull("optimized")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneCullAssert", "断言 Optimized⊇Projection", function()
+			local p = stone_probe()
+			local r = p and p.assert_cull_coverage and p.assert_cull_coverage() or {}
+			Isaac.ConsoleOutput(string.format(
+				"[StoneCull] ok=%s missing=%d proj=%s opt=%s\n",
+				tostring(r.ok), #(r.missing or {}), tostring(r.projection_count), tostring(r.optimized_count)
+			))
+		end)
+		add_text(
+			stone_render_group,
+			"Grid Routing：洋红=EMPTY / 青=GRID_PRE / 黄=PIT_POST。Summary 含各阶段 last frame 与门禁 STALE。"
+		)
+		add_text(
+			stone_render_group,
+			"V3.2 性能归因 / V3.3 共享帧上下文：开 Attribution 后看 render_context_builds≈1、frame_ctx hit/miss、verify_owner。隔离模式只影响绘制。"
+		)
+		local perf_on_id = "QingRemasterOptions_StonePerfAttr"
+		ImGui.AddCheckbox(stone_render_group, perf_on_id, "Performance Attribution", nil, false)
+		ImGui.AddCallback(perf_on_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(perf_on_id, ImGuiData.Value, cfg.perf_attr == true)
+		end)
+		ImGui.AddCallback(perf_on_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({perf_attr = value == true}) end
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		local fv_id = "QingRemasterOptions_StonePerfFixedView"
+		ImGui.AddCheckbox(stone_render_group, fv_id, "固定视角采样", nil, false)
+		ImGui.AddCallback(fv_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			ImGui.UpdateData(fv_id, ImGuiData.Value, cfg.fixed_view == true)
+		end)
+		ImGui.AddCallback(fv_id, ImGuiCallback.Edited, function(value)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({fixed_view = value == true}) end
+		end)
+		local function set_iso(mode)
+			local p = stone_probe()
+			if p and p.set_mode then p.set_mode({isolation = mode}) end
+		end
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneIsoNormal", "Iso: Normal", function()
+			set_iso("normal")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneIsoNoSpr", "No Sprite Draw", function()
+			set_iso("no_sprite_draw")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneIsoNoBoard", "No Board Render", function()
+			set_iso("no_board_render")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneIsoNoVis", "No Stone Visuals", function()
+			set_iso("no_stone_visuals")
+		end)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StonePerfReset", "Reset Perf Samples", function()
+			local p = stone_probe()
+			if p and p.reset_perf_samples then p.reset_perf_samples() end
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StonePerfCopy", "Copy Perf Summary", function()
+			local p = stone_probe()
+			if p and p.copy_perf_summary then p.copy_perf_summary() end
+		end)
+		local perf_status_id = "QingRemasterOptions_StonePerfStatus"
+		imgui_layout.add_wrapped_text(stone_render_group, perf_status_id, "Attribution OFF。")
+		ImGui.AddCallback(perf_status_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			local lines = p and p.get_perf_summary_lines and p.get_perf_summary_lines() or { "开发探针不可用。" }
+			imgui_layout.update_text(perf_status_id, table.concat(lines, "\n"))
+		end)
+		add_text(
+			stone_render_group,
+			"Tile Scale：正式默认 67%≈0.5556。探针对照 100%/80%/67%/50% + 拖动。"
+		)
+		local function set_tile_preset(key)
+			local p = stone_probe()
+			local board = require("Qing_Remaster_scripts.threads.stone.stone_board")
+			local presets = board.get_tile_scale_presets()
+			local v = presets[key]
+			if p and p.set_mode and v then p.set_mode({tile_scale = v}) end
+		end
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneTile100", "100% 0.8333", function()
+			set_tile_preset("s100")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneTile80", "80% 0.6667", function()
+			set_tile_preset("s80")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneTile67", "67% 0.5556", function()
+			set_tile_preset("s67")
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneTile50", "50% 0.4167", function()
+			set_tile_preset("s50")
+		end)
+		add_probe_drag(
+			stone_render_group,
+			"QingRemasterOptions_StoneTileScaleDrag",
+			"Tile Scale",
+			function(value)
+				local p = stone_probe()
+				if p and p.set_mode then p.set_mode({tile_scale = value}) end
+			end,
+			function()
+				local p = stone_probe()
+				local cfg = p and p.get_config and p.get_config() or {}
+				return cfg.tile_scale_live or (40 / 48)
+			end,
+			40 / 48,
+			0.01,
+			0.1,
+			1.5,
+			"%.4f"
+		)
+		local origin = require("Qing_Remaster_scripts.threads.stone.stone_origin")
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneBurWhite", "Burial: White", function()
+			origin.set_vis({burial_mode = "white"})
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneBurFloor", "Burial: FloorColor", function()
+			origin.set_vis({burial_mode = "floor_color"})
+		end)
+		ImGui.AddElement(stone_render_group, "", ImGuiElement.SameLine)
+		ImGui.AddButton(stone_render_group, "QingRemasterOptions_StoneBurGreen", "Burial: Pure Green", function()
+			origin.set_vis({burial_mode = "pure_green"})
+		end)
+		local status_id = "QingRemasterOptions_StoneRenderStatus"
+		imgui_layout.add_wrapped_text(stone_render_group, status_id, "探针关闭。")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = stone_probe()
+			imgui_layout.update_text(status_id, (p and p.get_summary and p.get_summary()) or "开发探针不可用。")
+		end)
+		probe_output.add_probe_output_controls(stone_render_group, stone_probe, {
+			id_prefix = "QingRemasterOptions_StoneRenderOut",
+			export_label = "Export Report",
+		})
+	end
+
 end
 
 return M

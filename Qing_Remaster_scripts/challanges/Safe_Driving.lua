@@ -54,4 +54,5 @@ Function = function(_,player)
 end,
 })
 
+Charging_Bar_holder.register_bar({id = "Safe_Driving", owner = {type = "challenge", challenge = item.challange}})
 return item

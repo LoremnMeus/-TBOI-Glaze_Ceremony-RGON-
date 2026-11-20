@@ -38,6 +38,7 @@
 
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local TEAR_STATE_CAPTURE = 1
 local TEAR_STATE_RISE = 2
@@ -1157,8 +1158,7 @@ local function refresh_player_field_buff(player)
 	else
 		data[key("inside_buff")] = nil
 	end
-	player:AddCacheFlags(CacheFlag.CACHE_FIREDELAY)
-	player:EvaluateItems()
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_FIREDELAY)
 end
 
 local function refresh_all_player_field_buffs()

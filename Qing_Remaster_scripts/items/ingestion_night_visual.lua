@@ -277,6 +277,8 @@ local sprites = {
 	fang_roots = {},
 	body = nil,
 	fill = nil,
+	ready = false,
+	fang_capacity = 0,
 }
 
 local function ensure_sprite(cache, key, anm2, sheet)
@@ -294,19 +296,22 @@ local function ensure_sprite(cache, key, anm2, sheet)
 end
 
 local function ensure_all_sprites()
-	for _, edge in ipairs(EDGES) do
-		sprites.edge[edge] = sprites.edge[edge] or {}
-		local sheets = SHEET_EDGE[edge]
-		local anm2 = (edge == "top" or edge == "bottom") and ANM2_H or ANM2_V
-		for _, layer in ipairs(LAYER_KEYS) do
-			ensure_sprite(sprites.edge[edge], layer, anm2, sheets[layer])
+	if not sprites.ready then
+		for _, edge in ipairs(EDGES) do
+			sprites.edge[edge] = sprites.edge[edge] or {}
+			local sheets = SHEET_EDGE[edge]
+			local anm2 = (edge == "top" or edge == "bottom") and ANM2_H or ANM2_V
+			for _, layer in ipairs(LAYER_KEYS) do
+				ensure_sprite(sprites.edge[edge], layer, anm2, sheets[layer])
+			end
 		end
 	end
 	local nfang = math.max(1, math.floor((vis.params.fang_count or 5) * 4))
-	for i = 1, nfang do
+	for i = sprites.fang_capacity + 1, nfang do
 		ensure_sprite(sprites.fangs, i, ANM2_FANG, SHEET_FANG)
 		ensure_sprite(sprites.fang_roots, i, ANM2_FANG_ROOT, SHEET_FANG_ROOT)
 	end
+	sprites.fang_capacity = math.max(sprites.fang_capacity, nfang)
 	if sprites.body == nil then
 		sprites.body = Sprite()
 		sprites.body:Load(ANM2_BODY, true)
@@ -321,6 +326,11 @@ local function ensure_all_sprites()
 		sprites.fill:LoadGraphics()
 		sprites.fill:Play("Idle", true)
 	end
+	sprites.ready = true
+end
+
+function vis.prepare_resources()
+	if overlay.active then ensure_all_sprites() end
 end
 
 local function rebuild_candidates(seed)
@@ -387,7 +397,6 @@ function vis.clear_all()
 	overlay.edge_noise = nil
 	overlay.charge_focus_screen = nil
 	clear_release_snapshot()
-	sprites = {edge = {}, fangs = {}, fang_roots = {}, body = nil, fill = nil}
 end
 
 local function segment_depth(edge, base, i)
@@ -879,7 +888,7 @@ end
 function vis.render()
 	-- 暂停时仍绘制当前帧（菜单/地图底下保持夜幕），但不推进噪声与焦点动画
 	if not overlay.active and overlay.phase == "idle" then return end
-	ensure_all_sprites()
+	if not sprites.ready then return end
 	local _, _, sw, sh = vis.get_viewport_rect()
 	local counter = overlay.counter
 	local phase = overlay.phase

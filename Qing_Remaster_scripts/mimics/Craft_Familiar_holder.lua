@@ -44,9 +44,14 @@ local ONE_UP_FX_KEY = "one_up_fx" -- 旧单键兼容
 local TEAR_VISUAL_LIFT_KEY = "tear_visual_lift"
 local TEAR_VISUAL_LIFT_START_KEY = "tear_visual_lift_start"
 local TEAR_VISUAL_OWNED_KEY = "tear_visual_owned"
+local TEAR_CANCEL_PO_Y_KEY = "tear_cancel_po_y"
+local TEAR_CANCEL_PO_Y_FADE_KEY = "tear_cancel_po_y_fade"
+local TEAR_CANCEL_PO_Y_FADE_FRAMES_KEY = "tear_cancel_po_y_fade_frames"
 local TEAR_FIRST_UPDATE_KEY = "tear_visual_first_update"
 local TEAR_SHADOW_SIZE_KEY = "tear_visual_shadow_size"
-local TEAR_VISUAL_LIFT_FRAMES = 16 -- 渲染帧；从宝宝口部高度平滑并入正常 Tear.Height 弹道
+-- Air Flight muzzle fade uses Isaac.GetFrameCount（约 60Hz 渲染时钟），不是 Game 30Hz。
+local TEAR_VISUAL_LIFT_FRAMES = 16
+local TEAR_CANCEL_PO_Y_FADE_DEFAULT = 8 -- Rahu: full cancel → native PO.Y over ~8 render frames
 local TEAR_TRAJECTORY_LAG_STEPS = 0.75 -- 沿弹道反向补偿，掩平首个 Update 前后的前进跳步
 -- 实测约 61 PositionOffset = 40 screen px；原版宝宝素材中心比 Flight 原点高约 16px。
 -- 把修正放进 PO 而非 SpriteOffset，使发射口视觉高度也能继承同一中心基准。
@@ -243,32 +248,74 @@ local function arm_owned_tear_visual(tear, fam)
 	item.arm_tear_visual_lift(tear, fam, bind.air)
 end
 
---- 公共入口：制造环绕物等非 Craft_Familiar bind 的泪弹也必须走同一套视觉高度桥接。
---- 禁止把发射者 PositionOffset 写进 Tear；禁止把巡航 PO 经 offset2height 写进 Height。
---- 详见 codex_work/notes/craft_familiar_tear_height_pitfalls.md
-function item.arm_tear_visual_lift(tear, fam, air)
-	if not tear or not fam then return end
-	if not REPENTOGON or not ModCallbacks.MC_PRE_TEAR_RENDER then return end
-	local off = fam.PositionOffset or Vector.Zero
-	if math.abs(off.Y) < 0.5 and air and air.PositionOffset then
-		off = Vector(air.PositionOffset.X, air.PositionOffset.Y)
-	end
-	if math.abs(off.Y) < 0.5 then off = Vector(0, -34) end
+local function arm_tear_visual_common(tear, opts)
+	if not tear then return false end
+	if not REPENTOGON or not ModCallbacks.MC_PRE_TEAR_RENDER then return false end
+	opts = opts or {}
 	local d = tear:GetData()
 	d[item.own_key..TEAR_VISUAL_OWNED_KEY] = true
 	d[item.own_key..TEAR_FIRST_UPDATE_KEY] = nil
-	d[item.own_key..TEAR_VISUAL_LIFT_KEY] = Vector(off.X, off.Y)
 	d[item.own_key..TEAR_VISUAL_LIFT_START_KEY] = nil
-	if tear.PositionOffset ~= nil then
+	d[item.own_key..TEAR_CANCEL_PO_Y_KEY] = opts.cancel_po_y == true or nil
+	-- Air Flight lift clears PO so Height doesn't double with render lift.
+	-- cancel_po_y keeps engine PO and only subtracts its screen Y in PRE_TEAR_RENDER.
+	if opts.cancel_po_y ~= true and tear.PositionOffset ~= nil then
 		tear.PositionOffset = Vector.Zero
 	end
-	if tear.GetShadowSize and tear.SetShadowSize then
+	if opts.cancel_po_y ~= true and tear.GetShadowSize and tear.SetShadowSize then
 		if d[item.own_key..TEAR_SHADOW_SIZE_KEY] == nil then
 			local ok, size = pcall(tear.GetShadowSize, tear)
 			if ok then d[item.own_key..TEAR_SHADOW_SIZE_KEY] = size end
 		end
 		tear:SetShadowSize(0)
 	end
+	return true
+end
+
+--- 通用视觉枪口桥接：写入与 Air Flight 相同的 TEAR_VISUAL_* 标记，由本模块 PRE_TEAR_RENDER 处理。
+--- lift_world 为世界/实体单位偏移（非屏幕 px）；禁止写入 Tear.Height / 永久 PositionOffset。
+--- 详见 codex_work/notes/craft_familiar_tear_height_pitfalls.md
+function item.arm_tear_visual_lift_offset(tear, lift_world)
+	if not arm_tear_visual_common(tear) then return end
+	local off = lift_world or Vector.Zero
+	local d = tear:GetData()
+	d[item.own_key..TEAR_VISUAL_LIFT_KEY] = Vector(tonumber(off.X) or 0, tonumber(off.Y) or 0)
+end
+
+--- 仅抵消原生 PositionOffset.Y 的屏幕位移（全生命周期）。
+--- 每帧读取当前 PO.Y；不改 Position / Velocity / Height / Falling*；不永久清零 PO。
+function item.arm_tear_cancel_po_y(tear)
+	if not arm_tear_visual_common(tear, {cancel_po_y = true}) then return end
+	local d = tear:GetData()
+	d[item.own_key..TEAR_VISUAL_LIFT_KEY] = nil
+	d[item.own_key..TEAR_CANCEL_PO_Y_FADE_KEY] = nil
+	d[item.own_key..TEAR_CANCEL_PO_Y_FADE_FRAMES_KEY] = nil
+end
+
+--- 出生瞬间完全抵消 PO.Y 屏幕位移，随后在 fade_frames（Isaac 渲染帧，默认 8）内
+--- 用 smootherstep 衰减到 0 补偿，回归原生抛物线视觉。不改实体 Height/FS/FA/PO/Velocity。
+--- 罗喉专用；Air Flight 枪口桥接仍走 arm_tear_visual_lift*。
+function item.arm_tear_cancel_po_y_fade(tear, fade_frames)
+	if not arm_tear_visual_common(tear, {cancel_po_y = true}) then return end
+	local d = tear:GetData()
+	d[item.own_key..TEAR_VISUAL_LIFT_KEY] = nil
+	d[item.own_key..TEAR_CANCEL_PO_Y_FADE_KEY] = true
+	d[item.own_key..TEAR_CANCEL_PO_Y_FADE_FRAMES_KEY] = math.max(
+		1,
+		math.floor(tonumber(fade_frames) or TEAR_CANCEL_PO_Y_FADE_DEFAULT)
+	)
+end
+
+--- 公共入口：制造环绕物等非 Craft_Familiar bind 的泪弹也必须走同一套视觉高度桥接。
+--- 禁止把发射者 PositionOffset 写进 Tear；禁止把巡航 PO 经 offset2height 写进 Height。
+function item.arm_tear_visual_lift(tear, fam, air)
+	if not tear or not fam then return end
+	local off = fam.PositionOffset or Vector.Zero
+	if math.abs(off.Y) < 0.5 and air and air.PositionOffset then
+		off = Vector(air.PositionOffset.X, air.PositionOffset.Y)
+	end
+	if math.abs(off.Y) < 0.5 then off = Vector(0, -34) end
+	item.arm_tear_visual_lift_offset(tear, off)
 end
 
 local function detach_from_vanilla_formation(fam)
@@ -2224,6 +2271,7 @@ if REPENTOGON and ModCallbacks.MC_PRE_TEAR_UPDATE then
 			local d = tear:GetData()
 			if d[item.own_key..TEAR_VISUAL_OWNED_KEY] ~= true then return end
 			local is_first = d[item.own_key..TEAR_FIRST_UPDATE_KEY] ~= true
+			local cancel_po_y = d[item.own_key..TEAR_CANCEL_PO_Y_KEY] == true
 			local hydro = false
 			local flag = TearFlags and TearFlags.TEAR_HYDROBOUNCE
 			if flag then
@@ -2233,22 +2281,25 @@ if REPENTOGON and ModCallbacks.MC_PRE_TEAR_UPDATE then
 					hydro = (tear.TearFlags & flag) == flag
 				end
 			end
-			-- 无扁石：持续清 PO 防与 Height 耦合；有扁石：只首帧修正一次
-			if is_first or not hydro then
+			-- cancel_po_y：保留引擎派生 PO，只在 PRE_TEAR_RENDER 扣屏幕 Y。
+			-- Air Flight lift：无扁石持续清 PO；有扁石只首帧清一次。
+			if not cancel_po_y and (is_first or not hydro) then
 				if tear.PositionOffset ~= nil then tear.PositionOffset = Vector.Zero end
 			end
 			if is_first then
 				d[item.own_key..TEAR_FIRST_UPDATE_KEY] = true
 				d[item.own_key..TEAR_VISUAL_LIFT_START_KEY] = Isaac.GetFrameCount and Isaac.GetFrameCount() or Game():GetFrameCount()
-				local shadow = d[item.own_key..TEAR_SHADOW_SIZE_KEY]
-				if shadow ~= nil and tear.SetShadowSize then tear:SetShadowSize(shadow) end
+				if not cancel_po_y then
+					local shadow = d[item.own_key..TEAR_SHADOW_SIZE_KEY]
+					if shadow ~= nil and tear.SetShadowSize then tear:SetShadowSize(shadow) end
+				end
 			end
 		end,
 	})
 end
 
--- 只补视觉起点，不改 Tear.Height / PositionOffset / Position，因此不抬高碰撞轨道。
--- PositionOffset 是实体单位，必须经 W2S 作差后才能加到 PRE render 的屏幕 offset。
+-- Air Flight：只补视觉起点（世界 lift 衰减），不改 Height / Position。
+-- cancel_po_y：全生命周期 W2S(pos) - W2S(pos + (0, PO.Y))，不叠 callback offset。
 if REPENTOGON and ModCallbacks.MC_PRE_TEAR_RENDER then
 	table.insert(item.ToCall, #item.ToCall + 1, {
 		CallBack = ModCallbacks.MC_PRE_TEAR_RENDER,
@@ -2261,6 +2312,44 @@ if REPENTOGON and ModCallbacks.MC_PRE_TEAR_RENDER then
 			if d[item.own_key..TEAR_FIRST_UPDATE_KEY] ~= true then
 				if tear.SetShadowSize then tear:SetShadowSize(0) end
 				return false
+			end
+			if d[item.own_key..TEAR_CANCEL_PO_Y_KEY] == true then
+				local po = tear.PositionOffset or Vector.Zero
+				local py = tonumber(po.Y) or 0
+				if math.abs(py) < 1e-4 then
+					return
+				end
+				local weight = 1
+				if d[item.own_key..TEAR_CANCEL_PO_Y_FADE_KEY] == true then
+					local start = tonumber(d[item.own_key..TEAR_VISUAL_LIFT_START_KEY])
+					local fade_n = tonumber(d[item.own_key..TEAR_CANCEL_PO_Y_FADE_FRAMES_KEY])
+						or TEAR_CANCEL_PO_Y_FADE_DEFAULT
+					if not start then
+						-- First Update 尚未到：保持全额抵消。
+						weight = 1
+					else
+						local now = Isaac.GetFrameCount and Isaac.GetFrameCount() or Game():GetFrameCount()
+						local u = math.min(1, math.max(0, now - start) / fade_n)
+						-- smootherstep：起止一阶/二阶速度为 0。
+						local blend = u * u * u * (u * (u * 6 - 15) + 10)
+						weight = 1 - blend
+						if u >= 1 then
+							d[item.own_key..TEAR_CANCEL_PO_Y_KEY] = nil
+							d[item.own_key..TEAR_CANCEL_PO_Y_FADE_KEY] = nil
+							d[item.own_key..TEAR_CANCEL_PO_Y_FADE_FRAMES_KEY] = nil
+							d[item.own_key..TEAR_VISUAL_LIFT_START_KEY] = nil
+							d[item.own_key..TEAR_VISUAL_OWNED_KEY] = nil
+							return
+						end
+					end
+				end
+				-- 只消去 PO.Y 的屏幕位移（可按 weight 衰减）；不碰水平运动，不永久改实体 PO。
+				local delta = Isaac.WorldToScreen(tear.Position)
+					- Isaac.WorldToScreen(tear.Position + Vector(0, py))
+				if weight >= 0.999 then
+					return delta
+				end
+				return delta * weight
 			end
 			local lift = d[item.own_key..TEAR_VISUAL_LIFT_KEY]
 			local start = tonumber(d[item.own_key..TEAR_VISUAL_LIFT_START_KEY])

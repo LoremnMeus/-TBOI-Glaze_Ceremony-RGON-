@@ -231,6 +231,7 @@ function item.register(owner, handlers)
 		priority = tonumber(handlers.priority) or 0,
 		match_pre = handlers.match_pre,
 		capture = handlers.capture,
+		rewrite_target = handlers.rewrite_target,
 		policy = handlers.policy,
 		on_post = handlers.on_post,
 		on_state_switch = handlers.on_state_switch,
@@ -353,6 +354,8 @@ if ModCallbacks.MC_PRE_PICKUP_MORPH then
 			end
 			prune_stale_stack()
 			local frame = game_frame()
+			local target = {newType, newVariant, newSubtype, keepPrice, keepSeed, ignoreModifiers}
+			local rewritten = false
 			for _, consumer in ipairs(item._consumers) do
 				local matched = true
 				if type(consumer.match_pre) == "function" then
@@ -372,6 +375,15 @@ if ModCallbacks.MC_PRE_PICKUP_MORPH then
 					if snap == nil then
 						item.debug.capture_nil = (item.debug.capture_nil or 0) + 1
 					else
+						if not rewritten and type(consumer.rewrite_target) == "function" then
+							local ok, replacement = pcall(consumer.rewrite_target, p, target, snap)
+							if ok and type(replacement) == "table"
+								and type(replacement[1]) == "number" and type(replacement[2]) == "number"
+								and type(replacement[3]) == "number" then
+								target = replacement
+								rewritten = true
+							end
+						end
 						push_pre({
 							owner = consumer.owner,
 							frame = frame,
@@ -379,18 +391,19 @@ if ModCallbacks.MC_PRE_PICKUP_MORPH then
 							previous_variant = p.Variant,
 							previous_subtype = p.SubType,
 							previous_init_seed = p.InitSeed,
-							target_type = newType,
-							target_variant = newVariant,
-							target_subtype = newSubtype,
-							keep_price = keepPrice == true,
-							keep_seed = keepSeed == true,
-							ignore_modifiers = ignoreModifiers == true,
+							target_type = target[1],
+							target_variant = target[2],
+							target_subtype = target[3],
+							keep_price = target[4] == true,
+							keep_seed = target[5] == true,
+							ignore_modifiers = target[6] == true,
 							source_snapshot = snap,
 							policy = consumer.policy,
 						})
 					end
 				end
 			end
+			if rewritten then return target end
 		end,
 	})
 end

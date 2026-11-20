@@ -74,6 +74,13 @@ function item.fire_phantom(player,pos,vel,params)
 	return q
 end
 
+local function mark_phantom_for_removal(ent)
+	if not auxi.check_all_exists(ent) or ent.Type ~= 1000
+		or ent.Variant ~= enums.Entities.Phantom then return end
+	local effect = ent:GetData()[item.own_key.."effect"]
+	if effect then effect.Remove = true end
+end
+
 function item.flash(player,target)
 	local d = player:GetData() local d2 = target:GetData()
 	local dmg = player.Damage 
@@ -94,7 +101,7 @@ end
 function item.end_flash(player)
 	local d = player:GetData()
 	if d[item.own_key.."gridcollision_succ"] then Attribute_holder.try_rewind_attribute(player,"GridCollisionClass",d[item.own_key.."gridcollision_succ"]) d[item.own_key.."gridcollision_succ"] = nil end
-	if auxi.check_all_exists(d[item.own_key.."effect"].linker) then d[item.own_key.."effect"].linker:GetData()[item.own_key.."effect"].Remove = true end
+	mark_phantom_for_removal(d[item.own_key.."effect"].linker)
 	local e1 = Isaac.Spawn(1000,16,3,player.Position,Vector(0,0),player) e1:GetSprite().Color = Color(1,1,1,1,-1,-1,-1) local e2 = Isaac.Spawn(1000,16,1,player.Position,Vector(0,0),player) e2:GetSprite().Color = Color(1,1,1,1,-1,-1,-1) 
 	local n_entity = Isaac.GetRoomEntities()
 	for u,v in pairs(n_entity) do 
@@ -187,7 +194,7 @@ Function = function(_,player)
 			local dir = d[item.own_key.."recorddir"] or Vector(1,0)
 			local q = item.fire_phantom(player,player.Position,player.ShotSpeed * 5 * dir)
 			d[item.own_key.."fire"] = nil
-			if auxi.check_all_exists(d[item.own_key.."phantom"]) then d[item.own_key.."phantom"]:GetData()[item.own_key.."effect"].Remove = true end
+			mark_phantom_for_removal(d[item.own_key.."phantom"])
 			d[item.own_key.."phantom"] = q
 		end
 	end
@@ -217,14 +224,6 @@ Function = function(_,player,offset)
 				end,
 			})
 		end
-	end
-end,
-})
-
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
-Function = function(_,player,collid,count)
-	if collid == item.entity and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,item.own_key)
 	end
 end,
 })
@@ -275,4 +274,5 @@ Function = function(_,ent,amt,flag,source,cooldown)
 end,
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key, owner = {type = "collectible", collectible = item.entity}})
 return item

@@ -173,7 +173,13 @@ Function = function(_, colid, rng, player, useFlags, activeSlot, customVarData)
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 		return {Discharge = false, ShowAnim = false}
 	end
-	activeSlot = activeSlot or ActiveSlot.SLOT_PRIMARY
+	-- UseActiveItem slot=-1 is not a real ActiveSlot; charge APIs reject it.
+	-- `x or SLOT_PRIMARY` does not coerce -1 (truthy in Lua).
+	if type(activeSlot) ~= "number"
+		or activeSlot < ActiveSlot.SLOT_PRIMARY
+		or activeSlot > (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET) then
+		return {Discharge = false, ShowAnim = false}
+	end
 	local charge = math.floor(tonumber(player:GetActiveCharge(activeSlot)) or 0)
 	if charge < 1 then
 		return {Discharge = false, ShowAnim = false}

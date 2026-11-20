@@ -27,6 +27,8 @@ local COSMIC_POOL = {
 	588, 589, 590, 591, 592, 593, 594, 595, 596, 597, 598,
 	233, 651, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 318,
 	enums.Items.Pendulum_Star,
+	enums.Items.Ketu,
+	enums.Items.Rahu,
 }
 
 local function session_of(player)

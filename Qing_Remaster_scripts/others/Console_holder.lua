@@ -199,40 +199,15 @@ Function = function(_,str,params)
 					local ok, stone_debug = pcall(require, "Qing_Remaster_scripts.threads.stone.stone_debug")
 					if not ok or not stone_debug then
 						item.console_speak("stone_debug missing")
-					else
-						local cmd = args[3] and string.lower(args[3]) or "inspect"
-						if cmd == "floor" or cmd == "plan" then
-							stone_debug.ensure_layout({ force = true, ignore_gate = true })
-							item.console_speak("stone plan")
-						elseif cmd == "origin" or cmd == "trigger" then
-							stone_debug.goto_trigger()
-							item.console_speak("stone origin")
-						elseif cmd == "activate" then
-							stone_debug.activate()
-							item.console_speak("stone activate")
-						elseif cmd == "route" then
-							local which = args[4] and string.lower(args[4]) or "1"
-							if which == "mid" or which == "middle" then
-								stone_debug.goto_route_middle()
-							elseif which == "end" then
-								stone_debug.goto_route_end()
-							else
-								stone_debug.goto_route_index(tonumber(which) or 1)
-							end
-							item.console_speak("stone route")
-						elseif cmd == "ante" or cmd == "antechamber" then
-							stone_debug.goto_antechamber()
-							item.console_speak("stone ante")
-						elseif cmd == "boss" or cmd == "floraine" then
-							stone_debug.goto_floraine({ suppress_boss = true })
-							item.console_speak("stone floraine")
-						elseif cmd == "reset" then
-							local runtime = require("Qing_Remaster_scripts.threads.stone.stone_runtime")
-							runtime.reset()
-							item.console_speak("stone reset")
+					elseif stone_debug.console_command then
+						local result = stone_debug.console_command(args, 3)
+						if type(result) == "table" then
+							item.console_speak(tostring(result.message or result.code or "?"))
 						else
-							item.console_speak(stone_debug.inspect_text():gsub("\n", " | "))
+							item.console_speak(tostring(result))
 						end
+					else
+						item.console_speak("stone_debug.console_command missing")
 					end
 				end
 			end

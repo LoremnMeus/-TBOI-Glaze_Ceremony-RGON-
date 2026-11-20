@@ -1,4 +1,5 @@
 local save = require("Qing_Remaster_scripts.core.savedata")
+local g = require("Qing_Remaster_scripts.core.globals")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local consistance_holder = require("Qing_Remaster_scripts.others.Consistance_holder")
@@ -21,6 +22,7 @@ local item = {
 	_restore_registry_meta = nil,
 	_morph_before = {}, -- ptr -> { seed, subtype, gen_id, birth_room_epoch }
 	_morph_handled_frame = {}, -- ptr -> game frame
+	_empty_seen = {}, -- ptr -> { frame, seed }；只记录本房观察到的空置，不是 generation 身份
 	_room_generation_epoch = 0, -- room appearance counter（非 ESSM 持久化）
 	debug = {
 		shadow_enabled = false,
@@ -250,6 +252,7 @@ table.insert(item.myToCall, #item.myToCall + 1, {
 		item._restore_registry_meta = nil
 		item._morph_before = {}
 		item._morph_handled_frame = {}
+		item._empty_seen = {}
 	end,
 })
 
@@ -1275,12 +1278,57 @@ function item.settle_empty_pedestal(ent)
 	return gen
 end
 
+--- 稳定空置。同一座仍在场上的道具底座 SubType 为 0，且这个空置在更早的游戏帧就已经观察到。
+--- ESSM 会顺手把残留的非空 marker 收成空底座；legacy 不依赖这次 settle。
+--- 返回 nil 表示尚未确认。generation.kind 不是调用方的判断条件。
+function item.confirm_stable_empty(ent)
+	if not ent or ent.Variant ~= PickupVariant.PICKUP_COLLECTIBLE then
+		return nil
+	end
+	local pk = ptr_key(ent)
+	if not pk then
+		return nil
+	end
+	item._empty_seen = item._empty_seen or {}
+	if (ent.SubType or 0) ~= 0 then
+		item._empty_seen[pk] = nil
+		return nil
+	end
+	if item.is_essm_backend() then
+		local data = ent:GetData()
+		local marker = data and data[GEN_KEY]
+		local needs = data and (data.first_appear == true or type(marker) ~= "table" or marker.kind ~= "GEN_EMPTY")
+		if needs then
+			item.settle_empty_pedestal(ent)
+		end
+	end
+	local frame = game_frame()
+	local seen = item._empty_seen[pk]
+	if type(seen) ~= "table" or seen.seed ~= ent.InitSeed or seen.frame == nil then
+		item._empty_seen[pk] = { frame = frame, seed = ent.InitSeed }
+		return nil
+	end
+	if seen.frame >= frame then
+		return nil
+	end
+	return {
+		confirmed = true,
+		observed_frame = seen.frame,
+	}
+end
+
 table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_PICKUP_UPDATE,
 	params = 100,
 	Function = function(_, ent)
+		if (ent.SubType or 0) ~= 0 then
+			local pk = ptr_key(ent)
+			if pk and item._empty_seen then
+				item._empty_seen[pk] = nil
+			end
+			return
+		end
 		if not item.is_essm_backend() then return end
-		if (ent.SubType or 0) ~= 0 then return end
 		local d = ent:GetData()
 		local gen = d[GEN_KEY]
 		-- 纠正 TryRemove 后仍残留的 GEN_NEW / 非 EMPTY marker（同帧 Lab 也会主动 settle）
@@ -1317,15 +1365,25 @@ table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
 	end,
 })
 
+-- Public cache refresh request. Only the engine evaluation is deferred to
+-- a gameplay update; callers must complete their business-state changes first.
+function item.request_evaluate_items(player, flags)
+	if not player then return false end
+	if flags ~= nil then player:AddCacheFlags(flags) end
+	player:GetData().should_evaluate_on_update_once = true
+	return true
+end
+
 table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_UPDATE,
 	params = nil,
 	Function = function(_)
+		if not g.is_gameplay_world_active() then return end
 		for playerNum = 1, Game():GetNumPlayers() do
 			local player = Game():GetPlayer(playerNum - 1)
 			if player:GetData().should_evaluate_on_update_once then
-				player:EvaluateItems()
 				player:GetData().should_evaluate_on_update_once = nil
+				player:EvaluateItems()
 			end
 		end
 	end,
@@ -1335,6 +1393,7 @@ table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_NEW_ROOM,
 	params = nil,
 	Function = function(_)
+		item._empty_seen = {}
 		local player = Game():GetPlayer(0)
 		local d = player:GetData()
 		item.Room_Shift_offset = player.Position - auxi.ProtectVector(d[item.own_key .. "RPos"] or player.Position)

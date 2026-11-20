@@ -729,7 +729,8 @@ function draw.get_toggle_last_info()
 end
 
 --- Draw page-toggle tab. pos = CENTER anchor (ANM2 pivots are crop centers).
---- opts.kind = "open"|"close"; opts.lang optional override for this draw only.
+--- opts.alpha, opts.offset_y (screen Y add; does not mutate layout anchors),
+--- opts.lang optional override for this draw only.
 function draw.page_toggle(pos, kind, opts)
 	opts = opts or {}
 	if not pos then return end
@@ -737,6 +738,7 @@ function draw.page_toggle(pos, kind, opts)
 	if alpha == nil then alpha = 1 end
 	alpha = tonumber(alpha) or 1
 	if alpha <= 0.01 then return end
+	local offset_y = tonumber(opts.offset_y) or 0
 	kind = (kind == "close") and "close" or "open"
 	local lang = opts.lang or draw.effective_toggle_language()
 	local anim, w, h = draw.get_toggle_animation(kind, lang)
@@ -747,7 +749,7 @@ function draw.page_toggle(pos, kind, opts)
 	_toggle_last_info.kind = kind
 
 	local spr = ensure_toggle_sprite()
-	local x, y = P(pos.X), P(pos.Y)
+	local x, y = P(pos.X), P(pos.Y + offset_y)
 	if not spr then
 		local col = KColor(0.92, 0.84, 0.55, 0.9 * alpha)
 		outline_diamond(x, y, math.floor(w * 0.2), col)

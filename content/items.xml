@@ -389,7 +389,7 @@
 	gfx="collectibles_Baby_Zeis.png" quality="2" cache="familiars" tags="summonable baby"
 	/>
     <familiar name="Baby Marri" description="I ask!" id="138"
-	gfx="collectibles_Baby_Marri.png" quality="3" cache="familiars" tags="summonable baby"
+	gfx="collectibles_Baby_Marri.png" quality="3" cache="familiars" tags="summonable baby nogreed"
 	/>
     <familiar name="Baby Autio" description="I hang!" id="139"
 	gfx="collectibles_Baby_Autio.png" quality="1" cache="familiars" tags="summonable baby"
@@ -404,7 +404,7 @@
 	gfx="collectibles_Multiknife.png" quality = "1" craftquality = "1" tags="offensive" maxcharges="10" initcharge="0"
 	/>
 	<passive name="Dragon Tooth" description="Follow me into the abyss" id="143"
-	gfx="collectibles_Dragon_Tooth.png" quality = "3" craftquality = "3" tags="offensive" cache = "damage"
+	gfx="collectibles_Dragon_Tooth.png" quality = "3" craftquality = "3" tags="offensive summonable" cache = "damage"
 	/>
 
 	<!--
@@ -469,7 +469,7 @@
 	gfx="collectibles_Remaster.png" quality="3" craftquality="3" maxcharges="8" tags=""
 	/>
 	<passive name="Bloody Map" description="Drawn in blood" id="163"
-	gfx="collectibles_Bloody_Map.png" quality="0" craftquality="0" tags="summonable"
+	gfx="collectibles_Bloody_Map.png" quality="0" craftquality="0" tags="summonable nogreed"
 	/>
 	<active name="Golden Slot" description="Insert coin to win!" id="164"
 	gfx="collectibles_Golden_slot.png" quality="1" craftquality="1" maxcharges="0" shopprice="10" tags="summonable"
@@ -481,13 +481,13 @@
 	gfx="collectibles_Sacred_Mind_Shield.png" quality="4" craftquality="4" tags="summonable offensive" cache="damage shotspeed"
 	/>
 	<passive name="Qing's Faceted Market Diamond" description="Eternity is negotiable" id="167"
-	gfx="collectibles_Diamond.png" quality="1" craftquality="1" tags="summonable" shopprice="5"
+	gfx="collectibles_Diamond.png" quality="1" craftquality="1" tags="" shopprice="5"
 	/>
 	<passive name="Cup Cat" description="Cats don't come alone" id="168"
 	gfx="collectibles_Cup_Cat.png" quality="2" craftquality="2" tags="guppy summonable" maxhearts="2" hearts="2"
 	/>
 	<active name="Abiogenesis" description="Look, it lives on its own" id="169"
-	gfx="collectibles_Abiogenesis.png" quality="3" craftquality="3" tags="summonable offensive" maxcharges="12" initcharge="3"
+	gfx="collectibles_Abiogenesis.png" quality="3" craftquality="3" tags="offensive" maxcharges="12" initcharge="3"
 	/>
 	<passive name="The Voice" description="Now it's just the two of us" id="170"
 	gfx="collectibles_The_Voice.png" quality="3" tags="offensive" hidden="true"
@@ -502,13 +502,52 @@
 	gfx="collectibles_Perhaps_Chosen.png" quality="0" craftquality="0" tags=""
 	/>
 	<passive name="Zero Presence" description="You forgot it." id="174"
-	gfx="collectibles_Zero_Presence.png" quality="1" craftquality="1" tags="summonable"
+	gfx="collectibles_Zero_Presence.png" quality="1" craftquality="1" tags="summonable offensive"
 	/>
 	<passive name="Tiny Update" description="Fixed some known issues" id="175"
 	gfx="collectibles_Tiny_Update.png" quality="1" craftquality="1" tags="summonable"
 	/>
 	<passive name="Matryoshka Marbles" description="One after another!" id="176"
-	gfx="collectibles_Matryoshka_Marbles.png" quality="2" craftquality="2" tags="summonable"
+	gfx="collectibles_Matryoshka_Marbles.png" quality="2" craftquality="2" tags="summonable offensive"
+	/>
+	<passive name="Bravery" description="&quot;I have the right to refuse, too.&quot;" id="177"
+	gfx="collectibles_Bravery.png" quality="3" craftquality="3" tags="offensive" cache="damage"
+	/>
+	<passive name="Isolation" description="Guess who wasn't invited?" id="178"
+	gfx="collectibles_Isolation.png" quality="2" craftquality="1" tags="offensive"
+	/>
+	<active name="Exoneration Certificate" description="The edge of the world" id="179"
+	gfx="collectibles_Exoneration_Certificate.png" quality="4" craftquality="4" tags="" maxcharges="0"
+	/>
+	<passive name="Ketu" description="Stars follow their courses" id="180"
+	gfx="collectibles_Ketu.png" quality="3" craftquality="3" tags="summonable offensive" cache="all"
+	/>
+	<passive name="Rahu" description="The shadow that swallows stars" id="181"
+	gfx="collectibles_Rahu.png" quality="3" craftquality="3" tags="offensive summonable" cache="all"
+	/>
+	<passive name="Crown of Thorns" description="A crown of blood" id="182"
+	gfx="collectibles_Thorn_Flower_Crown.png" quality="3" craftquality="3" tags="summonable offensive"
+	/>
+	<passive name="Alien Savior" description="They heard you" id="183"
+	gfx="collectibles_Alien_Savior.png" quality="3" craftquality="3" tags="summonable offensive"
+	/>
+	<passive name="Strawberry Cake Pie" description="One more slice!" id="184"
+	gfx="collectibles_Cake_Berry.png" quality="3" craftquality="3" tags="offensive summonable" maxhearts="2" hearts="2"
+	/>
+	<passive name="Rooted Demon" description="Deep into the soil" id="185"
+	gfx="collectibles_Rooted_Demon.png" quality="3" craftquality="3" tags="offensive devil"
+	/>
+	<passive name="Incandescence Flame" description="A Divine Flame in Reverse" id="186"
+	gfx="collectibles_Incandescence_Flame.png" quality="3" craftquality="3" tags="offensive summonable"
+	/>
+	<passive name="Entombed Demon" description="Like death, never satisfied" id="187"
+	gfx="collectibles_Entombed_Demon.png" quality="4" craftquality="4" tags="devil offensive" devilprice="2"
+	/>
+	<active name="Wishing" description="What do I want to become?" id="188"
+	gfx="collectibles_Wishing.png" quality="1" craftquality="1" maxcharges="1" tags=""
+	/>
+	<familiar name="Bewitching Moon" description="Within Reach" id="189"
+	gfx="collectibles_Bewitching_Moon.png" quality="1" craftquality="1" cache="familiars speed" tags="summonable"
 	/>
 
 

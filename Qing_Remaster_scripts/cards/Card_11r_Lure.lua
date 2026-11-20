@@ -4,6 +4,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local slot_render_holder = require("Qing_Remaster_scripts.callbacks.slot_render_holder")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 -- XI - 欲望?：层数驱动伤害下限与攻击；使用后按层数兑换魂心/混合心。
 -- 层数挂在玩家存档索引上，跨房/跨层保留；丢弃/重拾不清零，仅使用时清空。
@@ -74,8 +75,7 @@ end
 
 local function refresh_damage(player)
 	if not player then return end
-	player:AddCacheFlags(CacheFlag.CACHE_DAMAGE)
-	player:EvaluateItems()
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_DAMAGE)
 end
 
 table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.PRE_GAME_STARTED, params = nil,

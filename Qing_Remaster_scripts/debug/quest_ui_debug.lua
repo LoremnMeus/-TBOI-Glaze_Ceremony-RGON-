@@ -89,8 +89,8 @@ function mod.build(api)
 
 	local function sync()
 		local off = pause_ui.get_debug_offsets()
-		state.toggle_open_x = math.floor((off.toggle_open and off.toggle_open.X or off.hint and off.hint.X or 0) + 0.5)
-		state.toggle_open_y = math.floor((off.toggle_open and off.toggle_open.Y or off.hint and off.hint.Y or 0) + 0.5)
+		state.toggle_open_x = math.floor((off.toggle_open and off.toggle_open.X or 0) + 0.5)
+		state.toggle_open_y = math.floor((off.toggle_open and off.toggle_open.Y or 0) + 0.5)
 		state.toggle_close_x = math.floor((off.toggle_close and off.toggle_close.X or 0) + 0.5)
 		state.toggle_close_y = math.floor((off.toggle_close and off.toggle_close.Y or 0) + 0.5)
 		state.panel_x = math.floor((off.panel and off.panel.X or 0) + 0.5)
@@ -262,6 +262,19 @@ function mod.build(api)
 			panel.set_debug_preview({force_toggle_close = checked == true})
 		end
 	end, false)
+	ImGui.AddButton(toggle, prefix .. "_ReplayOpen", tr("重播开启页签动画", "Replay open-tab anim"), function()
+		local panel = panel_mod()
+		if panel and panel.replay_openpage_anim then
+			panel.replay_openpage_anim()
+		end
+	end)
+	imgui_layout.add_wrapped_text(
+		toggle, prefix .. "_AnimNote",
+		tr(
+			"强制预览默认静态完整显示。首次打开暂停菜单也不播入场；仅 Q 展开/收起与子页面切换会动画。",
+			"Force preview stays static by default. First Pause open also snaps in place; only Q open/close and submenu switches animate."
+		)
+	)
 
 	ImGui.AddElement(toggle, "", ImGuiElement.SeparatorText or ImGuiElement.Separator, tr("开启页签 X/Y（面板关闭时）", "Open tab X/Y (when closed)"))
 	add_slider(toggle, prefix .. "_OpenX", "X", function() return state.toggle_open_x end, function(v)

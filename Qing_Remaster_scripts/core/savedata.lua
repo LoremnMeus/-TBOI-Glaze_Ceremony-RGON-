@@ -119,6 +119,8 @@ item.DefaultSlotPreload = false
 item.PERSISTENT_PLAYER_DATA = {}
 item.elses = {}
 item.UnlockData = {}
+-- Forward decl: identity callbacks registered above the helper body close over this upvalue.
+local identity_probe_notify
 -- PermanentData：档案级永久数据（含「下局生效」）。ConsistData 已并入，仅作别名兼容。
 item.PermanentData = {}
 item.ConsistData = item.PermanentData
@@ -143,11 +145,20 @@ local function sanitize_persistent_players_for_save(players)
 				Once_type = meta.Once_type,
 				Frame = meta.Frame,
 				CIndex = meta.CIndex,
+				-- Found Soul sequence: interchangeable souls share a reusable slot list.
+				FoundSoul = meta.FoundSoul == true or nil,
+				FoundSoulSeq = meta.FoundSoulSeq,
 				-- 故意不写入 meta.player（Entity 引用），避免脏 userdata / 无意义体积
 			},
 		}
 	end
 	return out
+end
+
+local REGENESIS_STATE_KEY = "Item_Regenesis_state"
+
+local function regenesis_module()
+	return package.loaded["Qing_Remaster_scripts.items.Item_Regenesis"]
 end
 
 local function pack_elses_for_save(elses)
@@ -157,6 +168,13 @@ local function pack_elses_for_save(elses)
 			tmp[k] = auxi.pack_collectible_counter(v)
 		elseif k == "trinket_counter" then
 			tmp[k] = auxi.pack_trinket_counter(v)
+		elseif k == REGENESIS_STATE_KEY then
+			local regenesis = regenesis_module()
+			if regenesis and regenesis.pack_for_save then
+				tmp[k] = regenesis.pack_for_save(v)
+			else
+				tmp[k] = v
+			end
 		else
 			tmp[k] = v
 		end
@@ -330,6 +348,10 @@ function item.LoadModData(continue)
 	item.ModConfigSettings = profile.MODCONFIG
 	item.ItemColorCache = profile.ITEM_COLOR_CACHE
 	local elses = auxi.unpack_from_save(run.ELSES) or {}
+	local regenesis = regenesis_module()
+	if regenesis and regenesis.unpack_from_save and type(elses[REGENESIS_STATE_KEY]) == "table" then
+		elses[REGENESIS_STATE_KEY] = regenesis.unpack_from_save(elses[REGENESIS_STATE_KEY])
+	end
 	local permanent = auxi.unpack_from_save(profile.PERMANENT_DATA) or {}
 	item.PERSISTENT_PLAYER_DATA = run.PERSISTENT_PLAYER_DATA or {}
 
@@ -431,8 +453,20 @@ Function = function()		--新下层
 end,
 })
 
+-- Boundary markers for player_identity_probe (registered after notify helper exists).
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_LEVEL, params = nil, priority = 100000,
+Function = function()
+	identity_probe_notify("BOUNDARY_NEW_LEVEL", nil, {match_method = "post_new_level"})
+end,
+})
+
 table.insert(item.post_ToCall,#item.post_ToCall + 1,{CallBack = ModCallbacks.MC_PRE_GAME_EXIT, params = nil,
 Function = function(_,shouldSave)		--离开游戏
+	identity_probe_notify("BOUNDARY_PRE_GAME_EXIT", nil, {
+		match_method = "pre_game_exit",
+		should_save = shouldSave == true,
+		record_count = #item.PERSISTENT_PLAYER_DATA,
+	})
 	if shouldSave == false then 
 		local tbl = {}
 		callback_manager.work("POST_CLEAR_SAVE",function(funct,params) funct(nil,item.elses,tbl) end)
@@ -450,7 +484,193 @@ function item.get_sub_idx(player)
 	return idx
 end
 
-function item.add_player(player,tp)
+-- Read-only player-identity probe hooks. No match-rule changes; no-op when probe off.
+local IDENTITY_PROBE_PATH = "Qing_Remaster_scripts.debug.player_identity_probe"
+
+local function identity_probe_snapshot(player, extra)
+	local row = type(extra) == "table" and extra or {}
+	if player then
+		pcall(function()
+			row.ptr_hash = GetPtrHash(player)
+			row.init_seed = player.InitSeed
+			row.controller_index = player.ControllerIndex
+			row.player_type = player:GetPlayerType()
+			row.variant = player.Variant
+			row.persistent_index = player:GetData().__Index
+			row.shared_index = item.get_sub_idx(player)
+		end)
+	end
+	pcall(function()
+		row.frame = Isaac.GetFrameCount()
+	end)
+	pcall(function()
+		row.record_count = #item.PERSISTENT_PLAYER_DATA
+	end)
+	return row
+end
+
+identity_probe_notify = function(event, player, extra)
+	local probe = package.loaded[IDENTITY_PROBE_PATH]
+	if type(probe) ~= "table" or type(probe.record_owner_event) ~= "function" then
+		return
+	end
+	if probe.is_enabled and probe.is_enabled() ~= true then
+		return
+	end
+	local row = identity_probe_snapshot(player, extra)
+	row.event = tostring(event or "?")
+	row.source = "savedata"
+	pcall(probe.record_owner_event, row)
+end
+
+-- Found Soul (小罗): Variant=FOUND_SOUL(1) + BabySkin=BABY_FOUND_SOUL(59).
+-- Interchangeable across respawns; reuse free sequence slots instead of endless add_player.
+local FOUND_SOUL_VARIANT = (PlayerVariant and PlayerVariant.FOUND_SOUL) or 1
+local FOUND_SOUL_BABY = (BabySubType and BabySubType.BABY_FOUND_SOUL) or 59
+
+function item.is_found_soul_player(player)
+	if not player then
+		return false
+	end
+	if player.Variant ~= FOUND_SOUL_VARIANT then
+		return false
+	end
+	if not player.GetBabySkin then
+		return false
+	end
+	local ok, skin = pcall(function()
+		return player:GetBabySkin()
+	end)
+	return ok and skin == FOUND_SOUL_BABY
+end
+
+local function list_found_soul_slots()
+	local slots = {}
+	for i, pData in ipairs(item.PERSISTENT_PLAYER_DATA) do
+		local meta = pData and pData.__META
+		if meta and meta.FoundSoul then
+			slots[#slots + 1] = {
+				index = i,
+				seq = tonumber(meta.FoundSoulSeq) or i,
+			}
+		end
+	end
+	table.sort(slots, function(a, b)
+		if a.seq == b.seq then
+			return a.index < b.index
+		end
+		return a.seq < b.seq
+	end)
+	return slots
+end
+
+local function next_found_soul_seq()
+	local max_seq = 0
+	for _, slot in ipairs(list_found_soul_slots()) do
+		if slot.seq > max_seq then
+			max_seq = slot.seq
+		end
+	end
+	return max_seq + 1
+end
+
+local function is_persistent_index_on_field(idx, except_player)
+	if not idx then
+		return false
+	end
+	for i = 0, Game():GetNumPlayers() - 1 do
+		local p = Game():GetPlayer(i)
+		if p and p:Exists() then
+			local same = except_player and auxi.check_for_the_same(p, except_player)
+			if not same then
+				local pidx = p:GetData().__Index
+				if pidx == idx then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+local function bind_player_to_persistent_index(player, idx, match_method, reason)
+	local pData = item.PERSISTENT_PLAYER_DATA[idx]
+	if not pData or not pData.__META then
+		return false
+	end
+	local old_idx = player:GetData().__Index
+	local meta = pData.__META
+	player:GetData().__Index = idx
+	meta.player = player
+	meta.Seed = player.InitSeed
+	meta.Index = player.ControllerIndex
+	meta.CIndex = nil
+	meta.PlayerType = player:GetPlayerType()
+	meta.Frame = Isaac.GetFrameCount()
+	meta.NowFrame = Isaac.GetFrameCount()
+	identity_probe_notify("PLAYER_ID_REUSED", player, {
+		match_method = match_method,
+		reason = reason,
+		old_index = old_idx,
+		new_index = idx,
+		found_soul_seq = meta.FoundSoulSeq,
+	})
+	return true
+end
+
+function item.try_reclaim_found_soul(player, reason)
+	if not item.is_found_soul_player(player) then
+		return false
+	end
+	if player:GetData().__Index ~= nil then
+		return false
+	end
+	for _, slot in ipairs(list_found_soul_slots()) do
+		if not is_persistent_index_on_field(slot.index, player) then
+			local ok = bind_player_to_persistent_index(
+				player,
+				slot.index,
+				"found_soul_sequence_reclaim",
+				reason
+			)
+			if ok then
+				identity_probe_notify("RECONCILIATION", player, {
+					match_method = "found_soul_sequence_reclaim",
+					reason = reason,
+					decision = "reclaim_free_slot",
+					new_index = slot.index,
+					found_soul_seq = slot.seq,
+					check_p_data_result = false,
+				})
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function sync_found_soul_meta(player, idx)
+	local pData = item.PERSISTENT_PLAYER_DATA[idx]
+	if not pData or not pData.__META or not pData.__META.FoundSoul then
+		return false
+	end
+	if not item.is_found_soul_player(player) then
+		return false
+	end
+	local meta = pData.__META
+	meta.player = player
+	meta.Seed = player.InitSeed
+	meta.Index = player.ControllerIndex
+	meta.CIndex = nil
+	meta.PlayerType = player:GetPlayerType()
+	meta.NowFrame = Isaac.GetFrameCount()
+	return true
+end
+
+function item.add_player(player,tp,opts)
+	opts = opts or {}
+	local before_idx = player and player:GetData() and player:GetData().__Index or nil
+	local mark_found_soul = opts.found_soul == true or item.is_found_soul_player(player)
 	local pData = {
 		__INDEX = #item.PERSISTENT_PLAYER_DATA + 1,
 		__META = {
@@ -461,6 +681,10 @@ function item.add_player(player,tp)
 			player = player,		--有点危险
 		}
 	}
+	if mark_found_soul then
+		pData.__META.FoundSoul = true
+		pData.__META.FoundSoulSeq = next_found_soul_seq()
+	end
 	if item.Lazarus_player then 
 		if item.PERSISTENT_PLAYER_DATA[item.Lazarus_player].__META.Frame == Isaac.GetFrameCount() and item.Lazarus[player:GetPlayerType()] then 
 			item.PERSISTENT_PLAYER_DATA[item.Lazarus_player].__META.shared = #item.PERSISTENT_PLAYER_DATA + 1
@@ -470,20 +694,44 @@ function item.add_player(player,tp)
 	elseif item.Lazarus[player:GetPlayerType()] then item.Lazarus_player = #item.PERSISTENT_PLAYER_DATA + 1 end
 	table.insert(item.PERSISTENT_PLAYER_DATA, pData)
 	player:GetData().__Index = #item.PERSISTENT_PLAYER_DATA
+	identity_probe_notify("PLAYER_ID_ALLOCATED", player, {
+		match_method = mark_found_soul and "add_player_found_soul" or "add_player",
+		reason = tp,
+		old_index = before_idx,
+		new_index = player:GetData().__Index,
+		found_soul_seq = pData.__META.FoundSoulSeq,
+	})
 	callback_manager.work("POST_PLAYER_INIT_OVER",function(funct,params) funct(nil,player) end)		--这个函数
 	--delay_buffer.addeffe(function() print("Add player "..player.InitSeed.." "..player:GetPlayerType().." "..player.ControllerIndex.." "..player:GetData().__Index.." "..(tp or "")) end,{},1)
 end
 --l Game():GetPlayer(1):TakeDamage(0,0,EntityRef(Game():GetPlayer(1)),121)
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,priority = -200,
 Function = function(_,player)
-	if auxi.check_for_the_same(player,item.tg_player) then
+	-- Observe only: tg_player is never assigned in-repo; `tp` is unbound in this scope.
+	local same_tg = auxi.check_for_the_same(player, item.tg_player)
+	if same_tg then
+		local tp_global = rawget(_G, "tp")
+		identity_probe_notify("CINDEX_RECOVERY_ENTERED", player, {
+			match_method = "cindex_priority_-200",
+			tg_player_set = item.tg_player ~= nil,
+			tp_global = tp_global,
+			tp_unbound = tp_global == nil,
+		})
+	end
+	if same_tg then
 		for i, plyr in ipairs(item.PERSISTENT_PLAYER_DATA) do
 			if auxi.check_all_exists(plyr.__META.player) ~= true and player.ControllerIndex == plyr.__META.Index and (plyr.__META.CIndex and plyr.__META.CIndex == player:GetCollectibleRNG(item.target_id):GetSeed()) and tp == plyr.__META.PlayerType then
+				local old_idx = player:GetData().__Index
 				player:GetData().__Index = i
 				plyr.__META.player = player
 				plyr.__META.Seed = player.InitSeed
 				plyr.__META.CIndex = nil
 				plyr.__META.Frame = Isaac.GetFrameCount()
+				identity_probe_notify("PLAYER_ID_REUSED", player, {
+					match_method = "cindex_priority_-200",
+					old_index = old_idx,
+					new_index = i,
+				})
 				break
 			end
 		end
@@ -495,12 +743,19 @@ function item.check_p_data(player)
 	local tp = player:GetPlayerType()
 	for i, plyr in ipairs(item.PERSISTENT_PLAYER_DATA) do
 		if player.ControllerIndex == plyr.__META.Index and ((player.InitSeed == plyr.__META.Seed and tp == plyr.__META.PlayerType) or (item.Forgot[tp] and item.Forgot[plyr.__META.PlayerType] and plyr.__META.Frame == Isaac.GetFrameCount())) then		--(auxi.check_all_exists(plyr.__META.player) ~= true and 		--似乎rewind会出问题
+			local old_idx = player:GetData().__Index
+			local forgot_path = not (player.InitSeed == plyr.__META.Seed and tp == plyr.__META.PlayerType)
 			player:GetData().__Index = i
 			plyr.__META.player = player
 			plyr.__META.Seed = player.InitSeed
 			plyr.__META.CIndex = nil
 			plyr.__META.PlayerType = tp
 			plyr.__META.Frame = Isaac.GetFrameCount()
+			identity_probe_notify("PLAYER_ID_REUSED", player, {
+				match_method = forgot_path and "check_p_data_forgot" or "check_p_data",
+				old_index = old_idx,
+				new_index = i,
+			})
 			--delay_buffer.addeffe(function() print("Init Player m1 "..player.InitSeed.." "..player:GetPlayerType().." "..player.ControllerIndex.." "..player:GetData().__Index) end,{},1)
 			return true
 		end
@@ -518,6 +773,8 @@ function item.check_vague_data(player)
 		end
 	end
 	if best_fit then
+		local old_idx = player:GetData().__Index
+		local old_seed = best_fit.Seed
 		player:GetData().__Index = best_i
 		best_fit.Seeded = best_fit.Seed
 		best_fit.Seed = player.InitSeed
@@ -525,15 +782,61 @@ function item.check_vague_data(player)
 		best_fit.PlayerType = tp
 		best_fit.Frame = Isaac.GetFrameCount()
 		player:GetData()[item.own_key.."check"] = true
+		identity_probe_notify("PLAYER_ID_REUSED", player, {
+			match_method = "check_vague_data",
+			old_index = old_idx,
+			new_index = best_i,
+			old_seed = old_seed,
+		})
 		--delay_buffer.addeffe(function() print("Init Player m2 "..player.InitSeed.." "..player:GetPlayerType().." "..player.ControllerIndex.." "..player:GetData().__Index) end,{},1)
 		return true
 	end
 end
 
 function item.try_find_idx(player,tp)
+	local before_idx = player:GetData().__Index
 	local succ = item.check_p_data(player) if succ then return end
-	if Game():GetFrameCount() ~= 0 and g.Started ~= true then local succ = item.check_vague_data(player) if succ then return end end
-	if player:GetData().__Index == nil then item.add_player(player,tp) end
+	local vague_eligible = Game():GetFrameCount() ~= 0 and not g.is_gameplay_world_active()
+	if vague_eligible then local succ = item.check_vague_data(player) if succ then return end end
+
+	-- Found Soul already bound to a sequence slot: refresh engine fields, do not allocate.
+	if before_idx
+		and item.PERSISTENT_PLAYER_DATA[before_idx]
+		and item.PERSISTENT_PLAYER_DATA[before_idx].__META
+		and item.PERSISTENT_PLAYER_DATA[before_idx].__META.FoundSoul
+		and item.is_found_soul_player(player)
+	then
+		sync_found_soul_meta(player, before_idx)
+		return
+	end
+
+	if player:GetData().__Index == nil then
+		if item.try_reclaim_found_soul(player, tp) then
+			return
+		end
+		local mark_fs = item.is_found_soul_player(player)
+		identity_probe_notify("RECONCILIATION", player, {
+			match_method = "try_find_idx",
+			reason = tp,
+			decision = mark_fs and "add_player_found_soul" or "add_player",
+			old_index = before_idx,
+			vague_eligible = vague_eligible,
+			check_p_data_result = false,
+			check_vague_result = vague_eligible and false or "skipped",
+		})
+		item.add_player(player, tp, {found_soul = mark_fs})
+	else
+		identity_probe_notify("RECONCILIATION", player, {
+			match_method = "try_find_idx",
+			reason = tp,
+			decision = "keep_existing_index",
+			old_index = before_idx,
+			new_index = player:GetData().__Index,
+			vague_eligible = vague_eligible,
+			check_p_data_result = false,
+			check_vague_result = vague_eligible and false or "skipped",
+		})
+	end
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_INIT, params = nil,		--小红罐、里拉萨路会让角色的种子反复变化，这点异常诡异。所以需要使用额外的策略来保证其正确。 此外，小红罐还会导致角色生成时类型变为0。
@@ -545,15 +848,47 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
 	local idx = player:GetData().__Index
+	-- Late adopt: BabySkin may become readable after Init; fold this index into FS sequence.
+	if item.is_found_soul_player(player)
+		and idx
+		and item.PERSISTENT_PLAYER_DATA[idx]
+		and item.PERSISTENT_PLAYER_DATA[idx].__META
+		and not item.PERSISTENT_PLAYER_DATA[idx].__META.FoundSoul
+	then
+		local meta = item.PERSISTENT_PLAYER_DATA[idx].__META
+		meta.FoundSoul = true
+		meta.FoundSoulSeq = meta.FoundSoulSeq or next_found_soul_seq()
+		sync_found_soul_meta(player, idx)
+		identity_probe_notify("RECONCILIATION", player, {
+			match_method = "found_soul_sequence_adopt",
+			decision = "adopt_existing_index",
+			new_index = idx,
+			found_soul_seq = meta.FoundSoulSeq,
+		})
+	end
 	if idx and item.PERSISTENT_PLAYER_DATA[idx] and item.PERSISTENT_PLAYER_DATA[idx].__INDEX == idx then
-		if item.PERSISTENT_PLAYER_DATA[idx].__META.Index == player.ControllerIndex and player.InitSeed == item.PERSISTENT_PLAYER_DATA[idx].__META.Seed then
+		local meta = item.PERSISTENT_PLAYER_DATA[idx].__META
+		if meta.Index == player.ControllerIndex and player.InitSeed == meta.Seed then
 			local pt = player:GetPlayerType()
-			if item.PERSISTENT_PLAYER_DATA[idx].__META.PlayerType ~= pt then 
-				if item.PERSISTENT_PLAYER_DATA[idx].__META.PlayerType == 0 then item.PERSISTENT_PLAYER_DATA[idx].__META.Once_type = 0 end
-				callback_manager.work("POST_PLAYER_SHIFT",function(funct,params) funct(nil,player,item.PERSISTENT_PLAYER_DATA[idx].__META.PlayerType) end)
-				item.PERSISTENT_PLAYER_DATA[idx].__META.PlayerType = pt 
+			if meta.PlayerType ~= pt then 
+				local old_type = meta.PlayerType
+				if old_type == 0 then meta.Once_type = 0 end
+				callback_manager.work("POST_PLAYER_SHIFT",function(funct,params) funct(nil,player,meta.PlayerType) end)
+				meta.PlayerType = pt
+				identity_probe_notify("PLAYER_TYPE_SHIFT", player, {
+					match_method = "post_player_update",
+					old_player_type = old_type,
+					new_player_type = pt,
+					persistent_index = idx,
+				})
 			end
-			item.PERSISTENT_PLAYER_DATA[idx].__META.NowFrame = Isaac.GetFrameCount()
+			meta.NowFrame = Isaac.GetFrameCount()
+			return
+		end
+		-- Found Soul: InitSeed/ControllerIndex often change across respawn or Init→Update.
+		-- Keep the sequence slot and refresh binding fields instead of allocating.
+		if meta.FoundSoul and item.is_found_soul_player(player) then
+			sync_found_soul_meta(player, idx)
 			return
 		end
 	end
@@ -610,6 +945,10 @@ end
 -- Wholesale restore must rebind EntityPlayer to PERSISTENT_PLAYER_DATA before
 -- POST_REWIND / POST_NEW_ROOM consumers look up player:GetData().__Index.
 local function rebind_players_for_restore(tp)
+	identity_probe_notify("BOUNDARY_REWIND_REBIND", nil, {
+		match_method = "rebind_players_for_restore",
+		rewind_type = tp,
+	})
 	for playerNum = 1, Game():GetNumPlayers() do
 		local player = Game():GetPlayer(playerNum - 1)
 		local before_idx = player_bind_index(player)
@@ -618,6 +957,16 @@ local function rebind_players_for_restore(tp)
 		if not p_ok then
 			v_ok = item.check_vague_data(player) == true
 		end
+		identity_probe_notify("RECONCILIATION", player, {
+			match_method = "rebind_players_for_restore",
+			rewind_type = tp,
+			player_slot = playerNum - 1,
+			old_index = before_idx,
+			new_index = player_bind_index(player),
+			check_p_data_result = p_ok,
+			check_vague_result = v_ok,
+			decision = p_ok and "check_p_data" or (v_ok and "check_vague_data" or "unbound"),
+		})
 		local probe = package.loaded["Qing_Remaster_scripts.debug.portal_restore_rewind_probe"]
 		if type(probe) == "table" and type(probe.record_external) == "function" then
 			pcall(probe.record_external, {

@@ -9,6 +9,7 @@ local Book_of_Belial_holder = require("Qing_Remaster_scripts.mimics.Book_of_Beli
 local selection_holder = require("Qing_Remaster_scripts.others.selection_holder")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -730,8 +731,7 @@ add_whisper({
 	end,
 	Reward = function(player, bag, inst)
 		bag.DamageMul = (bag.DamageMul or 1) + (inst.Doubled and 0.3 or 0.15)
-		player:AddCacheFlags(CacheFlag.CACHE_DAMAGE)
-		player:EvaluateItems()
+		unique_holder.request_evaluate_items(player, CacheFlag.CACHE_DAMAGE)
 	end,
 	Text = {
 		zh = {voice = "你不需要它。", req = "永久失去1心之容器", reward = "永久提升攻击"},

@@ -24,10 +24,17 @@ local item = {
 		MAIN_TWIN = 2,
 		OTHER_TWIN = 3,
 	},
-	-- Extra sprite-geometry correction on top of the visible-card center. Not a HUD layout offset.
+	-- Extra measured nudge after the pivot-mode base position. Not a HUD layout offset.
 	CARD_OVERLAY_LOCAL_OFFSET = {
 		tarot_cloth = Vector(0, 0),
 		oblivion = Vector(0, 0),
+	},
+	-- Choose HUD base by overlay ANM2 pivot, not a shared visible-center assumption.
+	-- "card_render": pivot matches ui cardfronts (8,12) → PrimaryCardUIPos
+	-- "visible_center": pivot is visible 14×18 center (7,9) → PrimaryCardVisibleCenter
+	CARD_OVERLAY_ANCHOR = {
+		tarot_cloth = "card_render", -- lootcard_fronts.anm2: XPivot=8 YPivot=12
+		oblivion = "visible_center", -- oblivion_forget_overlay.anm2: XPivot=7 YPivot=9
 	},
 	-- ui_cardfronts.anm2 的 Frame Crop 是 16×20、pivot 8,12。
 	-- cards.png 上全部 56 张 16×20 裁切的不透明像素都是 14×18，四边各 1px 透明。
@@ -56,6 +63,8 @@ local item = {
 			[1] = {name = "GetScreenTopLeft",del = Vector(8,66),},		--正常的钥匙
 			[2] = {name = "GetScreenTopLeft",del = Vector(8,80),},		--双子的钥匙
 		},
+		-- 伯大尼 / 里伯大尼的魂心或红心充能行。只在该布局下由 UIHeartChargePos 返回。
+		-- Y 不写死：等于收紧后的钥匙行再加一行（见 BETHANY_RESOURCE_ROW_PITCH）。
 		["poop"] = {
 			[1] = {name = "GetScreenTopLeft",del = Vector(0,40),},		--正常的便便
 			[2] = {name = "GetScreenTopLeft",del = Vector(0,56),},		--双子的便便
@@ -152,12 +161,24 @@ item.HUD_ANCHOR = {
 	VISUAL_CENTER = "visual_center",
 }
 
+-- 原版资源列行距 12（硬币 42 / 炸弹 54 / 钥匙 66）。伯大尼充能行把每一行收紧 1。
+item.RESOURCE_ROW_PITCH = 12
+item.BETHANY_RESOURCE_ROW_PITCH = 11
+-- 充能行之下的内容整体下移。与行距收紧分开，不要并成同一个数。
+item.BETHANY_BELOW_SHIFT = 9
+-- 相对普通列：硬币 0，炸弹上移 1，钥匙上移 2。充能行是钥匙再下一行，不在这张表里。
+item.BETHANY_RESOURCE_LIFT = {
+	bomb = 1,
+	key = 2,
+}
+
 -- 原版 HUD 槽位外框（非 pickup anm2 尺寸）；心 12×12，资源 icon 约 16×16。
 item.HUD_SLOT_BOX = {
 	heart = Vector(12, 12),
 	coin = Vector(16, 16),
 	bomb = Vector(16, 16),
 	key = Vector(16, 16),
+	heartcharge = Vector(16, 16),
 	poop = Vector(16, 16),
 }
 
@@ -171,6 +192,7 @@ item.HUD_ICON_TUNE = {
 
 function item.GetHudIconTuneOffset(kind)
 	if kind == "soul" then kind = "heart" end
+	if kind == "heartcharge" then kind = "key" end
 	local tune = item.HUD_ICON_TUNE[kind]
 	return tune and Vector(tune.X, tune.Y) or Vector(0, 0)
 end
@@ -396,6 +418,42 @@ local function get_rep_plus_player_active_pos(player,slot,order)
 	return Vector(anchor_x - 124 - 22 * scale.X,anchor_y - 52 + 8 * scale.Y)
 end
 
+local function player_is_bethany(player)
+	if not player or not player.GetPlayerType or not PlayerType then
+		return false
+	end
+	local tp = player:GetPlayerType()
+	return tp == PlayerType.PLAYER_BETHANY or tp == PlayerType.PLAYER_BETHANY_B
+end
+
+--- 主 HUD 资源列（state 1）在伯大尼 / 里伯大尼下多一行充能。双子列不是这个布局。
+--- player 省略时看 1P。这套坐标目前只有左上主列，不含合作的 2P/3P/4P 角落。
+function item.HudUsesBethanyChargeRow(player, state)
+	state = state or 1
+	if state ~= 1 then
+		return false
+	end
+	if not player and Isaac.GetPlayer then
+		player = Isaac.GetPlayer(0)
+	end
+	return player_is_bethany(player)
+end
+
+function item.GetBethanyResourceLift(name, player, state)
+	if not item.HudUsesBethanyChargeRow(player, state) then
+		return 0
+	end
+	return (item.BETHANY_RESOURCE_LIFT or {})[name] or 0
+end
+
+--- 充能行之下的整块下移。没有这行时是 0。
+function item.GetBethanyBelowOffset(player, state)
+	if not item.HudUsesBethanyChargeRow(player, state) then
+		return Vector(0, 0)
+	end
+	return Vector(0, item.BETHANY_BELOW_SHIFT or 9)
+end
+
 function item.UI_Pos(name,state,offset,params)
 	params = params or {}
 	if type(offset) == "table" and offset.X == nil and offset.Y == nil then
@@ -410,9 +468,30 @@ function item.UI_Pos(name,state,offset,params)
 	if info == nil then return Vector(1000,1000) end
 	local pos_offset = item[info.name](hud) + (auxi.check_if_any(info.special,hud) or Vector(0,0))
 	local top_left = pos_offset + info.del + offset + item.GetHUDRenderOffset()
+	local lift = item.GetBethanyResourceLift(name, params.player, state)
+	if lift ~= 0 then
+		top_left = top_left - Vector(0, lift)
+	end
 	local anchor = params.anchor or item.HUD_ANCHOR.TOP_LEFT
 	local box = (item.HUD_SLOT_BOX or {})[name] or Vector(12, 12)
 	return item.BoxAnchorPos(top_left, box, anchor)
+end
+
+--- 钥匙下方那一行魂心 / 红心充能。锚点规则与 UI_Pos("key") 相同，再下一行收紧后的行距。
+--- 不是伯大尼布局时返回 nil。
+function item.UIHeartChargePos(state, offset, params)
+	params = params or {}
+	if type(offset) == "table" and offset.X == nil and offset.Y == nil then
+		params = offset
+		offset = nil
+	end
+	offset, params = resolve_anchor_params(offset, params)
+	state = state or 1
+	if not item.HudUsesBethanyChargeRow(params.player, state) then
+		return nil
+	end
+	local key_pos = item.UI_Pos("key", state, offset, params)
+	return key_pos + Vector(0, item.BETHANY_RESOURCE_ROW_PITCH or 11)
 end
 
 function item.PlayerActive_UI_Pos(player,slot,order)
@@ -785,10 +864,16 @@ function item.PrimaryCardVisibleCenter(player)
 	return item.CardRenderAnchorToVisibleCenter(item.PrimaryCardUIPos(player))
 end
 
--- Overlay sprites for the visible 14×18 card use a center pivot, so they render at the visible center.
--- CARD_OVERLAY_LOCAL_OFFSET is only an extra measured nudge, not the crop-to-visible conversion.
+-- Overlay HUD position from the overlay ANM2 pivot mode (CARD_OVERLAY_ANCHOR).
+-- Unknown kinds default to visible_center. LOCAL_OFFSET is only an extra measured nudge.
 function item.CardOverlayPos(player, kind)
-	local pos = item.PrimaryCardVisibleCenter(player)
+	local mode = item.CARD_OVERLAY_ANCHOR and item.CARD_OVERLAY_ANCHOR[kind] or "visible_center"
+	local pos
+	if mode == "card_render" then
+		pos = item.PrimaryCardUIPos(player)
+	else
+		pos = item.PrimaryCardVisibleCenter(player)
+	end
 	if not pos then return nil end
 	local off = item.CARD_OVERLAY_LOCAL_OFFSET and item.CARD_OVERLAY_LOCAL_OFFSET[kind]
 	if off then return pos + off end

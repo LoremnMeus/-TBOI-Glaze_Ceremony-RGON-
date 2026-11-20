@@ -44,6 +44,10 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 	local ret = true
 	local d = player:GetData()
 	d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}
+	-- Slot -1 is a valid effect key (timeout beams), but charge APIs reject it.
+	local real_slot = type(activeSlot) == "number"
+		and activeSlot >= ActiveSlot.SLOT_PRIMARY
+		and activeSlot <= (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET)
 	if useFlags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 		if d[item.own_key.."effect"][activeSlot] then
 			d[item.own_key.."effect"][activeSlot].limit = (d[item.own_key.."effect"][activeSlot].limit or item.limit) + item.step
@@ -55,7 +59,9 @@ Function = function(_,colid,rng,player,useFlags,activeSlot,customVarData)
 		end
 	else
 		if d[item.own_key.."effect"][activeSlot] then
-			player:SetActiveCharge(math.max(0,player:GetActiveCharge(activeSlot) + player:GetBatteryCharge(activeSlot) - 10),activeSlot)
+			if real_slot then
+				player:SetActiveCharge(math.max(0,player:GetActiveCharge(activeSlot) + player:GetBatteryCharge(activeSlot) - 10),activeSlot)
+			end
 			d[item.own_key.."effect"][activeSlot].limit = (d[item.own_key.."effect"][activeSlot].limit or item.limit) + item.step
 			if activeSlot == -1 then d[item.own_key.."effect"][activeSlot].Timeout = (d[item.own_key.."effect"][activeSlot].Timeout or 10 * 60) + 5 * 60 end
 		else

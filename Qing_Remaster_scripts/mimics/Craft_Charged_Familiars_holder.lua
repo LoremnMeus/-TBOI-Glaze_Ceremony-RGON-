@@ -25,7 +25,6 @@ local LIL_BRIM_SCALE = 0.5
 -- 模组默认条在左上 (-8,-35)；制造蓄力宝宝偏右上，避免叠在一起
 local CHARGE_BAR_OFFSET = Vector(16, -42)
 local CHARGE_BAR_ANM2 = "gfx/effects/chargebar/chargebar.anm2"
-local CHARGE_BAR_SPRITE_KEY = item.own_key.."_Charge_Bar"
 
 local CHARGED_VARIANTS = {
 	[FamiliarVariant.LIL_ABADDON or 230] = true,
@@ -149,7 +148,7 @@ local function hide_vanilla_charge_bar(fam)
 end
 
 local function custom_bar_is_charged(fam)
-	local bar = data(fam)[CHARGE_BAR_SPRITE_KEY]
+	local bar = Charging_Bar_holder.get_sprite(fam, item.own_key)
 	return bar ~= nil and bar:IsPlaying("Charged")
 end
 
@@ -913,9 +912,6 @@ local function register(variant, adapter)
 		if fam and fam.FireCooldown ~= nil then
 			fam.FireCooldown = tonumber(saved_fire_cooldown) or 0
 		end
-		if fam then
-			Charging_Bar_holder.remove_charge_bar(fam, item.own_key)
-		end
 	end
 	H.register_adapter(variant, adapter)
 end
@@ -1160,4 +1156,10 @@ function item.release_for_air(air)
 	return H.release_for_air(air)
 end
 
+Charging_Bar_holder.register_bar({
+	id = item.own_key,
+	owner = {type = "custom", valid = function(fam)
+		return fam:ToFamiliar() and Familiar_Control_Selector.is_owner(fam, Familiar_Control_Selector.BLUEPRINT)
+	end},
+})
 return item

@@ -39,19 +39,21 @@ defs.bosses = {
 		story_scope = {chapter = "chapter1", status = "current"},
 		entity = {type = 996, variant_name = "Floraine", variant = 23755},
 		sources = {
-			"Qing_Remaster_scripts/bosses/Floraine/Enemy_Floraine.lua",
+			"Qing_Remaster_scripts/bosses/Floraine/floraine_v2/init.lua",
+			"Qing_Remaster_scripts/bosses/Floraine/floraine_v2/controller.lua",
+			"Qing_Remaster_scripts/bosses/Floraine/floraine_v2/arena.lua",
 			"content/entities2.xml#Floraine",
 		},
 		spawn = {
 			method = "thread",
 			thread = "stone",
-			notes = {zh = "棋盘异变事件终局遭遇。", en = "Final encounter of the chessboard event."},
+			notes = {zh = "棋盘异变事件终局遭遇（Floraine V2）。", en = "Final encounter of the chessboard event (Floraine V2)."},
 		},
 		related_character = "floraine",
 		components = {
-			{id = "floraine_chess_board", role = "arena_mechanic", source = "Floraine/Enemy_chess_board.lua", entity_name = "Chess Board"},
+			{id = "floraine_v2_controller", role = "boss_ai", source = "Floraine/floraine_v2/controller.lua", entity_name = "Floraine"},
+			{id = "floraine_v2_arena", role = "arena_mechanic", source = "Floraine/floraine_v2/arena.lua", entity_name = "Floraine"},
 			{id = "floraine_chess_pawn", role = "summon", source = "Floraine/Enemy_chess_pawn.lua", entity_name = "Chess Piece"},
-			{id = "floraine_chess_staff", role = "weapon", source = "Floraine/Enemy_chess_staff.lua", entity_name = "staff strike"},
 		},
 		wiki = {visible = true, spoiler_level = 1, slug = "floraine"},
 	},
@@ -77,7 +79,7 @@ defs.bosses = {
 		},
 		related_character = nil,
 		components = {
-			{id = "zennith_wind", role = "arena_mechanic", source = "Zennith/Enemy_wind.lua", entity_name = "wind effect"},
+			{id = "zennith_wind", role = "arena_mechanic", source = "threads/wind/wind_runtime.lua", entity_name = "wind runtime"},
 		},
 		wiki = {visible = true, spoiler_level = 1, slug = "zennith"},
 	},
@@ -261,19 +263,9 @@ defs.excluded = {
 		source = "sprite_regions.lua",
 	},
 	{
-		id = "floraine_chess_board",
-		reason = "Floraine arena component.",
-		source = "Floraine/Enemy_chess_board.lua",
-	},
-	{
 		id = "floraine_chess_pawn",
-		reason = "Floraine summon component.",
+		reason = "Shared Chess Piece NPC adapter used by Floraine V2 / Stone pieces.",
 		source = "Floraine/Enemy_chess_pawn.lua",
-	},
-	{
-		id = "floraine_chess_staff",
-		reason = "Floraine weapon/hazard component.",
-		source = "Floraine/Enemy_chess_staff.lua",
 	},
 	{
 		id = "bum_guard",
@@ -292,8 +284,8 @@ defs.excluded = {
 	},
 	{
 		id = "zennith_wind",
-		reason = "Wind arena/control effect for Wind thread + Zennith fight.",
-		source = "Zennith/Enemy_wind.lua",
+		reason = "Wind runtime (V5) for Wind thread + Zennith fight.",
+		source = "threads/wind/wind_runtime.lua",
 	},
 	{
 		id = "shadollee",

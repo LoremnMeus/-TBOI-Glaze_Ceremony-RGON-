@@ -268,7 +268,7 @@ end
 local function play_break_feedback(player)
 	local d = player:GetData()
 	d[item.own_key.."break_flash"] = item.BREAK_FLASH_FRAMES
-	sound_tracker.PlayStackedSound(SoundEffect.SOUND_DIMEDOWN, 0.55, 1.05, false, 0, 2)
+	sound_tracker.PlayStackedSound(SoundEffect.SOUND_DIMEDROP, 0.55, 1.05, false, 0, 2)
 	player:AddCacheFlags(CacheFlag.CACHE_TEARCOLOR | CacheFlag.CACHE_TEARFLAG | CacheFlag.CACHE_FIREDELAY)
 	player:GetData().should_evaluate_on_update_once = true
 end

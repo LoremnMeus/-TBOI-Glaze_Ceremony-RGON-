@@ -45,7 +45,6 @@ function M.build(api)
 	local systems_tab = api.systems_tab
 	local visual_tab = api.visual_tab
 	local data_tab = api.data_tab
-	local tests_tab = api.tests_tab
 	local story_test_tab = api.story_test_tab
 
 
@@ -817,6 +816,9 @@ local function add_tiny_update_group(parent_id)
 	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdateForce", text("tiny_update_force"), function()
 		if tiny.debug_force_update then tiny.debug_force_update() end
 	end)
+	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdateForceCakeBerry", text("tiny_update_force_cake_berry"), function()
+		if tiny.debug_force_cake_berry then tiny.debug_force_cake_berry() end
+	end)
 	ImGui.AddButton(group, "QingRemasterOptions_TinyUpdatePreview", text("tiny_update_preview"), function()
 		if tiny.debug_preview then tiny.debug_preview() end
 	end)
@@ -884,6 +886,53 @@ local function add_zero_presence_group(parent_id)
 			end
 		end,
 	})
+end
+
+local function add_isolation_group(parent_id)
+	local title = language_key() == "zh" and "孤立" or "Isolation"
+	local group = add_group(parent_id, "QingRemasterOptions_GroupIsolation", title)
+	local ok_iso, iso = pcall(require, "Qing_Remaster_scripts.items.Item_Isolation")
+	if not (ok_iso and iso) then
+		add_text(group, "无法加载 Item_Isolation")
+		return
+	end
+	add_text(group, language_key() == "zh"
+		and "本局小团体名单与抽选分布（不改正式剧情进度）。"
+		or "Run clique roster and draw distribution (no story progress writes).")
+	ImGui.AddButton(group, "QingRemasterOptions_IsolationDump", language_key() == "zh" and "输出本局成员" or "Dump members", function()
+		if iso.debug_member_report then push_notice(iso.debug_member_report()) end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_IsolationRegen", language_key() == "zh" and "强制重抽名单（无活动聚会时）" or "Force redraw (no active party)", function()
+		if iso.debug_force_regenerate then push_notice(iso.debug_force_regenerate()) end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_IsolationSim", language_key() == "zh" and "模拟抽选 x1000" or "Simulate draws x1000", function()
+		if iso.debug_simulate_draws then push_notice(iso.debug_simulate_draws(1000)) end
+	end)
+	local radius_id = "QingRemasterOptions_IsolationCircleRadius"
+	ImGui.AddDragFloat(
+		group,
+		radius_id,
+		language_key() == "zh" and "聚会圆环半径" or "Party circle radius",
+		function(value)
+			if iso.debug_set_circle_radius then
+				iso.debug_set_circle_radius(value)
+			end
+		end,
+		(iso.debug_get_circle_radius and iso.debug_get_circle_radius()) or 64,
+		1,
+		24,
+		120,
+		"%.0f"
+	)
+	ImGui.AddCallback(radius_id, ImGuiCallback.Render, function()
+		local r = (iso.debug_get_circle_radius and iso.debug_get_circle_radius()) or 64
+		ImGui.UpdateData(radius_id, ImGuiData.Value, r)
+	end)
+	local iso_status = "QingRemasterOptions_IsolationStatus"
+	imgui_layout.add_wrapped_text(group, iso_status, "Idle")
+	ImGui.AddCallback(iso_status, ImGuiCallback.Render, function()
+		imgui_layout.update_text(iso_status, (iso.debug_get_last_report and iso.debug_get_last_report()) or "")
+	end)
 end
 
 local function add_perhaps_chosen_group(parent_id)
@@ -1457,6 +1506,140 @@ local function add_mental_group(parent_id)
 		item.set_value({"QingRemasterOptions", "Debug", "MentalForceError"}, false)
 	end,
 })
+end
+
+local function add_exoneration_layout_group(_parent_id)
+	local zh = language_key() == "zh"
+	local group = start_mod(
+		"item_exoneration",
+		DEBUG_PAGE.items,
+		zh and "放逐证明" or "Exoneration Certificate",
+		"QingRemasterOptions_GroupExonerationLayout",
+		{ path = { "Exoneration Certificate" }, kind = "tool" }
+	)
+	if not group then
+		return
+	end
+	local function certificate()
+		local ok, mod = pcall(require, "Qing_Remaster_scripts.items.Item_Exoneration_Certificate")
+		if ok then
+			return mod
+		end
+		return nil
+	end
+	local shapes = {
+		zh and "自动选择" or "Auto",
+		zh and "强制 1×1" or "Force 1x1",
+		zh and "强制 1×2" or "Force 1x2",
+		zh and "强制 2×1" or "Force 2x1",
+		zh and "强制 2×2" or "Force 2x2",
+	}
+	local shape_keys = { "auto", "1x1", "1x2", "2x1", "2x2" }
+	local algorithms = {
+		zh and "自动（优先棋盘交错）" or "Auto (checker first)",
+		zh and "强制棋盘交错" or "Force checker",
+		zh and "强制隔行连续" or "Force gapped rows",
+	}
+	local algorithm_keys = { "auto", "checker", "rows" }
+	local function shape_index()
+		local mod = certificate()
+		local shape = mod and mod.debug_config and mod.debug_config.shape or "auto"
+		for i, key in ipairs(shape_keys) do
+			if key == shape then
+				return i - 1
+			end
+		end
+		return 0
+	end
+	local function algorithm_index()
+		local mod = certificate()
+		local algorithm = mod and mod.debug_config and mod.debug_config.algorithm or "auto"
+		for i, key in ipairs(algorithm_keys) do
+			if key == algorithm then
+				return i - 1
+			end
+		end
+		return 0
+	end
+	local status_id = "QingRemasterOptions_ExonerationLayoutStatus"
+	add_text(group, zh and "布局实验室。模拟底座不写入永久名单，也不能被拾取。" or "Layout lab. Preview pedestals are not banished and cannot be taken.")
+	imgui_layout.add_wrapped_text(group, status_id, "")
+	if ImGui.AddSliderInteger then
+		ImGui.AddSliderInteger(group, "QingRemasterOptions_ExonerationCount", zh and "模拟道具数量" or "Preview count", function(value)
+			local mod = certificate()
+			if mod and mod.debug_config then
+				mod.debug_config.count = value
+			end
+		end, 12, 1, 32)
+		ImGui.AddCallback("QingRemasterOptions_ExonerationCount", ImGuiCallback.Render, function()
+			local mod = certificate()
+			local count = mod and mod.debug_config and mod.debug_config.count or 12
+			ImGui.UpdateData("QingRemasterOptions_ExonerationCount", ImGuiData.Value, count)
+		end)
+	end
+	ImGui.AddCombobox(group, "QingRemasterOptions_ExonerationShape", zh and "房间大小" or "Room size", function(index)
+		local mod = certificate()
+		if mod and mod.debug_config then
+			mod.debug_config.shape = shape_keys[(tonumber(index) or 0) + 1] or "auto"
+		end
+	end, shapes, shape_index())
+	ImGui.AddCombobox(group, "QingRemasterOptions_ExonerationAlgorithm", zh and "排列算法" or "Layout", function(index)
+		local mod = certificate()
+		if mod and mod.debug_config then
+			mod.debug_config.algorithm = algorithm_keys[(tonumber(index) or 0) + 1] or "auto"
+		end
+	end, algorithms, algorithm_index())
+	if ImGui.AddSliderInteger then
+		ImGui.AddSliderInteger(group, "QingRemasterOptions_ExonerationMockPrevious", zh and "模拟上一房间索引" or "Mock previous room", function(value)
+			local mod = certificate()
+			if mod and mod.debug_config then
+				mod.debug_config.mock_previous = value
+			end
+		end, 0, 0, 168)
+	end
+	local function refresh_status(body)
+		imgui_layout.update_text(status_id, body or "")
+	end
+	ImGui.AddButton(group, "QingRemasterOptions_ExonerationEnter", zh and "生成并进入" or "Create and enter", function()
+		local mod = certificate()
+		if mod and mod.debug_enter then
+			mod.debug_enter()
+			refresh_status(mod.debug_status)
+		end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_ExonerationRelayout", zh and "在当前房间重排" or "Relayout this room", function()
+		local mod = certificate()
+		if mod and mod.debug_enter then
+			mod.debug_enter()
+			refresh_status(mod.debug_status)
+		end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_ExonerationReroll", zh and "重新随机展示道具" or "Reroll preview items", function()
+		local mod = certificate()
+		if mod and mod.debug_reroll then
+			mod.debug_reroll()
+			refresh_status(mod.debug_status)
+		end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_ExonerationLeave", zh and "退出测试" or "Leave test", function()
+		local mod = certificate()
+		if mod and mod.debug_leave then
+			mod.debug_leave()
+			refresh_status(mod.debug_status)
+		end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_ExonerationScan", zh and "遍历全部数量" or "Audit counts 1-32", function()
+		local mod = certificate()
+		if mod and mod.debug_scan then
+			refresh_status(mod.debug_scan())
+		end
+	end)
+	ImGui.AddButton(group, "QingRemasterOptions_ExonerationReturn", zh and "查看返回目标" or "Show return target", function()
+		local mod = certificate()
+		if mod and mod.debug_return_text then
+			refresh_status(mod.debug_return_text())
+		end
+	end)
 end
 
 --- Debug > Items > 妖刀·逢魔：session-only 运行配置（不进存档）。Probe 只观察/导出。
@@ -2466,6 +2649,34 @@ local function add_colorblind_bans_group(parent_id)
 	end))
 end
 
+local function add_exoneration_group(parent_id)
+	local group = add_group(parent_id,"QingRemasterOptions_GroupExoneration",text("group_exoneration"))
+	add_text(group,text("exoneration_help"))
+	local certificate = require("Qing_Remaster_scripts.items.Item_Exoneration_Certificate")
+	local list_id = "QingRemasterOptions_ExonerationList"
+	imgui_layout.add_imgui_text(group, text("group_exoneration")..":\n"..text("exoneration_empty"), true, list_id)
+	ImGui.AddCallback(list_id,ImGuiCallback.Render,function()
+		local bans = certificate.list_banished() or {}
+		local body
+		if #bans == 0 then
+			body = text("exoneration_empty")
+		else
+			local lines = {}
+			for _, id in ipairs(bans) do
+				local cfg = Isaac.GetItemConfig and Isaac.GetItemConfig():GetCollectible(id)
+				local name = cfg and tostring(cfg.Name or "") or ""
+				lines[#lines + 1] = tostring(id)..(name ~= "" and (" - "..name) or "")
+			end
+			body = table.concat(lines, "\n")
+		end
+		ImGui.UpdateData(list_id,ImGuiData.Label,text("group_exoneration")..":\n"..body)
+	end)
+	ImGui.AddButton(group,"QingRemasterOptions_ExonerationClear",text("exoneration_clear"),imgui_layout.guard_restricted(function()
+		certificate.clear_banished()
+		push_notice(text("exoneration_cleared"))
+	end))
+end
+
 local function add_diamond_permanent_group(parent_id)
 	local group = add_group(parent_id,"QingRemasterOptions_GroupDiamondPermanent",text("group_diamond_permanent"))
 	add_text(group,text("diamond_permanent_help"))
@@ -2514,6 +2725,7 @@ local function create_permanent_data_panel(parent_id)
 	create_spectral_editor_panel(parent_id)
 	add_remaster_channels_group(parent_id)
 	add_colorblind_bans_group(parent_id)
+	add_exoneration_group(parent_id)
 	add_diamond_permanent_group(parent_id)
 	add_book_of_future_permanent_group(parent_id)
 end
@@ -3296,12 +3508,17 @@ end
 			push_notice(table.concat(parts, "  "))
 		end)
 	end
+	-- Systems ownership: former Tests-tab tools (module ids unchanged).
+	local life_label = language_key() == "zh" and "实体生命周期" or "Entity Lifetime"
+	local pedestal_label = language_key() == "zh" and "道具底座" or "Pedestal"
+	local entity_life_section = imgui_layout.add_section(systems_tab, "QingRemasterOptions_SectionEntityLifecycle", life_label)
+	local pedestal_section = imgui_layout.add_section(systems_tab, "QingRemasterOptions_SectionPedestal", pedestal_label)
 	local bank_lab_group = start_mod(
 		"bank_test_lab",
-		DEBUG_PAGE.tests,
-		"贪婪银行测试台",
+		DEBUG_PAGE.systems,
+		"贪婪银行主控台",
 		"QingRemasterOptions_GroupBankTestLab",
-		{path = {"贪婪银行测试台"}, kind = "test"}
+		{path = {"贪婪银行"}, kind = "tool"}
 	)
 	do
 		local ok_bank, bank_debug = pcall(require, "Qing_Remaster_scripts.threads.bank.bank_debug")
@@ -3313,10 +3530,10 @@ end
 	end
 	local bard_lab_group = start_mod(
 		"bard_beggar_test_lab",
-		DEBUG_PAGE.tests,
+		DEBUG_PAGE.systems,
 		"吟游乞丐测试台",
 		"QingRemasterOptions_GroupBardBeggarLab",
-		{path = {"吟游乞丐测试台"}, kind = "test"}
+		{path = {"吟游乞丐"}, kind = "tool"}
 	)
 	do
 		local bard = require("Qing_Remaster_scripts.slots.Slot_Bard_Beggar")
@@ -3356,7 +3573,7 @@ end
 			imgui_layout.update_text(bard_status_id, body)
 		end)
 	end
-	local consistance_lab_group = start_mod("audit_consistance_test_lab", DEBUG_PAGE.tests, "Consistance Test Lab", "QingRemasterOptions_GroupConsistanceTestLab", {path = {"Consistance Test Lab"}, kind = "test"})
+	local consistance_lab_group = start_mod("audit_consistance_test_lab", DEBUG_PAGE.systems, "Consistance Test Lab", "QingRemasterOptions_GroupConsistanceTestLab", {parent = entity_life_section, path = {life_label, "Consistance Test Lab"}, kind = "tool"})
 	do
 		add_text(consistance_lab_group, "Unique：Native ESSM ≠ Generation。Consumer：GenerationAuditHolder（Empress/Live）。Appear2 已拆除。")
 		local lab_core_id = "QingRemasterOptions_ConsistanceLabCoreStatus"
@@ -3477,7 +3694,7 @@ end
 			imgui_layout.update_text(lab_export_id, body)
 		end)
 	end
-	local consumer_reg_group = start_mod("audit_unique_consumer_regression", DEBUG_PAGE.tests, "Unique Consumer Regression", "QingRemasterOptions_GroupUniqueConsumerReg", {path = {"Unique Consumer Regression"}, kind = "test"})
+	local consumer_reg_group = start_mod("audit_unique_consumer_regression", DEBUG_PAGE.systems, "Unique Consumer Regression", "QingRemasterOptions_GroupUniqueConsumerReg", {parent = entity_life_section, path = {life_label, "Unique Consumer Regression"}, kind = "tool"})
 	do
 		add_text(consumer_reg_group, "CR-1 优先 Manual：Prepare -> 正常出房停一下 -> 回房 -> Check。Auto 仅对照。CR-2～7 等 CR-1 可信后再跑。点按钮后请取消暂停。")
 		local cr_status_id = "QingRemasterOptions_UniqueConsumerRegStatus"
@@ -3524,7 +3741,7 @@ end
 			require("Qing_Remaster_scripts.debug.unique_consumer_regression_lab").reset_tests()
 		end)
 	end
-	local resolve_reg_group = start_mod("audit_unique_resolve_regression", DEBUG_PAGE.tests, "Unique Resolve Regression", "QingRemasterOptions_GroupUniqueResolveReg", {path = {"Unique Resolve Regression"}, kind = "test"})
+	local resolve_reg_group = start_mod("audit_unique_resolve_regression", DEBUG_PAGE.systems, "Unique Resolve Regression", "QingRemasterOptions_GroupUniqueResolveReg", {parent = entity_life_section, path = {life_label, "Unique Resolve Regression"}, kind = "tool"})
 	do
 		add_text(resolve_reg_group, "UR 验证 resolve_generation。先跑 UR-1/UR-4/UR-5；UR-2 Manual Prepare->出房回房->Check。通过后再跑 CR-1。")
 		local ur_status_id = "QingRemasterOptions_UniqueResolveRegStatus"
@@ -3556,7 +3773,7 @@ end
 			require("Qing_Remaster_scripts.debug.unique_resolve_regression_lab").reset_tests()
 		end)
 	end
-	local fresh_reg_group = start_mod("audit_unique_fresh_generation", DEBUG_PAGE.tests, "Unique Fresh Generation", "QingRemasterOptions_GroupUniqueFreshReg", {path = {"Unique Fresh Generation"}, kind = "test"})
+	local fresh_reg_group = start_mod("audit_unique_fresh_generation", DEBUG_PAGE.systems, "Unique Fresh Generation", "QingRemasterOptions_GroupUniqueFreshReg", {parent = entity_life_section, path = {life_label, "Unique Fresh Generation"}, kind = "tool"})
 	do
 		add_text(fresh_reg_group, "FR 验证 is_fresh_generation / birth_room_epoch。FR-2/FR-8 需 Manual 出房回房。")
 		local fr_status_id = "QingRemasterOptions_UniqueFreshRegStatus"
@@ -3603,7 +3820,7 @@ end
 			require("Qing_Remaster_scripts.debug.unique_fresh_generation_lab").reset_tests()
 		end)
 	end
-	local pe_reg_group = start_mod("audit_pedestal_encounter_regression", DEBUG_PAGE.tests, "Pedestal Encounter Regression", "QingRemasterOptions_GroupPedestalEncounterReg", {path = {"Pedestal Encounter Regression"}, kind = "test"})
+	local pe_reg_group = start_mod("audit_pedestal_encounter_regression", DEBUG_PAGE.systems, "Pedestal Encounter Regression", "QingRemasterOptions_GroupPedestalEncounterReg", {parent = pedestal_section, path = {pedestal_label, "Pedestal Encounter Regression"}, kind = "tool"})
 	do
 		add_text(pe_reg_group, "EN=普通 Encounter；DC=死亡证明陈列。DC-1/DC-3 需在 Death Certificate 维度。")
 		local pe_status_id = "QingRemasterOptions_PedestalEncounterRegStatus"
@@ -3643,10 +3860,10 @@ end
 	end
 	local morph_txn_reg_group = start_mod(
 		"audit_pickup_morph_txn_regression",
-		DEBUG_PAGE.tests,
+		DEBUG_PAGE.systems,
 		"Morph Transaction Regression",
 		"QingRemasterOptions_GroupMorphTxnReg",
-		{path = {"Morph Transaction Regression"}, kind = "test"}
+		{parent = pedestal_section, path = {pedestal_label, "Morph Transaction Regression"}, kind = "tool"}
 	)
 	do
 		add_text(morph_txn_reg_group, "M1–M9：PRE→POST pairing（含 non-collectible / cross-variant）。Run All 即可。")
@@ -3669,10 +3886,10 @@ end
 	end
 	local price_ref_reg_group = start_mod(
 		"audit_price_refresh_regression",
-		DEBUG_PAGE.tests,
+		DEBUG_PAGE.systems,
 		"Price Refresh Regression",
 		"QingRemasterOptions_GroupPriceRefreshReg",
-		{path = {"Price Refresh Regression"}, kind = "test"}
+		{parent = pedestal_section, path = {pedestal_label, "Price Refresh Regression"}, kind = "tool"}
 	)
 	do
 		add_text(price_ref_reg_group, "PR-1～PR-6：FINALIZE 后下一帧 native Price=Price visual commit 状态机。")
@@ -3862,6 +4079,13 @@ end
 
 	add_spectralsword_group(items_tab)
 
+	add_exoneration_layout_group(items_tab)
+
+	require("Qing_Remaster_scripts.debug.incandescence_flame_debug_ui").install(items_tab, start_mod, add_text, DEBUG_PAGE.items)
+	require("Qing_Remaster_scripts.debug.rooted_demon_debug_ui").install(start_mod, DEBUG_PAGE.items)
+	require("Qing_Remaster_scripts.debug.entombed_demon_debug_ui").install(start_mod, DEBUG_PAGE.items)
+	require("Qing_Remaster_scripts.debug.wishing_debug_ui").install(start_mod, DEBUG_PAGE.items)
+
 		local multiknife_group = start_mod("item_multiknife", DEBUG_PAGE.items, text("group_multiknife"), "QingRemasterOptions_GroupMultiknife", {
 		path = {"Multiknife"}, kind = "tool",
 		footer = {
@@ -3905,6 +4129,8 @@ end
 	add_perhaps_chosen_group(items_tab)
 
 	add_zero_presence_group(items_tab)
+
+	add_isolation_group(items_tab)
 
 	add_tiny_update_group(items_tab)
 
@@ -4068,6 +4294,16 @@ end
 				end)
 			end
 		end
+	end
+	local charge_bars = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
+	local bar_group = start_mod("charge_bar_lifecycle", DEBUG_PAGE.systems, "Charge Bars", "QingRemasterOptions_GroupChargeBarLifecycle", {path = {"Charge Bars"}, kind = "tool"})
+	if bar_group then
+		local status_id = "QingRemasterOptions_ChargeBarLifecycleStatus"
+		imgui_layout.add_wrapped_text(bar_group, status_id, "...")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local rows = charge_bars.debug_snapshot()
+			imgui_layout.update_text(status_id, #rows > 0 and table.concat(rows, "\n") or "No active charge bars")
+		end)
 	end
 	require("Qing_Remaster_scripts.debug.hud_layout_audit_ui").build(api)
 end

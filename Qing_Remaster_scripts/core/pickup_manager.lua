@@ -23,6 +23,7 @@ function Pickup_manager.Init(mod)
 	table.insert(Pickup_manager.items,#Pickup_manager.items + 1,require("Qing_Remaster_scripts.pickups.pickup_glaze_Trip_Ticket"))
 	table.insert(Pickup_manager.items,#Pickup_manager.items + 1,require("Qing_Remaster_scripts.pickups.pickup_glaze_curse"))
 	table.insert(Pickup_manager.items,#Pickup_manager.items + 1,require("Qing_Remaster_scripts.pickups.pickup_blueprint_prototype"))
+	table.insert(Pickup_manager.items,#Pickup_manager.items + 1,require("Qing_Remaster_scripts.pickups.pickup_floraine_seal"))
 	--Pickup_manager.MakeItems()
 end
 

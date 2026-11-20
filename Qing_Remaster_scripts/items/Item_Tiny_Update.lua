@@ -49,6 +49,27 @@ function item.debug_force_update()
 	})
 end
 
+--- Open a notice that always includes 草莓蛋糕派 (font / name glyph check).
+function item.debug_force_cake_berry()
+	local id = enums.Items.Cake_Berry
+	if not id or id <= 0 then return nil end
+	local st = runtime.state()
+	local history = {
+		version = (st and st.version or 0) + 1,
+		entries = {
+			{
+				item_id = id,
+				changes = {
+					{kind = "damage", steps = 1},
+					{kind = "tears", steps = 1},
+				},
+			},
+		},
+	}
+	notice.show(history, true)
+	return history
+end
+
 function item.debug_preview()
 	notice.preview_sample()
 end

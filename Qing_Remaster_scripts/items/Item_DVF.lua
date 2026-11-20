@@ -2,6 +2,7 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
+local hidden_rooms = require("Qing_Remaster_scripts.callbacks.hidden_room_holder")
 local grid_door = require("Qing_Remaster_scripts.grids.grid_doors")
 local grid_wall = require("Qing_Remaster_scripts.grids.grid_wall")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
@@ -57,7 +58,6 @@ local item = {
 	},
 }
 
-local LOST_CURSE = 1 << 2
 
 -- 倒计时用方形描边字（eid9 偏扁）
 local countdown_font = Font()
@@ -429,54 +429,27 @@ end
 function item.hide_erased_rooms(force_refresh)
 	local effect = get_effect()
 	if not effect then return end
-	local level = Game():GetLevel()
-	local changed = false
-
-	local function clear_room_state(record_changes)
-		for safe_index in pairs(effect.erased_rooms or {}) do
-			local desc = level:GetRoomByIdx(safe_index, effect.dimension)
-			if desc then
-				if record_changes and (desc.DisplayFlags ~= 0 or desc.VisitedCount ~= 0) then changed = true end
-				desc.DisplayFlags = 0
-				desc.VisitedCount = 0
-			end
-		end
-
-		if effect.hub_index and effect.hub_index >= 0 then
-			local hub_desc = level:GetRoomByIdx(effect.hub_index, effect.dimension)
-			if hub_desc then
-				if record_changes and (hub_desc.DisplayFlags ~= 0 or hub_desc.VisitedCount ~= 0) then changed = true end
-				hub_desc.DisplayFlags = 0
-				hub_desc.VisitedCount = 0
-			end
-		end
-	end
-
-	clear_room_state(true)
-	if changed or force_refresh then
-		-- 续关 PRE_GAME_STARTED 时关卡未就绪，UpdateVisibility 会直接崩
-		local ok = pcall(function() level:UpdateVisibility() end)
-		if not ok then return end
-		clear_room_state(false)
-		if REPENTOGON and Minimap and Minimap.Refresh then
-			pcall(function() Minimap.Refresh() end)
-		end
-	end
-end
-
-function item.set_hub_map_hidden(hidden)
-	local effect = get_effect()
-	if not effect then return end
-	local level = Game():GetLevel()
-	if hidden then
-		if level:GetCurses() & LOST_CURSE ~= LOST_CURSE then
-			level:AddCurse(LOST_CURSE, false)
-			effect.added_lost_curse = true
-		end
-	elseif effect.added_lost_curse then
+	if effect.added_lost_curse then
+		hidden_rooms.note_map_curse(true)
 		effect.added_lost_curse = nil
-		level:RemoveCurses(LOST_CURSE)
 	end
+	local dimension = effect.dimension or 0
+	hidden_rooms.release_owner("dvf")
+	for safe_index in pairs(effect.erased_rooms or {}) do
+		hidden_rooms.keep(safe_index, dimension, {
+			hide = true,
+			hide_map = false,
+			owner = "dvf",
+		})
+	end
+	if effect.hub_index and effect.hub_index >= 0 then
+		hidden_rooms.keep(effect.hub_index, dimension, {
+			hide = true,
+			hide_map = true,
+			owner = "dvf",
+		})
+	end
+	hidden_rooms.refresh(force_refresh == true)
 end
 
 local function get_hub_room_config()
@@ -995,8 +968,11 @@ end
 function item.clear_floor_effect()
 	local effect = save.elses[item.own_key.."effect"]
 	if effect and effect.added_lost_curse then
-		Game():GetLevel():RemoveCurses(LOST_CURSE)
+		hidden_rooms.note_map_curse(true)
+		effect.added_lost_curse = nil
 	end
+	hidden_rooms.release_owner("dvf")
+	hidden_rooms.refresh()
 	save.elses[item.own_key.."effect"] = nil
 	save.elses[item.own_key.."pending"] = nil
 	save.elses[item.own_key.."squash"] = nil
@@ -1927,7 +1903,6 @@ Function = function(_)
 	})
 	if current_index == effect.hub_index then
 		approach_ring = {}
-		item.set_hub_map_hidden(true)
 		-- 续关后 Room_holder 可能先替换房型再 MINECART 重进；房型未就绪时跳过挂门
 		if (not hub_data) or hub_data.Variant == item.hub_room_variant then
 			item.configure_hub()
@@ -1942,7 +1917,6 @@ Function = function(_)
 			begin_hub_reveal(squash, true)
 		end
 	elseif room_is_erased(effect, current_index) then
-		item.set_hub_map_hidden(false)
 		local leave = Game():GetLevel().LeaveDoor
 		local player = Game():GetPlayer(0)
 		flush_approach_ring_as("leak_approach_trail", {
@@ -1979,7 +1953,6 @@ Function = function(_)
 			item.redirect_to_hub(player, true)
 		end
 	else
-		item.set_hub_map_hidden(false)
 		item.open_doors_into_erased()
 	end
 	if item._defer_hide_erased then

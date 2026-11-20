@@ -686,6 +686,17 @@ return {
 					content_type = "Card",
 				},
 			},
+			-- 解锁条件：祸兽
+			["Beast"] = {
+				{
+					uid = "Wishing",
+					id = "188",
+					enum_key = "Wishing",
+					name = "Wishing",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：阿莱斯特
 			["custom_col_1788544736302"] = {
 				{
@@ -804,6 +815,28 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：精神错乱
+			["Delirium"] = {
+				{
+					uid = "Isolation",
+					id = "178",
+					enum_key = "Isolation",
+					name = "Isolation",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：母亲
+			["Mother"] = {
+				{
+					uid = "Bravery",
+					id = "177",
+					enum_key = "Bravery",
+					name = "Bravery",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
 			-- 解锁条件：祸兽
 			["Beast"] = {
 				{
@@ -854,10 +887,10 @@ return {
 			-- 解锁条件：超级撒旦
 			["MegaSatan"] = {
 				{
-					uid = "Darkness",
-					id = "1",
-					enum_key = "Darkness",
-					name = "Darkness",
+					uid = "Rooted_Demon",
+					id = "185",
+					enum_key = "Rooted_Demon",
+					name = "Rooted Demon",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -924,6 +957,17 @@ return {
 					id = "48",
 					enum_key = "D773",
 					name = "D773",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：贪婪模式
+			["GreedMode"] = {
+				{
+					uid = "World_Arc",
+					id = "103",
+					enum_key = "World_Arc",
+					name = "World Arc",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -1184,17 +1228,6 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：死寂
-			["Hush"] = {
-				{
-					uid = "Disequilibrium",
-					id = "95",
-					enum_key = "Disequilibrium",
-					name = "Disequilibrium",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
 			-- 解锁条件：妈妈的心
 			["MomsHeart"] = {
 				{
@@ -1302,6 +1335,17 @@ return {
 					content_type = "Trinket",
 				},
 			},
+			-- 解锁条件：里角色/特殊
+			["Tainted"] = {
+				{
+					uid = "player:Marriano_B",
+					id = "Marriano_B",
+					enum_key = "Marriano_B",
+					name = "Marriano_B",
+					kind = "player",
+					content_type = "Player",
+				},
+			},
 			-- 解锁条件：阿莱斯特
 			["custom_col_1788544736302"] = {
 				{
@@ -1309,14 +1353,6 @@ return {
 					id = "2391",
 					enum_key = "Lure",
 					name = "XI - Lure",
-					kind = "card",
-					content_type = "Card",
-				},
-				{
-					uid = "card:Lure_r",
-					id = "2413",
-					enum_key = "Lure_r",
-					name = "XI - Lure?",
 					kind = "card",
 					content_type = "Card",
 				},
@@ -1343,6 +1379,17 @@ return {
 					enum_key = "Core_Brooch",
 					name = "Core Brooch",
 					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：撒旦
+			["Satan"] = {
+				{
+					uid = "Incandescence_Flame",
+					id = "186",
+					enum_key = "Incandescence_Flame",
+					name = "Incandescence Flame",
+					kind = "passive",
 					content_type = "Item",
 				},
 			},
@@ -1408,6 +1455,17 @@ return {
 					id = "49",
 					enum_key = "Devil_s_Heart",
 					name = "Devil's Heart",
+					kind = "active",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：死寂
+			["Hush"] = {
+				{
+					uid = "Exoneration_Certificate",
+					id = "179",
+					enum_key = "Exoneration_Certificate",
+					name = "Exoneration Certificate",
 					kind = "active",
 					content_type = "Item",
 				},
@@ -1492,17 +1550,6 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：死寂
-			["Hush"] = {
-				{
-					uid = "Chasm",
-					id = "110",
-					enum_key = "Chasm",
-					name = "Chasm",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
 			-- 解锁条件：妈妈的心
 			["MomsHeart"] = {
 				{
@@ -1510,6 +1557,14 @@ return {
 					id = "139",
 					enum_key = "Baby_Autio",
 					name = "Baby Autio",
+					kind = "familiar",
+					content_type = "Item",
+				},
+				{
+					uid = "Bewitching_Moon",
+					id = "189",
+					enum_key = "Bewitching_Moon",
+					name = "Bewitching Moon",
 					kind = "familiar",
 					content_type = "Item",
 				},
@@ -1534,6 +1589,17 @@ return {
 					name = "Equality Agreement",
 					kind = "trinket",
 					content_type = "Trinket",
+				},
+			},
+			-- 解锁条件：超级撒旦
+			["MegaSatan"] = {
+				{
+					uid = "Darkness",
+					id = "1",
+					enum_key = "Darkness",
+					name = "Darkness",
+					kind = "passive",
+					content_type = "Item",
 				},
 			},
 			-- 解锁条件：羔羊
@@ -1602,6 +1668,17 @@ return {
 					content_type = "Trinket",
 				},
 			},
+			-- 解锁条件：里角色/特殊
+			["Tainted"] = {
+				{
+					uid = "player:Autio_B",
+					id = "Autio_B",
+					enum_key = "Autio_B",
+					name = "Autio_B",
+					kind = "player",
+					content_type = "Player",
+				},
+			},
 		},
 		-- 模组角色：Lu
 		["Lu"] = {
@@ -1612,17 +1689,6 @@ return {
 					id = "111",
 					enum_key = "Book_of_6_sin",
 					name = "Book of 6 sin",
-					kind = "passive",
-					content_type = "Item",
-				},
-			},
-			-- 解锁条件：死寂
-			["Hush"] = {
-				{
-					uid = "Deconstruction",
-					id = "96",
-					enum_key = "Destruction",
-					name = "Deconstruction",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -1671,11 +1737,19 @@ return {
 			-- 解锁条件：羔羊
 			["Lamb"] = {
 				{
-					uid = "World_Arc",
-					id = "103",
-					enum_key = "World_Arc",
-					name = "World Arc",
-					kind = "active",
+					uid = "Ketu",
+					id = "180",
+					enum_key = "Ketu",
+					name = "Ketu",
+					kind = "passive",
+					content_type = "Item",
+				},
+				{
+					uid = "Rahu",
+					id = "181",
+					enum_key = "Rahu",
+					name = "Rahu",
+					kind = "passive",
 					content_type = "Item",
 				},
 			},
@@ -1708,6 +1782,14 @@ return {
 					id = "119",
 					enum_key = "Cursed_Mask",
 					name = "Cursed Mask",
+					kind = "passive",
+					content_type = "Item",
+				},
+				{
+					uid = "Matryoshka_Marbles",
+					id = "176",
+					enum_key = "Matryoshka_Marbles",
+					name = "Matryoshka Marbles",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -1754,6 +1836,17 @@ return {
 					name = "Allocation Symbol",
 					kind = "trinket",
 					content_type = "Trinket",
+				},
+			},
+			-- 解锁条件：里角色/特殊
+			["Tainted"] = {
+				{
+					uid = "player:Lu_B",
+					id = "Lu_B",
+					enum_key = "Lu_B",
+					name = "Lu_B",
+					kind = "player",
+					content_type = "Player",
 				},
 			},
 		},
@@ -1826,6 +1919,17 @@ return {
 					id = "170",
 					enum_key = "The_Voice",
 					name = "The Voice",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：超级撒旦
+			["MegaSatan"] = {
+				{
+					uid = "Entombed_Demon",
+					id = "187",
+					enum_key = "Entombed_Demon",
+					name = "Entombed Demon",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -1938,8 +2042,8 @@ return {
 		-- 模组角色：Others
 		["Others"] = {
 		},
-		-- 模组角色：Noia
-		["custom_row_1785848579295"] = {
+		-- 模组角色：诺娅
+		["Noia"] = {
 			-- 解锁条件：???
 			["BlueBaby"] = {
 				{
@@ -1951,13 +2055,24 @@ return {
 					content_type = "Item",
 				},
 			},
-			-- 解锁条件：超级撒旦
-			["MegaSatan"] = {
+			-- 解锁条件：羔羊
+			["Lamb"] = {
 				{
 					uid = "Blood_Wing",
 					id = "123",
 					enum_key = "Blood_Wing",
 					name = "Blood Wing",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：Boss Rush
+			["BossRush"] = {
+				{
+					uid = "Crown_of_Thorns",
+					id = "182",
+					enum_key = "Thorn_Flower_Crown",
+					name = "Crown of Thorns",
 					kind = "passive",
 					content_type = "Item",
 				},
@@ -1973,6 +2088,84 @@ return {
 					content_type = "Item",
 				},
 			},
+			-- 解锁条件：里角色/特殊
+			["Tainted"] = {
+				{
+					uid = "player:Noia_B",
+					id = "Noia_B",
+					enum_key = "Noia_B",
+					name = "Noia_B",
+					kind = "player",
+					content_type = "Player",
+				},
+			},
+		},
+		-- 模组角色：里玛丽
+		["Marriano_B"] = {
+			-- 解锁条件：死寂
+			["Hush"] = {
+				{
+					uid = "Disequilibrium",
+					id = "95",
+					enum_key = "Disequilibrium",
+					name = "Disequilibrium",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：阿莱斯特
+			["custom_col_1788544736302"] = {
+				{
+					uid = "card:Lure_r",
+					id = "2413",
+					enum_key = "Lure_r",
+					name = "XI - Lure?",
+					kind = "card",
+					content_type = "Card",
+				},
+			},
+		},
+		-- 模组角色：里艾提奥
+		["Autio_B"] = {
+			-- 解锁条件：死寂
+			["Hush"] = {
+				{
+					uid = "Chasm",
+					id = "110",
+					enum_key = "Chasm",
+					name = "Chasm",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+		},
+		-- 模组角色：里露
+		["Lu_B"] = {
+			-- 解锁条件：死寂
+			["Hush"] = {
+				{
+					uid = "Deconstruction",
+					id = "96",
+					enum_key = "Destruction",
+					name = "Deconstruction",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+			-- 解锁条件：母亲
+			["Mother"] = {
+				{
+					uid = "Alien_Savior",
+					id = "183",
+					enum_key = "Alien_Savior",
+					name = "Alien Savior",
+					kind = "passive",
+					content_type = "Item",
+				},
+			},
+		},
+		-- 模组角色：里诺娅
+		["Noia_B"] = {
 		},
 	},
 
@@ -2907,6 +3100,11 @@ return {
 			label = "击败阿莱斯特",
 			category = "Others",
 		},
+		{
+			key = "custom_event_1794234521680",
+			label = "击败蛋糕骑士",
+			category = "Others",
+		},
 	},
 
 	special_unlocks = {
@@ -3110,6 +3308,17 @@ return {
 					name = "Torn Emperor",
 					kind = "trinket",
 					content_type = "Trinket",
+				},
+			},
+			-- 特殊解锁条件：击败蛋糕骑士
+			["custom_event_1794234521680"] = {
+				{
+					uid = "Strawberry_Cake_Pie",
+					id = "184",
+					enum_key = "Cake_Berry",
+					name = "Strawberry Cake Pie",
+					kind = "passive",
+					content_type = "Item",
 				},
 			},
 		},

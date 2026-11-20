@@ -255,7 +255,7 @@ end
 local function bar_is_charged(air, kind)
 	if not air then return false end
 	local id = bar_id(kind, air)
-	local spr = air:GetData()[id .. "_Charge_Bar"]
+	local spr = Charging_Bar_holder.get_sprite(air, id)
 	if spr and spr:IsPlaying("Charged") then
 		return true
 	end
@@ -676,4 +676,5 @@ table.insert(item.ToCall, {
 	end,
 })
 
+Charging_Bar_holder.register_family({prefix = "craft_", owner = {type = "entity"}})
 return item

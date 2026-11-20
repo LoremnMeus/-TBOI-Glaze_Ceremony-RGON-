@@ -214,13 +214,16 @@ end,
 })
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_PILL, params = PillEffect.PILLEFFECT_BOMBS_ARE_KEYS,
-Function = function(_,pill,player,flag)	
+Function = function(_,pill,player,flags,pill_color)
 	if pill == PillEffect.PILLEFFECT_BOMBS_ARE_KEYS then
 		if save.elses.glaze_bombs and save.elses.glaze_bombs > 0 then
+			local rng = player:GetPillRNG(pill)
+			rng = auxi.rng_for_sake(rng)
 			for i = 1,save.elses.glaze_bombs do
-				glaze_key.reveal_map(player)
+				glaze_key.reveal_map(player, rng)
 			end
-			if player:GetPill(0) < PillColor.PILL_GIANT_FLAG then
+			-- RGON MC_USE_PILL 提供实际 PillColor；巨大药丸保留琉璃炸弹计数
+			if not pill_color or (pill_color & PillColor.PILL_GIANT_FLAG) == 0 then
 				save.elses.glaze_bombs = 0
 			end
 		end

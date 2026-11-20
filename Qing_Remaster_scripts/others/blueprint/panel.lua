@@ -79,6 +79,10 @@ end
 -- ---------- 视图切换 ----------
 function BP.set_tab(panel, idx)
 	if idx < 1 or idx > #item.tabs then return end
+	-- Already on this tab in list view: no side effects / no duplicate SFX.
+	if panel.tab == idx and panel.view == "list" and not panel.craft then
+		return
+	end
 	if panel.craft then BP.save_craft_draft(panel) end
 	panel.tab = idx
 	panel.view = "list"
@@ -90,7 +94,7 @@ function BP.set_tab(panel, idx)
 	panel.focus_id = "tab_"..idx
 	panel.nav_group = "tabs"
 	panel.body_focus_mem = nil
-	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_CLIP_CLOSE, 0.55, 1, false, 0, 2)
+	sound_tracker.PlayStackedSound(SoundEffect.SOUND_MENU_SCROLL, 0.55, 1, false, 0, 2)
 end
 
 function BP.clear_blueprint_selection(player)

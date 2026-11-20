@@ -9,6 +9,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local screen_desync = require("Qing_Remaster_scripts.auxiliary.screen_desync")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local ERR_PICKUP = "PICKUP"
 local ERR_ENEMY = "ENEMY"
@@ -311,6 +312,8 @@ end
 
 --- 几何 Reality Tear：白线 / 半透明带 / 色差矩形，不依赖专用 anm2
 local function spawn_reality_tear(pos, size)
+	-- 首次资源加载留在受伤回调，Render 只使用已经准备好的 Sprite。
+	get_band_sprite()
 	size = math.max(24, tonumber(size) or 40)
 	item.reality_tears[#item.reality_tears + 1] = {
 		pos = Vector(pos.X, pos.Y),
@@ -324,12 +327,12 @@ end
 
 local function render_reality_tears()
 	if not item.reality_tears or #item.reality_tears == 0 then return end
-	local spr = get_band_sprite()
-	local remain = {}
+	local spr = item.band_spr
+	if not spr then return end
 	for i = 1, #item.reality_tears do
 		local tear = item.reality_tears[i]
-		tear.timer = tear.timer + 1
-		local t = tear.timer
+		-- Update 为 30Hz，Render 为 60Hz；保持原有约 7 个渲染帧的演出长度。
+		local t = math.max(1, tear.timer * 2 - 1)
 		local screen = Isaac.WorldToScreen(tear.pos)
 		local w = tear.size * 1.4
 		local h = tear.size * 1.1
@@ -363,9 +366,7 @@ local function render_reality_tears()
 				spr:Render(screen + Vector(0, k * 4), Vector.Zero, Vector.Zero)
 			end
 		end
-		if t < tear.max then remain[#remain + 1] = tear end
 	end
-	item.reality_tears = remain
 end
 
 local function snapshot_player(player)
@@ -570,17 +571,17 @@ end
 local function remove_copied_item(st)
 	if not st.CopiedItem or st.CopiedPlayer == nil then return end
 	local player = Game():GetPlayer(st.CopiedPlayer)
-	if auxi.check_all_exists(player) then
-		local effects = player:GetEffects()
-		if effects and effects:HasCollectibleEffect(st.CopiedItem) then
-			effects:RemoveCollectibleEffect(st.CopiedItem, 1)
-		end
-		player:AddCacheFlags(CacheFlag.CACHE_ALL)
-		player:EvaluateItems()
-		player:GetData()[item.own_key.."copied"] = nil
-	end
+	local copied_item = st.CopiedItem
 	st.CopiedItem = nil
 	st.CopiedPlayer = nil
+	if auxi.check_all_exists(player) then
+		local effects = player:GetEffects()
+		if effects and effects:HasCollectibleEffect(copied_item) then
+			effects:RemoveCollectibleEffect(copied_item, 1)
+		end
+		player:GetData()[item.own_key.."copied"] = nil
+		unique_holder.request_evaluate_items(player, CacheFlag.CACHE_ALL)
+	end
 end
 
 local function build_reclaim_fx(virt, player)
@@ -653,8 +654,7 @@ end
 local function render_reclaim_fx()
 	local fx = item.reclaim_fx
 	if not fx then return end
-	fx.timer = fx.timer + 1
-	local u = fx.timer / math.max(1, fx.max)
+	local u = math.max(1, fx.timer * 2 - 1) / math.max(1, fx.max)
 	local alpha = 1 - u
 	local center = fx.center
 	for _,part in ipairs(fx.parts) do
@@ -674,7 +674,6 @@ local function render_reclaim_fx()
 			gui.draw_ch(pos, part.text, 1, 1, col_main, true)
 		end
 	end
-	if fx.timer >= fx.max then item.reclaim_fx = nil end
 end
 
 local function claw_virtual(st)
@@ -787,8 +786,6 @@ end
 local function spawn_item_error(player, id)
 	if not player or not id then return false end
 	player:GetEffects():AddCollectibleEffect(id, true, 1)
-	player:AddCacheFlags(CacheFlag.CACHE_ALL)
-	player:EvaluateItems()
 	player:GetData()[item.own_key.."copied"] = id
 	local st = error_state()
 	st.Type = ERR_ITEM
@@ -796,6 +793,7 @@ local function spawn_item_error(player, id)
 	st.CopiedItem = id
 	st.CopiedPlayer = player_idx(player)
 	st.Seed = nil
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_ALL)
 	return true
 end
 
@@ -993,6 +991,16 @@ end,
 
 table.insert(item.ToCall, #item.ToCall + 1, {CallBack = ModCallbacks.MC_POST_UPDATE, params = nil,
 Function = function(_)
+	for i = #item.reality_tears, 1, -1 do
+		local tear = item.reality_tears[i]
+		tear.timer = tear.timer + 1
+		if tear.timer * 2 - 1 > tear.max then table.remove(item.reality_tears, i) end
+	end
+	if item.reclaim_fx then
+		local fx = item.reclaim_fx
+		fx.timer = fx.timer + 1
+		if fx.timer * 2 - 1 > fx.max then item.reclaim_fx = nil end
+	end
 	if item.hud_ghost_next and item.hud_ghost_next > 0 then
 		item.hud_ghost_next = item.hud_ghost_next - 1
 	else

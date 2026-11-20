@@ -131,4 +131,25 @@
 	<sound name="Qing Heartbeat Fastest">
 		<sample weight="1" path="heartbeat/heartbeat_fastest.wav" />
 	</sound>
+	<sound name="Alien Savior SOS Search">
+		<sample weight="1" path="alien_savior/sos_search.wav" />
+	</sound>
+	<sound name="Alien Savior SOS Connected">
+		<sample weight="1" path="alien_savior/sos_connected.wav" />
+	</sound>
+	<sound name="Alien Savior UFO Arrival">
+		<sample weight="1" path="alien_savior/ufo_arrival.wav" />
+	</sound>
+	<sound name="Alien Savior UFO Hover">
+		<sample weight="1" path="alien_savior/ufo_hover.wav" />
+	</sound>
+	<sound name="Cake Berry Plate Impact">
+		<sample weight="1" path="berry_cake/plate_impact_01.wav" />
+		<sample weight="1" path="berry_cake/plate_impact_02.wav" />
+	</sound>
+	<sound name="Zennith Arena Thunder">
+		<sample weight="1" path="zennith/thunder_01.wav" />
+		<sample weight="1" path="zennith/thunder_02.wav" />
+		<sample weight="1" path="zennith/thunder_03.wav" />
+	</sound>
 </sounds>

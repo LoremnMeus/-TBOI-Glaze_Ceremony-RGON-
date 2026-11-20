@@ -95,7 +95,6 @@ local function clear_pact(ent)
 	if not ent then return end
 	local d = ent:GetData()
 	d[item.own_key.."Seeded"] = nil
-	d[item.own_key.."player"] = nil
 	d[item.own_key.."OwnerIndex"] = nil
 	d[item.own_key.."PactFollower"] = nil
 	d[item.own_key.."PactEpoch"] = nil
@@ -140,27 +139,13 @@ local function find_player_by_owner_index(owner_idx)
 	return nil
 end
 
-local function migrate_owner_index(d)
-	local idx = d[item.own_key.."OwnerIndex"]
-	if idx ~= nil then return idx end
-	local raw = d[item.own_key.."player"]
-	if not raw then return nil end
-	local pl = raw.ToPlayer and raw:ToPlayer() or nil
-	if not pl then return nil end
-	idx = pl:GetData().__Index
-	if idx ~= nil then
-		d[item.own_key.."OwnerIndex"] = idx
-	end
-	return idx
-end
-
 --- Query only: Seeded + current epoch + OwnerIndex. No clear_pact side effects.
 local function pact_owner_index(ent)
 	if not ent then return nil end
 	local d = ent:GetData()
 	if d[item.own_key.."Seeded"] ~= true then return nil end
 	if d[item.own_key.."PactEpoch"] ~= item.pact_epoch then return nil end
-	return migrate_owner_index(d)
+	return d[item.own_key.."OwnerIndex"]
 end
 
 local function is_same_pact_player(ent, player)
@@ -178,7 +163,6 @@ end
 
 local function bind_pact_owner(d, player)
 	d[item.own_key.."Seeded"] = true
-	d[item.own_key.."player"] = player
 	d[item.own_key.."OwnerIndex"] = player:GetData().__Index
 	d[item.own_key.."PactEpoch"] = item.pact_epoch
 end
@@ -222,26 +206,12 @@ function item.find_nearest_follower_pact(player)
 	return find_nearest_matching_pact(player, is_follower_pact)
 end
 
--- Compat aliases.
-function item.find_hostile_pact_body(player)
-	return item.find_nearest_hostile_pact(player)
-end
-
-function item.find_follower_pact_body(player)
-	return item.find_nearest_follower_pact(player)
-end
-
 function item.find_revive_body(player)
 	return item.find_nearest_hostile_pact(player) or item.find_nearest_follower_pact(player)
 end
 
--- Compatibility alias used by older debug callers.
-function item.find_a_seeded_ent(player)
-	return item.find_revive_body(player)
-end
-
 function item.has_active_pact(player)
-	return item.find_a_seeded_ent(player) ~= nil
+	return item.find_revive_body(player) ~= nil
 end
 
 function item.count_active_pacts(player)
@@ -840,7 +810,6 @@ local function try_convert_host_to_follower(player, ent)
 	-- Keep the same contract owner; do not re-derive identity.
 	d[item.own_key.."Seeded"] = true
 	d[item.own_key.."PactFollower"] = true
-	d[item.own_key.."player"] = player
 	d[item.own_key.."OwnerIndex"] = d[item.own_key.."OwnerIndex"] or player:GetData().__Index
 	d[item.own_key.."PactEpoch"] = item.pact_epoch
 	spawn_contract_smoke(ent.Position, false)
@@ -918,7 +887,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 					q.CollisionDamage = 0
 					local d2 = q:GetData()
 					d2[item.own_key.."Seeded"] = true
-					d2[item.own_key.."player"] = player
+					d2[item.own_key.."TearOwner"] = player
 				end
 			end
 		end
@@ -943,7 +912,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	Function = function(_, ent, col, low)
 		local d = ent:GetData()
 		if d[item.own_key.."Seeded"] then
-			local player = d[item.own_key.."player"]
+			local player = d[item.own_key.."TearOwner"]
 			if player and player:ToPlayer() then
 				player = player:ToPlayer()
 			end

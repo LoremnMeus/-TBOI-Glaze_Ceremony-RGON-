@@ -387,4 +387,5 @@ QF.register_mod_familiar({
 	end,
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key, owner = {type = "entity"}})
 return item

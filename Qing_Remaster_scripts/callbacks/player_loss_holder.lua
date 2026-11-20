@@ -123,6 +123,7 @@ end
 
 local function total_charge(player, slot)
 	slot = slot or ActiveSlot.SLOT_PRIMARY
+	if slot < ActiveSlot.SLOT_PRIMARY or slot > (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET) then return 0, 0, 0 end
 	local main = player.GetActiveCharge and player:GetActiveCharge(slot) or 0
 	local bat = player.GetBatteryCharge and player:GetBatteryCharge(slot) or 0
 	return (tonumber(main) or 0) + (tonumber(bat) or 0), tonumber(main) or 0, tonumber(bat) or 0
@@ -214,6 +215,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		local idx = player_index(player)
 		if idx == nil then return end
 		slot = slot or ActiveSlot.SLOT_PRIMARY
+		if slot < ActiveSlot.SLOT_PRIMARY or slot > (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET) then return end
 		local total, main, bat = total_charge(player, slot)
 		runtime.active_pre_use[idx] = runtime.active_pre_use[idx] or {}
 		runtime.active_pre_use[idx][slot] = {
@@ -233,6 +235,7 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		local idx = player_index(player)
 		if idx == nil then return end
 		slot = slot or ActiveSlot.SLOT_PRIMARY
+		if slot < ActiveSlot.SLOT_PRIMARY or slot > (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET) then return end
 		local bag = runtime.active_pre_use[idx]
 		local pre = bag and bag[slot] or nil
 		if bag then bag[slot] = nil end

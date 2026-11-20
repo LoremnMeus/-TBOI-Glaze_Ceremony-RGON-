@@ -108,6 +108,23 @@ function item.clear_selection_txns()
 	item.selection_txns = {}
 end
 
+--- Non-consuming peek of a recent Option selection txn for an OptionsPickupIndex.
+--- Used by Isolation (and similar) to bind settle evidence without consuming loser slots.
+function item.peek_recent_selection(option_index)
+	prune_selection_txns()
+	option_index = tonumber(option_index)
+	if option_index == nil then
+		return nil
+	end
+	for i = #item.selection_txns, 1, -1 do
+		local txn = item.selection_txns[i]
+		if txn and tonumber(txn.option_index) == option_index then
+			return txn
+		end
+	end
+	return nil
+end
+
 --- Public owner API: was this entity an explicit sibling loser of a recent Option selection?
 --- Does NOT require readable GetData on a dead wrapper.
 function item.was_rejected_by_selection(ent)

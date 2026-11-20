@@ -11,7 +11,8 @@ local item = {
 	entity = enums.Items.Procrastination,
 	own_key = "Item_Procrastination_",
 	damage_per_tick = 0.1,
-	frames_per_tick = 30 * 30, -- 30 秒
+	-- MC_POST_PLAYER_UPDATE = 60 Hz → 30s = 30*60 frames (not Game 30 Hz).
+	frames_per_tick = 30 * 60,
 	floor_cap = 1,
 	ghost_life = 42,
 	ghost_start_alpha = 0.72,

@@ -4,6 +4,7 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 
 local M = {}
@@ -475,14 +476,10 @@ function BP.get_audit_ui_prefs(player)
 	bucket.audit_ui = bucket.audit_ui or {}
 	local prefs = bucket.audit_ui
 	if prefs.tag_status_schema ~= AUDIT_TAG_STATUS_SCHEMA then
+		-- Audit preferences are development-only. Reset the obsolete three-state
+		-- filter as one unit instead of carrying its hidden values forward.
+		prefs.tag_enabled = CraftProfile.default_audit_tag_enabled()
 		prefs.tag_status_schema = AUDIT_TAG_STATUS_SCHEMA
-		if type(prefs.tag_enabled) == "table" then
-			prefs.tag_enabled.valid = true
-			prefs.tag_enabled.invalid = true
-			prefs.tag_enabled.unimplemented = true
-		end
-		prefs.hide_gray = false
-		prefs.audit_filter = "all"
 	end
 	return prefs
 end
@@ -546,8 +543,7 @@ function item.delete_craft(player, uid)
 	table.remove(store, idx)
 	BP.clear_craft_draft(player, rec.target, uid)
 
-	player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
-	player:EvaluateItems()
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_FAMILIARS)
 	item.refresh_craft_integrity(player)
 	BP.checkpoint_run_save("craft_delete")
 	pcall(function() BP.get_bandwidth().on_craft_removed(player, uid) end)
@@ -606,8 +602,7 @@ function item.create_audit_craft(player, spec)
 	end
 	BP.checkpoint_run_save("craft_tutorial_add")
 	if spec.skip_eval ~= true then
-		player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
-		player:EvaluateItems()
+		unique_holder.request_evaluate_items(player, CacheFlag.CACHE_FAMILIARS)
 	end
 	return rec
 end

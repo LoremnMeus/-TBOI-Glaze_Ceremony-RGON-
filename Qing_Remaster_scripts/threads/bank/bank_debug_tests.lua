@@ -125,6 +125,24 @@ function tests.environment_text()
 	return table.concat(tests.environment_lines(), "\n")
 end
 
+function tests.summary_text()
+	local b = bank_state.get()
+	local loan = b.active_loan
+	local state = loan and (loan.payment_due and "待赎回" or "已抵押") or "无"
+	local last = tests.last and (tag_of(tests.last) .. " " .. tostring(tests.last.action)) or "未执行"
+	return string.format("%s  |  支行 %d  |  存款 %d¢  |  抵押 %s  |  上次 %s",
+		Game():IsGreedMode() and "贪婪模式" or "普通模式沙盒",
+		#bank_branch.describe_room(), b.deposit or 0, state, last)
+end
+
+function tests.add_99_coins()
+	local p = player()
+	if not p then return result(false, "+99 硬币", "no_player", "当前没有玩家。") end
+	local before = p:GetNumCoins()
+	p:AddCoins(99)
+	return result(true, "+99 硬币", "coins", string.format("硬币 %d → %d。", before, p:GetNumCoins()))
+end
+
 function tests.refresh_env()
 	return result(true, "刷新环境检查", "env", table.concat(tests.environment_lines(), " | "))
 end
@@ -164,6 +182,30 @@ function tests.travel(id)
 end
 
 function tests.note_travel_progress()
+	local exit = tests._greed_exit_travel
+	if exit and not exit.closed then
+		local desc = Game():GetLevel():GetCurrentRoomDesc()
+		local index = desc and desc.SafeGridIndex
+		if index == 110 then
+			if bank_branch.find_greed_trapdoor_pos() then
+				exit.closed = true
+				exit.row.ok = true
+				exit.row.code = "exit_ready"
+				exit.row.message = "已到达贪婪出口房间（索引 110），下层活板门已出现；正式支行生成由正常流程处理。"
+				tests.flash = exit.row.message
+			elseif Game():GetFrameCount() - exit.frame >= 90 then
+				exit.closed = true
+				exit.row.code = "no_trapdoor"
+				exit.row.message = "已到达出口房间 110，但下层活板门尚未出现；请完成本层波次后再检查正式生成。"
+				tests.flash = exit.row.message
+			end
+		elseif Game():GetFrameCount() - exit.frame >= 90 then
+			exit.closed = true
+			exit.row.code = "not_arrived"
+			exit.row.message = "传送未到达贪婪出口房间 110，当前房间索引：" .. tostring(index)
+			tests.flash = exit.row.message
+		end
+	end
 	local open = tests._open_travel
 	if not open or open.closed then return end
 	local t = bank_rooms.poll_travel()
@@ -178,6 +220,41 @@ function tests.note_travel_progress()
 	elseif t.phase == "failed" then
 		finish_open_travel(t.code or "not_arrived", false, t.message)
 	end
+end
+
+function tests.goto_greed_exit()
+	if tests._greed_exit_travel and not tests._greed_exit_travel.closed then
+		return tests._greed_exit_travel.row
+	end
+	if not Game():IsGreedMode() then
+		return result(false, "前往贪婪出口", "not_greed", "当前不是贪婪模式，请先以贪婪模式开局。")
+	end
+	if Game():GetLevel():GetStage() >= LevelStage.STAGE7_GREED then
+		return result(false, "前往贪婪出口", "final_stage", "最终贪婪楼层没有普通支行出口。")
+	end
+	if bank_rooms.is_hq_room() then
+		return result(false, "前往贪婪出口", "in_hq", "当前在银行总部，请先返回普通贪婪楼层。")
+	end
+	local desc = Game():GetLevel():GetCurrentRoomDesc()
+	if not desc then
+		return result(false, "前往贪婪出口", "no_room", "当前房间尚未初始化。")
+	end
+	local target = Game():GetLevel():GetRoomByIdx(110)
+	if not target or not target.Data then
+		return result(false, "前往贪婪出口", "no_exit_room", "当前楼层没有索引 110 的出口房间。")
+	end
+	local current = desc.SafeGridIndex
+	if current ~= 110 then
+		local p = player()
+		if not p then
+			return result(false, "前往贪婪出口", "no_player", "找不到用于房间过渡的玩家。")
+		end
+		Game():StartRoomTransition(110, Direction.NO_DIRECTION, RoomTransitionAnim.WALK, p, 0)
+	end
+	local row = result(false, "前往贪婪出口", "submitted", "已开始前往出口房间 110，等待核对房间与下层活板门。")
+	tests._greed_exit_travel = {row = row, frame = Game():GetFrameCount(), closed = false}
+	tests.note_travel_progress()
+	return row
 end
 
 function tests.check_rooms()
@@ -236,6 +313,9 @@ function tests.next_cycle()
 	local before = bank_state.get().deposit
 	local ent, cycle, closed = bank_rooms.debug_advance_cycle()
 	local after = bank_state.get().deposit
+	if closed and not ent then
+		return result(true, "模拟下一银行周期", "skipped", "上一层支行被炸毁，本周期不生成支行。", {deposit = before}, {deposit = after, cycle = cycle})
+	end
 	if not ent or not ent:Exists() then
 		return result(false, "模拟下一银行周期", "no_entity", "周期已推进，但没有生成支行实体。", {deposit = before}, {deposit = after, cycle = cycle})
 	end
@@ -257,17 +337,17 @@ end
 function tests.branch_text()
 	local rows = bank_branch.describe_room()
 	if #rows == 0 then return "当前房间没有银行支行。" end
-	local lines = {string.format("当前房间银行支行：%d", #rows)}
+	local lines = {string.format("当前房间银行支行：%d；系统周期：%s", #rows,
+		tostring(bank_state.get().branch.current_cycle_id or "-"))}
 	for i, row in ipairs(rows) do
 		lines[#lines + 1] = string.format(
-			"%d. ptr=%s  pos=(%.0f,%.0f)  %s  %s  周期=%s  交互=%s  测试生成=%s",
+			"%d. ptr=%s  pos=(%.0f,%.0f)  %s  %s  交互=%s  测试生成=%s",
 			i,
 			tostring(row.ptr),
 			row.x or 0,
 			row.y or 0,
 			row.closed and "停业" or "营业",
 			row.broken and "已破坏" or "完好",
-			tostring(row.cycle or "-"),
 			row.busy and "进行中" or "无",
 			row.debug_spawn and "是" or "否"
 		)
@@ -460,6 +540,7 @@ function tests.issue_loan()
 		return result(false, "发放贷款", "loan_exists", "已有贷款。请先还款，不要把清空表当成发放成功。")
 	end
 	local coins_before = p:GetNumCoins()
+	local items_before = p:GetCollectibleNum(row.id, true)
 	local ok, reason = bank_state.issue_loan(p, row.id)
 	local loan = bank_state.get_active_loan()
 	local coins_after = p:GetNumCoins()
@@ -469,6 +550,9 @@ function tests.issue_loan()
 	local expect = row.value or 0
 	if coins_after ~= coins_before + expect then
 		return result(false, "发放贷款", "coin_mismatch", string.format("应到账 %s¢，实际硬币 %s → %s。", tostring(expect), tostring(coins_before), tostring(coins_after)))
+	end
+	if p:GetCollectibleNum(row.id, true) ~= items_before - 1 then
+		return result(false, "发放贷款", "item_mismatch", "贷款已发放，但抵押道具没有被移除。")
 	end
 	return result(true, "发放贷款", "issued", string.format("抵押 %s，到账 %s¢。", tostring(row.id), tostring(expect)), {coins = coins_before}, {coins = coins_after, item = row.id})
 end
@@ -480,6 +564,8 @@ function tests.repay_loan()
 		return result(false, "偿还贷款", "no_loan", "当前没有贷款。")
 	end
 	local due = loan.remaining or loan.principal or 0
+	local item_id = loan.item_id
+	local items_before = p:GetCollectibleNum(item_id, true)
 	local coins_before = p:GetNumCoins()
 	local ok, reason = bank_state.repay_loan(p)
 	local still = bank_state.get_active_loan()
@@ -492,6 +578,9 @@ function tests.repay_loan()
 	end
 	if still ~= nil or coins_after ~= coins_before - due then
 		return result(false, "偿还贷款", "repay_mismatch", "贷款状态或扣款与预期不一致。", {coins = coins_before, due = due}, {coins = coins_after, loan = still ~= nil})
+	end
+	if loan.held_by_bank and p:GetCollectibleNum(item_id, true) ~= items_before + 1 then
+		return result(false, "偿还贷款", "item_mismatch", "扣款成功，但抵押道具没有归还。")
 	end
 	return result(true, "偿还贷款", "repaid", string.format("已还款 %s¢，贷款已清除。", tostring(due)), {coins = coins_before}, {coins = coins_after})
 end
@@ -506,36 +595,6 @@ function tests.force_due()
 		return result(false, "模拟下一周期到期", tostring(reason or "not_due"), "周期已调用，但 payment_due 没有变成 true。")
 	end
 	return result(true, "模拟下一周期到期", "due", "贷款已标记到期。这不是还款。")
-end
-
-function tests.force_missing()
-	local loan = bank_state.get_active_loan()
-	if not loan then return result(false, "移除测试抵押物", "no_loan", "当前没有贷款。") end
-	local owner = bank_state.resolve_owner(loan)
-	if not owner then return result(false, "移除测试抵押物", "no_owner", "找不到贷款所属玩家。") end
-	if bank_state.collateral_still_present(owner, loan) then
-		owner:RemoveCollectible(loan.item_id)
-	end
-	bank_state.check_collateral()
-	loan = bank_state.get_active_loan()
-	if not loan or loan.secured ~= false then
-		return result(false, "移除测试抵押物", "still_secured", "抵押物检查后贷款仍显示有效。")
-	end
-	return result(true, "移除测试抵押物", "unsecured", "抵押已失效，贷款记录仍在。")
-end
-
-function tests.replace_collateral()
-	local p = player()
-	local loan = bank_state.get_active_loan()
-	if not loan then return result(false, "更换抵押物", "no_loan", "当前没有贷款。") end
-	local row = tests.selected_collateral()
-	if not row then return result(false, "更换抵押物", "no_collateral", "没有可选择的合格抵押道具。") end
-	local ok, reason = bank_state.replace_collateral(p, row.id)
-	loan = bank_state.get_active_loan()
-	if not ok or not loan or loan.item_id ~= row.id then
-		return result(false, "更换抵押物", tostring(reason or "replace_failed"), "抵押物没有换成所选道具。")
-	end
-	return result(true, "更换抵押物", "replaced", "当前抵押道具为 " .. tostring(row.id))
 end
 
 function tests.forfeit()
@@ -555,6 +614,9 @@ function tests.repay_when_broke()
 	local p = player()
 	local loan = bank_state.get_active_loan()
 	if not loan then return result(false, "余额不足还款", "no_loan", "当前没有贷款，无法验证失败路径。") end
+	if loan.held_by_bank and not loan.payment_due then
+		return result(false, "余额不足还款", "skip", "SKIP：尚未进入下一次有效银行周期。")
+	end
 	local due = loan.remaining or 0
 	if p:GetNumCoins() >= due then
 		return result(false, "余额不足还款", "skip", "SKIP：玩家硬币足够还款，本项未执行。")
@@ -632,7 +694,7 @@ end
 
 function tests.copy_log()
 	local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
-	local ok = probe_output.copy_text(tests.log_text(), "bank_lab")
+	local ok = probe_output.copy_text(tests.environment_text() .. "\n\n" .. tests.log_text(), "bank_lab")
 	if ok == false then
 		return result(false, "复制诊断文本", "clipboard", "复制失败。诊断文本仍显示在本页。")
 	end

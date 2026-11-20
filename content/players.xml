@@ -105,4 +105,19 @@
           canShoot="true" 
 		  birthright="" 
 		  />
+	<player name="Marriano_B" pocketActive="" black="0" armor="6" bombs="1" keys="1" items="" trinket="" hidden="true"
+          nameimage="playername_Marriano.png" portrait="MarriPortrait2.png" bigportrait="MarriPortrait2.png"
+          skin="character_Marriano.png" skinColor="0" canShoot="true" bSkinParent="Marriano" birthright="" />
+	<player name="Autio_B" pocketActive="" black="4" coins="3" keys="1" items="" trinket="" hidden="true"
+          nameimage="playername_Tecro.png" portrait="AutioPortrait.png" bigportrait="AutioPortrait.png"
+          skin="character_Autio.png" skinColor="3" canShoot="true" bSkinParent="Autio" birthright="" />
+	<player name="Lu_B" pocketActive="" hp="2" armor="2" keys="2" items="" trinket="" hidden="true"
+          nameimage="playername_Tecro.png" portrait="LuPortrait.png" bigportrait="LuPortrait.png"
+          skin="character_Tecro.png" skinColor="-1" canShoot="true" bSkinParent="Lu" birthright="" />
+	<player name="Noia" pocketActive="" black="2" items="" trinket="" hidden="true"
+          nameimage="playername_Anna.png" portrait="AnnaPortrait.png" bigportrait="AnnaPortrait.png"
+          skin="character_Anna.png" skinColor="1" canShoot="true" birthright="" />
+	<player name="Noia_B" pocketActive="" black="2" items="" trinket="" hidden="true"
+          nameimage="playername_Anna.png" portrait="AnnaPortrait3.png" bigportrait="AnnaPortrait3.png"
+          skin="character_Anna_.png" skinColor="1" canShoot="true" bSkinParent="Noia" birthright="" />
 </players>

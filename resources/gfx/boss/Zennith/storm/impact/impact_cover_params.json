@@ -1,0 +1,9 @@
+{
+  "seed": 20261115,
+  "nodes": 64,
+  "frames": 14,
+  "canvas": 256,
+  "spike_every": 5,
+  "solid_from_frame": 12,
+  "radius": "0.07 + 0.93 * (i/(frames-3))^3"
+}

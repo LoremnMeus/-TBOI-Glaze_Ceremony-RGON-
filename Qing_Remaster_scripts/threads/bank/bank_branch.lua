@@ -1,4 +1,4 @@
--- Greed Bank Branch: dual interaction zones + savings/loan panels.
+-- Greed Bank Branch: contact-operated savings/loan panels.
 -- Registered via slots/Slot_Bank_Branch.lua thin adapter.
 
 local enums = require("Qing_Remaster_scripts.core.enums")
@@ -9,6 +9,7 @@ local pixel_ui = require("Qing_Remaster_scripts.auxiliary.pixel_ui")
 local bank_panel = require("Qing_Remaster_scripts.threads.bank.bank_panel_renderer")
 local slot_offer_lift = require("Qing_Remaster_scripts.slots.slot_offer_lift")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
+local bank_markers = require("Qing_Remaster_scripts.threads.bank.bank_branch_markers")
 
 local branch = {
 	ToCall = {},
@@ -22,7 +23,9 @@ local branch = {
 
 local SAVING_OFFSET = Vector(-42, 30)
 local LOAN_OFFSET = Vector(42, 30)
-local INTERACT_RADIUS = 26
+local CONTACT = {size = 32, x = 1.7, y = 0.8, grid = 24, divider = 0, deadzone = 11, release = 5, cooldown = 12, delay = 2}
+local PANEL_TWEEN_FRAMES = 10
+branch.debug_collision = false
 local AMOUNT_CHOICES = {1, 5, 10, "all"}
 
 local DATA_KEY = "BankBranchSession"
@@ -31,6 +34,7 @@ local BUSY_KEY = "BankBusyPlayerHash"
 -- Runtime only (not BankRun): panels wiped on room/level change.
 local runtime = {
 	sessions = {}, -- [player_hash] = session table mirror for cleanup without GetData
+	contacts = {}, -- [player_hash] = current native contact and its edge latch
 	cleanup_generation = 0,
 }
 
@@ -42,6 +46,27 @@ end
 
 local function tr(zh, en)
 	return lang_zh() and zh or en
+end
+
+local function play_ui(sfx, vol, pitch)
+	if not sfx then return end
+	sound_tracker.PlayStackedSound(sfx, vol or 0.45, pitch or 1, false, 0, 1)
+end
+
+local function play_scroll()
+	play_ui(SoundEffect.SOUND_MENU_SCROLL, 0.45, 1)
+end
+
+local function play_open()
+	play_ui(SoundEffect.SOUND_MENU_FLIP_LIGHT, 0.5, 1)
+end
+
+local function play_cancel()
+	play_ui(SoundEffect.SOUND_MENU_FLIP_DARK, 0.4, 1)
+end
+
+local function play_confirm()
+	play_ui(SoundEffect.SOUND_BUTTON_PRESS, 0.55, 1.05)
 end
 
 local function player_hash(player)
@@ -84,8 +109,10 @@ end
 function branch.scrub_runtime()
 	-- Boundary-safe: only clear module Lua. Never touch Player:GetData() here.
 	runtime.sessions = {}
+	runtime.contacts = {}
 	runtime.cleanup_generation = (runtime.cleanup_generation or 0) + 1
 	branch._coin_fly = nil
+	branch._resource_fly = nil
 end
 
 local function flush_player_boundary_cleanup(player)
@@ -109,6 +136,27 @@ function branch.install(item_table)
 	branch.myToCall = item_table.myToCall
 	branch._wire_callbacks()
 	return item_table
+end
+
+function branch.contact_settings()
+	return CONTACT
+end
+
+function branch.contact_debug_text()
+	local lines = {}
+	for h, c in pairs(runtime.contacts) do
+		lines[#lines + 1] = string.format("P%s: %s / %s / %s", tostring(h),
+			tostring(c.zone or "center"), c.armed and "ready" or "latched", tostring(c.ptr))
+	end
+	if #lines == 0 then return "当前无玩家接触 / No contact" end
+	return table.concat(lines, "\n")
+end
+
+function branch.apply_collision_size(ent)
+	if not ent then return end
+	ent:SetSize(CONTACT.size, Vector(CONTACT.x, CONTACT.y), CONTACT.grid)
+	ent:GetSprite().Offset = Vector(0, 12)
+	if ent.SetShadowSize then ent:SetShadowSize(34) end
 end
 
 --- Prefer Greed lower-exit Trapdoor; Stairs only as fallback. Pressure plates are not exits.
@@ -181,17 +229,100 @@ function branch.set_closed(ent, closed)
 	if not ent then return end
 	ent:GetData().BankClosed = closed == true
 	local s = ent:GetSprite()
+	s.Color = Color(1, 1, 1, 1, 0, 0, 0)
 	if closed then
-		if s:GetAnimation() ~= "Idle" then s:Play("Idle", true) end
-		s.Color = Color(0.45, 0.45, 0.55, 1, 0, 0, 0)
+		if s:GetAnimation() ~= "Closed" then s:Play("Closed", true) end
 	else
-		s.Color = Color(1, 1, 1, 1, 0, 0, 0)
 		if s:GetAnimation() ~= "Idle" then s:Play("Idle", true) end
 	end
 end
 
 function branch.is_broken(ent)
 	return ent and ent:GetData().BankBroken == true
+end
+
+local function update_broken_branch(ent)
+	local data = ent:GetData()
+	if not data.BankBroken then return end
+	if data.BankBreakPosition then ent.Position = data.BankBreakPosition end
+	ent.Velocity = Vector.Zero
+	ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+	local sprite = ent:GetSprite()
+	local age = Game():GetFrameCount() - (data.BankBreakFrame or 0)
+	local flash = age < 16 and math.floor(age / 2) % 2 == 0
+	for _, name in ipairs({"red", "green"}) do
+		local layer = sprite:GetLayer(name)
+		if layer then
+			layer:SetColor(flash and Color(1, 0.3, 0.2, 1, 0, 0, 0)
+				or Color(0.2, 0.12, 0.12, 1, 0, 0, 0))
+		end
+	end
+	for _, name in ipairs({"clerk02", "left_hand", "right_hand"}) do
+		local layer = sprite:GetLayer(name)
+		if layer then layer:SetColor(Color(1, 1, 1, math.max(0, 1 - age / 8), 0, 0, 0)) end
+	end
+	local back = sprite:GetLayer("inner_back")
+	if back then back:SetColor(Color(0.02, 0.02, 0.02, 1, 0, 0, 0)) end
+	local speaker = sprite:GetLayer("speaker")
+	if speaker then speaker:SetColor(Color(0.02, 0.02, 0.02, 1, 0, 0, 0)) end
+end
+
+local function update_clerk_hands(ent)
+	if branch.is_broken(ent) or branch.is_closed(ent) then return end
+	local sprite = ent:GetSprite()
+	local data = ent:GetData()
+	data.BankHandBase = data.BankHandBase or {}
+	local frame = Game():GetFrameCount()
+	local function smooth(t)
+		t = math.max(0, math.min(1, t))
+		return t * t * (3 - 2 * t)
+	end
+	local left = sprite:GetLayer("left_hand")
+	if left then
+		data.BankHandBase.left = data.BankHandBase.left or left:GetPos()
+		local motion = data.BankLeftMotion
+		if not motion then
+			motion = {from = Vector.Zero, target = Vector.Zero, start = frame, duration = 1}
+			data.BankLeftMotion = motion
+		end
+		local t = smooth((frame - motion.start) / motion.duration)
+		local current = motion.from * (1 - t) + motion.target * t
+		if frame - motion.start >= motion.duration then
+			motion.from = current
+			motion.target = Vector((math.random() * 2 - 1) * 1.2, -0.4 - math.random() * 0.9)
+			motion.start = frame
+			motion.duration = math.random(18, 36)
+		end
+		left:SetPos(data.BankHandBase.left + current)
+	end
+	local right = sprite:GetLayer("right_hand")
+	if right then
+		data.BankHandBase.right = data.BankHandBase.right or right:GetPos()
+		local cycle = math.floor(frame / 56)
+		if data.BankRightCycle ~= cycle then
+			data.BankRightCycle = cycle
+			data.BankRightHeight = (math.random() * 2 - 1) * 0.5
+			data.BankRightReach = 1.1 + math.random() * 0.5
+		end
+		local phase = frame % 56
+		local reach = data.BankRightReach or 1.3
+		local height = data.BankRightHeight or 0
+		local x, y
+		if phase < 12 then
+			local t = smooth(phase / 12)
+			x, y = -reach * t, height - 0.7 * t
+		elseif phase < 35 then
+			local t = smooth((phase - 12) / 23)
+			x, y = -reach + 2 * reach * t, height - 0.7
+		elseif phase < 44 then
+			local t = smooth((phase - 35) / 9)
+			x, y = reach * (1 - t), height - 0.7 - 0.8 * t
+		else
+			local t = smooth((phase - 44) / 12)
+			x, y = 0, (height - 1.5) * (1 - t)
+		end
+		right:SetPos(data.BankHandBase.right + Vector(x, y))
+	end
 end
 
 function branch.find_nearest(player, max_dist)
@@ -222,7 +353,6 @@ function branch.describe_room()
 				y = ent.Position.Y,
 				closed = branch.is_closed(ent),
 				broken = branch.is_broken(ent),
-				cycle = d.BankCycleId,
 				busy = d.BankBusyPlayerHash ~= nil,
 				debug_spawn = d.BankDebugSpawn == true,
 				ent = ent,
@@ -261,24 +391,29 @@ function branch.spawn(pos, state)
 	else
 		branch.set_closed(ent, false)
 	end
-	local b = bank_state.get()
-	ent:GetData().BankCycleId = b.branch.current_cycle_id
 	return ent
 end
 
-local function resolve_zone(player, ent)
-	local s_pos = branch.get_savings_zone(ent)
-	local l_pos = branch.get_loan_zone(ent)
-	local ds = player.Position:Distance(s_pos)
-	local dl = player.Position:Distance(l_pos)
-	local in_s = ds <= INTERACT_RADIUS
-	local in_l = dl <= INTERACT_RADIUS
-	if in_s and in_l then
-		return ds <= dl and "saving" or "loan"
+local function contact_zone(player, ent)
+	local dx = player.Position.X - ent.Position.X - CONTACT.divider
+	if dx < -CONTACT.deadzone then return "saving" end
+	if dx > CONTACT.deadzone then return "loan" end
+	return "center"
+end
+
+function branch.record_contact(player, ent)
+	if not player or not ent or not branch.entity or ent.Variant ~= branch.entity.Variant then return end
+	if branch.is_broken(ent) then return end
+	local h, ptr = player_hash(player), branch_ptr(ent)
+	if not h or not ptr then return end
+	local c = runtime.contacts[h]
+	if not c or c.ptr ~= ptr then
+		c = {ptr = ptr, armed = true, entered = Game():GetFrameCount(), last = -100, zone = nil}
+		runtime.contacts[h] = c
 	end
-	if in_s then return "saving" end
-	if in_l then return "loan" end
-	return nil
+	c.last = Game():GetFrameCount()
+	c.ent = ent
+	c.zone = contact_zone(player, ent)
 end
 
 -- Same pattern as slots/slot_offer_lift.lua: peek must bypass our own MC_INPUT_ACTION block.
@@ -323,6 +458,12 @@ local function panel_keys_held(player)
 	return false
 end
 
+local function close_keys_held(player)
+	return peek_pressed(player, ButtonAction.ACTION_ITEM)
+		or peek_pressed(player, ButtonAction.ACTION_DROP)
+		or peek_pressed(player, ButtonAction.ACTION_MENUCONFIRM)
+end
+
 local function release_busy(ent, player)
 	if not ent then return end
 	local d = ent:GetData()
@@ -342,11 +483,48 @@ local function try_claim_busy(ent, player)
 	return d[BUSY_KEY] == h
 end
 
-function branch.close_panel(player)
+local function play_branch_state(ptr, name)
+	if not ptr or not branch.entity then return end
+	for _, ent in ipairs(Isaac.FindByType(branch.entity.Type, branch.entity.Variant, -1, false, false)) do
+		if branch_ptr(ent) == ptr then
+			if branch.is_broken(ent) then name = "Broken"
+			elseif branch.is_closed(ent) then name = "Closed" end
+			local sprite = ent:GetSprite()
+			if sprite:GetAnimation() ~= name then sprite:Play(name, true) end
+			return
+		end
+	end
+end
+
+local start_resource_fly
+
+function branch.close_panel(player, silent)
 	local sess = get_session(player)
 	if not sess then return end
+	if sess.state == "closing" then return end
+	if not silent and sess.state == "panel" then
+		play_cancel()
+	end
 	selection_holder.remove_select(player, branch.SELECTION_KEY)
+	if sess.state == "panel" then
+		sess.state = "closing"
+		sess.closed_frame = Game():GetFrameCount()
+		return
+	end
+	branch.finish_close(player, sess)
+end
+
+function branch.finish_close(player, sess)
+	if sess.mode == "saving" and (sess.coin_delta or 0) ~= 0 then
+		local delta = sess.coin_delta
+		start_resource_fly(player, sess, "coin", delta < 0, nil, math.abs(delta))
+		sess.coin_delta = 0
+	end
+	for _, fly in ipairs(branch._resource_fly or {}) do
+		if fly.pending and fly.owner == player_hash(player) then fly.pending = false end
+	end
 	if sess.branch_ptr then
+		play_branch_state(sess.branch_ptr, "Idle")
 		for _, ent in ipairs(Isaac.FindByType(branch.entity.Type, branch.entity.Variant, -1, false, false)) do
 			if branch_ptr(ent) == sess.branch_ptr then
 				release_busy(ent, player)
@@ -361,17 +539,19 @@ local function open_panel(player, ent, mode)
 	if not try_claim_busy(ent, player) then
 		return false
 	end
+	play_branch_state(branch_ptr(ent), mode == "saving" and "Saving" or "Loan")
 	bank_state.check_collateral()
 	local loan = bank_state.get_active_loan()
 	local sess = {
 		branch_ptr = branch_ptr(ent),
 		zone = mode,
 		state = "panel",
+		opened_frame = Game():GetFrameCount(),
 		mode = mode == "saving" and "saving" or "loan",
 		page = "root",
 		cursor = 1,
 		input_armed = false,
-		opened_frame = Game():GetFrameCount(),
+		coin_delta = 0,
 		candidates = nil,
 		loan_ui = nil,
 	}
@@ -400,6 +580,7 @@ local function open_panel(player, ent, mode)
 	end
 	set_session(player, sess)
 	selection_holder.try_select(player, branch.SELECTION_KEY)
+	play_open()
 	return true
 end
 
@@ -416,7 +597,9 @@ local function menu_options(sess)
 			return {"repay", "forfeit", "exit"}
 		end
 		if sess.page == "manage" then
-			return {"repay", "exit"}
+			local loan = bank_state.get_active_loan()
+			-- LEGACY-SAVE-008: old loans still allow the original same-floor repayment menu.
+			return loan and not loan.held_by_bank and {"repay", "exit"} or {"exit"}
 		end
 		if sess.page == "missing" then
 			return {"repay", "replace", "exit"}
@@ -431,11 +614,14 @@ local function menu_options(sess)
 	return {"exit"}
 end
 
-local SUCCESS_FRAMES = 45
-local ERROR_FRAMES = 60
+local SUCCESS_FRAMES = 8
 local FLY_STEPS = 36
 
-local function set_feedback(sess, kind, message, then_mode)
+local function set_feedback(sess, kind, message, then_mode, silent)
+	if kind == "error" then
+		play_ui(SoundEffect.SOUND_THUMBS_DOWN, 0.5, 0.95)
+		return
+	end
 	sess.feedback = {
 		kind = kind,
 		message = message,
@@ -443,6 +629,8 @@ local function set_feedback(sess, kind, message, then_mode)
 	}
 	sess.feedback_then = then_mode
 	sess.input_armed = false
+	if silent then return end
+	play_ui(SoundEffect.SOUND_CASH_REGISTER, 0.55, 1)
 end
 
 local function finish_feedback(player, sess)
@@ -451,7 +639,7 @@ local function finish_feedback(player, sess)
 	sess.feedback_then = nil
 	sess.input_armed = false
 	if then_mode == "close" then
-		branch.close_panel(player)
+		branch.close_panel(player, true)
 		return
 	end
 	if then_mode == "root" then
@@ -517,7 +705,122 @@ local function spawn_loan_fly(player)
 	sound_tracker.PlayStackedSound(SoundEffect.SOUND_PENNYPICKUP, 0.9, 1, false, 0, 1)
 end
 
+local function branch_marker_screen(sess, kind)
+	local marker = bank_markers[kind]
+	if not marker or not sess or not sess.branch_ptr then return nil end
+	for _, ent in ipairs(Isaac.FindByType(branch.entity.Type, branch.entity.Variant, -1, false, false)) do
+		if branch_ptr(ent) == sess.branch_ptr then
+			-- PSD marker offsets are sprite-local render pixels, not world units.
+			return Isaac.WorldToScreen(ent.Position + ent.PositionOffset)
+				+ ent:GetSprite().Offset + Vector(marker.x, marker.y)
+		end
+	end
+	return nil
+end
+
+local function coin_fly_sprite(value)
+	if value >= 25 then
+		local sprite = Sprite()
+		sprite:Load("gfx/ui/collectible_icon_centered.anm2", true)
+		sprite:ReplaceSpritesheet(0, value == 100
+			and "gfx/items/collectibles/collectibles_018_adollar.png"
+			or "gfx/items/collectibles/collectibles_074_aquarter.png")
+		sprite:LoadGraphics()
+		sprite:Play("Idle", true)
+		sprite.Scale = Vector(0.55, 0.55)
+		return sprite
+	end
+	local path = value == 10 and "gfx/005.023_dime.anm2"
+		or value == 5 and "gfx/005.022_nickel.anm2" or "gfx/005.021_penny.anm2"
+	local sprite = Sprite()
+	sprite:Load(path, true)
+	sprite:Play("Idle", true)
+	sprite:SetFrame(0)
+	sprite.Scale = Vector(0.5, 0.5)
+	return sprite
+end
+
+local function coin_denominations(amount)
+	local values = {}
+	local remaining = math.floor(math.max(0, amount or 0))
+	for _, value in ipairs({100, 25, 10, 5, 1}) do
+		while remaining >= value do
+			values[#values + 1] = value
+			remaining = remaining - value
+		end
+	end
+	return values
+end
+
+start_resource_fly = function(player, sess, kind, outward, item_id, coin_count)
+	local marker = branch_marker_screen(sess, kind)
+	if not marker then return end
+	local player_screen = Isaac.WorldToScreen(player.Position + Vector(0, -20))
+	local hud = Game():GetHUD()
+	local coin_target = hud and hud:IsVisible()
+		and slot_offer_lift.get_pickup_hud_screen_pos(player, "coin", 0) or nil
+	local target = coin_target or player_screen
+	local coins = kind == "coin" and coin_denominations(coin_count or 1) or nil
+	local visible = coins and #coins or 1
+	if visible == 0 then return end
+	branch._resource_fly = branch._resource_fly or {}
+	for i = 1, visible do
+		local sprite
+		if kind == "coin" then
+			sprite = coin_fly_sprite(coins[i])
+		elseif item_id then
+			local cfg = Isaac.GetItemConfig():GetCollectible(item_id)
+			if cfg and cfg.GfxFileName and cfg.GfxFileName ~= "" then
+				sprite = Sprite()
+				sprite:Load("gfx/ui/collectible_icon_centered.anm2", true)
+				sprite:ReplaceSpritesheet(0, cfg.GfxFileName)
+				sprite:LoadGraphics()
+				sprite:Play("Idle", true)
+				sprite.Scale = Vector(0.7, 0.7)
+			end
+		end
+		if not sprite then return end
+		local spread = visible > 1 and (i - (visible + 1) / 2) or 0
+		branch._resource_fly[#branch._resource_fly + 1] = {
+			sprite = sprite, start = outward and marker + Vector(spread * 3, -math.abs(spread) * 1.5) or player_screen,
+			target = outward and (kind == "coin" and target or player_screen) or marker,
+			outward = outward,
+			step = -(i - 1) * 2,
+			pending = true, owner = player_hash(player),
+		}
+	end
+end
+
+local function fly_ease(t)
+	t = math.max(0, math.min(1, t))
+	return t * t * (3 - 2 * t)
+end
+
+local function resource_fly_position(fly)
+	local age = math.max(0, fly.step)
+	if fly.outward then
+		local raised = fly.start + Vector(0, -29)
+		if age < 12 then return fly.start + (raised - fly.start) * fly_ease(age / 12) end
+		if age < 20 then return raised end
+		return raised + (fly.target - raised) * fly_ease((age - 20) / 22)
+	end
+	local raised = fly.start + Vector(0, -31)
+	local above_target = fly.target + Vector(0, -27)
+	if age < 12 then return fly.start + (raised - fly.start) * fly_ease(age / 12) end
+	if age < 19 then return raised end
+	if age < 35 then return raised + (above_target - raised) * fly_ease((age - 19) / 16) end
+	if age < 42 then return above_target end
+	return above_target + (fly.target - above_target) * fly_ease((age - 42) / 11)
+end
+
 local function tick_coin_fly()
+	for i = #(branch._resource_fly or {}), 1, -1 do
+		local fly = branch._resource_fly[i]
+		if not fly.pending then
+			fly.step = fly.step + 1
+			if fly.step > (fly.outward and 42 or 53) then table.remove(branch._resource_fly, i) end
+		end
+	end
 	local fly = branch._coin_fly
 	if not fly then return end
 	fly.step = (fly.step or 0) + 1
@@ -527,6 +830,11 @@ local function tick_coin_fly()
 end
 
 local function render_coin_fly()
+	for _, fly in ipairs(branch._resource_fly or {}) do
+		if not fly.pending and fly.step >= 0 then
+			fly.sprite:Render(resource_fly_position(fly), Vector.Zero, Vector.Zero)
+		end
+	end
 	local fly = branch._coin_fly
 	if not fly or not fly.sprite or not fly.start or not fly.target then return end
 	local t = math.min(1, (fly.step or 0) / FLY_STEPS)
@@ -568,10 +876,16 @@ local function confirm_saving(player, sess)
 		ok, reason = bank_state.withdraw(player, amount)
 	end
 	if not ok then
-		set_feedback(sess, "error", money_message(sess.page, choice == "all", amount, reason or "bad_amount"), nil)
+		sess.inline_error = {message = money_message(sess.page, choice == "all", amount, reason or "bad_amount"), started_frame = Game():GetFrameCount()}
+		sess.input_armed = false
+		play_ui(SoundEffect.SOUND_THUMBS_DOWN, 0.5, 0.95)
 		return
 	end
-	set_feedback(sess, "success", money_message(sess.page, choice == "all", amount, nil), "root")
+	sess.inline_error = nil
+	sess.input_armed = false
+	sess.coin_delta = (sess.coin_delta or 0) + (sess.page == "withdraw" and -amount or amount)
+	play_ui(sess.page == "deposit" and SoundEffect.SOUND_COIN_INSERT
+		or SoundEffect.SOUND_PENNYPICKUP, 0.65, 1)
 end
 
 local GRID_COLS = 4
@@ -614,7 +928,8 @@ end
 
 local function move_collateral_focus(ui, count, dx, dy)
 	if count < 1 then return end
-	local index = ui.focus_index or 1
+	local old = ui.focus_index or 1
+	local index = old
 	local local_i = (index - 1) % GRID_PAGE
 	local col = local_i % GRID_COLS
 	local row = math.floor(local_i / GRID_COLS)
@@ -651,6 +966,7 @@ local function move_collateral_focus(ui, count, dx, dy)
 	if index > count then index = count end
 	ui.focus_index = index
 	ui.page = math.floor((index - 1) / GRID_PAGE) + 1
+	if index ~= old then play_scroll() end
 end
 
 local function leave_collateral(player, sess)
@@ -659,6 +975,7 @@ local function leave_collateral(player, sess)
 		sess.cursor = 1
 		sess.candidates = nil
 		sess.loan_ui = nil
+		play_cancel()
 		return
 	end
 	branch.close_panel(player)
@@ -708,8 +1025,10 @@ local function confirm_selected_collateral(player, sess)
 		set_feedback(sess, "error", loan_fail_message(reason), nil)
 		return
 	end
-	spawn_loan_fly(player)
-	set_feedback(sess, "success", tr(string.format("获得贷款 %d¢", row.value or 0), string.format("Loan received %d¢", row.value or 0)), "close")
+	start_resource_fly(player, sess, "pact", false, row.id)
+	start_resource_fly(player, sess, "coin", true, nil, row.value)
+	play_ui(SoundEffect.SOUND_PENNYPICKUP, 0.7, 1)
+	set_feedback(sess, "success", tr(string.format("获得贷款 %d¢", row.value or 0), string.format("Loan received %d¢", row.value or 0)), "close", true)
 end
 
 local function tick_collateral(player, sess)
@@ -720,13 +1039,18 @@ local function tick_collateral(player, sess)
 	end
 	if ui.phase == "confirm" then
 		if pressed(ButtonAction.ACTION_SHOOTUP, ButtonAction.ACTION_UP) then
+			local old = ui.confirm_cursor
 			ui.confirm_cursor = ((ui.confirm_cursor - 2) % 3) + 1
+			if ui.confirm_cursor ~= old then play_scroll() end
 		elseif pressed(ButtonAction.ACTION_SHOOTDOWN, ButtonAction.ACTION_DOWN) then
+			local old = ui.confirm_cursor
 			ui.confirm_cursor = (ui.confirm_cursor % 3) + 1
+			if ui.confirm_cursor ~= old then play_scroll() end
 		end
 		if peek_triggered(player, ButtonAction.ACTION_DROP) then
 			ui.phase = "browse"
 			ui.selected_item_id = nil
+			play_cancel()
 			return
 		end
 		if peek_triggered(player, ButtonAction.ACTION_ITEM)
@@ -734,6 +1058,7 @@ local function tick_collateral(player, sess)
 			if ui.confirm_cursor == 2 then
 				ui.phase = "browse"
 				ui.selected_item_id = nil
+				play_cancel()
 				return
 			end
 			if ui.confirm_cursor == 3 then
@@ -764,6 +1089,7 @@ local function tick_collateral(player, sess)
 		ui.selected_item_id = row.id
 		ui.phase = "confirm"
 		ui.confirm_cursor = 1
+		play_confirm()
 	end
 end
 
@@ -784,6 +1110,10 @@ local function confirm_loan(player, sess)
 			end
 			set_feedback(sess, "error", message, nil)
 			return
+		end
+		start_resource_fly(player, sess, "coin", false, nil, due)
+		if loan and loan.held_by_bank then
+			start_resource_fly(player, sess, "pact", true, loan.item_id)
 		end
 		set_feedback(sess, "success", tr(string.format("已偿还 %d¢", due), string.format("Repaid %d¢", due)), "close")
 		return
@@ -812,7 +1142,6 @@ local function confirm_loan(player, sess)
 end
 
 local function feedback_limit(sess)
-	if sess.feedback and sess.feedback.kind == "error" then return ERROR_FRAMES end
 	return SUCCESS_FRAMES
 end
 
@@ -836,6 +1165,7 @@ end
 local function tick_panel(player, sess)
 	if Game():IsPaused() then return end
 	if Game():GetFrameCount() <= (sess.opened_frame or 0) then return end
+	if Game():GetFrameCount() - (sess.opened_frame or 0) < PANEL_TWEEN_FRAMES then return end
 	if not selection_holder.check_select(player, branch.SELECTION_KEY) then
 		branch.close_panel(player)
 		return
@@ -843,6 +1173,9 @@ local function tick_panel(player, sess)
 	if sess.feedback then
 		tick_feedback(player, sess)
 		return
+	end
+	if sess.inline_error and Game():GetFrameCount() - sess.inline_error.started_frame >= 24 then
+		sess.inline_error = nil
 	end
 	if not sess.input_armed then
 		if not panel_keys_held(player) then
@@ -855,7 +1188,9 @@ local function tick_panel(player, sess)
 	if n < 1 then n = 1 end
 
 	local function move(delta)
+		local old = sess.cursor
 		sess.cursor = ((sess.cursor - 1 + delta) % n) + 1
+		if sess.cursor ~= old then play_scroll() end
 	end
 
 	if sess.page == "pick" or sess.page == "replace" then
@@ -874,6 +1209,7 @@ local function tick_panel(player, sess)
 		if sess.mode == "saving" and (sess.page == "deposit" or sess.page == "withdraw") then
 			sess.page = "root"
 			sess.cursor = 1
+			play_cancel()
 			return
 		end
 		branch.close_panel(player)
@@ -898,51 +1234,58 @@ function branch.tick_interaction(player)
 	flush_player_boundary_cleanup(player)
 
 	local sess = get_session(player)
+	if sess and sess.state == "closing" then
+		if Game():GetFrameCount() - (sess.closed_frame or 0) >= PANEL_TWEEN_FRAMES
+			and not close_keys_held(player) then
+			branch.finish_close(player, sess)
+		end
+		return
+	end
 	if sess and sess.state == "panel" then
 		tick_panel(player, sess)
 		return
 	end
-
-	local ent = branch.find_nearest(player)
-	if not ent then
-		if sess then clear_session(player) end
-		return
-	end
-
-	local zone = resolve_zone(player, ent)
-	if not zone then
-		if sess and sess.state == "prompt" then clear_session(player) end
-		return
-	end
-
-	if branch.is_closed(ent) then
-		set_session(player, {
-			branch_ptr = branch_ptr(ent),
-			zone = zone,
-			state = "closed_hint",
-		})
-		return
-	end
-
-	local busy = ent:GetData()[BUSY_KEY]
 	local h = player_hash(player)
-	if busy ~= nil and busy ~= h then
-		set_session(player, {
-			branch_ptr = branch_ptr(ent),
-			zone = zone,
-			state = "busy_hint",
-		})
+	local c = h and runtime.contacts[h]
+	if not c then return end
+	local ent = c.ent
+	local frame = Game():GetFrameCount()
+	local expired = frame - c.last > 2
+	if ent and ent:Exists() then
+		local dx = (player.Position.X - ent.Position.X) / CONTACT.x
+		local dy = (player.Position.Y - ent.Position.Y) / CONTACT.y
+		local distance = math.sqrt(dx * dx + dy * dy)
+		if expired and distance > CONTACT.size + player.Size + CONTACT.release then
+			runtime.contacts[h] = nil
+			if sess and sess.state ~= "panel" then clear_session(player) end
+			return
+		end
+	else
+		runtime.contacts[h] = nil
 		return
 	end
-
-	set_session(player, {
-		branch_ptr = branch_ptr(ent),
-		zone = zone,
-		state = "prompt",
-	})
-
-	if peek_triggered(player, ButtonAction.ACTION_ITEM) then
-		open_panel(player, ent, zone)
+	-- The collision callback can report only the entry contact. Keep that pending
+	-- contact until the player actually moves clear of the release boundary.
+	if not c.armed or not c.zone or (c.zone == "center" and c.center_greeted)
+		or frame - (c.entered or frame) < CONTACT.delay
+		or frame - (c.triggered or -100) < CONTACT.cooldown then return end
+	if branch.is_closed(ent) then
+		c.armed = false
+		c.triggered = frame
+		set_session(player, {branch_ptr = c.ptr, zone = c.zone, state = "closed_hint"})
+	elseif ent:GetData()[BUSY_KEY] and ent:GetData()[BUSY_KEY] ~= h then
+		c.armed = false
+		c.triggered = frame
+		set_session(player, {branch_ptr = c.ptr, zone = c.zone, state = "busy_hint"})
+	elseif c.zone == "center" then
+		c.center_greeted = true
+		gui.draw_ch_with_time_to_dispair(ent.Position + Vector(-54, -50), Vector(0, -28),
+			tr("欢迎光临！储蓄请往左，贷款请往右。", "Welcome! Savings left, loans right."), 75)
+	else
+		if open_panel(player, ent, c.zone) then
+			c.armed = false
+			c.triggered = frame
+		end
 	end
 end
 
@@ -972,20 +1315,18 @@ end
 
 function branch.render_prompt(player)
 	local sess = get_session(player)
-	local ent = branch.find_nearest(player, 260)
-	if ent and (not sess or sess.state ~= "panel") then
-		local zone = sess and sess.zone or resolve_zone(player, ent)
-		branch.render_zone_markers(player, ent, zone)
-	end
 	if not sess then return end
-	if sess.state ~= "closed_hint" and sess.state ~= "busy_hint" and sess.state ~= "prompt" then
+	if sess.state ~= "closed_hint" and sess.state ~= "busy_hint" then
 		return
 	end
+	local ent = branch.find_nearest(player, 260)
 	if not ent then
 		ent = branch.find_nearest(player, 260)
 	end
 	local world
-	if ent and sess.zone == "loan" then
+	if ent and sess.zone == "center" then
+		world = ent.Position + Vector(0, -35)
+	elseif ent and sess.zone == "loan" then
 		world = branch.get_loan_zone(ent)
 	elseif ent then
 		world = branch.get_savings_zone(ent)
@@ -1000,16 +1341,28 @@ function branch.render_prompt(player)
 		text = tr("支行暂停营业", "Branch closed")
 	elseif sess.state == "busy_hint" then
 		text = tr("正在办理", "Busy")
-	elseif sess.zone == "saving" then
-		text = tr("按使用键办理", "Press Item")
-	else
-		text = tr("按使用键办理", "Press Item")
 	end
 	-- World hint: scale 1 (readable with project CN font).
 	font:DrawStringScaledUTF8(text, screen.X, screen.Y + 18, 1, 1, KColor(1, 1, 1, 1), 0, true)
 end
 
 function branch.render_terminal_ui()
+	if branch.debug_collision and Isaac.DrawLine then
+		for _, row in ipairs(branch.describe_room()) do
+			local ent = row.ent
+			local color = row.broken and KColor(0.8, 0.2, 0.2, 0.8)
+				or KColor(0.3, 1, 0.45, 0.8)
+			local previous
+			for i = 0, 32 do
+				local a = i * math.pi / 16
+				local world = ent.Position + Vector(math.cos(a) * CONTACT.size * CONTACT.x,
+					math.sin(a) * CONTACT.size * CONTACT.y)
+				local screen = Isaac.WorldToScreen(world)
+				if previous then Isaac.DrawLine(previous, screen, color, color, 1) end
+				previous = screen
+			end
+		end
+	end
 	local font = branch.bank_font()
 	if not font then return end
 	if bank_panel.preview_active() then
@@ -1020,7 +1373,7 @@ function branch.render_terminal_ui()
 	for i = 0, count - 1 do
 		local player = Isaac.GetPlayer(i)
 		local sess = player and get_session(player)
-		if sess and sess.state == "panel" then
+		if sess and (sess.state == "panel" or sess.state == "closing") then
 			bank_panel.render(player, sess, font)
 			render_coin_fly()
 			return
@@ -1046,16 +1399,7 @@ function branch.block_input(player, hook, action)
 		return false
 	end
 
-	-- Prompt: bank consumes ACTION_ITEM to open; do not fire active item. Bomb stays free.
-	if sess.state == "prompt" then
-		if action == ButtonAction.ACTION_ITEM
-			or action == ButtonAction.ACTION_MENUCONFIRM then
-			return deny()
-		end
-		return nil
-	end
-
-	if sess.state ~= "panel" then return nil end
+	if sess.state ~= "panel" and sess.state ~= "closing" then return nil end
 
 	-- Panel: bank owns confirm/cancel/nav; block gameplay side effects.
 	if action == ButtonAction.ACTION_ITEM
@@ -1105,11 +1449,20 @@ function branch._wire_callbacks()
 		params = nil,
 		Function = function(_, ent)
 			if not branch.entity or ent.Variant ~= branch.entity.Variant then return end
+			branch.apply_collision_size(ent)
 			local s = ent:GetSprite()
 			s:Play("Idle", true)
 			if ent:GetData().BankClosed then
 				branch.set_closed(ent, true)
 			end
+		end,
+	})
+
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = ModCallbacks.MC_POST_PLAYER_COLLISION,
+		params = nil,
+		Function = function(_, player, collider, _low)
+			branch.record_contact(player, collider)
 		end,
 	})
 
@@ -1164,12 +1517,26 @@ function branch._wire_callbacks()
 			if ent:GetData().BankRobbed then return end
 			ent:GetData().BankRobbed = true
 			ent:GetData().BankBroken = true
+			ent:GetData().BankBreakPosition = Vector(ent.Position.X, ent.Position.Y)
+			ent:GetData().BankBreakFrame = Game():GetFrameCount()
 			local player = Game():GetPlayer(0)
 			bank_state.rob(player, ent)
 			local s = ent:GetSprite()
-			s:Play("Teleport", true)
+			s:Play("Broken", true)
 			ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
-			s.Color = Color(0.3, 0.3, 0.3, 1, 0, 0, 0)
+			s.Color = Color(1, 1, 1, 1, 0, 0, 0)
+			update_broken_branch(ent)
+		end,
+	})
+
+	table.insert(item.ToCall, #item.ToCall + 1, {
+		CallBack = ModCallbacks.MC_POST_UPDATE,
+		params = nil,
+		Function = function()
+			if not branch.entity then return end
+			for _, ent in ipairs(Isaac.FindByType(branch.entity.Type, branch.entity.Variant, -1, false, false)) do
+				if branch.is_broken(ent) then update_broken_branch(ent) else update_clerk_hands(ent) end
+			end
 		end,
 	})
 

@@ -130,16 +130,15 @@ add("Item",enums.Items.A_Shard_Of_Coin,{
 		content_type = "Item",
 		key = "A_Shard_Of_Coin",
 		name = "A Shard of Coin",
-		remaster_status = "inactive",
-		-- Dormant legacy story material: keep XML achievement asset, do not surface unlock popups.
-		achievement = false,
-		achievement_path = "",
+		remaster_status = "",
+		achievement = true,
+		achievement_path = "gfx/ui/Some achievements/achievement_Coin_Shard.png",
 })
 add("Item",enums.Items.A_Shard_Of_Glaze,{
 		content_type = "Item",
 		key = "A_Shard_Of_Glaze",
 		name = "A Shard of Glaze",
-		remaster_status = "inactive",
+		remaster_status = "",
 		achievement = false,
 		achievement_path = "",
 })
@@ -147,7 +146,7 @@ add("Item",enums.Items.A_Shard_Of_Lava,{
 		content_type = "Item",
 		key = "A_Shard_Of_Lava",
 		name = "A Shard of Lava",
-		remaster_status = "inactive",
+		remaster_status = "",
 		achievement = false,
 		achievement_path = "",
 })
@@ -155,7 +154,7 @@ add("Item",enums.Items.A_Shard_Of_Meat,{
 		content_type = "Item",
 		key = "A_Shard_Of_Meat",
 		name = "A Shard of Meat",
-		remaster_status = "inactive",
+		remaster_status = "",
 		achievement = false,
 		achievement_path = "",
 })
@@ -163,7 +162,7 @@ add("Item",enums.Items.A_Shard_Of_Rock,{
 		content_type = "Item",
 		key = "A_Shard_Of_Rock",
 		name = "A Shard of Rock",
-		remaster_status = "inactive",
+		remaster_status = "",
 		achievement = false,
 		achievement_path = "",
 })
@@ -1191,6 +1190,118 @@ add("Item",enums.Items.Tiny_Update,{
 		achievement = false,
 		achievement_path = "",
 })
+add("Item",enums.Items.Matryoshka_Marbles,{
+		content_type = "Item",
+		key = "Matryoshka_Marbles",
+		name = "Matryoshka Marbles",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Bravery,{
+		content_type = "Item",
+		key = "Bravery",
+		name = "Bravery",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Isolation,{
+		content_type = "Item",
+		key = "Isolation",
+		name = "Isolation",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Exoneration_Certificate,{
+		content_type = "Item",
+		key = "Exoneration_Certificate",
+		name = "Exoneration Certificate",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Ketu,{
+		content_type = "Item",
+		key = "Ketu",
+		name = "Ketu",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Rahu,{
+		content_type = "Item",
+		key = "Rahu",
+		name = "Rahu",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Thorn_Flower_Crown,{
+		content_type = "Item",
+		key = "Thorn_Flower_Crown",
+		name = "Crown of Thorns",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Alien_Savior,{
+		content_type = "Item",
+		key = "Alien_Savior",
+		name = "Alien Savior",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Cake_Berry,{
+		content_type = "Item",
+		key = "Cake_Berry",
+		name = "Strawberry Cake Pie",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Rooted_Demon,{
+		content_type = "Item",
+		key = "Rooted_Demon",
+		name = "Rooted Demon",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Incandescence_Flame,{
+		content_type = "Item",
+		key = "Incandescence_Flame",
+		name = "Incandescence Flame",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Entombed_Demon,{
+		content_type = "Item",
+		key = "Entombed_Demon",
+		name = "Entombed Demon",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Wishing,{
+		content_type = "Item",
+		key = "Wishing",
+		name = "Wishing",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
+add("Item",enums.Items.Bewitching_Moon,{
+		content_type = "Item",
+		key = "Bewitching_Moon",
+		name = "Bewitching Moon",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
 add("Trinket",enums.Trinkets.Pacification_Mark,{
 		content_type = "Trinket",
 		key = "Pacification_Mark",
@@ -1987,6 +2098,46 @@ add("Player","Lu",{
 		content_type = "Player",
 		key = "Lu",
 		name = "Lu",
+		remaster_status = "",
+		achievement = false,
+		achievement_path = "",
+})
+add("Player","Marriano_B",{
+		content_type = "Player",
+		key = "Marriano_B",
+		name = "Marriano_B",
+		remaster_status = "",
+		achievement = false,
+		achievement_path = "",
+})
+add("Player","Autio_B",{
+		content_type = "Player",
+		key = "Autio_B",
+		name = "Autio_B",
+		remaster_status = "",
+		achievement = false,
+		achievement_path = "",
+})
+add("Player","Lu_B",{
+		content_type = "Player",
+		key = "Lu_B",
+		name = "Lu_B",
+		remaster_status = "",
+		achievement = false,
+		achievement_path = "",
+})
+add("Player","Noia",{
+		content_type = "Player",
+		key = "Noia",
+		name = "Noia",
+		remaster_status = "",
+		achievement = false,
+		achievement_path = "",
+})
+add("Player","Noia_B",{
+		content_type = "Player",
+		key = "Noia_B",
+		name = "Noia_B",
 		remaster_status = "",
 		achievement = false,
 		achievement_path = "",

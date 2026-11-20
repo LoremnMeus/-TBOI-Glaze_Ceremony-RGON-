@@ -154,6 +154,15 @@ function item.with_suppressed_encounter(owner, fn)
 	return a, b, c, d, e
 end
 
+--- Probe / diagnostics: whether this generation already published a normal Encounter.
+function item.has_published_normal_encounter(generation_id)
+	generation_id = tonumber(generation_id)
+	if not generation_id then
+		return false
+	end
+	return item._published_normal_gens[generation_id] == true
+end
+
 function item.get_debug_snapshot()
 	return {
 		normal_serial = item._normal_serial or 0,
@@ -186,25 +195,30 @@ function item.reset_debug()
 	item.debug.last_class = nil
 end
 
-local function note_acquisition(player, collected_id, ent)
+local function note_acquisition(player, collected_id, ent, source_context)
 	-- debug/probe only：不参与 authoritative residue
 	local list = item._recent_acquisitions
+	local source = type(source_context) == "table" and source_context.source or nil
 	list[#list + 1] = {
 		frame = game_frame(),
 		player_ptr = player and GetPtrHash(player) or nil,
 		collected_id = collected_id,
 		ent_ptr = ent and GetPtrHash(ent) or nil,
+		generation_id = source and source.generation_id or nil,
+		acquisition_id = type(source_context) == "table" and source_context.acquisition_id or nil,
+		attribution = type(source_context) == "table" and source_context.attribution or nil,
 	}
 	while #list > 16 do
 		table.remove(list, 1)
 	end
-	-- Exact acquisition correlation：callback 直接给出 surviving replacement pedestal
-	if ent and ent:Exists() and ent.Type == EntityType.ENTITY_PICKUP
-		and ent.Variant == PickupVariant.PICKUP_COLLECTIBLE
-		and (ent.SubType or 0) > 0
-		and (ent.FrameCount or 0) <= 1
-	then
-		local d = ent:GetData()
+	-- Residue only when the public layer confirmed this live pedestal.
+	-- FrameCount is not enough to mark PLAYER_RESIDUE.
+	local confirmed = type(source_context) == "table"
+		and source_context.attribution == "confirmed"
+		and type(source_context.source) == "table"
+	local target = confirmed and source_context.pedestal or nil
+	if target and target.Exists and target:Exists() then
+		local d = target:GetData()
 		d[DATA_RESIDUE] = true
 		d[DATA_CLASS] = "PLAYER_RESIDUE"
 		bump_debug("residue_exact_count")
@@ -425,8 +439,8 @@ table.insert(item.myToCall, #item.myToCall + 1, {
 table.insert(item.myToCall, #item.myToCall + 1, {
 	CallBack = enums.Callbacks.POST_PICKUP_COLLECTIBLE,
 	params = nil,
-	Function = function(_, player, id, _touched, ent)
-		note_acquisition(player, id, ent)
+	Function = function(_, player, id, _touched, ent, source_context)
+		note_acquisition(player, id, ent, source_context)
 	end,
 })
 

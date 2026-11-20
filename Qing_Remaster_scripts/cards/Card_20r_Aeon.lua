@@ -1390,7 +1390,7 @@ local function tick_replay()
 				local owned = {ent}
 				if handle then owned[#owned + 1] = handle end
 				local kd = ent.GetData and ent:GetData() or nil
-				local spatial = kd and (kd._QingAeonKnifeSpatialDriver or kd._QingAeonEngineKnife)
+				local spatial = kd and kd._QingAeonKnifeSpatialDriver
 				rp.live_tracks[#rp.live_tracks + 1] = {
 					track = tr,
 					ent = ent,
@@ -1465,7 +1465,7 @@ local function tick_replay()
 		elseif tr then
 			local kd = ent:GetData()
 			local spatial_knife = tr.kind == "knife"
-				and (kd._QingAeonKnifeSpatialDriver == true or kd._QingAeonEngineKnife == true)
+				and kd._QingAeonKnifeSpatialDriver == true
 
 			if spatial_knife then
 				local grace = aeon_replay.KNIFE_WATCHDOG_GRACE or 8

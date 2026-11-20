@@ -1,0 +1,130 @@
+{
+  "seed": 202610287,
+  "version": "6.3",
+  "anm2": "resources/gfx/boss/Zennith/storm/storm_v63.anm2",
+  "sheets": {
+    "wind_tip.png": {
+      "size": [
+        96,
+        16
+      ],
+      "frames": 6,
+      "prefix": "Tip"
+    },
+    "wind_body.png": {
+      "size": [
+        96,
+        16
+      ],
+      "frames": 6,
+      "prefix": "Body"
+    },
+    "wind_tail.png": {
+      "size": [
+        96,
+        16
+      ],
+      "frames": 6,
+      "prefix": "Tail"
+    },
+    "tornado_body.png": {
+      "size": [
+        128,
+        64
+      ],
+      "frames": 4,
+      "prefix": "TBody"
+    },
+    "tornado_ribbon.png": {
+      "size": [
+        192,
+        72
+      ],
+      "frames": 6,
+      "prefix": "TRibbon"
+    },
+    "tornado_edge.png": {
+      "size": [
+        144,
+        20
+      ],
+      "frames": 6,
+      "prefix": "TEdge"
+    },
+    "impact_ring.png": {
+      "size": [
+        192,
+        48
+      ],
+      "frames": 4,
+      "prefix": "IRing"
+    },
+    "impact_arc.png": {
+      "size": [
+        128,
+        64
+      ],
+      "frames": 4,
+      "prefix": "IArc"
+    },
+    "impact_spray.png": {
+      "size": [
+        120,
+        20
+      ],
+      "frames": 6,
+      "prefix": "ISpray"
+    }
+  },
+  "animations": [
+    "Tip1",
+    "Tip2",
+    "Tip3",
+    "Tip4",
+    "Tip5",
+    "Tip6",
+    "Body1",
+    "Body2",
+    "Body3",
+    "Body4",
+    "Body5",
+    "Body6",
+    "Tail1",
+    "Tail2",
+    "Tail3",
+    "Tail4",
+    "Tail5",
+    "Tail6",
+    "TBody1",
+    "TBody2",
+    "TBody3",
+    "TBody4",
+    "TRibbon1",
+    "TRibbon2",
+    "TRibbon3",
+    "TRibbon4",
+    "TRibbon5",
+    "TRibbon6",
+    "TEdge1",
+    "TEdge2",
+    "TEdge3",
+    "TEdge4",
+    "TEdge5",
+    "TEdge6",
+    "IRing1",
+    "IRing2",
+    "IRing3",
+    "IRing4",
+    "IArc1",
+    "IArc2",
+    "IArc3",
+    "IArc4",
+    "ISpray1",
+    "ISpray2",
+    "ISpray3",
+    "ISpray4",
+    "ISpray5",
+    "ISpray6"
+  ],
+  "validation_ok": true
+}

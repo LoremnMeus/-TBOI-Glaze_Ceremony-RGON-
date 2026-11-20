@@ -462,12 +462,8 @@ function BP.toggle_all_items_mode(panel)
 		local prefs = BP.get_audit_ui_prefs(panel.player)
 		craft.audit_filter = "all"
 		craft.hide_gray = false
-		craft.tag_enabled = CraftProfile.normalize_audit_tag_enabled(
-			prefs.tag_enabled, prefs.audit_filter or (prefs.hide_gray and "impl" or "all")
-		)
+		craft.tag_enabled = CraftProfile.normalize_audit_tag_enabled(prefs.tag_enabled)
 		prefs.tag_enabled = craft.tag_enabled
-		prefs.audit_filter = "all"
-		prefs.hide_gray = false
 	end
 	BP.clear_bag_tokens_keep_busy(craft, panel)
 	panel.nav_graph = nil
@@ -479,8 +475,6 @@ function BP.persist_craft_tag_prefs(panel, craft)
 	local prefs = BP.get_audit_ui_prefs(panel.player)
 	prefs.tag_enabled = CraftProfile.normalize_audit_tag_enabled(craft.tag_enabled)
 	craft.tag_enabled = prefs.tag_enabled
-	prefs.audit_filter = "all"
-	prefs.hide_gray = false
 end
 
 function BP.refresh_after_tag_change(panel, craft)

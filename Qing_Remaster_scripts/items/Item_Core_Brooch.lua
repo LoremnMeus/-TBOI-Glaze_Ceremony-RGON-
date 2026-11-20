@@ -168,7 +168,7 @@ local function move(player,dir)
 		player:GetData().should_evaluate_on_update_once = true
 		st.select_root[st.idx] = nil
 		local slot = auxi.check_slot_with_item(player,item.entity)
-		player:UseActiveItem(item.entity,UseFlag.USE_OWNED,slot)
+		player:UseActiveItem(item.entity,slot >= 0 and UseFlag.USE_OWNED or UseFlag.USE_MIMIC,slot)
 		if count >= 10 then
 			st.effect[st.idx] = 0
 			player:RemoveCollectible(item.entity)
@@ -245,7 +245,7 @@ Function = function(_,player)
 				if dir then
 					if dir == 11 then
 						local slot = auxi.check_slot_with_item(player,item.entity)
-						player:UseActiveItem(item.entity,UseFlag.USE_OWNED,slot)
+						player:UseActiveItem(item.entity,slot >= 0 and UseFlag.USE_OWNED or UseFlag.USE_MIMIC,slot)
 					end
 					if dir == item.last_open_dir then
 						item.last_open_dir_counter = (item.last_open_dir_counter or 0) + 1

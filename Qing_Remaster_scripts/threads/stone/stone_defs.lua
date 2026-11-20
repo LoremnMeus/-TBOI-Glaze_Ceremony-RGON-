@@ -2,14 +2,19 @@
 
 local defs = {}
 
-defs.SCHEMA_VERSION = 2
+defs.SCHEMA_VERSION = 4
 defs.OWN_KEY = "Thread_Stone_"
 defs.RUN_KEY = "StoneRun"
 
 defs.ANTE_VARIANT = 23740
-defs.FLORAINE_VARIANTS = {
+-- Canonical Floraine Arena (vertical 1×2 empty). New runs always use this.
+defs.FLORAINE_VARIANT = 23752
+-- LEGACY-ENV: old runs may still store one of these; map to FLORAINE_VARIANT on use.
+defs.FLORAINE_LEGACY_VARIANTS = {
 	23752, 23753, 23754, 23755, 23756, 23757, 23758, 23759, 23760, 23761, 23762,
 }
+-- LEGACY alias kept for callers that still iterate the pool.
+defs.FLORAINE_VARIANTS = defs.FLORAINE_LEGACY_VARIANTS
 
 defs.DOOR_ANM2 = "gfx/grid/door_checkboarddoor.anm2"
 defs.DOOR_STYLE = {
@@ -76,7 +81,26 @@ defs.BANISH_TRAVERSE = {
 
 function defs.is_floraine_variant(variant)
 	variant = tonumber(variant)
-	return variant ~= nil and variant >= 23752 and variant <= 23762
+	if variant == nil then
+		return false
+	end
+	for _, v in ipairs(defs.FLORAINE_LEGACY_VARIANTS) do
+		if v == variant then
+			return true
+		end
+	end
+	return false
+end
+
+function defs.is_canonical_floraine_variant(variant)
+	return tonumber(variant) == defs.FLORAINE_VARIANT
+end
+
+function defs.resolve_floraine_variant(variant)
+	if defs.is_floraine_variant(variant) then
+		return defs.FLORAINE_VARIANT
+	end
+	return defs.FLORAINE_VARIANT
 end
 
 function defs.is_ante_variant(variant)
@@ -85,6 +109,10 @@ end
 
 function defs.goto_default(variant)
 	return "s.default." .. tostring(variant)
+end
+
+function defs.goto_floraine()
+	return defs.goto_default(defs.FLORAINE_VARIANT)
 end
 
 return defs

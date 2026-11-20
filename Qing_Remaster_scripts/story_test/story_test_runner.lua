@@ -193,14 +193,23 @@ function runner.prepare(step_id, opts)
 				session.store_adapter_snapshot(step.thread.id, snap)
 			end
 		end
+		local reuse_layout = opts.reuse_layout
+		if reuse_layout == nil and step.thread.id == "stone" then
+			reuse_layout = true
+		end
 		local ctx = {
 			phase = step.thread.phase,
 			step = step,
 			test_active = true,
 			prereq_mode = session.get_prereq_mode(),
+			reuse_layout = reuse_layout,
+			reset_encounter = opts.reset_encounter,
 		}
-		if step.thread.reset then
+		-- Hard reset only when the step explicitly requests it AND caller did not ask to reuse.
+		if step.thread.reset and reuse_layout ~= true then
 			session.call_adapter(step.thread.id, "reset", ctx)
+		elseif step.thread.id == "stone" and opts.reset_encounter then
+			session.call_adapter(step.thread.id, "reset", { soft = true, test_active = true })
 		end
 		session.call_adapter(step.thread.id, "prepare", ctx)
 	end
@@ -212,6 +221,16 @@ function runner.prepare(step_id, opts)
 end
 
 function runner.prepare_and_enter(step_id, opts)
+	opts = opts or {}
+	if opts.reuse_current_floor == nil then
+		opts.reuse_current_floor = true
+	end
+	if opts.reuse_layout == nil then
+		local step0 = registry.get_step(step_id)
+		if step0 and step0.thread and step0.thread.id == "stone" then
+			opts.reuse_layout = true
+		end
+	end
 	local ok, msg, validation = runner.prepare(step_id, opts)
 	if not ok then return false, msg, validation end
 	local step = registry.get_step(step_id)
@@ -230,7 +249,14 @@ function runner.prepare_and_enter(step_id, opts)
 	end
 	local tok, tmsg, tlog = transport.prepare_run(step, opts)
 	session.last_transport_log = tlog
-	session.last_message = msg .. " | transport: " .. tostring(tmsg)
+	-- Distinguish queued Stone async from arrived. Accepted queue is ok=true but not READY.
+	local arrived = true
+	if tlog and (tlog.arrived == false or (tlog.room and tlog.room.arrived == false)) then
+		arrived = false
+		session.last_message = msg .. " | QUEUED (not arrived): " .. tostring(tmsg)
+	else
+		session.last_message = msg .. " | transport: " .. tostring(tmsg)
+	end
 	local tval = transport.validate_step(step)
 	if tval then
 		for _, row in ipairs(tval) do
@@ -239,6 +265,14 @@ function runner.prepare_and_enter(step_id, opts)
 		session.last_validation = validation
 	end
 	if not tok then return false, session.last_message, validation end
+	if not arrived then
+		validation[#validation + 1] = {
+			name = "stone_prepare",
+			pass = nil,
+			detail = "queued — await prepare status=ready",
+		}
+		session.last_validation = validation
+	end
 	return true, session.last_message, validation
 end
 

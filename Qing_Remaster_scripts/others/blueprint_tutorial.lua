@@ -5,6 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local save = require("Qing_Remaster_scripts.core.savedata")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local Tut = {
 	ToCall = {},
@@ -810,8 +811,7 @@ function Tut.on_panel_closed(player)
 		if BP.refresh_audit_simulates then
 			BP.refresh_audit_simulates(player)
 		elseif player and player.AddCacheFlags then
-			player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
-			player:EvaluateItems()
+			unique_holder.request_evaluate_items(player, CacheFlag.CACHE_FAMILIARS)
 		end
 	elseif s.step == Tut.STEP.CRAFT_CONFIRM then
 		-- confirm_craft 已切到 TEST_CRAFT；此处只兜底

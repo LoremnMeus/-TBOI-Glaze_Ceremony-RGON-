@@ -287,8 +287,9 @@ if item.f == nil then
 	}
 end
 
--- Glyphs absent from eid_cn_default.fnt and present in vanilla upheavalextended.
-local COVER_GLYPHS = "佬冕喽囤嫖帧忒慵斓楔泯湮漩焙篱籁萦诶谶遐邃锚锥镰靶鲛"
+-- Known hard CJK: prefer eid when present; else upheavalextended cover.
+-- Batch3 added 莓瘪饵陨 into eid_cn_default; kept here so missing-eid fallback stays explicit.
+local COVER_GLYPHS = "佬冕喽囤嫖帧忒慵斓楔泯湮漩焙瘪篱籁莓萦诶谶遐邃锚锥镰陨靶饵鲛"
 local cover_glyph_set = {}
 
 local function utf8_char_len(byte)
@@ -329,9 +330,12 @@ function item.font_for_glyph(font, glyph)
 	if not cover or cover == font or not cover.IsLoaded or cover:IsLoaded() ~= true then
 		return font
 	end
-	if cover_glyph_set[glyph] then return cover end
+	-- Prefer primary (eid) whenever it has the glyph — even for COVER_GLYPHS.
+	-- Cover is only for true eid misses (or load failure), not a forced style swap.
 	if glyph_width(font, glyph) > 0 then return font end
-	if glyph_width(cover, glyph) > 0 then return cover end
+	if cover_glyph_set[glyph] or glyph_width(cover, glyph) > 0 then
+		if glyph_width(cover, glyph) > 0 then return cover end
+	end
 	return font
 end
 

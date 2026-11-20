@@ -217,4 +217,5 @@
 	<wisp id="115" count="0"/>
 	<wisp id="161" count="0" hp="2" layer="0" damage="1.5" tearScale="0.6" flameColor="flame_grey" coreColor="core_grey" tearColor="tear_grey" coreGfx="core.png" />
 	<wisp id="169" count="0" hp="2" layer="1" damage="1.5" tearScale="0.8" fireDelay="60" flameColor="flame_gold" coreColor="core_gold" tearColor="tear_gold"/>
+	<wisp id="188" count="0" hp="1" />
 </wisps>

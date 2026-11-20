@@ -3,12 +3,30 @@
 -- Zone icons are drawn by the caller after WorldToScreen(zone world position).
 
 local bank_state = require("Qing_Remaster_scripts.threads.bank.bank_state")
-local pixel_ui = require("Qing_Remaster_scripts.auxiliary.pixel_ui")
+local pixel_ui_base = require("Qing_Remaster_scripts.auxiliary.pixel_ui")
+local pixel_ui = setmetatable({}, {__index = pixel_ui_base})
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
 
 local panel = {}
+
+local function faded(color)
+	local alpha = panel._render_alpha or 1
+	return KColor(color.Red, color.Green, color.Blue, (color.Alpha or 1) * alpha)
+end
+
+function pixel_ui.draw_text(pos, value, scale, color, opts)
+	return pixel_ui_base.draw_text(pos, value, scale, faded(color or KColor(1, 1, 1, 1)), opts)
+end
+
+function pixel_ui.draw_text_centered(x, y, value, scale, color, opts)
+	return pixel_ui_base.draw_text_centered(x, y, value, scale, faded(color or KColor(1, 1, 1, 1)), opts)
+end
+
+function pixel_ui.draw_text_right(pos, value, scale, color, opts)
+	return pixel_ui_base.draw_text_right(pos, value, scale, faded(color or KColor(1, 1, 1, 1)), opts)
+end
 
 local PARTS_ANM2 = "gfx/ui/bank/bank_panel_parts.anm2"
 local ICONS_ANM2 = "gfx/ui/bank/bank_icons.anm2"
@@ -23,6 +41,7 @@ local OPTION = KColor(0xB8 / 255, 0x81 / 255, 0x4D / 255, 1)
 local SELECTED_TEXT = KColor(0xFF / 255, 0xE2 / 255, 0xA0 / 255, 1)
 local HINT = KColor(0xA4 / 255, 0x7E / 255, 0x55 / 255, 1)
 local GREEN = KColor(0xA5 / 255, 0xD2 / 255, 0x7B / 255, 1)
+local ERROR_RED = KColor(1, 0.22, 0.18, 1)
 
 local function lang_zh()
 	return Options and Options.Language ~= "en"
@@ -55,23 +74,61 @@ local function icons_sprite()
 	return panel._icons ~= false and panel._icons or nil
 end
 
+-- Native crops from bank_panel_parts.anm2. paint() scales by (w/tile_w, h/tile_h);
+-- passing another part's size (e.g. gold 8x16 for brass 8x12) shrinks the draw.
+local PART_TILE = {
+	brass = {8, 12},
+	gold = {8, 16},
+	card = {8, 8},
+	paper = {8, 8},
+}
+local _paint_tile_warned = {}
+
 local function paint(anim, x, y, w, h, tile_w, tile_h)
+	local native = PART_TILE[anim]
+	if native then
+		local nw, nh = native[1], native[2]
+		local ok = tile_w == nw and tile_h == nh
+		-- Intentional thin strips / badges that are not full native tiles.
+		if not ok and anim == "gold" and ((tile_w == 8 and tile_h == 2) or (tile_w == 2 and tile_h == 8)) then
+			ok = true
+		end
+		if not ok and anim == "brass" and tile_w == 8 and tile_h == 4 then
+			ok = true
+		end
+		if not ok then
+			local key = tostring(anim) .. ":" .. tostring(tile_w) .. "x" .. tostring(tile_h)
+			if not _paint_tile_warned[key] then
+				_paint_tile_warned[key] = true
+				print(string.format(
+					"[bank_panel] paint(%s) tile %sx%s != native %sx%s",
+					tostring(anim), tostring(tile_w), tostring(tile_h), tostring(nw), tostring(nh)
+				))
+			end
+		end
+	end
 	local sprite = parts_sprite()
 	if not sprite then return end
+	local original_color = sprite.Color
+	sprite.Color = Color(1, 1, 1, panel._render_alpha or 1, 0, 0, 0)
 	sprite.Scale = Vector(w / tile_w, h / tile_h)
 	sprite:Play(anim, true)
 	sprite:SetFrame(0)
 	sprite:Render(Vector(math.floor(x + 0.5), math.floor(y + 0.5)), Vector(0, 0), Vector(0, 0))
 	sprite.Scale = Vector(1, 1)
+	sprite.Color = original_color
 end
 
 local function icon(name, x, y)
 	local sprite = icons_sprite()
 	if not sprite or not name then return end
+	local original_color = sprite.Color
+	sprite.Color = Color(1, 1, 1, panel._render_alpha or 1, 0, 0, 0)
 	sprite.Scale = Vector(1, 1)
 	sprite:Play(name, true)
 	sprite:SetFrame(0)
 	sprite:Render(Vector(math.floor(x + 0.5), math.floor(y + 0.5)), Vector(0, 0), Vector(0, 0))
+	sprite.Color = original_color
 end
 
 local function text_opts(font)
@@ -130,11 +187,14 @@ end
 local function render_item_icon(item_id, slot_x, slot_y, slot)
 	local sprite = item_sprite(item_id)
 	if not sprite then return end
+	local original_color = sprite.Color
+	sprite.Color = Color(1, 1, 1, panel._render_alpha or 1, 0, 0, 0)
 	sprite.Scale = Vector(1, 1)
 	sprite:SetFrame(0)
 	local center = Vector(slot_x + slot * 0.5, slot_y + slot * 0.5)
 	local render_pos = ui.VisualCenterToRenderPos(center, sprite, 1, 1)
 	sprite:Render(render_pos, Vector(0, 0), Vector(0, 0))
+	sprite.Color = original_color
 end
 
 local function frame(x, y, w, h, warning)
@@ -244,10 +304,10 @@ local function begin_body(ctx, subtitle)
 		local opts = text_opts(ctx.font)
 		local text_w = math.max(8, ctx.w - 36)
 		if ctx.compact then
-			local line = fit_text("BANK OF BUM  " .. subtitle, 1, text_w, ctx.font)
+			local line = fit_text(tr("乞丐银行  ", "BANK OF BUM  ") .. subtitle, 1, text_w, ctx.font)
 			pixel_ui.draw_text(Vector(ctx.x + 30, text_y(ctx.y, 4, 1, h)), line, 1, CREAM, opts)
 		else
-			pixel_ui.draw_text(Vector(ctx.x + 30, text_y(ctx.y, 2, 1, h)), fit_text("BANK OF BUM", 1, text_w, ctx.font), 1, CREAM, opts)
+			pixel_ui.draw_text(Vector(ctx.x + 30, text_y(ctx.y, 2, 1, h)), fit_text(tr("乞丐银行", "BANK OF BUM"), 1, text_w, ctx.font), 1, CREAM, opts)
 			pixel_ui.draw_text(Vector(ctx.x + 30, text_y(ctx.y, 16, 1, h)), fit_text(subtitle, 1, text_w, ctx.font), 1, CREAM, opts)
 		end
 	end
@@ -321,7 +381,7 @@ local function hero(ctx, value)
 	ctx.y = ctx.y + h
 end
 
-local function plain_line(ctx, label, value)
+local function plain_line(ctx, label, value, value_color, notice)
 	local h = 16
 	if ctx.draw then
 		local value_text = tostring(value or "")
@@ -331,22 +391,33 @@ local function plain_line(ctx, label, value)
 		local body = ctx.warning and CREAM or VALUE
 		local line_y = text_y(ctx.y, 0, 1, h)
 		pixel_ui.draw_text(Vector(ctx.x + 8, line_y), shown, 1, body, text_opts(ctx.font))
-		pixel_ui.draw_text_right(Vector(ctx.x + ctx.w - 8, line_y), value_text, 1, body, text_opts(ctx.font))
+		local color = value_color or body
+		pixel_ui.draw_text_right(Vector(ctx.x + ctx.w - 8, line_y), value_text, 1, color, text_opts(ctx.font))
+		if notice then
+			local notice_w = math.max(8, ctx.w - 24 - value_w - pixel_ui.measure_text(shown, 1, ctx.font))
+			local message = fit_text(notice, 1, notice_w, ctx.font)
+			pixel_ui.draw_text_right(Vector(ctx.x + ctx.w - 12 - value_w, line_y), message, 1, color, text_opts(ctx.font))
+		end
 	end
 	ctx.y = ctx.y + h
 end
 
-local function choice_row(ctx, label, icon_name, selected)
+local function choice_row(ctx, label, icon_name, selected, notice)
 	local h = 24
 	if ctx.draw then
 		if selected then
-			paint("brass", ctx.x, ctx.y, ctx.w, h, 8, 16)
+			paint("brass", ctx.x, ctx.y, ctx.w, h, 8, 12)
 			icon("chevron_selected", ctx.x + 2, ctx.y)
 		end
 		if icon_name then icon(icon_name, ctx.x + 26, ctx.y) end
 		local color = selected and SELECTED_TEXT or (ctx.warning and CREAM or OPTION)
-		local shown = fit_text(label, 1, math.max(8, ctx.w - 58), ctx.font)
+		local notice_width = notice and pixel_ui.measure_text(notice, 1, ctx.font) + 12 or 0
+		local shown = fit_text(label, 1, math.max(8, ctx.w - 58 - notice_width), ctx.font)
 		pixel_ui.draw_text(Vector(ctx.x + 54, text_y(ctx.y, 4, 1, h)), shown, 1, color, text_opts(ctx.font))
+		if notice then
+			pixel_ui.draw_text_right(Vector(ctx.x + ctx.w - 6, text_y(ctx.y, 4, 1, h)),
+				notice, 1, ERROR_RED, text_opts(ctx.font))
+		end
 	end
 	ctx.y = ctx.y + h
 end
@@ -362,9 +433,10 @@ local function footer(ctx, hint)
 	ctx.y = ctx.y + h
 end
 
-local function choices(ctx, opts, cursor, warning)
+local function choices(ctx, opts, cursor, warning, selected_notice)
 	for i, choice in ipairs(opts) do
-		choice_row(ctx, choice_label(choice), choice_icon(choice, i == cursor, warning), i == cursor)
+		choice_row(ctx, choice_label(choice), choice_icon(choice, i == cursor, warning),
+			i == cursor, i == cursor and selected_notice or nil)
 	end
 end
 
@@ -419,9 +491,16 @@ local function layout_saving(ctx, player, sess)
 		bank_after = deposit - amount
 	end
 	hero(ctx, (choice == "all" and tr("全部 ", "ALL ") or "") .. tostring(amount) .. "¢")
-	plain_line(ctx, verb .. tr("后现金", " cash"), tostring(cash_after) .. "¢")
-	plain_line(ctx, verb .. tr("后存款", " bank"), tostring(bank_after) .. "¢")
-	choices(ctx, opts, sess.cursor or 1, false)
+	local invalid_cash = cash_after < 0 or cash_after > 99
+	local invalid_bank = bank_after < 0 or amount <= 0
+	local flash = sess.inline_error and Game():GetFrameCount() - sess.inline_error.started_frame < 24
+	local notice = flash and math.floor((Game():GetFrameCount() - sess.inline_error.started_frame) / 3) % 2 == 0 and sess.inline_error.message or nil
+	local notice_on_cash = invalid_cash or (notice and not invalid_bank and sess.page == "deposit")
+	local notice_on_bank = invalid_bank or (notice and not invalid_cash and sess.page == "withdraw")
+	plain_line(ctx, verb .. tr("后现金", " cash"), tostring(cash_after) .. "¢", (invalid_cash or notice_on_cash) and ERROR_RED or nil, notice_on_cash and notice or nil)
+	plain_line(ctx, verb .. tr("后存款", " bank"), tostring(bank_after) .. "¢", (invalid_bank or notice_on_bank) and ERROR_RED or nil, notice_on_bank and notice or nil)
+	choices(ctx, opts, sess.cursor or 1, false,
+		sess.page == "withdraw" and cash_after > 99 and tr("超出硬币上限", "Coin limit exceeded") or nil)
 	footer(ctx, tr("上下选择   使用键确认   丢弃键返回", "Up/Down  Item confirm  Drop back"))
 end
 
@@ -475,10 +554,14 @@ local function collateral_header(ctx, subtitle, page, pages)
 end
 
 local function paint_cell_frame(x, y, size)
-	paint("gold", x, y, size, 2, 8, 2)
-	paint("gold", x, y + size - 2, size, 2, 8, 2)
-	paint("gold", x, y, 2, size, 2, 8)
-	paint("gold", x + size - 2, y, 2, size, 2, 8)
+	if not Isaac.DrawLine then return end
+	local col = KColor(0.95, 0.72, 0.3, panel._render_alpha or 1)
+	local a, b = Vector(x, y), Vector(x + size, y)
+	local c, d = Vector(x + size, y + size), Vector(x, y + size)
+	Isaac.DrawLine(a, b, col, col, 1)
+	Isaac.DrawLine(b, c, col, col, 1)
+	Isaac.DrawLine(c, d, col, col, 1)
+	Isaac.DrawLine(d, a, col, col, 1)
 end
 
 local function candidate_named(ctx, player, row)
@@ -566,7 +649,11 @@ local function layout_collateral(ctx, player, sess)
 	end
 	if phase == "confirm" then
 		local first = sess.page == "replace" and "confirm_replace" or "confirm_loan"
-		choices(ctx, {first, "reselect", "back"}, ui.confirm_cursor or 1, false)
+		local cash = read_money(ctx, player)
+		local cap_notice = sess.page ~= "replace" and cash + (selected and selected.value or 0) > 99
+			and tr("超出硬币上限", "Coin limit exceeded") or nil
+		choices(ctx, {first, "reselect", "back"}, ui.confirm_cursor or 1, false,
+			ui.confirm_cursor == 1 and cap_notice or nil)
 		if not spare then
 			footer(ctx, tr("上下选择  使用键确认  丢弃键返回", "Up/Down  Item confirm  Drop back"))
 		end
@@ -607,8 +694,10 @@ local function layout_loan(ctx, player, sess)
 			name = collectible_display_name(player, loan.item_id, loan.name or loan.item_id)
 		end
 		item_block(ctx, loan.item_id, name, tr("抵押物", "Collateral"))
-		plain_line(ctx, tr("待还金额", "Remaining"), tostring(loan.remaining or 0) .. "¢")
-		choices(ctx, {"repay", "exit"}, sess.cursor or 1, false)
+		-- LEGACY-SAVE-008: keep the old menu for loans saved before physical custody.
+		plain_line(ctx, loan.held_by_bank and tr("下层可赎回", "Redeem next floor")
+			or tr("待还金额", "Remaining"), tostring(loan.remaining or 0) .. "¢")
+		choices(ctx, loan.held_by_bank and {"exit"} or {"repay", "exit"}, sess.cursor or 1, false)
 		footer(ctx, tr("上下选择   使用键确认   丢弃键返回", "Up/Down  Item confirm  Drop back"))
 		return
 	end
@@ -618,21 +707,7 @@ local function layout_loan(ctx, player, sess)
 	footer(ctx, tr("使用键确认   丢弃键返回", "Item confirm  Drop back"))
 end
 
-local function feedback_line(ctx, sess)
-	local fb = sess.feedback
-	if not fb or not fb.message or fb.message == "" then return end
-	local h = 24
-	if ctx.draw then
-		paint(fb.kind == "error" and "warn" or "card", ctx.x, ctx.y, ctx.w, h, 8, 8)
-		local shown = fit_text(fb.message, 1, math.max(8, ctx.w - 16), ctx.font)
-		local color = fb.kind == "error" and CREAM or GREEN
-		pixel_ui.draw_text(Vector(ctx.x + 8, text_y(ctx.y, 4, 1, h)), shown, 1, color, text_opts(ctx.font))
-	end
-	ctx.y = ctx.y + h + space(ctx)
-end
-
 local function layout(ctx, player, sess)
-	feedback_line(ctx, sess)
 	if sess.mode == "saving" then
 		layout_saving(ctx, player, sess)
 	else
@@ -709,6 +784,19 @@ function panel.render(player, sess, font, sample)
 	local warning = fit.warning
 	local x = math.floor((screen.X - width) * 0.5 + 0.5)
 	local y = math.floor((screen.Y - height) * 0.5 + 0.5)
+	panel._render_alpha = 1
+	if not sample then
+		local frames = 10
+		local progress
+		if sess.state == "closing" then
+			progress = math.min(1, math.max(0, (Game():GetFrameCount() - (sess.closed_frame or 0)) / frames))
+		else
+			progress = 1 - math.min(1, math.max(0, (Game():GetFrameCount() - (sess.opened_frame or 0)) / frames))
+		end
+		progress = progress * progress * (3 - 2 * progress)
+		panel._render_alpha = 1 - progress
+		y = y + math.floor(42 * progress + 0.5)
+	end
 	if x < 8 then x = 8 end
 	if y < 8 then y = 8 end
 	frame(x, y, width, height, warning)

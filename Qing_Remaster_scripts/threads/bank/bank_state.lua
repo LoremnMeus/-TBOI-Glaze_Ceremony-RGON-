@@ -6,13 +6,6 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local bank = {}
 
 local INTEREST_RATE = 0.10
-local VALUE_BY_QUALITY = {
-	[0] = 5,
-	[1] = 8,
-	[2] = 12,
-	[3] = 18,
-	[4] = 25,
-}
 
 local function empty_stats()
 	return {
@@ -33,6 +26,8 @@ local function empty_branch()
 		last_cycle_id = nil,
 		spawned_cycle_id = nil,
 		current_cycle_id = nil,
+		cycle_floor_id = nil,
+		cycle_revision = 0,
 	}
 end
 
@@ -283,9 +278,8 @@ end
 
 function bank.value_of(collectible_id)
 	local cfg = Isaac.GetItemConfig():GetCollectible(collectible_id)
-	if not cfg then return VALUE_BY_QUALITY[0] end
-	local q = cfg.Quality or 0
-	return VALUE_BY_QUALITY[q] or VALUE_BY_QUALITY[0]
+	local q = math.max(0, math.min(4, cfg and (tonumber(cfg.Quality) or 0) or 0))
+	return (q + 1) * 3
 end
 
 function bank.collateral_eligible(player, collectible_id)
@@ -338,6 +332,8 @@ end
 function bank.collateral_still_present(player, loan)
 	loan = loan or bank.get_active_loan()
 	if not loan then return true end
+	if loan.held_by_bank then return true end
+	-- LEGACY-SAVE-008: pre-custody loans still use the owner's live collectible count.
 	player = player or bank.resolve_owner(loan)
 	if not player then return false end
 	local count = player:GetCollectibleNum(loan.item_id, true)
@@ -367,12 +363,18 @@ function bank.issue_loan(player, item_id)
 	if b.active_loan then return false, "loan_exists" end
 	if not bank.collateral_eligible(player, item_id) then return false, "ineligible" end
 	local value = bank.value_of(item_id)
-	if not credit_coins(player, value) then return false, "coin_cap" end
 	local count = player:GetCollectibleNum(item_id, true)
+	if not credit_coins(player, value) then return false, "coin_cap" end
+	player:RemoveCollectible(item_id)
+	if player:GetCollectibleNum(item_id, true) >= count then
+		debit_coins(player, value)
+		return false, "remove_failed"
+	end
 	local cycle = b.branch.current_cycle_id or b.branch.last_cycle_id
 	b.active_loan = {
 		item_id = item_id,
 		count_at_issue = count,
+		held_by_bank = true,
 		principal = value,
 		remaining = value,
 		issued_cycle = cycle,
@@ -389,11 +391,18 @@ function bank.repay_loan(player)
 	local b = bank.get()
 	local loan = b.active_loan
 	if not loan then return false, "no_loan" end
+	if loan.held_by_bank and not loan.payment_due and not bank.in_headquarters() then
+		return false, "not_due"
+	end
 	player = player or bank.resolve_owner(loan)
 	if not player then return false, "no_player" end
 	local due = loan.remaining or loan.principal or 0
 	if player:GetNumCoins() < due then return false, "insufficient_coins" end
 	if not debit_coins(player, due) then return false, "coin_mismatch" end
+	if loan.held_by_bank then
+		local owner = bank.resolve_owner(loan) or player
+		owner:AddCollectible(loan.item_id, 0, false)
+	end
 	b.stats.total_repaid = (b.stats.total_repaid or 0) + due
 	b.stats.loans_repaid = (b.stats.loans_repaid or 0) + 1
 	b.active_loan = nil
@@ -425,7 +434,7 @@ function bank.seize_collateral(player, loan)
 	loan = loan or b.active_loan
 	if not loan then return false, "no_loan" end
 	player = player or bank.resolve_owner(loan)
-	if player and bank.collateral_still_present(player, loan) then
+	if player and not loan.held_by_bank and bank.collateral_still_present(player, loan) then
 		player:RemoveCollectible(loan.item_id)
 	end
 	b.seized_assets[#b.seized_assets + 1] = {
@@ -451,7 +460,7 @@ function bank.mark_next_branch_closed()
 	bank.get().branch.closed_pending = true
 end
 
---- Consume pending closure for the arriving cycle. Returns whether this branch should spawn Closed.
+--- Consume the previous floor's destruction mark; that arrival skips branch spawning.
 function bank.consume_branch_closure(_cycle_id)
 	local br = bank.get().branch
 	if br.closed_pending then
@@ -505,7 +514,7 @@ function bank.rob(player, branch_ent)
 end
 
 --- Arrive at a bank cycle node. Settles interest once per cycle_id.
---- Closed branches still earn interest; loan due is deferred until an open branch.
+--- Skipped branches still earn interest; loan due is deferred until an open branch.
 --- Headquarters freezes ordinary branch cycles.
 function bank.on_branch_arrival(cycle_id, is_closed)
 	if cycle_id == nil or cycle_id == "" then return false, "no_cycle" end

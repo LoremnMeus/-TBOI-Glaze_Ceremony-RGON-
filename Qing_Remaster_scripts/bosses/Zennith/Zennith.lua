@@ -5,7 +5,9 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
-local wind = require("Qing_Remaster_scripts.bosses.Zennith.Enemy_wind")
+local wind = require("Qing_Remaster_scripts.threads.wind.wind_runtime")
+local boss_wind = require("Qing_Remaster_scripts.bosses.Zennith.boss_wind_controller")
+local combat_p1 = require("Qing_Remaster_scripts.bosses.Zennith.combat_p1")
 
 local item = {
 	ToCall = {},
@@ -16,44 +18,88 @@ local item = {
 		},
 	},
 	now_hold = nil,
-	strategies = {				--攻击策略列表
-		["Idle"] = {anim = "Idle",},
-		["attack_plan_A1"] = {anim = "AttackDown1",task = {["move_mode"] = 2,["state"] = 0,},},
-		["attack_plan_A2"] = {anim = "AttackDown1",task = {["move_mode"] = 2,["state"] = 1,["pos_offset"] = Vector(0,-50),},},
-		["attack_plan_A3"] = {anim = "AttackSide1",task = {["move_mode"] = 2,["state"] = 0,},},
-		["attack_plan_A4"] = {anim = "AttackDown1",task = {["move_mode"] = 2,["state"] = 2,},},
-		["attack_plan_A5"] = {anim = "AttackDown1",task = {["move_mode"] = 2,["state"] = 3,},},
-		["attack_plan_B1"] = {anim = "AttackDown2",task = {["move_mode"] = 2,["state"] = 0,["pos_rate"] = 0.5,},},
-		["attack_plan_B2"] = {anim = "AttackDown2",task = {["move_mode"] = 2,["state"] = 1,["pos_rate"] = 0.5,},},
-		["attack_plan_B3"] = {anim = "AttackDown2",task = {["move_mode"] = 1,["state"] = 2,["pos_rate"] = 0.5,},},
-		["attack_plan_C1"] = {anim = "AttackDown3",task = {["move_mode"] = 1,["state"] = 0,},},
-		["attack_plan_C2"] = {anim = "AttackDown3",task = {["move_mode"] = 1,["state"] = 1,},},
-		["attack_plan_C3"] = {anim = "AttackDown3",task = {["move_mode"] = 1,["state"] = 2,},},
-	},
+	-- Legacy attack_plan_* table archived: codex_work/notes/zennith_legacy_unreachable_ai.md
 	Swapper = {
 		["Appearing"] = "Idle",
 		["Appear"] = "Idle",
-		["AttackDown1"] = "Idle",
-		["AttackDown2"] = "Idle",
-		["AttackDown3"] = "Idle",
-		["AttackDown4"] = "Idle",
-		["AttackSide1"] = "Idle",
-		["AttackSide2"] = "Idle",
 	},
 }
---这里也需要重写
-function item.select_dir(anim)
-	if string.sub(anim,1,10) == "AttackSide" then return Vector(auxi.choose(1,-1),0)
-	else return Vector(0,1) end
+
+function item.living_bosses()
+	local living = {}
+	local list = Isaac.FindByType(996, item.enemy, -1, false, false)
+	for i = 1, #list do
+		local ent = list[i]
+		if auxi.check_all_exists(ent) then
+			living[#living + 1] = ent
+		end
+	end
+	return living
 end
 
 function item.start_(pos)
-	if auxi.check_all_exists(item.now_hold) ~= true then
-		pos = pos or Game():GetRoom():GetCenterPos()
-		local q = Isaac.Spawn(996,item.enemy,0,pos,Vector(0,0),nil):ToNPC()
-		item.now_hold = q
+	local living = item.living_bosses()
+	item.duplicate_error = nil
+	if #living > 1 then
+		local parts = {}
+		for i = 1, #living do
+			local ent = living[i]
+			local data = ent:GetData()
+			parts[#parts + 1] = string.format(
+				"#%d seed=%s test=%s",
+				i,
+				tostring(ent.InitSeed),
+				tostring(data and data.qing_wind_test_request ~= nil)
+			)
+		end
+		item.now_hold = living[1]
+		item.duplicate_error = "zennith_duplicate " .. table.concat(parts, "; ")
+		Isaac.DebugString("[Zennith] " .. item.duplicate_error)
+		return living[1], false
 	end
-	return item.now_hold
+	if #living == 1 then
+		item.now_hold = living[1]
+		return living[1], false
+	end
+	pos = pos or Game():GetRoom():GetCenterPos()
+	local q = Isaac.Spawn(996, item.enemy, 0, pos, Vector(0, 0), nil):ToNPC()
+	item.now_hold = q
+	return q, true
+end
+
+--- Storm Arena intro: freeze AI / attacks until cover is gone and pose settles.
+function item.set_intro_locked(ent, locked)
+	ent = ent or item.now_hold
+	if not auxi.check_all_exists(ent) then return false end
+	local d = ent:GetData()
+	if locked then
+		if d[item.own_key.."coll_saved"] == nil then
+			d[item.own_key.."coll_saved"] = ent.EntityCollisionClass
+		end
+		d[item.own_key.."intro_locked"] = true
+		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_NONE
+		ent.Velocity = Vector(0, 0)
+		local s = ent:GetSprite()
+		if s and not s:IsPlaying("Idle") then
+			s:Play("Idle", true)
+		end
+		d[item.own_key.."task"] = nil
+	else
+		d[item.own_key.."intro_locked"] = nil
+		if d[item.own_key.."coll_saved"] ~= nil then
+			ent.EntityCollisionClass = d[item.own_key.."coll_saved"]
+			d[item.own_key.."coll_saved"] = nil
+		else
+			ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_PLAYEROBJECTS
+		end
+	end
+	return true
+end
+
+function item.is_intro_locked(ent)
+	ent = ent or item.now_hold
+	if not auxi.check_all_exists(ent) then return false end
+	return ent:GetData()[item.own_key.."intro_locked"] == true
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NPC_INIT, params = 996,		--初始化
@@ -63,11 +109,6 @@ Function = function(_,ent)
 		s:Play("Idle",true)
 		ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_PLAYEROBJECTS
 		ent:AddEntityFlags(EntityFlag.FLAG_NO_STATUS_EFFECTS)
-		if (MusicManager():GetCurrentMusicID() ~= 24) then
-			local music = MusicManager()
-			music:Play(24, 1)
-			music:UpdateVolume()
-		end
 		local room = Game():GetRoom()
 		for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 			local door = room:GetDoor(slot)
@@ -80,6 +121,11 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PROJECTILE_UPDATE, params = nil,
 Function = function(_,ent)
 	local d = ent:GetData()
+	-- P1 projectile height / lifecycle owner: combat_p1_projectiles via combat_p1.
+	if d[combat_p1.own_key .. "hold_h"] ~= nil and combat_p1.on_projectile_update then
+		combat_p1.on_projectile_update(ent)
+	end
+	-- Legacy fire_z_* branches (kept for compatibility if old tears still exist).
 	if d[item.own_key.."effect"] then ent:GetSprite().Rotation = ent.Velocity:GetAngleDegrees() end
 	if ent.FrameCount == 15 then
 		if d[item.own_key.."tear2"] then local q = item.fire_z_brimstone(ent.Position,ent,d[item.own_key.."tear2"].ang) end
@@ -89,6 +135,13 @@ Function = function(_,ent)
 		if d[item.own_key.."tear"] then local q = item.fire_z_brimstone(ent.Position,ent,d[item.own_key.."tear"].ang) end
 	end
 	if d[wind.own_key.."try_remove"] then ent:Remove() end
+end,
+})
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_RENDER, params = nil,
+Function = function()
+	if combat_p1.render then
+		combat_p1.render()
+	end
 end,
 })
 
@@ -129,193 +182,76 @@ Function = function(_,ent)
 		local room = Game():GetRoom() local level = Game():GetLevel()
 		local s = ent:GetSprite() local d = ent:GetData() local anim = s:GetAnimation()
 		d[item.own_key.."effect"] = d[item.own_key.."effect"] or {}			--有效参数：pos_offset	攻击位置
-		if s:IsPlaying("Idle") then
-			if s:IsEventTriggered("Target") then
-				local find_s = {{name = "attack_plan_A1",weigh = 10,},}
-				table.insert(find_s,#find_s + 1,{name = "Idle",weigh = 2,})
-				table.insert(find_s,#find_s + 1,{name = "attack_plan_A2",weigh = 7,})
-				table.insert(find_s,#find_s + 1,{name = "attack_plan_A3",weigh = 9,})
-				if ent.HitPoints / ent.MaxHitPoints < 0.9 then
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_A4",weigh = 10,})
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_B1",weigh = 10,})
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_B2",weigh = 10,})
-				end
-				---[[
-				if ent.HitPoints / ent.MaxHitPoints < 0.7 then
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_C1",weigh = 10,})
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_C2",weigh = 10,})
-				end
-				if ent.HitPoints / ent.MaxHitPoints < 0.5 then
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_A5",weigh = 15,})
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_C3",weigh = 10,})
-					table.insert(find_s,#find_s + 1,{name = "attack_plan_B3",weigh = 15,})
-				end
-				---]]
-				--find_s = {{name = "attack_plan_C3",weigh = 10,},}
-				
-				local stag = auxi.random_in_weighed_table(find_s)
-				local sinfo = item.strategies[stag.name]
-				s:Play(sinfo.anim,true) auxi.check_if_any(sinfo.extra,ent,item)
-				d[item.own_key.."task"] = {}
-				for u,v in pairs(sinfo.task or {}) do d[item.own_key.."task"][u] = v end
-				d[item.own_key.."task"].dir = item.select_dir(sinfo.anim)
-				local target = auxi.get_acceptible_target(ent)
-				local target_pos = room:GetCenterPos() if target then target_pos = target.Position end
-				local pos_rate = d[item.own_key.."task"]["pos_rate"] or 1
-				target_pos = pos_rate * target_pos + (1 - pos_rate) * room:GetCenterPos()
-				target_pos = target_pos + (d[item.own_key.."task"].pos_offset or Vector(0,0)) - d[item.own_key.."task"].dir * 60
-				d[item.own_key.."task"].pos = target_pos
+		-- Arena cinematic lock: no attack selection, no body collision / movement.
+		if d[item.own_key.."intro_locked"] then
+			if not s:IsPlaying("Idle") then
+				s:Play("Idle", true)
 			end
+			ent.Velocity = Vector(0, 0)
+			d[item.own_key.."task"] = nil
+			combat_p1.cancel(ent)
+			return
 		end
-		
-		d[item.own_key.."task"] = d[item.own_key.."task"] or {} 
-		local state = d[item.own_key.."task"].state or 0
-		local move_mode = d[item.own_key.."task"].move_mode or 0
-		local dir = d[item.own_key.."task"].dir or item.select_dir(anim)
-		local target_pos = d[item.own_key.."task"].pos
-		local hp_rate = ent.HitPoints / ent.MaxHitPoints
-		if move_mode == 1 then
-			local target = auxi.get_acceptible_target(ent)
-			target_pos = room:GetCenterPos() if target then target_pos = target.Position end
-			local pos_rate = d[item.own_key.."task"]["pos_rate"] or 1
-			target_pos = pos_rate * target_pos + (1 - pos_rate) * room:GetCenterPos()
-			target_pos = target_pos + (d[item.own_key.."task"].pos_offset or Vector(0,0)) - dir * 60
+		-- Combat P1 owns attack selection / cadence.
+		if ent:IsDead() or ent:HasMortalDamage() then
+			combat_p1.shutdown(ent)
+			return
 		end
-		target_pos = target_pos or room:GetCenterPos()
-		if move_mode > 0 then ent.Velocity = ent.Velocity * 0.5 + 0.5 * (target_pos - ent.Position):Normalized() * (target_pos - ent.Position):Length() * 0.15
-		else ent.Velocity = ent.Velocity * 0.5 end
-		ent.Velocity = auxi.apply_friction(ent.Velocity,1)
-		
-		local direction = auxi.GetDirectionByAngle(dir:GetAngleDegrees())
-		ent.FlipX = (direction == Direction.LEFT)
-		
-		if s:IsPlaying("AttackDown1") or s:IsPlaying("AttackSide1") then
-			if state == 0 or state == 2 then
-				if s:IsEventTriggered("Shoot") then
-					local q = item.fire_z_brimstone(ent.Position,ent,dir:GetAngleDegrees())
-					local qd = q:GetData() qd[item.own_key.."laser"] = {}
-					local dir = d[item.own_key.."task"].dir or item.select_dir(anim)
-					wind.change_control(1,{ang = dir:GetAngleDegrees() - 90,power = math.random(4),})
-					if state == 0 then
-						if hp_rate < 0.8 then 
-							qd[item.own_key.."laser"].split = {ang = q.Angle,}
-						end
-					elseif state == 2 then
-						for i = 1,4 do
-							local ddir = dir:GetAngleDegrees() - 50 + i * 20
-							local q = item.fire_z_projectile(ent.Position,ent,auxi.MakeVector(ddir) * 10)
-							local dq = q:GetData()
-							if hp_rate < 0.5 then 
-								dq[item.own_key.."tear"] = {ang = ddir,ent = ent,}
-							end
-						end
-					end
-				end
-			elseif state == 1 or state == 3 then		--10度的分叉射击
-				if s:IsEventTriggered("Shoot") then
-					for i = 1,2 do
-						local q = item.fire_z_brimstone(ent.Position,ent,dir:GetAngleDegrees() - 30 + 20 * i)
-						local qd = q:GetData() qd[item.own_key.."laser"] = {}
-						if hp_rate < 0.6 then 
-							qd[item.own_key.."laser"].split = {ang = q.Angle,}
-						end
-					end
-					local rnd = math.random(2)
-					wind.change_control(1,{ang = dir:GetAngleDegrees() - 90,power = math.random(4),})
-				end
-			end
-		end
-		
-		if s:IsPlaying("AttackDown2") then
-			if s:IsEventTriggered("Shoot") then
-				if state == 0 then
-					local wind_ang = 180 + auxi.choose(0,0,30,-30)
-					if hp_rate < 0.5 then wind_ang = 180 + auxi.choose(0,0,20,-20) end
-					wind.change_control(3,{ent = ent,power = auxi.choose(3,4,5),delta_rotation = wind_ang})
-					for j = 1,3 do 
-						delay_buffer.addeffe(function()
-							for i = 1,15 do
-								local q = item.fire_z_projectile(ent.Position + auxi.random_r() * 600,ent,auxi.random_v2() * 3) 
-								local qd = q:GetData() qd[wind.own_key.."rate"] = 2 qd[wind.own_key.."test_remove"] = true
-							end
-						end,{},j * 10 - 5,{remove_now = true,})
-					end
-				elseif state == 1 then
-					local wind_ang = auxi.choose(90,-90)
-					local mxcnt = 8 local mxk = 2
-					if hp_rate < 0.3 then mxcnt = 16 mxk = auxi.choose(2,3,4) end
-					for j = 1,mxcnt do 
-						delay_buffer.addeffe(function()
-							for k = 1,mxk do 
-								local q = item.fire_z_projectile(ent.Position,ent,auxi.MakeVector(j * 5 - 5 + 360/mxk * k) * auxi.choose(3,5,7,9)) 
-								local qd = q:GetData() qd[wind.own_key.."rate"] = 2
-							end
-						end,{},j * 80/mxcnt - 5,{remove_now = true,})
-					end
-					wind.change_control(3,{ent = ent,power = auxi.choose(2,3,4,5,6),delta_rotation = wind_ang})
-				elseif state == 2 then
-					local wind_ang = 0
-					local mxj = auxi.choose(2,3,4)
-					for j = 1,mxj do
-						local mxi = auxi.choose(4,5,6,7)
-						for i = 1,mxi do
-							local q = item.fire_z_projectile(ent.Position + auxi.MakeVector(j * 360/mxj) * 60,ent,auxi.MakeVector(360/mxi * i) * 3) 
-							local qd = q:GetData() qd[item.own_key.."wait_rate"] = 1.5
-						end
-					end
-					wind.change_control(3,{ent = ent,power = auxi.choose(1,2,3),delta_rotation = wind_ang})
-				end
-			end
-		end
-		
-		if s:IsPlaying("AttackDown3") then
-			if s:IsEventTriggered("Shoot") then
-				if state == 0 then
-					wind.change_control(3,{ent = ent,power = 2,delta_rotation = 0})
-					local mxi = 8
-					if hp_rate < 0.4 then mxi = auxi.choose(8,10,12) end
-					for i = 1,mxi do 
-						local q = item.fire_z_projectile(ent.Position,ent,auxi.MakeVector(360/mxi * i) * auxi.choose(3,5,7)) 
-						local qd = q:GetData() qd[item.own_key.."wait_rate"] = 3
-						q.ProjectileFlags = 1<<42
-					end
-				elseif state == 1 then
-					local mxi = 8
-					if hp_rate < 0.4 then mxi = auxi.choose(8,10,12) end
-					for i = 1,mxi do 
-						local q = item.fire_z_projectile(ent.Position,ent,auxi.MakeVector(360/mxi * i) * 3) 
-						local dq = q:GetData() dq[item.own_key.."tear2"] = {ang = 360/mxi * i,ent = ent,}
-					end
-					wind.change_control(3,{ent = ent,power = 3,delta_rotation = math.random(2) * 180})
-				elseif state == 2 then
-					for j = 1,10 do
-						delay_buffer.addeffe(function()
-							if auxi.check_all_exists(ent) then
-								local target = auxi.get_acceptible_target(ent)
-								local dir = (target.Position - ent.Position):Normalized()
-								for i = 1,3 do
-									local q = item.fire_z_projectile(ent.Position,ent,auxi.get_by_rotate(dir,(i-2) * 15,auxi.choose(3,5,7,9))) 
-									local qd = q:GetData() qd[wind.own_key.."rate"] = 5
-								end
-							end
-						end,{},j * 5 - 5,{remove_now = true,})
-					end
-					wind.change_control(3,{ent = auxi.get_acceptible_target(ent),power = 2,delta_rotation = 180,})
-				end
-			end
-		end
-		if s:IsFinished(anim) then
-			local tg = auxi.check_if_any(item.Swapper[anim],ent) or "Idle"
-			s:Play(tg,true)
-		end
+		d[item.own_key.."task"] = nil
+		combat_p1.tick(ent)
 	end
 end,
 })
 
+item.combat_p1 = combat_p1
+
+-- Death vortex delay chain. Token gates stale tasks after cleanup / room leave.
+local death_fx_token = 0
+local death_fx_list_index = nil
+
+function item.abort_death_fx(reason)
+	death_fx_token = death_fx_token + 1
+	death_fx_list_index = nil
+	return death_fx_token
+end
+
+local function death_fx_still_valid(token, list_index)
+	if token ~= death_fx_token then return false end
+	if not g.is_gameplay_world_active or not g.is_gameplay_world_active() then return false end
+	if list_index ~= nil then
+		local level = Game():GetLevel()
+		local desc = level and level:GetCurrentRoomDesc()
+		if not desc or desc.ListIndex ~= list_index then return false end
+	end
+	return true
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_KILL, params = 996,
 Function = function(_,ent)
-	-- Legacy Lava Shard drop on kill retired; Zennith_post owns Story token grant.
 	if ent.Variant == item.enemy then
+		ent:GetData()[item.own_key .. "defeated"] = true
+		combat_p1.shutdown(ent)
+		-- Verified defeat (not room unload). Encounter owns Story settlement.
+		boss_wind.fade_out()
+		local ok, encounter = pcall(require, "Qing_Remaster_scripts.threads.wind.storm_encounter")
+		if ok and encounter and encounter.notify_boss_defeated then
+			encounter.notify_boss_defeated(ent)
+		end
+		-- Death wind swirl: keep as death presentation only; abort on cleanup / room change.
+		local pos = Vector(ent.Position.X, ent.Position.Y)
+		local token = item.abort_death_fx("new_kill")
+		local level = Game():GetLevel()
+		local desc = level and level:GetCurrentRoomDesc()
+		death_fx_list_index = desc and desc.ListIndex or nil
+		local room_index = death_fx_list_index
+		for i = 1, 30 do
+			delay_buffer.addeffe(function()
+				if not death_fx_still_valid(token, room_index) then
+					return
+				end
+				boss_wind.set_vortex({pos = pos, delta_rotation = i * 6, power = i})
+			end, {}, i * 2)
+		end
 	end
 end,
 })
@@ -323,8 +259,25 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_REMOVE, params = 996,
 Function = function(_,ent)
 	if ent.Variant == item.enemy then
-		wind.grow_slow()
+		local d = ent:GetData()
+		if d[item.own_key .. "defeated"] then
+			return
+		end
+		-- Room unload / abort / reset — not a defeat.
+		item.abort_death_fx("entity_remove")
+		combat_p1.shutdown(ent)
+		boss_wind.clear()
+		local ok, encounter = pcall(require, "Qing_Remaster_scripts.threads.wind.storm_encounter")
+		if ok and encounter and encounter.notify_boss_aborted then
+			encounter.notify_boss_aborted(ent)
+		end
 	end
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
+Function = function()
+	item.abort_death_fx("new_room")
 end,
 })
 

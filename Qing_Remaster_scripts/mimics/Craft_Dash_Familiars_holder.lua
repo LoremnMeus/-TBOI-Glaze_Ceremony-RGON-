@@ -17,7 +17,6 @@ local item = {
 local GURDY_CHARGE_BAR_ANM2 = "gfx/effects/chargebar/chargebar.anm2"
 local GURDY_CHARGE_BAR_OFFSET = Vector(16, -42)
 local GURDY_BAR_ID = item.own_key.."gurdy"
-local GURDY_CHARGE_BAR_SPRITE_KEY = GURDY_BAR_ID.."_Charge_Bar"
 local GURDY_VARIANT = FamiliarVariant.LIL_GURDY or 87
 
 local function data(fam)
@@ -153,16 +152,13 @@ local function clear_gurdy_mod_bar(fam)
 	if not fam then return end
 	Charging_Bar_holder.remove_charge_bar(fam, GURDY_BAR_ID)
 	local d = data(fam)
-	-- render_me 在 Disappear 结束后只卸占位，不卸 Sprite；取消/冲出后必须显式清掉，
-	-- 否则偶发残留到小退重载才消失。
-	d[GURDY_CHARGE_BAR_SPRITE_KEY] = nil
+	-- Holder owns the Sprite and animation clock; only gameplay charge stays here.
 	d[GURDY_BAR_ID.."_Charge_Bar_buff"] = nil
-	d[GURDY_CHARGE_BAR_SPRITE_KEY.."_Clock"] = nil
 	d[key("bar_charge")] = 0
 end
 
 local function gurdy_bar_is_charged(fam)
-	local bar = data(fam)[GURDY_CHARGE_BAR_SPRITE_KEY]
+	local bar = Charging_Bar_holder.get_sprite(fam, GURDY_BAR_ID)
 	return bar ~= nil and bar:IsPlaying("Charged")
 end
 
@@ -788,4 +784,10 @@ function item.release_for_air(air)
 	return H.release_for_air(air)
 end
 
+Charging_Bar_holder.register_bar({
+	id = GURDY_BAR_ID,
+	owner = {type = "custom", valid = function(fam)
+		return fam:ToFamiliar() and Familiar_Control_Selector.is_owner(fam, Familiar_Control_Selector.BLUEPRINT)
+	end},
+})
 return item

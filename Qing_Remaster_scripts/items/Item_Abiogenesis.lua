@@ -5,6 +5,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local Pause_Screen_holder = require("Qing_Remaster_scripts.others.Pause_Screen_holder")
 local attack_holder = require("Qing_Remaster_scripts.callbacks.attack_trigger_holder")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local electric_chain = require("Qing_Remaster_scripts.auxiliary.electric_chain")
 
 -- Whole Baby sprite vs HUD item center. Not an Eye-layer offset.
@@ -777,6 +778,7 @@ local function commit_awakening_logic(state)
 		item.add_proved(player)
 		clear_exclude(player)
 		player:RemoveCollectible(item.entity)
+		-- 本次提交必须立即生成跟班，下面会在同一调用栈寻找并绑定它。
 		player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
 		player:EvaluateItems()
 	end
@@ -823,6 +825,7 @@ local function finish_awakening_silent(state)
 	local familiar = commit_awakening_logic(state)
 	if player and player:Exists() then
 		if (not familiar or not auxi.check_all_exists(familiar)) then
+			-- 静默完成路径也须在返回前取得并绑定新跟班。
 			player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
 			player:EvaluateItems()
 			familiar = state.familiar
@@ -2380,8 +2383,7 @@ local function refresh_proved_familiars()
 	for i = 0, Game():GetNumPlayers() - 1 do
 		local player = Game():GetPlayer(i)
 		if item.get_proved_count(player) > 0 then
-			player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
-			player:EvaluateItems()
+			unique_holder.request_evaluate_items(player, CacheFlag.CACHE_FAMILIARS)
 		end
 	end
 end

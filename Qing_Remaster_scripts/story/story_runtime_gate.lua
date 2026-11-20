@@ -28,6 +28,97 @@ function gate.is_chapter1_available()
 	return story.is_chapter_available("chapter1") == true
 end
 
+--- Read-only: same branch order as is_story_runtime_allowed / is_chapter1_available.
+function gate.explain_story_runtime_allowed()
+	if gate.is_story_test_active() then
+		return true, "story_test_active", {
+			story_test_active = true,
+		}
+	end
+	local challenge = quest_run_scope.challenge_id and quest_run_scope.challenge_id() or 0
+	if quest_run_scope.allows_story_quests() == true then
+		return true, "normal_run_allows_story_quests", {
+			story_test_active = false,
+			challenge_id = challenge,
+		}
+	end
+	return false, "challenge_run_blocks_story_quests", {
+		story_test_active = false,
+		challenge_id = challenge,
+	}
+end
+
+function gate.explain_chapter1_available()
+	local max_ch = release_scope.get_story_max_chapter and release_scope.get_story_max_chapter() or nil
+	if not release_scope.allows_story_chapter("chapter1") then
+		return false, "release_scope_disallows_chapter1", {
+			story_max_chapter = max_ch,
+			story_test_bypasses_release = gate.is_story_test_active(),
+		}
+	end
+	local ok_rt, reason_rt, detail_rt = gate.explain_story_runtime_allowed()
+	if not ok_rt then
+		return false, reason_rt, detail_rt
+	end
+	local ch = story.get_chapter and story.get_chapter("chapter1", false) or nil
+	local status = ch and ch.status or nil
+	if story.is_chapter_available("chapter1") == true then
+		return true, "chapter1_status_available_or_active_or_completed", {
+			chapter_status = status,
+			runtime = reason_rt,
+		}
+	end
+	return false, "chapter1_status_not_available", {
+		chapter_status = status,
+		runtime = reason_rt,
+	}
+end
+
+function gate.explain_material_event_enabled(event_id)
+	local ok_rt, reason_rt, detail_rt = gate.explain_story_runtime_allowed()
+	if not ok_rt then
+		return false, reason_rt, detail_rt
+	end
+	local ok_ch, reason_ch, detail_ch = gate.explain_chapter1_available()
+	if not ok_ch then
+		return false, reason_ch, detail_ch
+	end
+	if not gate.is_commission_accepted() then
+		return false, "commission_not_accepted", {
+			commission_accepted = false,
+		}
+	end
+	local token = gate.token_for_event(event_id)
+	if not token then
+		return false, "no_story_token_for_event", {
+			event_id = event_id,
+		}
+	end
+	if gate.has_material(token) then
+		return false, "already_has_material_token", {
+			event_id = event_id,
+			token = token,
+		}
+	end
+	if event_id == "chapter1.phase_anchor" then
+		local node = registry.get_node(event_id)
+		local required = node and node.prerequisites and node.prerequisites.required_run_tokens
+		if type(required) == "table" then
+			for _, t in ipairs(required) do
+				if not gate.has_material(t) then
+					return false, "phase_anchor_missing_required_token", {
+						missing_token = t,
+					}
+				end
+			end
+		end
+	end
+	return true, "material_event_enabled", {
+		event_id = event_id,
+		token = token,
+	}
+end
+
 function gate.is_commission_accepted()
 	return story.get_flag("chapter1", "commission_accepted") == true
 end

@@ -2120,4 +2120,7 @@ CharacterAttackCompat.register(item.entity, {
 	audit = "Aeon freezes weap/state/charge/list; familiar still reads live player branch",
 })
 
+for _, id in ipairs({"Qing_cursed", "Qing_Cho", "Qing_Nep"}) do
+	Charging_Bar_holder.register_bar({id = id, owner = {type = "player_type", player_type = item.entity}})
+end
 return item

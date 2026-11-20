@@ -45,6 +45,9 @@
 	<!-- 天依头发：仅 hair/head4 叠层，不替换底模脸；世末天依旅人幽灵用 -->
 	<costume anm2path="TianYi_Hair.anm2" type="none" priority="99"/>
 	<costume anm2path="Delicate_Flower_Head.anm2" type="none" priority="99"/>
+	<costume anm2path="Alien_Head.anm2" type="none" priority="99"/>
+	<costume anm2path="Bewitching_Moon_Head.anm2" type="none" priority="99"/>
+	<costume anm2path="Bewitching_Moon_Head2.anm2" type="none" priority="99"/>
 	<costume anm2path="Tech_14_Head.anm2" type="passive" id="92"/>
 	<costume anm2path="Zeistos_Head.anm2" type="none" priority="99"/>
 	<!--costume anm2path="Cheater_s_Head.anm2" type="passive" id="101"/-->

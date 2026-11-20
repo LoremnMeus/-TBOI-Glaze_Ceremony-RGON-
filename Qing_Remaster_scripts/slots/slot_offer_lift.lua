@@ -267,10 +267,15 @@ function item.get_pickup_hud_screen_pos(player, kind, heart_slot)
 		pos = ui.UIHeartPos(idx, heart_player, nil, {anchor = anchor})
 	else
 		if kind == "bomb" then
-			pos = ui.UIBombPos(twin, nil, {anchor = anchor})
+			pos = ui.UIBombPos(twin, nil, {anchor = anchor, player = player})
+		elseif kind == "heartcharge" then
+			pos = ui.UIHeartChargePos(state, nil, {anchor = anchor, player = player})
 		else
-			pos = ui.UI_Pos(kind == "key" and "key" or "coin", state, nil, {anchor = anchor})
+			pos = ui.UI_Pos(kind == "key" and "key" or "coin", state, nil, {anchor = anchor, player = player})
 		end
+	end
+	if not pos then
+		return nil
 	end
 	return pos + ui.GetHudIconTuneOffset(kind)
 end

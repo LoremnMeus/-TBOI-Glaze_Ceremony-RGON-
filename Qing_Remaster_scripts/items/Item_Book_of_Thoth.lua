@@ -3118,6 +3118,9 @@ Function = function(_, pickup, collider, low)
 	if not player then return end
 	if not auxi.has_have_coll(player, item.entity) then return end
 	if other_active_needs_charge(player) then return end
+	local card_id = pick_weighted_thoth(pickup:GetDropRNG())
+	if not card_id then return end
+	pickup:Morph(EntityType.ENTITY_PICKUP, PickupVariant.PICKUP_TAROTCARD, card_id, true, true, false)
 	return true
 end,
 })

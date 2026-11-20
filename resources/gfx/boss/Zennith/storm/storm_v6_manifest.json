@@ -1,0 +1,151 @@
+{
+  "seed": 202610286,
+  "seed_method": "sha256(SEED:parts)",
+  "anm2": "resources/gfx/boss/Zennith/storm/storm_v6.anm2",
+  "sheets": {
+    "flow_streak.png": {
+      "size": [
+        192,
+        24
+      ],
+      "frames": 12,
+      "prefix": "Streak"
+    },
+    "gust_band.png": {
+      "size": [
+        192,
+        48
+      ],
+      "frames": 6,
+      "prefix": "Gust"
+    },
+    "vortex_arc.png": {
+      "size": [
+        256,
+        64
+      ],
+      "frames": 8,
+      "prefix": "Vortex"
+    },
+    "debris_chips.png": {
+      "size": [
+        96,
+        48
+      ],
+      "frames": 8,
+      "prefix": "Debris"
+    }
+  },
+  "debris_sources": [
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        8,
+        8,
+        16,
+        16
+      ]
+    },
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        48,
+        16,
+        14,
+        14
+      ]
+    },
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        96,
+        40,
+        12,
+        12
+      ]
+    },
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        160,
+        20,
+        18,
+        14
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        12,
+        12,
+        14,
+        14
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        64,
+        24,
+        16,
+        12
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        120,
+        48,
+        12,
+        12
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        180,
+        30,
+        14,
+        16
+      ]
+    }
+  ],
+  "animations": [
+    "Streak1",
+    "Streak2",
+    "Streak3",
+    "Streak4",
+    "Streak5",
+    "Streak6",
+    "Streak7",
+    "Streak8",
+    "Streak9",
+    "Streak10",
+    "Streak11",
+    "Streak12",
+    "Gust1",
+    "Gust2",
+    "Gust3",
+    "Gust4",
+    "Gust5",
+    "Gust6",
+    "Vortex1",
+    "Vortex2",
+    "Vortex3",
+    "Vortex4",
+    "Vortex5",
+    "Vortex6",
+    "Vortex7",
+    "Vortex8",
+    "Debris1",
+    "Debris2",
+    "Debris3",
+    "Debris4",
+    "Debris5",
+    "Debris6",
+    "Debris7",
+    "Debris8"
+  ],
+  "validation_ok": true,
+  "version": 6
+}

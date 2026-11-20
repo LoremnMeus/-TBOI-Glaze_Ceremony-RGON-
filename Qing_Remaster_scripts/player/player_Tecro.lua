@@ -797,7 +797,7 @@ local function time_free(ent)
 		Attribute_holder.force_clear_freeze_entity(ent, {
 			zero_velocity = true,
 			zero_position_offset = true,
-			grid_collision = GridCollisionClass.COLLISION_WALLS,
+			grid_collision = EntityGridCollisionClass.GRIDCOLL_WALLS,
 		})
 	end
 	Attribute_holder.try_hold_and_rewind_attribute(ent,"EntityCollisionClass",EntityCollisionClass.ENTCOLL_NONE,3)
@@ -2075,20 +2075,6 @@ Function = function(_,player,offset)
 				})
 			end
 		end
-	end
-end,
-})
-
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
-Function = function(_,player,collid,count)
-	if collid == CollectibleType.COLLECTIBLE_ANTI_GRAVITY and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,"Tecro_spear_anti")
-	end
-	if collid == CollectibleType.COLLECTIBLE_CHOCOLATE_MILK and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,"Tecro_spear_cho")
-	end
-	if collid == CollectibleType.COLLECTIBLE_NEPTUNUS and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,"Tecro_spear_nep")
 	end
 end,
 })
@@ -4049,4 +4035,16 @@ CharacterAttackCompat.register(item.entity, {
 	audit = "Aeon character_action replay_attack is the only spear spawn; spawn_virtual_spear(presentation_only=false) owns TecroNil + linked spear",
 })
 
+Charging_Bar_holder.register_bar({id = "Tecro_spear", owner = {type = "player_type", player_type = item.entity}})
+Charging_Bar_holder.register_bar({id = "Tecro_spear_hold_time", owner = {type = "entity"}})
+for id, collectible in pairs({
+	Tecro_spear_anti = CollectibleType.COLLECTIBLE_ANTI_GRAVITY,
+	Tecro_spear_nep = CollectibleType.COLLECTIBLE_NEPTUNUS,
+	Tecro_spear_cho = CollectibleType.COLLECTIBLE_CHOCOLATE_MILK,
+}) do
+	local required = collectible
+	Charging_Bar_holder.register_bar({id = id, owner = {type = "custom", valid = function(player)
+		return player:ToPlayer() and player:GetPlayerType() == item.entity and player:GetCollectibleNum(required) > 0
+	end}})
+end
 return item

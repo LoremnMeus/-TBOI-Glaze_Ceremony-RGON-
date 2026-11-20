@@ -19,7 +19,6 @@ local pause_ui = {
 	_debug_paper_bounds = false,
 	_debug_offset = {
 		surface = Vector(0, 0),
-		hint = Vector(0, 0), -- legacy alias → toggle_open
 		toggle_open = Vector(0, 0),
 		toggle_close = Vector(0, 0),
 		panel = Vector(0, 0),
@@ -281,14 +280,11 @@ function pause_ui.get_debug_offsets()
 	local d = pause_ui._debug_offset
 	return {
 		surface = d.surface,
-		hint = d.toggle_open,
 		toggle_open = d.toggle_open,
 		toggle_close = d.toggle_close,
 		panel = d.panel,
 		paper_fine = d.paper_fine,
 		content_fine = d.content_fine,
-		quest = d.content_fine,
-		paper = d.paper_fine,
 	}
 end
 
@@ -296,13 +292,8 @@ function pause_ui.set_debug_surface_offset(x, y)
 	pause_ui._debug_offset.surface = ivec(x, y)
 end
 
-function pause_ui.set_debug_hint_offset(x, y)
-	pause_ui.set_debug_toggle_open_offset(x, y)
-end
-
 function pause_ui.set_debug_toggle_open_offset(x, y)
 	pause_ui._debug_offset.toggle_open = ivec(x, y)
-	pause_ui._debug_offset.hint = pause_ui._debug_offset.toggle_open
 end
 
 function pause_ui.set_debug_toggle_close_offset(x, y)
@@ -312,7 +303,6 @@ end
 function pause_ui.reset_toggle_offsets()
 	pause_ui._debug_offset.toggle_open = Vector(0, 0)
 	pause_ui._debug_offset.toggle_close = Vector(0, 0)
-	pause_ui._debug_offset.hint = pause_ui._debug_offset.toggle_open
 end
 
 function pause_ui.set_debug_panel_offset(x, y)
@@ -323,16 +313,8 @@ function pause_ui.set_debug_content_fine_offset(x, y)
 	pause_ui._debug_offset.content_fine = ivec(x, y)
 end
 
-function pause_ui.set_debug_quest_offset(x, y)
-	pause_ui.set_debug_content_fine_offset(x, y)
-end
-
 function pause_ui.set_debug_paper_fine_offset(x, y)
 	pause_ui._debug_offset.paper_fine = ivec(x, y)
-end
-
-function pause_ui.set_debug_paper_offset(x, y)
-	pause_ui.set_debug_paper_fine_offset(x, y)
 end
 
 function pause_ui.reset_panel_layout_defaults()
@@ -369,14 +351,6 @@ function pause_ui.set_paper_tune(opts)
 	if opts.content_inset_right ~= nil then set_num("content_inset_right", opts.content_inset_right) end
 	if opts.content_inset_top ~= nil then set_num("content_inset_top", opts.content_inset_top) end
 	if opts.content_inset_bottom ~= nil then set_num("content_inset_bottom", opts.content_inset_bottom) end
-	-- Legacy no-ops so old Debug callers don't error
-	_ = opts.width
-	_ = opts.min_height
-	_ = opts.max_height
-	_ = opts.pad_x
-	_ = opts.pad_top
-	_ = opts.pad_bottom
-	_ = opts.content_width
 end
 
 function pause_ui.get_paper_tune()
@@ -426,13 +400,6 @@ function pause_ui.get_paper_effective(variant)
 		content_inset_top = it,
 		content_inset_bottom = ib,
 		content_width = content_width,
-		-- Compat aliases for older Debug UI
-		pad_x = il,
-		pad_top = it,
-		pad_bottom = ib,
-		preset_width = PAGE.width,
-		preset_min_height = pause_ui.height_for_middle(preset.min_middle or 0),
-		preset_max_height = pause_ui.height_for_middle(preset.max_middle or 3),
 		panel_offset = preset.panel_offset or Vector(0, 0),
 	}
 end
@@ -442,7 +409,7 @@ function pause_ui.capture_anchor(render_pos, render_scale)
 	local layout = pause_ui.get_layout_preset(variant)
 	local eff = pause_ui.get_paper_effective(variant)
 	local panel_base = layout.panel or layout.paper or Vector(0, 0)
-	local toggle_open_base = layout.toggle_open or layout.hint or Vector(0, 0)
+	local toggle_open_base = layout.toggle_open or Vector(0, 0)
 	local toggle_close_base = layout.toggle_close or Vector(0, 0)
 	local anchor = {
 		origin = render_pos or Vector(0, 0),
@@ -485,7 +452,7 @@ function pause_ui.build_layout(render_pos, render_scale)
 	local panel_dy = (baked.Y or 0) + (dbg.panel and dbg.panel.Y or 0)
 	local paper_fine = dbg.paper_fine or Vector(0, 0)
 	local content_fine = dbg.content_fine or Vector(0, 0)
-	local toggle_open_dbg = dbg.toggle_open or dbg.hint or Vector(0, 0)
+	local toggle_open_dbg = dbg.toggle_open or Vector(0, 0)
 	local toggle_close_dbg = dbg.toggle_close or Vector(0, 0)
 	local panel_base = anchor.panel_local or Vector(0, 0)
 	local toggle_open_base = anchor.toggle_open_local or anchor.hint_local or Vector(0, 0)
@@ -625,7 +592,7 @@ function pause_ui.get_quest_paper_rect(layout, content_bounds, open_t)
 	local min_n = layout.min_middle or 0
 	local max_n = layout.max_middle or 3
 	local default_n = layout.middle_count or 1
-	local pad_bottom = layout.content_inset_bottom or layout.pad_bottom or 24
+	local pad_bottom = layout.content_inset_bottom or 24
 	local origin = layout.paper_origin -- TOP-LEFT
 	local left = origin.X
 	local top = origin.Y
@@ -801,8 +768,8 @@ function pause_ui.get_audit_snapshot()
 		debug_offset = {
 			surface_x = dbg.surface and dbg.surface.X or 0,
 			surface_y = dbg.surface and dbg.surface.Y or 0,
-			hint_x = dbg.hint and dbg.hint.X or 0,
-			hint_y = dbg.hint and dbg.hint.Y or 0,
+			hint_x = dbg.toggle_open and dbg.toggle_open.X or 0,
+			hint_y = dbg.toggle_open and dbg.toggle_open.Y or 0,
 			panel_x = dbg.panel and dbg.panel.X or 0,
 			panel_y = dbg.panel and dbg.panel.Y or 0,
 			paper_fine_x = dbg.paper_fine and dbg.paper_fine.X or 0,

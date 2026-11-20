@@ -136,11 +136,6 @@ function M.clear(input)
 	end
 end
 
---- @deprecated use M.clear
-function M.clear_buffers(input)
-	M.clear(input)
-end
-
 --- 在 HOVER 时消费缓冲；返回 {nav=, action=}（至多各一个）
 function M.consume_buffers(input)
 	local nav = input.pending_nav

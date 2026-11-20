@@ -1,5 +1,6 @@
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
+local hidden_rooms = require("Qing_Remaster_scripts.callbacks.hidden_room_holder")
 
 -- 中枢挂在本层 13×13 地图格上（MakeRedRoomDoor + Room_holder），不是 StageAPI ExtraRoom，也不是 -3 调试房。
 -- 进出用愚者漩涡（1000/161 + PORTAL_TELEPORT），贴图 tp=120。
@@ -61,12 +62,14 @@ function M.is_current()
 	return auxi.check_equal(auxi.GetDimension(), dim)
 end
 
-local function hide_desc(desc)
-	if not desc then return end
-	desc.DisplayFlags = 0
-	if desc.Flags then
-		desc.Flags = desc.Flags & ~(1 << 10)
-	end
+local function claim_hub(index, dimension, force)
+	if not index or index < 0 then return end
+	hidden_rooms.keep(index, dimension or 0, {
+		hide = true,
+		hide_map = true,
+		owner = "zeiz_hub",
+	})
+	hidden_rooms.refresh(force ~= false)
 end
 
 -- 与 DVF/Chasm 相同：先占地图格，真正进房前再注入 special room Data。
@@ -94,7 +97,7 @@ function M.ensure_placed()
 	if data.hub_index and data.hub_floor == floor then
 		local desc = Game():GetLevel():GetRoomByIdx(data.hub_index, data.hub_dimension or dim)
 		if desc and desc.Data then
-			hide_desc(desc)
+			claim_hub(data.hub_index, data.hub_dimension or dim, false)
 			return data.hub_index
 		end
 	end
@@ -138,7 +141,7 @@ function M.ensure_placed()
 	data.hub_index = hub_index
 	data.hub_dimension = dim
 	data.hub_floor = floor
-	hide_desc(level:GetRoomByIdx(hub_index, dim))
+	claim_hub(hub_index, dim, true)
 	return hub_index
 end
 
@@ -318,6 +321,8 @@ function M.configure_current()
 end
 
 function M.reset_floor()
+	hidden_rooms.release_owner("zeiz_hub")
+	hidden_rooms.refresh(false)
 	local data = hub_data()
 	data.hub_index = nil
 	data.hub_dimension = 0

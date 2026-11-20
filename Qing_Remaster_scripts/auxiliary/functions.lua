@@ -1015,11 +1015,6 @@ end
 -- Rock type/variant/replace/remove must use grid_rock_topology
 -- (detach / disconnect_big_rocks / replace_rock(s) / remove_rock).
 --
--- Deprecated name kept for search hygiene; redirects to the explicit destructive API.
-function funct.try_refresh_rock_neighbor_graphics(room, grid_index, include_center)
-	return funct.try_break_rock_big_links_destructive(room, grid_index, include_center)
-end
-
 --- DESTRUCTIVE topology operation via GridEntityRock:UpdateNeighbors.
 --- Prefer grid_rock_topology.detach_from_big_rock / replace_rock(s) / remove_rock.
 function funct.try_break_rock_big_links_destructive(room, grid_index, include_center)
@@ -4632,6 +4627,44 @@ end
 
 function funct.real_ScreenToWorld(pos)
 	return auxi.myScreenToWorld(pos) + Isaac.ScreenToWorld(Vector(0,0)) - auxi.myScreenToWorld(Vector(0,0))
+end
+
+--- HUD / UI 像素在镜子世界里不跟着画面翻。WorldToScreen 与 RenderToWorld
+--- 用的是翻转后的画面坐标。两边互转前先做这一条水平翻转。
+function funct.ui_screen_for_mirror(screen)
+	if not screen then return screen end
+	local room = Game():GetRoom()
+	if not room or room:IsMirrorWorld() ~= true then
+		return screen
+	end
+	local size = funct.GetScreenSize()
+	local mult = funct.check_screen_multi(Vector(1, 1))
+	local sz = size.X
+	while sz > 256 do
+		sz = sz / 2
+	end
+	return Vector(sz * mult.X - screen.X, screen.Y)
+end
+
+function funct.ui_screen_to_world(screen)
+	if not screen then return nil end
+	local flipped = funct.ui_screen_for_mirror(screen)
+	if Isaac.RenderToWorld then
+		local ok, world = pcall(function()
+			return Isaac.RenderToWorld(flipped)
+		end)
+		if ok and world then return world end
+	end
+	return funct.real_ScreenToWorld(flipped)
+end
+
+function funct.world_to_ui_screen(world, extra_screen)
+	if not world then return nil end
+	local screen = Isaac.WorldToScreen(world)
+	if extra_screen then
+		screen = screen + extra_screen
+	end
+	return funct.ui_screen_for_mirror(screen)
 end
 
 local itemlist = nil

@@ -82,12 +82,24 @@
     </entity>
 	<entity anm2path="boss/Floraine/pieces.anm2" name="Chess Piece" id="996" variant="23751" boss="0" baseHP="50"
     collisionDamage="1" collisionRadius="16" numGridCollisionPoints="8" collisionMass="1000" friction="1" shadowSize="24"
-    tags="nodelirium" reroll="true" shutdoors="true" portrait="2" >
+    tags="nodelirium" reroll="true" shutdoors="false" portrait="2" >
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
         <bestiary transform="0,0,1" anim="Idle" />
     </entity>
+	<!-- Stone route destructible prop: stationary, no contact damage, does not lock doors. -->
+	<entity anm2path="boss/Floraine/giant_pawn.anm2" name="Stone Giant Pawn" id="996" variant="2462" boss="0" champion="0" baseHP="30"
+    collisionDamage="0" collisionRadius="32" numGridCollisionPoints="8" collisionMass="1000" friction="1" shadowSize="0" stageHP="0"
+    tags="nodelirium noreroll" gridCollision="walls" reroll="false" shutdoors="false" >
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+	<!-- Floraine first-clear quest seal (not a collectible; claim then remove). -->
+	<entity anm2path="boss/Floraine/pieces.anm2" name="Floraine Seal" id="5" variant="2463" subtype="0"
+    baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="14" friction="1"
+    numGridCollisionPoints="12" shadowSize="16" stageHP="0" >
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	
-	<entity anm2path="boss/Floraine/Floraine.anm2" name="Floraine" id="996" variant="23755" boss="1" baseHP="996" bossID="23755" collisionDamage="1" collisionRadius="16" numGridCollisionPoints="8" collisionMass="1000" friction="1" shadowSize="24"
+    <entity anm2path="boss/Floraine/Floraine.anm2" name="Floraine" id="996" variant="23755" boss="1" baseHP="996" bossID="23755" collisionDamage="1" collisionRadius="16" numGridCollisionPoints="8" collisionMass="1000" friction="1" shadowSize="24"
     tags="nodelirium noreroll" gridCollision="walls" reroll="false" shutdoors="true" portrait="1" >
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
         <bestiary transform="0,0,1" anim="Idle" />
@@ -297,8 +309,7 @@
 	<entity anm2path="items/slots/bloody_messenger.anm2" baseHP="1" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="6" name="Bloody Messenger" numGridCollisionPoints="24" shadowSize="15" stageHP="0" variant="24014" shutdoors="false">
         <gibs amount="6" blood="1" bone="1" eye="1" gut="1" large="0"/>
     </entity>
-	<!-- 银行支行：暂借 Bard Beggar 贴图；Closed/Broken 用 Idle/Teleport + 染色 -->
-	<entity anm2path="items/slots/bard_beggar.anm2" baseHP="20" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="14" friction="1" id="6" name="Bank Branch" numGridCollisionPoints="24" shadowSize="18" stageHP="0" variant="24017" shutdoors="false">
+	<entity anm2path="items/slots/bank_branch/bank_branch.anm2" baseHP="20" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="32" friction="1" id="6" name="Bank Branch" numGridCollisionPoints="24" shadowSize="34" stageHP="0" variant="24017" shutdoors="false">
         <gibs amount="6" blood="0" bone="0" eye="0" gut="0" large="0"/>
     </entity>
 	<entity anm2path="items/slots/rift/Rift_beggar.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="10" friction="1" id="1000" name="Rift Beggar Helper" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2414">
@@ -422,6 +433,9 @@
 	<entity anm2path="mimics/Regenesis/Regenesis.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="3" name="Regenesis Baby" numGridCollisionPoints="12" shadowSize="12" stageHP="0" variant="2454">
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
 	</entity>
+	<entity anm2path="mimics/Bewitching_Moon/Bewitching_Moon.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="3" name="Bewitching Moon" numGridCollisionPoints="12" shadowSize="10" stageHP="0" variant="2470" tags="cansacrifice">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" id="1000" name="Glaze Helper" variant="2443" collisionRadius="0" numGridCollisionPoints="0" friction="1" shadowSize="18">
         <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
     </entity>
@@ -438,12 +452,32 @@
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="12" friction="1" id="1000" name="Death Field Proxy" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2451">
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
 	</entity>
+	<!-- 玩家附属特效前后层代理：仅当有 active 消费者时由 player_visual_render_holder 生成。SubType 1=behind 2=front。 -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Player Visual Proxy" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2471">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
 	<!-- Bank HQ room anchors. Runtime Effect 1000; room XML / BR use serialization alias Type 999. SubType: 1 Main 2 Records 3 Deposit 4 Repossession 5 Settlement 6 Treasury 7 Entrance -->
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="8" friction="1" id="1000" name="Bank Room Marker" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2457">
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
 	</entity>
 	<!-- Stone / Chess room anchors. Runtime Effect 1000; room XML / BR use Type 999. SubType: 1 Entry 2 Return 3 BossGate 4 Center 5 FloraineEntry 6 Origin -->
 	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="8" friction="1" id="1000" name="Stone Room Marker" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2458">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Arena storm render anchor. One transparent Effect; arena_visual draws the black plate and clouds. -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Arena Render Anchor" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2466">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Stone chessboard empty-cell render helper (not MeusNil; owns EMPTY floor draw timing only). -->
+	<entity anm2path="effects/nil_effect.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Stone Board Overlay" numGridCollisionPoints="0" shadowSize="0" stageHP="0" variant="2463">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Floraine V2 temp assault piece: attack-shaped Effect (not Chess Piece NPC / not MeusNil). -->
+	<entity anm2path="boss/Floraine/pieces.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="16" friction="1" id="1000" name="Floraine Temp Piece" numGridCollisionPoints="0" shadowSize="12" stageHP="0" variant="2464">
+		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+	</entity>
+	<!-- Floraine / ante matte display piece: non-combat Effect for native Y-sort (not MeusNil / not NPC). -->
+	<entity anm2path="boss/Floraine/pieces.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="0" collisionRadius="1" friction="1" id="1000" name="Floraine Matte Piece" numGridCollisionPoints="0" shadowSize="12" stageHP="0" variant="2465">
 		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
 	</entity>
 	<!-- Phase Lab room anchors. Runtime Effect 1000; room XML / BR use Type 999. SubType: 1 Center 2 Entry 3 Reset 4 Terminal -->

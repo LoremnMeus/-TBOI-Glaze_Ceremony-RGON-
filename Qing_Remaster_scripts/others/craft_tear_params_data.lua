@@ -44,7 +44,11 @@ end
 
 --- 按目标水平射程反推 Falling*（FS0=0 的欧拉积分：H_n = H0 + FA·n(n+1)/2）。
 --- 与 Repentance「射程按格数、弹速升高则下落加快」一致：n = range / tear_speed。
-function M.falling_for_range(height, range, shotspeed, tear_speed)
+--- opts.min_fa / opts.max_fa：可选钳制。默认 min_fa=0.02（Craft / 求索者之眼既有行为）。
+--- 长射程调用方可传更低 min_fa；须保持 FA > 0.001 以免切换 height2offset 视觉分支
+--- （见 tear_vertical_control_rules.md）。第三返回值为 {raw_fa, clamped, min_fa, max_fa}。
+function M.falling_for_range(height, range, shotspeed, tear_speed, opts)
+	opts = type(opts) == "table" and opts or nil
 	height = tonumber(height) or BASE_HEIGHT
 	if height > -1 then height = BASE_HEIGHT end
 	range = math.max(20, tonumber(range) or BASE_RANGE)
@@ -54,10 +58,263 @@ function M.falling_for_range(height, range, shotspeed, tear_speed)
 	end
 	local n = range / speed
 	if n < 1 then n = 1 end
-	local fa = -2 * height / (n * (n + 1))
-	if fa < 0.02 then fa = 0.02 end
-	if fa > 2 then fa = 2 end
-	return fa, 0
+	local fa_raw = -2 * height / (n * (n + 1))
+	local min_fa = 0.02
+	local max_fa = 2
+	if opts then
+		if opts.min_fa ~= nil then min_fa = tonumber(opts.min_fa) or min_fa end
+		if opts.max_fa ~= nil then max_fa = tonumber(opts.max_fa) or max_fa end
+	end
+	local fa = fa_raw
+	local clamped = false
+	if fa < min_fa then
+		fa = min_fa
+		clamped = true
+	end
+	if fa > max_fa then
+		fa = max_fa
+		clamped = true
+	end
+	return fa, 0, {
+		raw_fa = fa_raw,
+		applied_fa = fa,
+		clamped = clamped,
+		min_fa = min_fa,
+		max_fa = max_fa,
+		n = n,
+		speed = speed,
+		range = range,
+	}
+end
+
+-- Probe Tear Lifecycle v4 fit (codex_work/notes/tear_vanilla_fs_range_model.md). Approximate only.
+local VANILLA_FS_A = 0.9000
+local VANILLA_FS_B = 0.9642
+local VANILLA_FS_C = 0.1002
+local VANILLA_LAND_H = -1.0
+local VANILLA_FS_LO = -28
+local VANILLA_FS_HI = 6
+local VANILLA_BIN_ITERS = 28
+
+local function resolve_tear_speed(shotspeed, tear_speed)
+	local speed = tonumber(tear_speed)
+	if not speed or speed < 0.5 then
+		speed = TEAR_SPEED_PER_SHOTSPEED * math.max(0.1, tonumber(shotspeed) or 1)
+	end
+	return speed
+end
+
+--- Simulate land frame under measured FS update + H += FS_next (FA usually 0).
+local function vanilla_land_frames(h0, fs0, fa, max_frames)
+	local h = h0
+	local fs = fs0
+	fa = fa or 0
+	for t = 1, max_frames do
+		fs = VANILLA_FS_A * fs + VANILLA_FS_B * fa + VANILLA_FS_C
+		h = h + fs
+		if h > VANILLA_LAND_H then
+			return t, h, fs
+		end
+	end
+	return nil, h, fs
+end
+
+--- 原版式射程：FA=0，按目标飞行帧数 N≈range/|Velocity| 反推实体初始 FallingSpeed。
+--- 不修改 falling_for_range()；仅供显式调用方（当前：罗喉 configure_rahu_tear）。
+--- 返回：fa(=0), fs0, meta。meta.status = ok | clamped_fs | unsolvable | bad_input
+function M.falling_for_range_vanilla(height, range, shotspeed, tear_speed, opts)
+	opts = type(opts) == "table" and opts or nil
+	height = tonumber(height) or BASE_HEIGHT
+	if height > -1 then height = BASE_HEIGHT end
+	range = math.max(20, tonumber(range) or BASE_RANGE)
+	local speed = resolve_tear_speed(shotspeed, tear_speed)
+	local n_target = range / speed
+	if n_target < 1 then n_target = 1 end
+	n_target = math.floor(n_target + 0.5)
+	local fa = 0
+	if opts and opts.fa ~= nil then
+		fa = tonumber(opts.fa) or 0
+	end
+	local fs_lo = VANILLA_FS_LO
+	local fs_hi = VANILLA_FS_HI
+	if opts then
+		if opts.fs_lo ~= nil then fs_lo = tonumber(opts.fs_lo) or fs_lo end
+		if opts.fs_hi ~= nil then fs_hi = tonumber(opts.fs_hi) or fs_hi end
+	end
+	local max_frames = math.max(n_target + 30, math.floor(n_target * 2 + 0.5), 60)
+	if opts and opts.max_frames ~= nil then
+		max_frames = math.max(8, math.floor(tonumber(opts.max_frames) or max_frames))
+	end
+
+	local function land_at(fs0)
+		return vanilla_land_frames(height, fs0, fa, max_frames)
+	end
+
+	local land_lo = land_at(fs_lo)
+	local land_hi = land_at(fs_hi)
+	-- More negative FS → longer air time (land_lo should be >= land_hi when both land).
+	if land_lo == nil and land_hi == nil then
+		return fa, fs_lo, {
+			mode = "vanilla_fs",
+			status = "unsolvable",
+			reason = "never_lands_in_window",
+			height = height,
+			fa = fa,
+			fs = fs_lo,
+			n_target = n_target,
+			speed = speed,
+			range = range,
+			max_frames = max_frames,
+			model = {a = VANILLA_FS_A, b = VANILLA_FS_B, c = VANILLA_FS_C},
+		}
+	end
+
+	local lo, hi = fs_lo, fs_hi
+	-- Want land_frames ≈ n_target. If fs more negative → larger land_frames.
+	for _ = 1, VANILLA_BIN_ITERS do
+		local mid = (lo + hi) * 0.5
+		local land_mid = land_at(mid)
+		if land_mid == nil then
+			-- Too much hang time / never lands → mid too negative → raise FS (less hang).
+			lo = mid
+		elseif land_mid > n_target then
+			lo = mid
+		else
+			hi = mid
+		end
+	end
+	local fs0 = (lo + hi) * 0.5
+	local land_n, land_h, land_fs = land_at(fs0)
+	local status = "ok"
+	local clamped = false
+	if land_n == nil then
+		status = "unsolvable"
+		fs0 = fs_hi
+		land_n, land_h, land_fs = land_at(fs0)
+	elseif math.abs(fs0 - fs_lo) < 1e-4 or math.abs(fs0 - fs_hi) < 1e-4 then
+		status = "clamped_fs"
+		clamped = true
+	end
+	if land_n and math.abs(land_n - n_target) > math.max(3, n_target * 0.15) then
+		status = clamped and "clamped_fs" or "approx"
+	end
+
+	return fa, fs0, {
+		mode = "vanilla_fs",
+		status = status,
+		clamped = clamped,
+		height = height,
+		fa = fa,
+		fs = fs0,
+		applied_fa = fa,
+		applied_fs = fs0,
+		n_target = n_target,
+		predicted_land_frames = land_n,
+		predicted_land_height = land_h,
+		predicted_land_fs = land_fs,
+		speed = speed,
+		range = range,
+		max_frames = max_frames,
+		model = {a = VANILLA_FS_A, b = VANILLA_FS_B, c = VANILLA_FS_C, land_h = VANILLA_LAND_H},
+		note = "Fit coefficients from Tear Lifecycle v4; Height integrate residual exists.",
+	}
+end
+
+--- 碰撞后延长飞行：保留当前 Height / FallingAcceleration，只反算新的 FallingSpeed。
+--- 与 falling_for_range_vanilla 不同：不会把接近地面的 Height 回退到 BASE_HEIGHT。
+--- bonus_frames：希望在「当前剩余落地帧」之上再增加的逻辑帧数（30Hz 泪弹 Update）。
+--- 返回：applied_fs, meta（含 remaining、target、status）。
+function M.extend_flight(tear, bonus_frames, opts)
+	opts = type(opts) == "table" and opts or nil
+	if not tear then
+		return nil, {status = "bad_input", reason = "nil_tear"}
+	end
+	local height = tonumber(tear.Height)
+	local fs = tonumber(tear.FallingSpeed)
+	local fa = tonumber(tear.FallingAcceleration) or 0
+	if height == nil or fs == nil then
+		return nil, {status = "bad_input", reason = "missing_vertical"}
+	end
+	bonus_frames = math.max(0, math.floor(tonumber(bonus_frames) or 0))
+	if bonus_frames <= 0 then
+		return fs, {
+			status = "noop",
+			height = height,
+			fa = fa,
+			fs = fs,
+			bonus_frames = 0,
+			remaining = nil,
+		}
+	end
+
+	local fs_lo = VANILLA_FS_LO
+	local fs_hi = VANILLA_FS_HI
+	local max_frames = 180
+	if opts then
+		if opts.fs_lo ~= nil then fs_lo = tonumber(opts.fs_lo) or fs_lo end
+		if opts.fs_hi ~= nil then fs_hi = tonumber(opts.fs_hi) or fs_hi end
+		if opts.max_frames ~= nil then
+			max_frames = math.max(8, math.floor(tonumber(opts.max_frames) or max_frames))
+		end
+	end
+
+	local remaining = vanilla_land_frames(height, fs, fa, max_frames)
+	if remaining == nil then
+		-- 当前轨迹在窗口内落不下来：仍尝试把目标定为 max_frames（更负的 FS 通常更久）。
+		remaining = max_frames
+	end
+	local n_target = remaining + bonus_frames
+	max_frames = math.max(max_frames, n_target + 30, math.floor(n_target * 2 + 0.5))
+
+	local function land_at(fs0)
+		return vanilla_land_frames(height, fs0, fa, max_frames)
+	end
+
+	local lo, hi = fs_lo, fs_hi
+	for _ = 1, VANILLA_BIN_ITERS do
+		local mid = (lo + hi) * 0.5
+		local land_mid = land_at(mid)
+		if land_mid == nil then
+			lo = mid
+		elseif land_mid > n_target then
+			lo = mid
+		else
+			hi = mid
+		end
+	end
+	local fs0 = (lo + hi) * 0.5
+	local land_n, land_h, land_fs = land_at(fs0)
+	local status = "ok"
+	local clamped = false
+	if land_n == nil then
+		status = "unsolvable"
+		fs0 = fs_lo
+		land_n, land_h, land_fs = land_at(fs0)
+	elseif math.abs(fs0 - fs_lo) < 1e-4 or math.abs(fs0 - fs_hi) < 1e-4 then
+		status = "clamped_fs"
+		clamped = true
+	end
+
+	tear.FallingSpeed = fs0
+	return fs0, {
+		mode = "extend_flight",
+		status = status,
+		clamped = clamped,
+		height = height,
+		fa = fa,
+		fs_before = fs,
+		fs = fs0,
+		applied_fs = fs0,
+		bonus_frames = bonus_frames,
+		remaining = remaining,
+		n_target = n_target,
+		predicted_land_frames = land_n,
+		predicted_land_height = land_h,
+		predicted_land_fs = land_fs,
+		max_frames = max_frames,
+		model = {a = VANILLA_FS_A, b = VANILLA_FS_B, c = VANILLA_FS_C, land_h = VANILLA_LAND_H},
+		note = "Mid-flight FS solve; Height/FA unchanged. Fit from Tear Lifecycle v4.",
+	}
 end
 
 function M.apply(ent, counts, flags, effects, opts)

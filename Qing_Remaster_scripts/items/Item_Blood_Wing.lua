@@ -1046,7 +1046,6 @@ table.insert(item.myToCall, #item.myToCall + 1, {
 	params = nil,
 	Function = function(_, player, collid, count)
 		if collid == item.entity and count < 0 then
-			Charging_Bar_holder.remove_charge_bar(player, item.own_key)
 			local d = player:GetData()
 			clear_lasers(d)
 			end_invuln(player, d)
@@ -1095,4 +1094,5 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	end,
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key, owner = {type = "collectible", collectible = item.entity}})
 return item

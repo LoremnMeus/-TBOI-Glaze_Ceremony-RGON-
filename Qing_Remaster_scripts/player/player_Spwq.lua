@@ -208,7 +208,7 @@ local function clear_blueprint_hold(player)
 	if not player then return end
 	local d = player:GetData()
 	d[item.own_key.."bp_hold"] = nil
-	Charging_Bar_holder.remove_charge_bar(player, item.own_key, true)
+	Charging_Bar_holder.remove_charge_bar(player, item.own_key)
 	d[item.own_key.."_Charge_Bar_buff"] = 0
 end
 
@@ -588,4 +588,5 @@ Function = function(_,player,tp,id,value)
 end,
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key, owner = {type = "player_type", player_type = item.entity}})
 return item

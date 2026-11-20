@@ -4,6 +4,7 @@
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local runtime = {
 	STAT_STEP = 0.1,
@@ -86,19 +87,36 @@ local function has_named_tag(cfg, name)
 	return (cfg.Tags & tag) ~= 0
 end
 
-function runtime.state()
-	save.elses.tiny_update = save.elses.tiny_update or {
-		schema = 1,
+local STATE_SCHEMA = 2
+
+local function new_state()
+	return {
+		schema = STATE_SCHEMA,
 		version = 0,
 		floor_key = "",
+		floor_entry_roll_key = "",
+		room_update_floor_key = "",
 		stats = {},
 		hearts = {},
+		soul_hearts = {},
+		black_hearts = {},
 		charges = {},
+		timed_charges = {},
 		pool_added = {},
 		custom = {},
 		history = nil,
+		item_patch_versions = {},
+		charge_applied = {},
+		charge_acquire = {},
 	}
+end
+
+function runtime.state()
 	local st = save.elses.tiny_update
+	if type(st) ~= "table" or st.schema ~= STATE_SCHEMA then
+		st = new_state()
+		save.elses.tiny_update = st
+	end
 	st.stats = st.stats or {}
 	st.hearts = st.hearts or {}
 	st.soul_hearts = st.soul_hearts or {}
@@ -114,19 +132,7 @@ function runtime.state()
 	st.item_patch_versions = st.item_patch_versions or {}
 	st.charge_applied = st.charge_applied or {}
 	st.charge_acquire = st.charge_acquire or {}
-	if runtime.migrate_ledgers then runtime.migrate_ledgers(st) end
-	if runtime.migrate_charge_adjust then runtime.migrate_charge_adjust(st) end
-	if runtime.migrate_floor_marks then runtime.migrate_floor_marks(st) end
 	return st
-end
-
-function runtime.legacy_floor_key()
-	local level = Game():GetLevel()
-	local dim = 0
-	if level.GetDimension then
-		dim = level:GetDimension() or 0
-	end
-	return tostring(level:GetStage()) .. ":" .. tostring(level:GetStageType()) .. ":" .. tostring(dim)
 end
 
 function runtime.floor_key()
@@ -140,14 +146,6 @@ function runtime.floor_key()
 		seed = level:GetDungeonPlacementSeed() or 0
 	end
 	return tostring(seed) .. ":" .. tostring(dim) .. ":" .. tostring(level:GetStage()) .. ":" .. tostring(level:GetStageType())
-end
-
-function runtime.migrate_floor_marks(st)
-	if st.floor_schema == 2 then return end
-	if st.floor_key and st.floor_key ~= "" and st.floor_key == runtime.legacy_floor_key() then
-		st.room_update_floor_key = runtime.floor_key()
-	end
-	st.floor_schema = 2
 end
 
 function runtime.floor_chance()
@@ -200,34 +198,6 @@ local function charge_timed_allowed(id, cfg)
 	if not cfg or cfg.Type ~= ItemType.ITEM_ACTIVE then return false end
 	if charge_type_of(cfg) ~= (ItemConfig.CHARGE_TIMED or 1) then return false end
 	return charge_base(id, cfg) >= 30
-end
-
-function runtime.migrate_ledgers(st)
-	st.soul_hearts = st.soul_hearts or {}
-	st.black_hearts = st.black_hearts or {}
-	st.timed_charges = st.timed_charges or {}
-	st.heart_schema = 2
-	if st.charge_schema == 3 then return end
-	for item_key, steps in pairs(st.charges or {}) do
-		local id = tonumber(item_key)
-		local cfg = cfg_of(id)
-		if not charge_normal_allowed(id, cfg) then
-			st.charges[item_key] = nil
-		else
-			local base = charge_base(id, cfg)
-			local nxt = math.floor(tonumber(steps) or 0)
-			local min_steps = math.max(-runtime.CHARGE_LIMIT, 1 - base)
-			local max_steps = math.min(runtime.CHARGE_LIMIT, 12 - base)
-			if nxt < min_steps then nxt = min_steps end
-			if nxt > max_steps then nxt = max_steps end
-			if nxt == 0 then
-				st.charges[item_key] = nil
-			else
-				st.charges[item_key] = nxt
-			end
-		end
-	end
-	st.charge_schema = 3
 end
 
 function runtime.charge_delta(id)
@@ -429,13 +399,6 @@ local function weight_target(base, steps)
 	return value
 end
 
-local function migrate_custom(rec, entry)
-	if not rec or rec.base_initialized then return end
-	rec.base = entry and entry_weight(entry) or rec.base or 1
-	rec.steps = 0
-	rec.base_initialized = true
-end
-
 local function weight_can(rec, sign)
 	local nxt = (rec.steps or 0) + sign
 	if math.abs(nxt * runtime.WEIGHT_STEP) > runtime.WEIGHT_SPAN + 0.001 then return false end
@@ -458,13 +421,17 @@ local function try_custom_pool(rng, st, id)
 	local list = root[pool_name].list
 	local found_key, entry = find_custom(list, id)
 	local previous = peek_custom(st, pool_name, id)
-	local rec = previous and {
+	local rec = previous and previous.base_initialized and {
 		base = previous.base,
 		steps = previous.steps,
 		state = previous.state,
 		base_initialized = previous.base_initialized,
-	} or {base = 1, steps = 0, state = "normal", base_initialized = false}
-	migrate_custom(rec, entry)
+	} or {
+		base = entry and entry_weight(entry) or 1,
+		steps = 0,
+		state = "normal",
+		base_initialized = true,
+	}
 	local options = {}
 	local weight_sign = 1
 	if found_key and rec.state ~= "removed" then
@@ -930,30 +897,6 @@ local function already_applied(st, pkey, item_id, slot, revision, acquisition)
 	return tonumber(rec.revision) == tonumber(revision) and tonumber(rec.acquisition) == tonumber(acquisition or 0)
 end
 
-local function has_charge_patch(st, item_id)
-	local item_key = key_of(item_id)
-	return (st.charges[item_key] or 0) ~= 0 or ((st.timed_charges and st.timed_charges[item_key]) or 0) ~= 0
-end
-
-function runtime.migrate_charge_adjust(st)
-	if st.charge_adjust_schema == 1 then return end
-	if Game():GetNumPlayers() <= 0 then return end
-	for i = 0, Game():GetNumPlayers() - 1 do
-		local player = Isaac.GetPlayer(i)
-		local pkey = player and player_key(player)
-		if pkey then
-			for slot = 0, 3 do
-				local id = player:GetActiveItem(slot) or 0
-				if id > 0 and has_charge_patch(st, id) and not applied_row(st, pkey, id, slot) then
-					local rev = (st.item_patch_versions and st.item_patch_versions[key_of(id)]) or st.version or 0
-					mark_applied(st, pkey, id, slot, rev, acquisition_of(st, pkey, id))
-				end
-			end
-		end
-	end
-	st.charge_adjust_schema = 1
-end
-
 local function queue_charge_job(job)
 	charge_jobs[#charge_jobs + 1] = job
 end
@@ -1179,8 +1122,7 @@ function runtime.sync_stats()
 	for i = 0, Game():GetNumPlayers() - 1 do
 		local player = Isaac.GetPlayer(i)
 		if player then
-			player:AddCacheFlags(flags)
-			player:EvaluateItems()
+			unique_holder.request_evaluate_items(player, flags)
 		end
 	end
 end

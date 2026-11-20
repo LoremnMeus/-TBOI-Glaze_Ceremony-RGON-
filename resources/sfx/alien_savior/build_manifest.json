@@ -1,0 +1,58 @@
+[
+  {
+    "name": "sos_search",
+    "out": "resources/sfx/alien_savior/sos_search.wav",
+    "source": "audio/Alien_savor/A_short,_distinctive_#1-1792928653149.wav",
+    "sr": 48000,
+    "start_s": 0.1,
+    "end_s": 1.7,
+    "duration_s": 1.6,
+    "gain": 1.15,
+    "fade_in_s": 0.012,
+    "fade_out_s": 0.04,
+    "peak": 0.4806,
+    "impact_offset_s": null
+  },
+  {
+    "name": "sos_connected",
+    "out": "resources/sfx/alien_savior/sos_connected.wav",
+    "source": "audio/Alien_savor/A_short,_distinctive_#3-1792928643172.wav",
+    "sr": 48000,
+    "start_s": 1.4,
+    "end_s": 2.75,
+    "duration_s": 1.35,
+    "gain": 1.25,
+    "fade_in_s": 0.008,
+    "fade_out_s": 0.05,
+    "peak": 0.6283,
+    "impact_offset_s": null
+  },
+  {
+    "name": "ufo_arrival",
+    "out": "resources/sfx/alien_savior/ufo_arrival.wav",
+    "source": "audio/Alien_savor/A_massive_alien_resc_#1-1792947029528.wav",
+    "sr": 48000,
+    "start_s": 3.15,
+    "end_s": 4.75,
+    "duration_s": 1.6,
+    "gain": 1.0,
+    "fade_in_s": 0.015,
+    "fade_out_s": 0.08,
+    "peak": 0.455,
+    "impact_offset_s": 0.6
+  },
+  {
+    "name": "ufo_hover",
+    "out": "resources/sfx/alien_savior/ufo_hover.wav",
+    "source": "audio/Alien_savor/A_massive_alien_resc_#1-1792947029528.wav",
+    "sr": 48000,
+    "start_s": 6.0,
+    "end_s": 8.5,
+    "duration_s": 2.5,
+    "gain": 0.55,
+    "fade_in_s": 0.08,
+    "fade_out_s": 0.2,
+    "peak": 0.088,
+    "impact_offset_s": null
+  }
+]

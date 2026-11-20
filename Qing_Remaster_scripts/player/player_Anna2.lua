@@ -4,6 +4,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Charging_Bar_holder = require("Qing_Remaster_scripts.others.Charging_Bar_holder")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
 local ModConfig = require("Qing_Remaster_scripts.others.Mod_Config_Menu_holder")
@@ -219,22 +220,23 @@ local item = {
 			{frame = 2,offset = Vector(0,-65),scale = Vector(1.4,0.6),A = 1,RO = 0,GO = 0,BO = 0,},
 			{frame = 8,offset = Vector(0,-120),scale = Vector(0.8,1.2),A = 1,RO = 0,GO = 0,BO = 0,},
 			{frame = 10,offset = Vector(0,-120),scale = Vector(1,1),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 12,offset = Vector(0,-110),scale = Vector(1,-1),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 14,offset = Vector(0,-90),scale = Vector(1,-1),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 22,offset = Vector(0,0),scale = Vector(1,-1.8),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 24,offset = Vector(0,-10),scale = Vector(1.2,-0.8),A = 1,RO = 1,GO = 1,BO = 1,},
-			{frame = 26,offset = Vector(0,10),scale = Vector(0.8,-1.2),A = 0,RO = -1,GO = -1,BO = -1,},
-			{frame = 28,offset = Vector(-2,5),scale = Vector(1.4,-1),A = 1,RO = -1,GO = -1,BO = -1,},
-			{frame = 30,offset = Vector(2,0),scale = Vector(1.2,-0.6),A = 1,RO = 1,GO = 1,BO = 1,},
-			{frame = 32,offset = Vector(-2,-5),scale = Vector(1.2,0.6),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 34,offset = Vector(0,-10),scale = Vector(0.8,1.2),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 36,offset = Vector(0,-15),scale = Vector(1,1.4),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 42,offset = Vector(0,-20),scale = Vector(1.2,1.2),A = 1,RO = 0,GO = 0,BO = 0,},
-			{frame = 50,offset = Vector(0,0),scale = Vector(1,1),A = 1,RO = 0,GO = 0,BO = 0,},
-			shake = {[24] = true,},
-			specialcast = 12,
-			total = 50,
-			launch = 24,
+			{frame = 39,offset = Vector(0,-110),scale = Vector(1,1),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 40,offset = Vector(0,-110),scale = Vector(1,-1),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 42,offset = Vector(0,-90),scale = Vector(1,-1),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 50,offset = Vector(0,0),scale = Vector(1,-1.8),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 52,offset = Vector(0,-10),scale = Vector(1.2,-0.8),A = 1,RO = 1,GO = 1,BO = 1,},
+			{frame = 54,offset = Vector(0,10),scale = Vector(0.8,-1.2),A = 0,RO = -1,GO = -1,BO = -1,},
+			{frame = 56,offset = Vector(-2,5),scale = Vector(1.4,-1),A = 1,RO = -1,GO = -1,BO = -1,},
+			{frame = 58,offset = Vector(2,0),scale = Vector(1.2,-0.6),A = 1,RO = 1,GO = 1,BO = 1,},
+			{frame = 60,offset = Vector(-2,-5),scale = Vector(1.2,0.6),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 62,offset = Vector(0,-10),scale = Vector(0.8,1.2),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 64,offset = Vector(0,-15),scale = Vector(1,1.4),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 70,offset = Vector(0,-20),scale = Vector(1.2,1.2),A = 1,RO = 0,GO = 0,BO = 0,},
+			{frame = 78,offset = Vector(0,0),scale = Vector(1,1),A = 1,RO = 0,GO = 0,BO = 0,},
+			shake = {[52] = true,},
+			specialcast = 40,
+			total = 78,
+			launch = 52,
 		},
 		[9.1] = {
 			{frame = 0,offset = Vector(0,-60),scale = Vector(0,0),A = 0,RO = 0,GO = 0,BO = 0,},
@@ -245,7 +247,7 @@ local item = {
 			{frame = 16,offset = Vector(0,-65),scale = Vector(1.1,1.1),A = 1,RO = 0,GO = 0,BO = 0,},
 			{frame = 18,offset = Vector(0,-70),scale = Vector(1,1),A = 1,RO = 0,GO = 0,BO = 0,},
 			set = 14,
-			total = 18,
+			total = 32,
 		},
 		[9.2] = {
 			{frame = 0,offset = Vector(0,-70),scale = Vector(1,1),A = 1,RO = 0,GO = 0,BO = 0,},
@@ -269,9 +271,8 @@ local item = {
 			total = 4,
 			separate_finfo = function(player,ent)
 				local mul = 3
-				local ret = {finfo = {},einfo = {[1] = {mul = mul,},},steps = mul + 2,step = 1,}
+				local ret = {finfo = {},einfo = {[1] = {mul = mul,},},steps = 2,step = 1,}
 				table.insert(ret.finfo,{id = 9.1,iid = 1,})
-				for i = 1,mul do table.insert(ret.finfo,{id = 9.2,iid = 1,wait = 3,}) end
 				table.insert(ret.finfo,{id = 9,iid = 1,})
 				return ret
 			end,
@@ -382,7 +383,7 @@ local item = {
 		{frame = 500,val = -0.8,scale = Vector(0.1,0.1),},
 	},
 	choco_info = {
-		{frame = 0,scale = Vector(1,1),},
+		{frame = 0,scale = Vector(0.5,0.5),},
 		{frame = 1,scale = Vector(1,1),},
 		{frame = 2,scale = Vector(1.4,1.4),},
 	},
@@ -612,6 +613,7 @@ Function = function(_,ent)
 			else ent.Visible = false break end
 		end
 		if fminfo.wait then fminfo.wait = fminfo.wait - 1 if fminfo.wait <= 0 then fminfo.wait = nil end break end
+		if item.hold_knife_impact(d[item.own_key.."Attack"], finfo, 2) then break end
 		d[item.own_key.."Attack"].counter = (d[item.own_key.."Attack"].counter or 0) + 2
 		local info = auxi.check_lerp(d[item.own_key.."Attack"].counter or 0,finfo)
 		d[item.own_key.."Record"] = d[item.own_key.."Record"] or {}
@@ -667,14 +669,17 @@ Function = function(_,player,offset)
 		if (Game():GetRoom():GetRenderMode() ~= RenderMode.RENDER_WATER_REFLECT) then
 			local cnt = (d[item.own_key.."charge"] or 0)
 			local shotinfo = auxi.getshotinfo(player,{Extra = true,})
-			cnt = cnt / (shotinfo.mx or 1) * item.mxdelay2cnt / player.MaxFireDelay
+			local chocolate = auxi.has_have_coll(player, CollectibleType.COLLECTIBLE_CHOCOLATE_MILK)
+			cnt = cnt * item.mxdelay2cnt / player.MaxFireDelay
+			local chocolate_cnt = chocolate and math.max(0, math.min(100, cnt - 100)) or 0
+			cnt = cnt / (chocolate and 1 or (shotinfo.mx or 1))
 			local mx_cnt = player.MaxFireDelay / item.mxdelay2cnt
 			local ret = Charging_Bar_holder.render_me(player,{name1 = item.own_key,name2 = item.own_key,name3 = item.own_key,loadname = "gfx/effects/chargebar/chargebar_Anna.anm2",
 				check1 = function(val,ent)
 					return cnt > 5
 				end,
 				check2 = function(val,ent) 
-					return cnt > 100
+					return cnt >= 100
 				end,
 				check3 = function(val,ent)
 					return math.ceil(cnt)
@@ -682,6 +687,14 @@ Function = function(_,player,offset)
 				signal1 = function(ent)
 				end,
 			})
+			if chocolate then
+				Charging_Bar_holder.render_me(player, {name1 = item.own_key.."chocolate_counter", name2 = item.own_key.."chocolate_counter", name3 = item.own_key.."chocolate_counter",
+					loadname = "gfx/player/anna/chargebar_Anna_Chocolate.anm2", offset = ret.pos, color = Color(0.78, 0.46, 0.26, 1),
+					check1 = function() return chocolate_cnt > 0 end,
+					check2 = function() return chocolate_cnt >= 100 end,
+					check3 = function() return math.ceil(chocolate_cnt) end,
+				})
+			end
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ANTI_GRAVITY) then
 				Charging_Bar_holder.render_me(player,{name1 = item.own_key.."anti_counter",name2 = item.own_key.."anti_counter",name3 = item.own_key.."anti_counter",loadname = "gfx/effects/chargebar/chargebar_Anna_Anti.anm2",
 					check1 = function(val,ent)
@@ -712,16 +725,8 @@ Function = function(_,player,offset)
 					signal1 = function(ent)
 					end,
 				})
-			else Charging_Bar_holder.remove_charge_bar(player,item.own_key.."birth_counter") end
+			end
 		end
-	end
-end,
-})
-
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
-Function = function(_,player,collid,count)
-	if collid == CollectibleType.COLLECTIBLE_ANTI_GRAVITY and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,item.own_key.."anti_counter")
 	end
 end,
 })
@@ -935,6 +940,22 @@ function item.release_launch(player,ent,params)
 	end)
 end
 
+local function knife_preaim_hover(aim, target_pos)
+	local base = aim.origin + aim.offset
+	-- 刀的可见位置还带有 -90 的 PositionOffset；用可见刀尖与目标计算向下夹角。
+	local y = math.max(base.Y - 120, math.min(base.Y, target_pos.Y + 30))
+	local downward = target_pos.Y - (y - 90)
+	local cone_width = math.max(0, downward) * math.tan(math.rad(30))
+	local wanted_x = math.max(target_pos.X - cone_width, math.min(base.X, target_pos.X + cone_width))
+	local x = base.X + math.max(-100, math.min(100, wanted_x - base.X))
+	local hover = Vector(x, y)
+	local angle = downward > 0 and math.deg(math.atan(math.abs(target_pos.X - x), downward)) or 180
+	local move = (hover - base):Length()
+	local score = move * 1.2 + math.max(0, angle - 30) * 6
+		+ (target_pos - aim.origin):Length() * 0.08
+	return hover, score
+end
+
 function item.control_linkers(player,ent,params)
 	params = params or {}
 	if auxi.check_all_exists(ent:GetData()[item.own_key.."linked_bomb"]) then
@@ -950,15 +971,146 @@ function item.control_linkers(player,ent,params)
 	end
 	if ent:GetData()[item.own_key.."linked_knife"] then
 		local d2 = ent:GetData()
+		local knives = d2[item.own_key.."linked_knife"]
 		d2[item.own_key.."knife"] = d2[item.own_key.."knife"] or {rnd = auxi.random_1() * 360,}
 		d2[item.own_key.."knife"].counter = (d2[item.own_key.."knife"].counter or 0) + 1
 		local cnt = d2[item.own_key.."knife"].counter
-		for u,v in pairs(d2[item.own_key.."linked_knife"]) do
-			v.PositionOffset = params.pos - ent.Position + Vector(0,math.sin(math.rad(cnt * 15 + u * 360/#d2[item.own_key.."linked_knife"])) * 10)
-			local tgpos = ent.Position + auxi.get_by_rotate(nil,d2[item.own_key.."knife"].rnd + cnt * 15 + u * 360/#d2[item.own_key.."linked_knife"],40 * ent.SpriteScale.X)
-			v.Velocity = (tgpos - v.Position) * 0.2
+		local attack = d2[item.own_key.."Attack"]
+		local form = attack and attack.forms and attack.forms[attack.step or 0]
+		local knife_stage = form and form.id == 9
+		local preaim = knife_stage and (attack.counter or 0) < item.attack_info[9].specialcast - 8
+		local locked_aim = knife_stage and not preaim
+			and (attack.counter or 0) < item.attack_info[9].specialcast
+		if preaim then
+			local enemies = auxi.getenemies()
+			local assigned, used = {}, {}
+			for u,v in ipairs(knives) do
+				local knife_data = v:GetData()[item.own_key.."AnnaKnife"]
+				if not knife_data.preaim then
+					local rng = player:GetCollectibleRNG(CollectibleType.COLLECTIBLE_MOMS_KNIFE)
+					knife_data.preaim = {
+						origin = Vector(v.Position.X, v.Position.Y),
+						offset = Vector((u - (#knives + 1) / 2) * 60 + (rng:RandomFloat() - 0.5) * 16,
+							-45 - rng:RandomFloat() * 20),
+					}
+				end
+			end
+			-- 全局选最合适的刀/敌人配对，先尽量一刀一个目标，再允许重复。
+			for _ = 1,math.min(#knives, #enemies) do
+				local best_knife, best_enemy, best_score
+				for u,v in ipairs(knives) do
+					if not assigned[u] then
+						local aim = v:GetData()[item.own_key.."AnnaKnife"].preaim
+						for _, enemy in ipairs(enemies) do
+							if not used[GetPtrHash(enemy)] then
+								local _, score = knife_preaim_hover(aim, enemy.Position)
+								if aim.target and auxi.check_all_exists(aim.target)
+									and GetPtrHash(aim.target) ~= GetPtrHash(enemy) then score = score + 25 end
+								if not best_score or score < best_score then
+									best_knife, best_enemy, best_score = u, enemy, score
+								end
+							end
+						end
+					end
+				end
+				if not best_knife then break end
+				assigned[best_knife] = best_enemy
+				used[GetPtrHash(best_enemy)] = true
+			end
+			for u,v in ipairs(knives) do
+				local aim = v:GetData()[item.own_key.."AnnaKnife"].preaim
+				local target = assigned[u]
+				if not target then
+					local best_score
+					for _, enemy in ipairs(enemies) do
+						local _, score = knife_preaim_hover(aim, enemy.Position)
+						if aim.target and auxi.check_all_exists(aim.target)
+							and GetPtrHash(aim.target) ~= GetPtrHash(enemy) then score = score + 25 end
+						if not best_score or score < best_score then target, best_score = enemy, score end
+					end
+				end
+				aim.target = target
+				-- 无敌人时三把刀与安娜攻击同一个当前位置。
+				aim.target_pos = target and target.Position or ent.Position
+				local hover_pos = knife_preaim_hover(aim, aim.target_pos)
+				v.Velocity = (hover_pos - v.Position) * 0.3
+				v.PositionOffset = v.PositionOffset * 0.65 + Vector(0,-90) * 0.35
+				v:GetSprite().Rotation = (aim.target_pos - (v.Position + v.PositionOffset)):GetAngleDegrees() - 90
+			end
+		elseif locked_aim then
+			for _,v in ipairs(knives) do
+				local aim = (v:GetData()[item.own_key.."AnnaKnife"] or {}).preaim
+				if aim then
+					local target = aim.target
+					if target and auxi.check_all_exists(target) and auxi.isenemies(target) and not target:IsDead() then
+						aim.target_pos = target.Position
+					end
+					v.Velocity = Vector(0,0)
+					v:GetSprite().Rotation = (aim.target_pos - (v.Position + v.PositionOffset)):GetAngleDegrees() - 90
+				end
+			end
+		else
+			for u,v in ipairs(knives) do
+				v.PositionOffset = params.pos - ent.Position + Vector(0,math.sin(math.rad(cnt * 15 + u * 360/#knives)) * 10)
+				local tgpos = ent.Position + auxi.get_by_rotate(nil,d2[item.own_key.."knife"].rnd + cnt * 15 + u * 360/#knives,40 * ent.SpriteScale.X)
+				v.Velocity = (tgpos - v.Position) * 0.2
+			end
 		end
 	end
+end
+
+function item.release_linked_knives(player, ent)
+	local data = ent:GetData()
+	local knives = data[item.own_key.."linked_knife"]
+	if not knives then return end
+	local attack = data[item.own_key.."Attack"]
+	for i = 1,#knives do
+		local knife = table.remove(knives, 1)
+		local aim = (knife:GetData()[item.own_key.."AnnaKnife"] or {}).preaim
+		local target_pos = aim and aim.target_pos
+		knife:GetData()[item.own_key.."Cast"] = {
+			counter = 0,
+			dir = target_pos and (target_pos - knife.Position) or (knife.Position - ent.Position),
+			tgpos = target_pos,
+			locked = aim ~= nil,
+			target = aim and aim.target,
+			last_target_pos = target_pos,
+		}
+		if attack then
+			-- Effect Update 是 30 Hz，玩家攻击计数是 60 Hz；落下高度收敛通常决定抵达时间。
+			local rate = 0.2 * math.min(1.5, math.max(0.1, player.ShotSpeed))
+			local height = math.abs(knife.PositionOffset.Y + 16)
+			local fall_ticks = height > 5 and math.ceil(math.log(5 / height) / math.log(1 - rate)) or 0
+			local expected = (attack.counter or 0) + fall_ticks * 2 + 2
+			attack.knife_expected_launch = math.max(attack.knife_expected_launch or 0, expected)
+		end
+	end
+	if #knives == 0 then
+		data[item.own_key.."linked_knife"] = nil
+		if attack then
+			attack.knife_hold_remaining = math.max(0, (attack.knife_expected_launch or 52) - 52)
+		end
+	end
+end
+
+function item.hold_knife_impact(attack, finfo, step)
+	if finfo ~= item.attack_info[9] or not attack.knife_all then return false end
+	if attack.counter == finfo.specialcast and (attack.knife_hold_remaining or 0) > 0 then
+		attack.knife_hold_remaining = math.max(0, attack.knife_hold_remaining - step)
+		return true
+	end
+	if attack.counter < finfo.launch - step or attack.counter >= finfo.launch then return false end
+	for _, knife in ipairs(attack.knife_all) do
+		if auxi.check_all_exists(knife) and not knife:GetData()[item.own_key.."Trigger"] then
+			attack.knife_waiting_for_landing = true
+			return true
+		end
+	end
+	if attack.knife_waiting_for_landing then
+		attack.knife_landing_margin = (attack.knife_landing_margin or 0) + step
+		if attack.knife_landing_margin <= 2 then return true end
+	end
+	return false
 end
 
 function item.trigger_finfo(player,ent,finfo,einfo,params)
@@ -1032,15 +1184,7 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 			einfo.Sword = {}
 			q.Visible = false
 		end
-		if ent:GetData()[item.own_key.."linked_knife"] then
-			local d2 = ent:GetData()
-			for i = 1,(#d2[item.own_key.."linked_knife"]) do
-				local tg = d2[item.own_key.."linked_knife"][#d2[item.own_key.."linked_knife"] ]
-				tg:GetData()[item.own_key.."Cast"] = {counter = 0,dir = tg.Position - ent.Position,}
-				table.remove(d2[item.own_key.."linked_knife"],#d2[item.own_key.."linked_knife"])
-				if #d2[item.own_key.."linked_knife"] == 0 then d2[item.own_key.."linked_knife"] = nil break end
-			end
-		end
+		item.release_linked_knives(player, ent)
 	end
 	if finfo.cast and finfo.cast == params.counter then 
 		local fired = false
@@ -1101,6 +1245,8 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 	end
 	if finfo.set and finfo.set == params.counter then 
 		ent:GetData()[item.own_key.."linked_knife"] = ent:GetData()[item.own_key.."linked_knife"] or {}
+		local attack = ent:GetData()[item.own_key.."Attack"]
+		if attack then attack.knife_all = {} end
 		einfo.Knife = {}
 		local mul = einfo.mul or 3
 		for i = 1,mul do 
@@ -1110,6 +1256,7 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 			s2:Play("Appear",true)
 			q:GetData()[item.own_key.."AnnaKnife"] = {counter = 0,linker = ent,}
 			table.insert(ent:GetData()[item.own_key.."linked_knife"],q)
+			if attack then table.insert(attack.knife_all, q) end
 		end
 	end
 	if finfo.scythe and finfo.scythe == params.counter and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_DEATHS_TOUCH) then
@@ -1159,11 +1306,11 @@ function item.trigger_finfo(player,ent,finfo,einfo,params)
 			q.Position = ent.Position
 			q.PositionOffset = params.pos - ent.Position + auxi.mul_t(Vector(0,-10),auxi.ProtectVector(ent.SpriteScale))
 			q.DepthOffset = ent.DepthOffset - 5
-			--q:GetSprite().Scale = Vector(1,1) * ent.SpriteScale:Length()/math.sqrt(2)	
-			q:GetSprite().Scale = auxi.ProtectVector(ent.SpriteScale)
+			-- 光环视觉和判定共用道具尺寸，避开幻影动画的压缩帧。
+			q:GetSprite().Scale = auxi.ProtectVector(einfo.scale or Vector(1,1))
 			q:GetData()[item.own_key.."Godhead"].Update = 2
 			q:GetData()[item.own_key.."Godhead"].counter = (q:GetData()[item.own_key.."Godhead"].counter or 0) + 1
-			local range = 100 * auxi.ProtectVector(ent.SpriteScale):Length() / math.sqrt(2)
+			local range = 100 * (einfo.range_mul or 1)
 			local n_entity = Isaac.GetRoomEntities()
 			if q:GetData()[item.own_key.."Godhead"].counter % 3 == 2 then for u,v in pairs(n_entity) do if (v.Position - params.pos):Length() < range then 
 				if auxi.isenemies(v) or ((not v:HasEntityFlags(EntityFlag.FLAG_FRIENDLY)) and auxi.check_if_any(item.ignore_type[v.Type],v) ~= true) then
@@ -1209,12 +1356,23 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	local tearflags = (einfo.tearflags or BitSet128(0,0)) | tearHitParams.TearFlags
 	local tearcolor = params.color or einfo.tearcolor or tearHitParams.TearColor
 	local dmg = tearHitParams.TearDamage * 5 * (einfo.dmgmul or 1) * (params.dmgrate or 1)
-	-- SpriteScale 是幻影 squash/stretch 动画态，只能驱动落点冲击体积；
-	-- Tech X 等武器半径只吃显式 rangerate，避免动画帧造成偶发最小圈。
+	-- SpriteScale 是幻影 squash/stretch 动画态，只供探针观察；
+	-- 命中与派生效果统一使用攻击计划里的显式尺寸倍率。
 	local visual_scale_mul = ent.SpriteScale:Length() / math.sqrt(2)
-	local weapon_range_mul = params.rangerate or 1
-	local impact_scale_mul = visual_scale_mul * weapon_range_mul
-	local range = (math.sqrt(player.TearRange/10) * 12 + 20) * impact_scale_mul
+	-- 巧克力豆奶的命中范围随蓄力增长；动画 SpriteScale 仍不参与判定。
+	local weapon_range_mul = (params.rangerate or 1) * (einfo.range_mul or 1)
+	local impact_scale_mul = weapon_range_mul
+	local range_probe = package.loaded["Qing_Remaster_scripts.debug.anna_attack_range_probe"]
+	local probe_on = range_probe and range_probe.is_enabled and range_probe.is_enabled()
+	local tuning = probe_on and range_probe.get_tuning and range_probe.get_tuning() or nil
+	local hit_base_size = tuning and tuning.hit_base_size or 50
+	local hit_range_scale = tuning and tuning.hit_range_scale or 1
+	local range_factor = math.sqrt(math.max(0, player.TearRange) / 260)
+	local range = hit_base_size * weapon_range_mul * math.max(0, 1 + hit_range_scale * (range_factor - 1))
+	-- 环只由自身基准、射程和武器倍率决定，不继承角色或幻影的动画 Scale。
+	local ring_range_scale = tuning and tuning.ring_range_scale or 1
+	local ring_scale_mul = weapon_range_mul * (tuning and tuning.ring_base_scale or 1)
+		* math.max(0, 1 + ring_range_scale * (range_factor - 1))
 	local weap = einfo.weap or auxi.get_weapon(player)
 	local clear_tear = (tearflags & BitSet128(1<<34,0) == BitSet128(1<<34,0)) or auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_LOST_CONTACT)
 	local magnet_tear = (tearflags & BitSet128(0,1<<(66-64)) == BitSet128(0,1<<(66-64))) or player:HasTrinket(TrinketType.TRINKET_SUPER_MAGNET)
@@ -1222,8 +1380,27 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	if tearflags & BitSet128(1<<6,0) == BitSet128(1<<6,0) then range = range + 15 end
 	if tearflags & BitSet128(1<<18,0) == BitSet128(1<<18,0) then range = range + 15 end
 	local cnt = 0
-	for u,v in pairs(n_entity) do 
-		if (v.Position - pos):Length() < range then
+	local watch = probe_on and {} or nil
+	for u,v in pairs(n_entity) do
+		local dist = (v.Position - pos):Length()
+		local body = v.Size or 0
+		local reached = dist <= range + body
+		if watch and v.Type ~= 9 and dist <= range + body + 72 then
+			local enemy = auxi.isenemies(v)
+			local prop = (not enemy)
+				and (not v:HasEntityFlags(EntityFlag.FLAG_FRIENDLY))
+				and auxi.check_if_any(item.ignore_type[v.Type], v) ~= true
+				and v.HitPoints < 10
+			if enemy or prop then
+				watch[#watch + 1] = {
+					x = v.Position.X, y = v.Position.Y,
+					size = body, dist = dist,
+					old_hit = dist < range, new_hit = reached,
+					kind = enemy and "enemy" or "prop",
+				}
+			end
+		end
+		if reached then
 			if v.Type == 9 then
 				local mul = -1
 				if clear_tear then mul = -8 end
@@ -1237,6 +1414,28 @@ function item.anna_attack(player,ent,pos,einfo,params)
 				if v.MaxHitPoints > 0 and v.HitPoints > 0 then cnt = cnt + 1 end
 			end
 		end
+	end
+	if watch and range_probe.record then
+		local visual = params.pos
+		local attack = ent:GetData()[item.own_key.."Attack"]
+		local form = attack and attack.forms and attack.forms[attack.step or 0]
+		range_probe.record({
+			pos = {x = pos.X, y = pos.Y},
+			visual = visual and visual.X and {x = visual.X, y = visual.Y} or nil,
+			range = range,
+			tear_range = player.TearRange,
+			scale_x = ent.SpriteScale.X, scale_y = ent.SpriteScale.Y,
+			visual_scale_mul = visual_scale_mul,
+			impact_scale_mul = impact_scale_mul,
+			ring_scale_mul = ring_scale_mul,
+			tuning = tuning,
+			attack_id = form and form.id or nil,
+			attack_step = attack and attack.step or nil,
+			attack_counter = attack and attack.counter or nil,
+			entity_type = ent.Type,
+			entity_variant = ent.Variant,
+			targets = watch,
+		})
 	end
 	local round = nil
 	do
@@ -1462,7 +1661,7 @@ function item.anna_attack(player,ent,pos,einfo,params)
 	local s2 = q:GetSprite()
 	s2:Load("gfx/player/anna/_anna_effect.anm2",true)
 	s2:Play("Fade",true)
-	s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1.2,0.8)) * impact_scale_mul
+	s2.Scale = Vector(1.2, 0.8) * ring_scale_mul
 	s2.Rotation = params.Rotation or 0
 	if tearflags & BitSet128(1<<6,0) == BitSet128(1<<6,0) or tearflags & BitSet128(1<<18,0) == BitSet128(1<<18,0) then
 		local dir = auxi.random_r()
@@ -1474,7 +1673,7 @@ function item.anna_attack(player,ent,pos,einfo,params)
 			local s2 = q:GetSprite()
 			s2:Load("gfx/player/anna/_anna_effect.anm2",true)
 			s2:Play("Fade",true)
-			s2.Scale = auxi.mul_t(auxi.ProtectVector((ent:GetData()[item.own_key.."Record"] or {}).BaseScale or ent:GetSprite().Scale),Vector(1.2,0.8)) * impact_scale_mul * 0.5
+			s2.Scale = Vector(1.2, 0.8) * ring_scale_mul * 0.5
 			s2.Color = tearcolor
 		end
 	end
@@ -1502,28 +1701,30 @@ function item.anna_plan(player,dinfo,tab,i,params)
 		local cinfo = auxi.check_lerp(delta,item.coal_info)
 		tab.extra_info[i].dmgmul = (tab.extra_info[i].dmgmul or 1) * (1 + cinfo.val)
 		tab.extra_info[i].scale = auxi.mul_t(tab.extra_info[i].scale or Vector(1,1),cinfo.scale)
+		tab.extra_info[i].range_mul = (tab.extra_info[i].range_mul or 1) * cinfo.scale.X
 	end
 	if tab.extra_info[i].tearflags & BitSet128(1<<21,0) == BitSet128(1<<21,0) then	
 		local delta = (pos - stpos):Length()
 		local pinfo = auxi.check_lerp(delta,item.prop_info)
 		tab.extra_info[i].dmgmul = (tab.extra_info[i].dmgmul or 1) * (1 + pinfo.val)
 		tab.extra_info[i].scale = auxi.mul_t(tab.extra_info[i].scale or Vector(1,1),pinfo.scale)
+		tab.extra_info[i].range_mul = (tab.extra_info[i].range_mul or 1) * pinfo.scale.X
 	end
 	if params.charge and auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CHOCOLATE_MILK) then
-		local cmul = math.min(2,math.max(params.charge,1))
-		tab.extra_info[i].dmgmul = (tab.extra_info[i].dmgmul or 1) * cmul
-		tab.extra_info[i].scale = auxi.mul_t(tab.extra_info[i].scale or Vector(1,1),auxi.check_lerp(cmul,item.choco_info).scale)
+		local chocolate_charge = math.min(2, math.max(params.charge, 0))
+		local chocolate_scale = auxi.check_lerp(chocolate_charge, item.choco_info).scale
+		tab.extra_info[i].dmgmul = (tab.extra_info[i].dmgmul or 1) * (1 + chocolate_charge * 0.5)
+		tab.extra_info[i].range_mul = (tab.extra_info[i].range_mul or 1) * chocolate_scale.X
+		tab.extra_info[i].scale = auxi.mul_t(tab.extra_info[i].scale or Vector(1,1), chocolate_scale)
 	end
 	if weap == 6 then table.insert(ret.forms,{id = 4,iid = i,})
 	elseif weap == 5 then table.insert(ret.forms,{id = 6,iid = i,})
 	elseif weap == 2 then table.insert(ret.forms,{id = 8,iid = i,})
 	elseif weap == 14 then table.insert(ret.forms,{id = 8.1,iid = i,})
 	elseif weap == 4 then 
-		local mul = 3
 		tab.extra_info[i].mul = 3
 		table.insert(ret.forms,{id = 10.1,iid = i,})
-		for j = 1,mul do table.insert(ret.forms,{id = 10.2,iid = i,wait = 10,}) end
-		table.insert(ret.forms,{id = 10,iid = i,wait = 20,})
+		table.insert(ret.forms,{id = 10,iid = i,})
 	elseif weap == 13 then table.insert(ret.forms,{id = 12,iid = i,}) table.insert(ret.forms,{id = 1,iid = i,})
 	else table.insert(ret.forms,{id = 2,iid = i,}) end
 	return ret
@@ -1543,10 +1744,14 @@ local function size_cache_signature(player)
 	local extra = attack and attack.einfo
 	local scale = info and info.scale or Vector(1, 1)
 	local extra_scale = extra and extra.scale or Vector(1, 1)
-	local charge = auxi.has_have_coll(player, CollectibleType.COLLECTIBLE_CHOCOLATE_MILK)
-		and (d[item.own_key.."charge"] or 0) or 0
+	local charge = 0
+	if auxi.has_have_coll(player, CollectibleType.COLLECTIBLE_CHOCOLATE_MILK) then
+		local maximum = auxi.getshotinfo(player, {Extra = true}).mx
+		charge = math.min((d[item.own_key.."charge"] or 0) * item.mxdelay2cnt
+			/ math.max(1, player.MaxFireDelay) / 100, maximum, 2)
+	end
 	return table.concat({
-		quantize_scale_value(charge / math.max(1, player.MaxFireDelay)),
+		charge,
 		quantize_scale_value(scale.X), quantize_scale_value(scale.Y),
 		quantize_scale_value(extra_scale.X), quantize_scale_value(extra_scale.Y),
 		attack and attack.birth and 1 or 0,
@@ -1558,12 +1763,11 @@ local function request_size_cache(player, force)
 	local frame = Game():GetFrameCount()
 	local signature = size_cache_signature(player)
 	if not force and d[SIZE_CACHE_SIGNATURE_KEY] == signature then return end
-	-- 动画期间最多每 3 帧重算一次；结束/中断仍立即恢复。
-	if not force and frame - (d[SIZE_CACHE_FRAME_KEY] or -1000) < 3 then return end
+	-- 玩家更新每游戏帧会运行两次；同帧合并，蓄力变化仍逐帧刷新。
+	if not force and d[SIZE_CACHE_FRAME_KEY] == frame then return end
 	d[SIZE_CACHE_SIGNATURE_KEY] = signature
 	d[SIZE_CACHE_FRAME_KEY] = frame
-	player:AddCacheFlags(CacheFlag.CACHE_SIZE)
-	player:EvaluateItems()
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_SIZE)
 end
 
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
@@ -1593,9 +1797,7 @@ Function = function(_,player)
 				d[item.own_key.."Focus_target"] = q
 			end
 			d[item.own_key.."charge"] = (d[item.own_key.."charge"] or 0) + 1
-			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CHOCOLATE_MILK) then
-				request_size_cache(player, false)
-			end
+			request_size_cache(player, false)
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_ANTI_GRAVITY) then
 				d[item.own_key.."anti_counter_Charge_Bar_buff"] = (d[item.own_key.."anti_counter_Charge_Bar_buff"] or 0) + 1
 				if d[item.own_key.."anti_counter_Charge_Bar_buff"] >= 100 * player.MaxFireDelay / item.mxdelay2cnt * item.wait_mul then
@@ -1744,6 +1946,7 @@ Function = function(_,player)
 				end
 			end
 			d[item.own_key.."charge"] = 0
+			request_size_cache(player, true)
 			if d[item.own_key.."anti_counter_Charge_Bar_buff"] then d[item.own_key.."anti_counter_Charge_Bar_buff"] = nil end
 			if auxi.check_all_exists(d[item.own_key.."Tech2"]) then d[item.own_key.."Tech2"]:Remove() d[item.own_key.."Tech2"] = nil end
 		end
@@ -1775,6 +1978,7 @@ Function = function(_,player)
 			else s.Color = auxi.MulColor(auxi.table2color(info),d[item.own_key.."Attack"].extra_color or Color(1,1,1,1,1,1,1)) end
 			local tgpos = player.Position + player_offset_holder.GetPlayerOffset(player)
 			if fminfo.wait then fminfo.wait = fminfo.wait - 1 if fminfo.wait <= 0 then fminfo.wait = nil end item.control_linkers(player,player,{pos = tgpos,}) break end
+			if item.hold_knife_impact(d[item.own_key.."Attack"], finfo, 1) then break end
 			d[item.own_key.."Attack"].counter = (d[item.own_key.."Attack"].counter or 0) + 1
 			if finfo.rport and finfo.rport == d[item.own_key.."Attack"].counter and auxi.check_all_exists(d[item.own_key.."Attack"].port) then
 				d[item.own_key.."Attack"].port:GetData()[item.own_key.."AnnaPort"].Fade = true
@@ -2001,6 +2205,14 @@ Function = function(_,ent)
 			local tg = d[item.own_key.."AnnaKnife"].linker
 			ent.DepthOffset = 5
 			if d[item.own_key.."Cast"] then
+				local cast = d[item.own_key.."Cast"]
+				if cast.locked then
+					local target = cast.target
+					if target and auxi.check_all_exists(target) and auxi.isenemies(target) and not target:IsDead() then
+						cast.last_target_pos = target.Position + target.Velocity * 2
+					end
+					cast.tgpos = cast.last_target_pos or cast.tgpos
+				end
 				local dposoffset = (ent.PositionOffset - Vector(0,-16)) * 0.2 * math.min(1.5,player.ShotSpeed)
 				local rvel = ent.Velocity - dposoffset
 				d[item.own_key.."Cast"].posoffset = d[item.own_key.."Cast"].posoffset or ent.PositionOffset.Y
@@ -2011,7 +2223,7 @@ Function = function(_,ent)
 				d[item.own_key.."Cast"].counter = (d[item.own_key.."Cast"].counter or 0) + 1
 				local dir = d[item.own_key.."Cast"].tgpos - ent.Position
 				local checkrange = 100
-				if dir:Length() < checkrange then 
+				if not cast.locked and dir:Length() < checkrange then
 					local tg = auxi.get_nearest_enemy(nil,d[item.own_key.."Cast"].tgpos) 
 					if auxi.check_all_exists(tg) and (tg.Position - ent.Position):Length() < checkrange then 
 						local tgpos = tg.Position + tg.Velocity * 2
@@ -2259,10 +2471,18 @@ Function = function(_,player,cacheFlag)
 		local d = player:GetData()
 		if cacheFlag == CacheFlag.CACHE_SIZE then
 			if auxi.has_have_coll(player,CollectibleType.COLLECTIBLE_CHOCOLATE_MILK) then
-				local cnt = (d[item.own_key.."charge"] or 0) * item.mxdelay2cnt / player.MaxFireDelay
+				local charge_ticks = d[item.own_key.."charge"] or 0
+				local cnt = charge_ticks * item.mxdelay2cnt / player.MaxFireDelay
 				local shotinfo = auxi.getshotinfo(player,{Extra = true,})
 				local charge = math.min(cnt/100,shotinfo.mx)
-				player.SpriteScale = auxi.mul_t(player.SpriteScale,auxi.check_lerp(charge,item.choco_info).scale)
+				if cnt > 0 then
+					-- 前 5 个游戏帧从正常体型接入蓄力尺寸，之后继续逐帧增长。
+					local progress = math.min(1, charge_ticks / 10)
+					local eased = progress * progress * (3 - 2 * progress)
+					local target = auxi.check_lerp(charge,item.choco_info).scale
+					local size = 1 + (target.X - 1) * eased
+					player.SpriteScale = auxi.mul_t(player.SpriteScale,Vector(size,size))
+				end
 			end
 			d[item.own_key.."Record"] = d[item.own_key.."Record"] or {}
 			d[item.own_key.."Record"].BaseScale = auxi.ProtectVector(player.SpriteScale)
@@ -2346,6 +2566,7 @@ function item.build_aeon_impact_snapshot(player, dir, einfo, params, weap)
 		kind = "anna2_impact",
 		direction = dir_tbl,
 		dmgmul = tonumber(einfo.dmgmul) or 1,
+		range_mul = tonumber(einfo.range_mul) or 1,
 		dmgrate = tonumber(params.dmgrate) or 1,
 		rangerate = tonumber(params.rangerate) or 1,
 		weap = tonumber(weap) or tonumber(einfo.weap) or auxi.get_weapon(player),
@@ -2363,11 +2584,12 @@ function item.fire_attack_copy(player, request)
 	local aim = request.aim_dir or Vector(0, 1)
 	local mul = tonumber(request.damage_mul) or 0.75
 	local snap = request.snapshot
-	local weap, dmgrate, rangerate, flags, main
+	local weap, dmgrate, rangerate, range_mul, flags, main
 	if type(snap) == "table" and snap.kind == "anna2_impact" then
 		mul = tonumber(snap.dmgmul) or mul
 		dmgrate = tonumber(snap.dmgrate) or 1
 		rangerate = tonumber(snap.rangerate) or 1
+		range_mul = tonumber(snap.range_mul) or 1
 		weap = tonumber(snap.weap)
 		main = snap.main == true
 		if type(snap.tearflags) == "table" then
@@ -2384,6 +2606,7 @@ function item.fire_attack_copy(player, request)
 	end
 	local einfo = {
 		dmgmul = mul,
+		range_mul = range_mul,
 		dir = aim,
 		weap = weap,
 		tearflags = flags or CharacterFamiliars.apply_familiar_tear_flags(player, BitSet128(0, 0)),
@@ -2445,4 +2668,17 @@ CharacterAttackCompat.register(item.entity, {
 	audit = "Aeon replays anna_attack impact from Ghost origin with frozen dmgmul/weap/dir",
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key, owner = {type = "player_type", player_type = item.entity}})
+Charging_Bar_holder.register_bar({id = item.own_key .. "chocolate_counter", owner = {type = "custom", valid = function(player)
+	return player:ToPlayer() and player:GetPlayerType() == item.entity
+		and player:GetCollectibleNum(CollectibleType.COLLECTIBLE_CHOCOLATE_MILK) > 0
+end}})
+Charging_Bar_holder.register_bar({id = item.own_key .. "anti_counter", owner = {type = "custom", valid = function(player)
+	return player:ToPlayer() and player:GetPlayerType() == item.entity
+		and player:GetCollectibleNum(CollectibleType.COLLECTIBLE_ANTI_GRAVITY) > 0
+end}})
+Charging_Bar_holder.register_bar({id = item.own_key .. "birth_counter", owner = {type = "custom", valid = function(player)
+	local state = player:GetData()[item.own_key .. "Attack"]
+	return player:ToPlayer() and player:GetPlayerType() == item.entity and state and state.birth ~= nil
+end}})
 return item

@@ -1,0 +1,171 @@
+{
+  "seed": 202610284,
+  "seed_method": "sha256(SEED:parts)",
+  "anm2": "resources/gfx/boss/Zennith/storm/storm_v4.anm2",
+  "sheets": {
+    "flow_ribbon.png": {
+      "size": [
+        256,
+        128
+      ],
+      "frames": 8,
+      "prefix": "Ribbon"
+    },
+    "gust_edges.png": {
+      "size": [
+        192,
+        96
+      ],
+      "frames": 8,
+      "prefix": "Gust"
+    },
+    "vortex_band.png": {
+      "size": [
+        256,
+        240
+      ],
+      "frames": 10,
+      "prefix": "Vortex"
+    },
+    "impact_wave.png": {
+      "size": [
+        256,
+        144
+      ],
+      "frames": 6,
+      "prefix": "Impact"
+    },
+    "debris_chips.png": {
+      "size": [
+        96,
+        48
+      ],
+      "frames": 8,
+      "prefix": "Debris"
+    }
+  },
+  "debris_sources": [
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        8,
+        8,
+        16,
+        16
+      ]
+    },
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        48,
+        16,
+        14,
+        14
+      ]
+    },
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        96,
+        40,
+        12,
+        12
+      ]
+    },
+    {
+      "file": "rocks_mausoleum.png",
+      "rect": [
+        160,
+        20,
+        18,
+        14
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        12,
+        12,
+        14,
+        14
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        64,
+        24,
+        16,
+        12
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        120,
+        48,
+        12,
+        12
+      ]
+    },
+    {
+      "file": "rocks_gehenna.png",
+      "rect": [
+        180,
+        30,
+        14,
+        16
+      ]
+    }
+  ],
+  "animations": [
+    "Ribbon1",
+    "Ribbon2",
+    "Ribbon3",
+    "Ribbon4",
+    "Ribbon5",
+    "Ribbon6",
+    "Ribbon7",
+    "Ribbon8",
+    "Gust1",
+    "Gust2",
+    "Gust3",
+    "Gust4",
+    "Gust5",
+    "Gust6",
+    "Gust7",
+    "Gust8",
+    "Vortex1",
+    "Vortex2",
+    "Vortex3",
+    "Vortex4",
+    "Vortex5",
+    "Vortex6",
+    "Vortex7",
+    "Vortex8",
+    "Vortex9",
+    "Vortex10",
+    "Impact1",
+    "Impact2",
+    "Impact3",
+    "Impact4",
+    "Impact5",
+    "Impact6",
+    "Debris1",
+    "Debris2",
+    "Debris3",
+    "Debris4",
+    "Debris5",
+    "Debris6",
+    "Debris7",
+    "Debris8"
+  ],
+  "validation_ok": true,
+  "fixes": [
+    "RootAnimation Frame per anim",
+    "non-owning layers Visible=false",
+    "RGBA paste without mask",
+    "stable sha256 seeds",
+    "debris source hard-fail + alpha checks"
+  ]
+}

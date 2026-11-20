@@ -3,6 +3,19 @@
 Public Alpha notes for Glaze Ceremony: Promised Land. This file belongs to the
 public GitHub repository overlay; it is not shipped inside the player ZIP.
 
+## alpha-0.1.3
+
+### Added
+
+- Bewitching Moon: attach moons, pulse moonlight, and trail dust.
+- Extra Chinese pixel glyphs for player-facing names (including Strawberry Cake Pie).
+
+### Fixed
+
+- Tarot Cloth HUD overlay sits on the card render anchor again.
+- Scripted active uses with no real ActiveSlot no longer crash charge helpers.
+- Tiny Update / HUD CJK text no longer swaps a single missing character onto the backup font when the primary glyph exists.
+
 ## alpha-0.1.2
 
 ### Fixed

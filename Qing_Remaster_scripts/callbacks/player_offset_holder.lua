@@ -18,17 +18,48 @@ function item.LoadPlayer(player,value)
 	else d[item.own_key.."Open"] = nil end
 end
 
-function item.GetPlayerOffset(player)
+--- Screen-space lift while Open. Prefers last render Info; if missing (update
+--- phase before the first PlayerNil draw), evaluate POST_CHECK live.
+local function resolve_open_screen_offset(player)
 	local d = player:GetData()
-	if d[item.own_key.."Open"] then return ui.Screen2ScaleWorld((d[item.own_key.."Open"].Info or {}).Offset or Vector(0,0))
-	else return player.PositionOffset end
+	local open = d[item.own_key .. "Open"]
+	if not open then
+		return nil
+	end
+	local info = open.Info
+	if info and info.Offset then
+		return info.Offset
+	end
+	local ret = callback_manager.work_with_result(
+		"POST_CHECK_PLAYER_POSITIONOFFSET",
+		function(funct, params, value)
+			if params == nil or params == player:GetPlayerType() then
+				return funct(nil, player, value)
+			end
+		end,
+		{ Offset = Vector(0, 0), Remove = true }
+	)
+	if ret and ret.Offset then
+		-- Cache so update-phase readers (dust, tears, etc.) see the live lift.
+		open.Info = ret
+		return ret.Offset
+	end
+	return Vector(0, 0)
+end
+
+function item.GetPlayerOffset(player)
+	local screen = resolve_open_screen_offset(player)
+	if screen then
+		return ui.Screen2ScaleWorld(screen)
+	end
+	return player.PositionOffset
 end
 
 -- 实际用于渲染的 PositionOffset：Open 时为 holder 替代值，否则为原生 PO。勿再与 PositionOffset 相加。
 function item.GetVisualPositionOffset(player)
-	local d = player:GetData()
-	if d[item.own_key.."Open"] then
-		return ui.Screen2ScaleWorld((d[item.own_key.."Open"].Info or {}).Offset or Vector(0, 0))
+	local screen = resolve_open_screen_offset(player)
+	if screen then
+		return ui.Screen2ScaleWorld(screen)
 	end
 	return player.PositionOffset or Vector(0, 0)
 end

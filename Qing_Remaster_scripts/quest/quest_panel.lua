@@ -60,6 +60,91 @@ local panel = {
 	},
 }
 
+-- Openpage (Q 任务) bookmark presentation — transient, not saved.
+-- First open of a Pause session snaps to full; Q / submenu transitions animate.
+local ENTRY_IN_FRAMES = 16
+local ENTRY_OUT_FRAMES = 12
+local ENTRY_RISE_PX = 14
+local ENTRY_MAX_ALPHA = 0.95
+local ENTRY_PANEL_HIDE_T = 0.35
+
+local entry_anim = {
+	progress = 1,
+	target = 1,
+	pause_initialized = false,
+	last_render_frame = nil,
+}
+
+local function ease_out_cubic(t)
+	t = math.max(0, math.min(1, t or 0))
+	local u = 1 - t
+	return 1 - u * u * u
+end
+
+local function ease_in_cubic(t)
+	t = math.max(0, math.min(1, t or 0))
+	return t * t * t
+end
+
+local function reset_entry_session()
+	entry_anim.progress = 1
+	entry_anim.target = 1
+	entry_anim.pause_initialized = false
+	entry_anim.last_render_frame = nil
+end
+
+local function snap_entry_shown()
+	entry_anim.progress = 1
+	entry_anim.target = 1
+end
+
+local function tick_entry_anim()
+	local frame = Isaac and Isaac.GetFrameCount and Isaac.GetFrameCount() or nil
+	if frame ~= nil and entry_anim.last_render_frame == frame then
+		return
+	end
+	entry_anim.last_render_frame = frame
+
+	local tgt = entry_anim.target or 0
+	local cur = entry_anim.progress or 0
+	if math.abs(tgt - cur) < 0.0005 then
+		entry_anim.progress = tgt
+		return
+	end
+	local frames = (tgt > cur) and ENTRY_IN_FRAMES or ENTRY_OUT_FRAMES
+	if frames < 1 then frames = 1 end
+	local step = 1 / frames
+	if tgt > cur then
+		cur = math.min(tgt, cur + step)
+	else
+		cur = math.max(tgt, cur - step)
+	end
+	entry_anim.progress = cur
+end
+
+--- Visual params from entry progress + paper open_amount hide weight.
+local function entry_visual_params(opts)
+	opts = opts or {}
+	local progress = entry_anim.progress or 0
+	local target = entry_anim.target or 0
+	local eased
+	if target < progress then
+		eased = ease_in_cubic(progress)
+	else
+		eased = ease_out_cubic(progress)
+	end
+	local alpha = ENTRY_MAX_ALPHA * eased
+	local offset_y = ENTRY_RISE_PX * (1 - eased)
+	if opts.static_full then
+		alpha = opts.force_alpha or 1
+		offset_y = 0
+	end
+	local panel_t = pause_ui.get_quest_open_amount() or 0
+	local hide_factor = 1 - math.min(1, panel_t / ENTRY_PANEL_HIDE_T)
+	alpha = alpha * hide_factor
+	return alpha, offset_y, hide_factor
+end
+
 -- Quest Panel: only integer 1x. 0.5 not approved for this surface yet.
 local SCALE = 1
 local MARKER_X = 10
@@ -107,11 +192,17 @@ function panel.close()
 	-- Do not clear _q_down here: Q may still be held; clearing would re-edge and flash open.
 	panel.opened = false
 	pause_ui.set_quest_open_amount(0)
+	-- Openpage rises again while paper retracts (same Pause session).
+	if entry_anim.pause_initialized then
+		entry_anim.target = 1
+	end
 end
 
 function panel.open()
 	panel.opened = true
 	pause_ui.set_quest_open_amount(1)
+	-- Openpage exits immediately with paper expand — do not wait for exit finish.
+	entry_anim.target = 0
 end
 
 local function panel_reveal_t()
@@ -284,7 +375,7 @@ local function side_marker_state(side)
 	return "known"
 end
 
-local function render_page_toggle(layout, kind, alpha)
+local function render_page_toggle(layout, kind, alpha, offset_y)
 	if not layout then return end
 	local pos
 	if kind == "close" then
@@ -294,8 +385,18 @@ local function render_page_toggle(layout, kind, alpha)
 	end
 	if not pos then return end
 	if draw.page_toggle then
-		draw.page_toggle(pos, kind, {alpha = alpha or 1})
+		draw.page_toggle(pos, kind, {
+			alpha = alpha or 1,
+			offset_y = offset_y or 0,
+		})
 	end
+end
+
+local function render_openpage(layout, opts)
+	opts = opts or {}
+	local alpha, offset_y = entry_visual_params(opts)
+	if alpha <= 0.01 then return end
+	render_page_toggle(layout, "open", alpha, offset_y)
 end
 
 local function sample_panel_view()
@@ -562,6 +663,42 @@ if REPENTOGON and ModCallbacks.MC_PRE_PAUSE_SCREEN_RENDER then
 	})
 end
 
+local function try_build_pause_layout()
+	local anchor = pause_ui.get_completion_anchor and pause_ui.get_completion_anchor()
+	if not anchor or not anchor.position then
+		return nil
+	end
+	local layout = pause_ui.build_layout(anchor.position, anchor.scale)
+	panel._last_layout = layout
+	return layout
+end
+
+--- Drive Openpage target for this Pause frame. First session show snaps full (no rise).
+local function update_openpage_target(want_show, opts)
+	opts = opts or {}
+	if opts.static_preview then
+		-- Force preview: snap once to full; Replay may set progress=0 then rise once.
+		if not entry_anim.pause_initialized then
+			entry_anim.pause_initialized = true
+			snap_entry_shown()
+		else
+			entry_anim.target = 1
+		end
+		return
+	end
+	if want_show then
+		if not entry_anim.pause_initialized then
+			-- First Pause main-page show this session: sit with the menu, do not float up.
+			entry_anim.pause_initialized = true
+			snap_entry_shown()
+		else
+			entry_anim.target = 1
+		end
+	else
+		entry_anim.target = 0
+	end
+end
+
 -- Pause-surface input + Quest UI draw (after vanilla Pause / Seed / Marks).
 -- Anchor comes from PRE_COMPLETION_MARKS capture; never draw from POST marks.
 if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
@@ -573,6 +710,7 @@ if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
 
 			if not pause_ui.is_in_run() then
 				reset_pause_input_latch()
+				reset_entry_session()
 				return
 			end
 
@@ -586,14 +724,25 @@ if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
 					or prev.force_panel == true
 				if not force then
 					panel._last_open_gate = {ok = false, reason = "run_scope_blocked"}
+					reset_entry_session()
 					return
 				end
 			end
 
+			-- Pause submenu (options / etc.): exit Openpage if still rendering; no Q.
 			if not pause_ui.is_main_page() then
 				reset_pause_input_latch()
 				if panel.opened then
-					panel.close()
+					panel.opened = false
+					pause_ui.set_quest_open_amount(0)
+				end
+				entry_anim.target = 0
+				tick_entry_anim()
+				if (entry_anim.progress or 0) > 0.01 then
+					local layout = try_build_pause_layout()
+					if layout then
+						render_openpage(layout)
+					end
 				end
 				return
 			end
@@ -603,6 +752,9 @@ if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
 				if panel.opened then
 					panel.close()
 				end
+				entry_anim.target = 0
+				tick_entry_anim()
+				reset_entry_session()
 				return
 			end
 
@@ -620,6 +772,11 @@ if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
 				else
 					pause_ui.set_quest_open_amount(0)
 				end
+				entry_anim.target = 0
+				tick_entry_anim()
+				if reason == "pause_closed" or reason == "not_in_run" then
+					reset_entry_session()
+				end
 				return
 			end
 
@@ -627,6 +784,7 @@ if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
 				panel.open()
 			elseif force_panel then
 				pause_ui.set_quest_open_amount(1)
+				entry_anim.target = 0
 			end
 
 			if ok and poll_pause_q() then
@@ -644,37 +802,58 @@ if REPENTOGON and ModCallbacks.MC_POST_PAUSE_SCREEN_RENDER then
 				end
 			end
 
+			-- Openpage wants to show when hint allowed (or force open) and paper is not the focus.
+			-- Do NOT gate on should_draw_panel()==false — that waits for full paper retract.
+			local want_openpage = (ok or force_open) and not panel.opened and not force_panel
+			update_openpage_target(want_openpage, {static_preview = force_open and not panel.opened})
+			tick_entry_anim()
+
 			-- Unified Quest draw for vanilla + all self-drawn completion characters.
 			if not ok and not force_open and not force_close and not force_panel
-				and not panel.opened and not should_draw_panel() then
+				and not panel.opened and not should_draw_panel()
+				and (entry_anim.progress or 0) <= 0.01 then
 				return
 			end
 
-			local anchor = pause_ui.get_completion_anchor and pause_ui.get_completion_anchor()
-			if not anchor or not anchor.position then
+			local layout = try_build_pause_layout()
+			if not layout then
 				return
 			end
-
-			local layout = pause_ui.build_layout(anchor.position, anchor.scale)
-			panel._last_layout = layout
 
 			if should_draw_panel() then
 				render_panel(layout)
-				if force_open then
-					render_page_toggle(layout, "open", 1)
-				end
-			else
-				if ok or force_open then
-					render_page_toggle(layout, "open", 0.95)
-				end
-				if force_close then
-					render_page_toggle(layout, "close", 1)
-				end
+			end
+
+			-- Openpage: animate with paper; force preview draws static full when panel closed.
+			if force_open and not panel.opened and not should_draw_panel() then
+				render_openpage(layout, {static_full = true, force_alpha = 1})
+			elseif (ok or force_open or (entry_anim.progress or 0) > 0.01) and not force_panel then
+				render_openpage(layout)
+			end
+
+			if force_close and not should_draw_panel() then
+				render_page_toggle(layout, "close", 1)
 			end
 			pause_ui.render_debug_overlay(layout, panel._last_content_bounds)
 		end,
 	})
 end
+
+-- Full Pause exit is not guaranteed to keep POST_PAUSE_SCREEN_RENDER; clear session here.
+table.insert(panel.ToCall, {
+	CallBack = ModCallbacks.MC_POST_UPDATE,
+	params = nil,
+	Function = function()
+		if entry_anim.pause_initialized and not pause_ui.is_open() then
+			reset_entry_session()
+			if panel.opened then
+				panel.opened = false
+				pause_ui.set_quest_open_amount(0)
+			end
+			reset_pause_input_latch()
+		end
+	end,
+})
 
 -- While opened: block PauseMenu navigation / back. Read-only log — no settings UI.
 table.insert(panel.pre_ToCall, {
@@ -716,7 +895,9 @@ table.insert(panel.ToCall, {
 	params = nil,
 	Function = function()
 		pause_ui.set_in_run(true)
-		panel.close()
+		panel.opened = false
+		pause_ui.set_quest_open_amount(0)
+		reset_entry_session()
 		panel.enforce_run_scope()
 		reset_pause_input_latch()
 		panel._debug_pause_render_count = 0
@@ -732,7 +913,9 @@ table.insert(panel.ToCall, {
 	params = nil,
 	Function = function()
 		pause_ui.set_in_run(false)
-		panel.close()
+		panel.opened = false
+		pause_ui.set_quest_open_amount(0)
+		reset_entry_session()
 		reset_pause_input_latch()
 	end,
 })
@@ -742,7 +925,9 @@ table.insert(panel.ToCall, {
 	params = nil,
 	Function = function()
 		pause_ui.set_in_run(false)
-		panel.close()
+		panel.opened = false
+		pause_ui.set_quest_open_amount(0)
+		reset_entry_session()
 		reset_pause_input_latch()
 	end,
 })
@@ -751,7 +936,9 @@ table.insert(panel.myToCall, {
 	CallBack = enums.Callbacks.PRE_GAME_STARTED,
 	params = nil,
 	Function = function()
-		panel.close()
+		panel.opened = false
+		pause_ui.set_quest_open_amount(0)
+		reset_entry_session()
 		panel.enforce_run_scope()
 		reset_pause_input_latch()
 	end,
@@ -787,7 +974,28 @@ function panel.reset_debug_preview()
 	panel._debug_preview.force_hint = false
 	panel._debug_preview.force_panel = false
 	panel._debug_preview.use_sample = false
-	panel.close()
+	panel.opened = false
+	pause_ui.set_quest_open_amount(0)
+	snap_entry_shown()
+end
+
+--- Debug: replay Openpage rise (does not loop; force preview stays static by default).
+function panel.replay_openpage_anim()
+	entry_anim.pause_initialized = true
+	entry_anim.progress = 0
+	entry_anim.target = 1
+	entry_anim.last_render_frame = nil
+end
+
+function panel.get_openpage_anim_snapshot()
+	return {
+		progress = entry_anim.progress or 0,
+		target = entry_anim.target or 0,
+		pause_initialized = entry_anim.pause_initialized == true,
+		in_frames = ENTRY_IN_FRAMES,
+		out_frames = ENTRY_OUT_FRAMES,
+		rise_px = ENTRY_RISE_PX,
+	}
 end
 
 function panel.get_content_bounds()
@@ -814,6 +1022,7 @@ function panel.get_audit_snapshot()
 		q_physically_down = panel._debug_q_down == true,
 		q_press_count = panel._debug_q_press_count or 0,
 		panel_toggles = panel._debug_panel_toggles or 0,
+		openpage_anim = panel.get_openpage_anim_snapshot(),
 		entry_ok = ok == true,
 		entry_reason = reason,
 		revealed = st and registry.is_quest_system_revealed(st) or false,

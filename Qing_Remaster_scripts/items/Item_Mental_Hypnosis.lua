@@ -5,7 +5,6 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local dropping_holder = require("Qing_Remaster_scripts.others.Dropping_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
-local displaying_data2 = require("Qing_Remaster_scripts.translations.data2")
 local save_elses_access = require("Qing_Remaster_scripts.auxiliary.save_elses_access")
 
 local item = {
@@ -21,87 +20,61 @@ local item = {
 			zh = {
 				[1] = {
 					Name = "攻击上升",
-					Description = "经验+3",
+					Description = "你值得更多力量",
 				},
 				[2] = {
 					Name = "射速上升",
-					Description = "哭吧哭吧我的孩子",
+					Description = "尽情哭泣吧",
 				},
 				[3] = {
 					Name = "弹速上升",
-					Description = "现在，要加速了！",
+					Description = "再快一些",
 				},
 				[4] = {
 					Name = "射程上升",
-					Description = "一寸长，一寸强",
+					Description = "看得再远一些",
 				},
 				[5] = {
 					Name = "移速上升",
-					Description = "你的双脚变得轻盈",
+					Description = "继续向前",
 				},
 				[6] = {
 					Name = "幸运上升",
-					Description = function(wd,player) 
-						local rng = player:GetCollectibleRNG(33)
-						rng = auxi.rng_for_sake(rng)
-						local language = auxi.get_language_map(Options.Language)
-						if displaying_data2[language] then
-							local rnd = rng:RandomInt(8) + 1
-							local data = displaying_data2[language]["#Entry_"..tostring(rnd)]
-							if data then
-								return data
-							else
-								return "恭喜！"
-							end
-						end
-					end,
+					Description = "今天我很满意",
 				},
 				[7] = {
 					Name = "身体变小了",
-					Description = "享受这一刻吧！",
+					Description = "小一点会更听话",
 				},
 			},
 			en = {
 				[1] = {
 					Name = "Damage Up",
-					Description = "Level UP!!!",
+					Description = "You deserve more power",
 				},
 				[2] = {
 					Name = "Tear Up",
-					Description = "Cry as you wish.",
+					Description = "Cry to your heart's content",
 				},
 				[3] = {
 					Name = "Shot Speed Up",
-					Description = "Acceleration!!",
+					Description = "A little faster",
 				},
 				[4] = {
 					Name = "Range Up",
-					Description = "Larger reaches more.",
+					Description = "Look a little farther",
 				},
 				[5] = {
 					Name = "Speed Up",
-					Description = "May you be as swift as meteors.",
+					Description = "Keep moving forward",
 				},
 				[6] = {
 					Name = "Luck Up",
-					Description = function(wd,player) 
-						local rng = player:GetCollectibleRNG(33)
-						rng = auxi.rng_for_sake(rng)
-						local language = auxi.get_language_map(Options.Language)
-						if displaying_data2[language] then
-							local rnd = rng:RandomInt(8) + 1
-							local data = displaying_data2[language]["#Entry_"..tostring(rnd)]
-							if data then
-								return data
-							else
-								return "That's good！"
-							end
-						end
-					end,
+					Description = "You have pleased me today",
 				},
 				[7] = {
 					Name = "Size Down",
-					Description = "I Reward You A Smaller Body",
+					Description = "Smaller suits you better",
 				},
 			},
 		},
@@ -109,87 +82,61 @@ local item = {
 			zh = {
 				[1] = {
 					Name = "攻击下降",
-					Description = "平角裤平角裤",
+					Description = "这份力量不属于你",
 				},
 				[2] = {
 					Name = "射速下降",
-					Description = "失去就是力量",
+					Description = "我允许你停下了",
 				},
 				[3] = {
 					Name = "弹速下降",
-					Description = "伪装成负面的正面效果",
+					Description = "不必如此急躁",
 				},
 				[4] = {
 					Name = "射程下降",
-					Description = "一寸短，一寸险",
+					Description = "目光不必那么长远",
 				},
 				[5] = {
 					Name = "移速下降",
-					Description = "是时候表演不动的战斗了",
+					Description = "放慢脚步",
 				},
 				[6] = {
 					Name = "幸运下降",
-					Description = function(wd,player) 
-						local rng = player:GetCollectibleRNG(33)
-						rng = auxi.rng_for_sake(rng)
-						local language = auxi.get_language_map(Options.Language)
-						if displaying_data2[language] then
-							local rnd = rng:RandomInt(8) + 1
-							local data = displaying_data2[language]["#Entry_"..tostring(rnd)]
-							if data then
-								return data
-							else
-								return "幸运值：E-"
-							end
-						end
-					end,
+					Description = "你让我失望了",
 				},
 				[7] = {
 					Name = "身体变大了",
-					Description = "享受这一刻吧！",
+					Description = "这才是你的分量",
 				},
 			},
 			en = {
 				[1] = {
 					Name = "Damage Down",
-					Description = "Level Down!!!",
+					Description = "That power was never yours",
 				},
 				[2] = {
 					Name = "Tear Down",
-					Description = "Stop crying,now!",
+					Description = "You may stop now",
 				},
 				[3] = {
 					Name = "Shot Speed Down",
-					Description = "Maybe it's not that bad?",
+					Description = "There's no need to rush",
 				},
 				[4] = {
 					Name = "Range Down",
-					Description = "Future is close.",
+					Description = "You needn't look so far ahead",
 				},
 				[5] = {
 					Name = "Speed Down",
-					Description = "Cool down yourself!",
+					Description = "Slow down",
 				},
 				[6] = {
 					Name = "Luck Down",
-					Description = function(wd,player) 
-						local rng = player:GetCollectibleRNG(33)
-						rng = auxi.rng_for_sake(rng)
-						local language = auxi.get_language_map(Options.Language)
-						if displaying_data2[language] then
-							local rnd = rng:RandomInt(8) + 1
-							local data = displaying_data2[language]["#Entry_"..tostring(rnd)]
-							if data then
-								return data
-							else
-								return "That's bad！"
-							end
-						end
-					end,
+					Description = "You have disappointed me",
 				},
 				[7] = {
 					Name = "Size Up",
-					Description = "I Punish You A Bigger Body",
+					Description = "Now that's your proper size",
 				},
 			},
 		},

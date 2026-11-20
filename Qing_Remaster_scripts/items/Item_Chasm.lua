@@ -7,6 +7,7 @@ local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local player_offset_holder = require("Qing_Remaster_scripts.callbacks.player_offset_holder")
 local Attribute_holder = require("Qing_Remaster_scripts.others.Attribute_holder")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
+local hidden_rooms = require("Qing_Remaster_scripts.callbacks.hidden_room_holder")
 local thread_shaddoll = require("Qing_Remaster_scripts.threads.thread_Shaddoll")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
 
@@ -199,15 +200,35 @@ Function = function(_,ent)
 end,
 })
 
+local function claim_chasm_rooms()
+	if save.elses[item.own_key.."curse"] then
+		hidden_rooms.note_map_curse(true)
+		save.elses[item.own_key.."curse"] = nil
+	end
+	hidden_rooms.release_owner("chasm")
+	local rooms = Game():GetLevel():GetRooms()
+	for i = 0, rooms.Size - 1 do
+		local tg = rooms:Get(i)
+		if item.is_chasm_room(tg) then
+			hidden_rooms.keep(tg.SafeGridIndex, auxi.GetDimension(tg) or 0, {
+				hide = true,
+				hide_map = true,
+				owner = "chasm",
+			})
+		end
+	end
+	hidden_rooms.refresh()
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
+	claim_chasm_rooms()
 	local player = auxi.have_player_has_collectible(item.entity)
 	local room = Game():GetRoom()
 	if player and (room:GetType() == 7 or (Game():IsGreedMode() and room:GetType() == 8)) then	--room:IsFirstVisited() and 
 		local q = Isaac.Spawn(1000,enums.Entities.Chasm_Hanger,0,room:FindFreePickupSpawnPosition(room:GetCenterPos(),10,true),Vector(0,0),nil)
 	end
 	local level = Game():GetLevel()
-	local curse = level:GetCurses()
 	if item.is_chasm_room() then
 		item_displaying_holder.check_and_description("Level","Chasm","Chasm","",player,false)
 		thread_shaddoll.shift_room(1)
@@ -215,19 +236,11 @@ Function = function(_)
 			local pos = auxi.find_in() or Game():GetRoom():GetCenterPos()
 			local q = Isaac.Spawn(1000,enums.Entities.Chasm_Hanger,0,pos,Vector(0,0),nil)
 		end
-		if curse & (1<<2) ~= (1<<2) and save.elses[item.own_key.."curse"] == nil then
-			save.elses[item.own_key.."curse"] = true
-			level:AddCurse(1<<2,false)
-		end
 		for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 			local door = room:GetDoor(slot)
 			if door then room:RemoveDoor(slot) end 
 		end
 	else
-		if save.elses[item.own_key.."curse"] then
-			save.elses[item.own_key.."curse"] = nil
-			level:RemoveCurses(1<<2)
-		end
 		local desc = Game():GetLevel():GetCurrentRoomDesc()
 		if desc.SafeGridIndex > 0 then
 			for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
@@ -237,13 +250,6 @@ Function = function(_)
 					if desc and item.is_chasm_room(desc) then room:RemoveDoor(slot) end
 				end 
 			end
-		end
-		local lastdesc = level:GetLastRoomDesc()
-		if item.is_chasm_room(lastdesc) then 
-			local desc = level:GetRoomByIdx(lastdesc.SafeGridIndex,auxi.GetDimension(lastdesc))
-			desc.DisplayFlags = 0
-			desc.VisitedCount = 0
-			level:UpdateVisibility()
 		end
 	end
 	item.NoTaken = nil

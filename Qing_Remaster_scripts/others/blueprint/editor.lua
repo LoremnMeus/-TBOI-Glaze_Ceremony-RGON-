@@ -5,6 +5,7 @@ local enums = require("Qing_Remaster_scripts.core.enums")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local Mouse_UI = require("Qing_Remaster_scripts.others.Mouse_UI_holder")
 local CraftProfile = require("Qing_Remaster_scripts.others.craft_combat_profile")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local CraftIdentity = require("Qing_Remaster_scripts.mimics.craft_identity")
 local Imitate_item_holder = require("Qing_Remaster_scripts.callbacks.imitate_item_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
@@ -193,8 +194,9 @@ function BP.open_craft_view(panel, target_id, edit_uid)
 	local draft = BP.get_drafts(panel.player)[BP.draft_key(target_id, edit_uid)]
 	local prefs = BP.get_audit_ui_prefs(panel.player)
 	local use_all_items = false
-	-- 旧三态筛选仅用于迁移进标签；正式筛选走 tag_enabled
-	local use_audit_filter = prefs.audit_filter or (prefs.hide_gray == true and "impl" or "all")
+	-- Craft records may still carry their own historical filter. UI preferences
+	-- are canonical tag_enabled only.
+	local use_audit_filter = "all"
 	local edit_rec = edit_uid and item.find_craft(panel.player, edit_uid) or nil
 	local cost_n_hint = BP.resolve_session_required_cost(panel.player, edit_uid, edit_rec, draft)
 	local function rebuild_slots(n, cost_hint)
@@ -287,8 +289,6 @@ function BP.open_craft_view(panel, target_id, edit_uid)
 		or prefs.tag_enabled
 	local use_tag_enabled = CraftProfile.normalize_audit_tag_enabled(tag_src, use_audit_filter)
 	prefs.tag_enabled = use_tag_enabled
-	prefs.audit_filter = "all"
-	prefs.hide_gray = false
 	panel.delete_confirm_uid = nil
 	panel.view = edit_uid and "edit" or "craft"
 	panel.craft = {
@@ -1407,12 +1407,11 @@ end
 function BP.refresh_audit_simulates(player)
 	if not player then return end
 	Imitate_item_holder.Evaluate_Imitate_Items(player)
-	player:AddCacheFlags(
+	unique_holder.request_evaluate_items(player,
 		CacheFlag.CACHE_DAMAGE | CacheFlag.CACHE_FIREDELAY | CacheFlag.CACHE_SHOTSPEED
 		| CacheFlag.CACHE_RANGE | CacheFlag.CACHE_LUCK | CacheFlag.CACHE_SPEED
 		| CacheFlag.CACHE_TEARFLAG | CacheFlag.CACHE_WEAPON | CacheFlag.CACHE_FAMILIARS
 	)
-	player:EvaluateItems()
 end
 item.refresh_audit_simulates = BP.refresh_audit_simulates
 
@@ -1430,7 +1429,7 @@ function BP.try_confirm_delete_stock(panel, craft_uid)
 		panel.nav_graph = nil
 		panel.focus_id = "tab_"..tostring(panel.tab or 2)
 		panel.nav_group = "tabs"
-		sound_tracker.PlayStackedSound(SoundEffect.SOUND_THUMBSDOWN, 0.85, 1, false, 0, 2)
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_THUMBS_DOWN, 0.85, 1, false, 0, 2)
 		pcall(function() BP.get_tutorial().on_craft_deleted(panel.player, craft_uid) end)
 	else
 		sound_tracker.PlayStackedSound(SoundEffect.SOUND_BOSS2INTRO_ERRORBUZZ, 0.7, 1, false, 0, 2)
@@ -1512,8 +1511,6 @@ function BP.confirm_craft(panel)
 		if has_audit then
 			rec.hide_gray = craft.hide_gray == true
 			rec.audit_filter = craft.audit_filter or "all"
-			BP.get_audit_ui_prefs(player).hide_gray = rec.hide_gray
-			BP.get_audit_ui_prefs(player).audit_filter = rec.audit_filter
 		end
 		rec.serial = tonumber(rec.serial) or BP.next_serial_for_target(player, rec.target, rec.uid)
 		BP.refresh_rec_display_name(rec, player)
@@ -1552,8 +1549,6 @@ function BP.confirm_craft(panel)
 	if has_audit then
 		rec.hide_gray = craft.hide_gray == true
 		rec.audit_filter = craft.audit_filter or "all"
-		BP.get_audit_ui_prefs(player).hide_gray = rec.hide_gray
-		BP.get_audit_ui_prefs(player).audit_filter = rec.audit_filter
 	end
 	BP.refresh_rec_display_name(rec, player)
 	if BP.get_tutorial().is_active() then
@@ -1567,8 +1562,7 @@ function BP.confirm_craft(panel)
 
 	local gained = craft.target
 	-- 不发放目标收藏品；飞行器数量由 CheckFamiliar(库存份数) 同步
-	player:AddCacheFlags(CacheFlag.CACHE_FAMILIARS)
-	player:EvaluateItems()
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_FAMILIARS)
 	item.refresh_craft_integrity(player)
 
 	-- 审计材料：挂 imitate（仅 source=audit 的宝宝类）

@@ -64,7 +64,7 @@ local STAT_ICONS = {
 
 local KIND_SOUND = {
 	coin = SoundEffect.SOUND_PENNYPICKUP,
-	key = SoundEffect.SOUND_KEYPICKUP,
+	key = SoundEffect.SOUND_KEYPICKUP_GAUNTLET,
 	bomb = SoundEffect.SOUND_THUMBSUP,
 }
 

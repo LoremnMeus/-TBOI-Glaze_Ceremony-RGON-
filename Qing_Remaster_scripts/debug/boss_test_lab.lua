@@ -8,6 +8,11 @@ local imgui_layout = require("Qing_Remaster_scripts.debug.imgui_debug_layout")
 
 local M = {}
 
+-- Per-panel last action feedback (ImGui element id → text).
+local last_action = {}
+
+local DEFAULT_HP_PRESETS = { 66, 65, 33, 32, 11, 10 }
+
 local function tr(zh, en)
 	local lang = Options and Options.Language
 	if lang == "zh" or lang == nil then return zh end
@@ -18,18 +23,97 @@ local function cap(adapter, name)
 	return adapter and adapter.capabilities and adapter.capabilities[name] == true
 end
 
-local function fmt_inspect(adapter)
+local function record_action(panel_id, boss_id, action, ok, why)
+	local status
+	if ok == false then
+		status = string.format("[FAIL] %s · %s", tostring(action), tostring(why or "failed"))
+	else
+		status = string.format("[OK] %s · %s", tostring(action), tostring(why or "ok"))
+	end
+	last_action[panel_id] = status
+	if Isaac and Isaac.ConsoleOutput then
+		Isaac.ConsoleOutput(string.format("[BossTest:%s] %s\n", tostring(boss_id), status))
+	end
+	return ok, why
+end
+
+local function wrap_action(panel_id, boss_id, action, fn)
+	return function(...)
+		local ok, why = fn(...)
+		return record_action(panel_id, boss_id, action, ok, why)
+	end
+end
+
+local function fmt_inspect(adapter, panel_id)
 	if not adapter or not adapter.inspect then return tr("无遭遇", "No encounter") end
 	local s = adapter.inspect()
-	if not s or s.state == "absent" or s.alive == false then
-		return tr("状态：未生成", "State: absent")
+	local lines = {}
+	local feedback = last_action[panel_id]
+	if feedback then
+		lines[#lines + 1] = feedback
 	end
-	local lines = {
-		string.format("Phase %s  state=%s", tostring(s.phase), tostring(s.state)),
-		string.format("HP %.1f%%  attack=%s f=%s", (s.hp_ratio or s.hp or 0) * 100, tostring(s.current_attack or s.attack), tostring(s.attack_frame)),
-		string.format("Transition=%s f=%s  Finale=%s", tostring(s.transition), tostring(s.transition_frame), tostring(s.finale or s.final_state)),
-		string.format("Crown=%s  Freeze=%s", tostring(s.crown_visible), tostring(s.frozen)),
-	}
+	if not s or s.state == "absent" or s.alive == false then
+		lines[#lines + 1] = tr("状态：未生成", "State: absent")
+		if s and s.note then
+			lines[#lines + 1] = "note=" .. tostring(s.note)
+		end
+		if s and s.state and s.state ~= "absent" then
+			lines[#lines + 1] = string.format("phase=%s state=%s", tostring(s.phase), tostring(s.state))
+		end
+		return table.concat(lines, "\n")
+	end
+	lines[#lines + 1] = string.format("Phase %s  state=%s", tostring(s.phase), tostring(s.state))
+	lines[#lines + 1] = string.format(
+		"HP %.1f%%  attack=%s f=%s",
+		(s.hp_ratio or s.hp or 0) * 100,
+		tostring(s.current_attack or s.attack),
+		tostring(s.attack_frame or s.frame)
+	)
+	lines[#lines + 1] = string.format(
+		"Transition=%s pending=%s reason=%s  Finale=%s",
+		tostring(s.transition),
+		tostring(s.pending_phase),
+		tostring(s.transition_reason or s.note),
+		tostring(s.finale or s.final_state)
+	)
+	if s.crown_visible ~= nil or s.frozen ~= nil then
+		lines[#lines + 1] = string.format("Crown=%s  Freeze=%s", tostring(s.crown_visible), tostring(s.frozen))
+	end
+	-- Floraine / shared combat diagnostics
+	if s.commands_returned ~= nil or s.souls_returned ~= nil or s.staff_phase ~= nil then
+		lines[#lines + 1] = string.format(
+			"Cmds returned=%s souls=%s  staff=%s active=%s",
+			tostring(s.commands_returned),
+			tostring(s.souls_returned),
+			tostring(s.staff_phase),
+			tostring(s.staff_active)
+		)
+	end
+	if s.p2_active ~= nil then
+		lines[#lines + 1] = string.format(
+			"P2 cols active=%s motion=%s@%s L=%s/%s R=%s/%s  promo=%s pending=%s phase=%s",
+			tostring(s.p2_active),
+			tostring(s.p2_motion),
+			tostring(s.p2_motion_elapsed),
+			tostring(s.p2_left),
+			tostring(s.p2_left_locked),
+			tostring(s.p2_right),
+			tostring(s.p2_right_locked),
+			tostring(s.promotions),
+			tostring(s.promo_pending),
+			tostring(s.promo_phase)
+		)
+		if s.p2_left_x ~= nil then
+			lines[#lines + 1] = string.format(
+				"P2 edge Lx=%.0f Rx=%.0f  Ly %.0f→%.0f  n=%s",
+				tonumber(s.p2_left_x) or 0,
+				tonumber(s.p2_right_x) or 0,
+				tonumber(s.p2_left_top) or 0,
+				tonumber(s.p2_left_bot) or 0,
+				tostring(s.p2_count)
+			)
+		end
+	end
 	if s.palace then
 		local p = s.palace
 		lines[#lines + 1] = string.format(
@@ -38,16 +122,26 @@ local function fmt_inspect(adapter)
 			tostring(p.visible_piece_count), tostring(p.piece_count), tostring(p.anchor_count)
 		)
 	end
-	if s.objects then
+	-- Floraine returns objects as a table; Zennith returns a numeric count.
+	if type(s.objects) == "table" then
 		local o = s.objects
 		lines[#lines + 1] = string.format(
 			"Objects mirrors=%s shards=%s fields=%s echoes=%s",
 			tostring(o.mirrors), tostring(o.shards), tostring(o.fields), tostring(o.echoes)
 		)
-	else
+	elseif type(s.objects) == "number" then
+		lines[#lines + 1] = string.format("Objects=%s", tostring(s.objects))
+	elseif s.mirrors ~= nil or s.shards ~= nil then
 		lines[#lines + 1] = string.format(
 			"Objects mirrors=%s shards=%s fields=%s echoes=%s",
 			tostring(s.mirrors), tostring(s.shards), tostring(s.fields), tostring(s.echoes)
+		)
+	end
+	-- Zennith / other adapters with dedicated formatters append their own panel below.
+	if adapter.format_combat_diag then
+		lines[#lines + 1] = tr(
+			"（下方「战斗诊断」含风向 / 风墙 / 站位 / 分裂 / 骤风）",
+			"(See Combat Diagnostics below for wind / wall / stance / split / gust)"
 		)
 	end
 	return table.concat(lines, "\n")
@@ -69,10 +163,18 @@ local function build_adapter_panel(parent, entry)
 	-- Encounter
 	local enc = node .. "_Enc"
 	ImGui.AddElement(node, enc, ImGuiElement.TreeNode, tr("遭遇控制", "Encounter"))
-	if adapter.spawn then ImGui.AddButton(enc, enc .. "_Spawn", tr("生成", "Spawn"), adapter.spawn) end
-	if adapter.restart then ImGui.AddButton(enc, enc .. "_Restart", tr("重新开始", "Restart"), adapter.restart) end
-	if adapter.cleanup then ImGui.AddButton(enc, enc .. "_Cleanup", tr("清理", "Cleanup"), adapter.cleanup) end
-	if adapter.kill then ImGui.AddButton(enc, enc .. "_Kill", tr("击杀（测试模式）", "Kill (practice)"), adapter.kill) end
+	if adapter.spawn then
+		ImGui.AddButton(enc, enc .. "_Spawn", tr("生成", "Spawn"), wrap_action(node, id, "spawn", adapter.spawn))
+	end
+	if adapter.restart then
+		ImGui.AddButton(enc, enc .. "_Restart", tr("重新开始", "Restart"), wrap_action(node, id, "restart", adapter.restart))
+	end
+	if adapter.cleanup then
+		ImGui.AddButton(enc, enc .. "_Cleanup", tr("清理", "Cleanup"), wrap_action(node, id, "cleanup", adapter.cleanup))
+	end
+	if adapter.kill then
+		ImGui.AddButton(enc, enc .. "_Kill", tr("击杀（测试模式）", "Kill (practice)"), wrap_action(node, id, "kill", adapter.kill))
+	end
 
 	-- Force State (stable phase, no transition playback)
 	if adapter.states and adapter.force_state then
@@ -80,26 +182,31 @@ local function build_adapter_panel(parent, entry)
 		ImGui.AddElement(node, st, ImGuiElement.TreeNode, tr("状态（直接进入，不播转场）", "State (instant, no transition)"))
 		for _, state in ipairs(adapter.states) do
 			local sid = state.id
-			ImGui.AddButton(st, st .. "_" .. sid, state.label or sid, function() adapter.force_state(sid) end)
+			ImGui.AddButton(st, st .. "_" .. sid, state.label or sid, wrap_action(node, id, "state:" .. sid, function()
+				return adapter.force_state(sid)
+			end))
 		end
 	end
 
-	-- HP
+	-- HP (per-adapter presets; Glaze defaults remain 66/33 family)
 	if cap(adapter, "hp_control") and adapter.set_hp_ratio then
 		local hp = node .. "_HP"
 		ImGui.AddElement(node, hp, ImGuiElement.TreeNode, tr("生命值", "HP"))
 		ImGui.AddSliderFloat(hp, hp .. "_Slider", "HP %", function(v)
-			adapter.set_hp_ratio((tonumber(v) or 100) / 100)
+			local ok, why = adapter.set_hp_ratio((tonumber(v) or 100) / 100)
+			record_action(node, id, "hp_slider", ok, why)
 		end, 100, 1, 0, 100, "%.0f")
 		ImGui.AddCallback(hp .. "_Slider", ImGuiCallback.Render, function()
 			local s = adapter.inspect and adapter.inspect() or {}
 			local ratio = (s.hp_ratio or s.hp or 1) * 100
 			ImGui.UpdateData(hp .. "_Slider", ImGuiData.Value, ratio)
 		end)
-		local thresholds = {66, 65, 33, 32, 11, 10}
+		local thresholds = adapter.hp_presets or DEFAULT_HP_PRESETS
 		for _, pct in ipairs(thresholds) do
 			local n = pct
-			ImGui.AddButton(hp, hp .. "_" .. n, n .. "%", function() adapter.set_hp_ratio(n / 100) end)
+			ImGui.AddButton(hp, hp .. "_" .. n, n .. "%", wrap_action(node, id, "hp:" .. n, function()
+				return adapter.set_hp_ratio(n / 100)
+			end))
 		end
 	end
 
@@ -109,7 +216,9 @@ local function build_adapter_panel(parent, entry)
 		ImGui.AddElement(node, perf, ImGuiElement.TreeNode, tr("演出（走生产转场）", "Performance (production transition)"))
 		for _, p in ipairs(adapter.performances) do
 			local pid = p.id
-			ImGui.AddButton(perf, perf .. "_" .. pid, p.label or pid, function() adapter.play_performance(pid) end)
+			ImGui.AddButton(perf, perf .. "_" .. pid, p.label or pid, wrap_action(node, id, "perf:" .. pid, function()
+				return adapter.play_performance(pid)
+			end))
 		end
 	end
 
@@ -210,24 +319,63 @@ local function build_adapter_panel(parent, entry)
 		end
 	end
 
+	-- Zennith wall layer isolation (V1.6: Front/Tail columns off by default)
+	if cap(adapter, "wall_layers") and adapter.set_wall_layer then
+		local wl = node .. "_WallLayers"
+		ImGui.AddElement(node, wl, ImGuiElement.TreeNode, tr("风墙图层隔离", "Wall Layer Isolation"))
+		local function add_layer_box(key, label_zh, label_en, default_on)
+			ImGui.AddCheckbox(wl, wl .. "_" .. key, tr(label_zh, label_en), function(v)
+				adapter.set_wall_layer(key, v == true)
+			end, default_on == true)
+			ImGui.AddCallback(wl .. "_" .. key, ImGuiCallback.Render, function()
+				local layers = adapter.get_wall_layers and adapter.get_wall_layers() or {}
+				local on = layers[key]
+				if on == nil then on = default_on end
+				ImGui.UpdateData(wl .. "_" .. key, ImGuiData.Value, on == true)
+			end)
+		end
+		add_layer_box("seg", "Seg 气流主体", "Seg flow", true)
+		add_layer_box("mist", "Mist 弥散", "Mist", true)
+		add_layer_box("front", "Front 旧前柱(关)", "Front column (off)", false)
+		add_layer_box("tail", "Tail 旧尾柱(关)", "Tail column (off)", false)
+	end
+
 	if adapter.labels then
 		ImGui.AddCheckbox(node, node .. "_Labels", tr("占位符标签", "Placeholder Labels"), function(v)
 			adapter.labels(v == true)
 		end, true)
 	end
 
-	-- Inspector
+	-- Inspector (generic summary)
 	local insp = node .. "_Insp"
 	imgui_layout.add_wrapped_text(node, insp, "")
 	ImGui.AddCallback(insp, ImGuiCallback.Render, function()
-		imgui_layout.update_text(insp, fmt_inspect(adapter))
+		imgui_layout.update_text(insp, fmt_inspect(adapter, node))
 	end)
+
+	-- Dedicated combat diagnostics (Zennith etc.) — keep out of the generic formatter.
+	if adapter.format_combat_diag then
+		local diag = node .. "_CombatDiag"
+		ImGui.AddElement(
+			node, "", ImGuiElement.SeparatorText or ImGuiElement.Separator,
+			tr("战斗诊断", "Combat Diagnostics")
+		)
+		imgui_layout.add_wrapped_text(node, diag, "")
+		ImGui.AddCallback(diag, ImGuiCallback.Render, function()
+			imgui_layout.update_text(diag, adapter.format_combat_diag())
+		end)
+		if adapter.copy_combat_diag then
+			ImGui.AddButton(node, node .. "_CopyDiag", tr("复制当前诊断", "Copy Diagnostics"), wrap_action(node, id, "copy_diag", adapter.copy_combat_diag))
+		end
+	end
 end
 
 function M.build(parent_id)
 	if not ImGui or not parent_id then return end
-	-- Ensure Glaze adapter is registered (Boss_Glaze may already have done this).
+	-- Ensure adapters are registered before enumeration (do not rely on Stone Advanced).
 	pcall(require, "Qing_Remaster_scripts.bosses.Boss_Glaze")
+	pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.boss_test_adapter")
+	pcall(require, "Qing_Remaster_scripts.bosses.Zennith.boss_test_adapter")
 
 	ImGui.AddElement(
 		parent_id, "", ImGuiElement.SeparatorText or ImGuiElement.Separator,

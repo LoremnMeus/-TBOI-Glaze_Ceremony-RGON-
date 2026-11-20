@@ -1,0 +1,41 @@
+{
+  "version": "7.1",
+  "style": "C",
+  "label": "storm_funnel",
+  "canvas": [
+    160,
+    224
+  ],
+  "frame_count": 24,
+  "fps": 30,
+  "anchors": {
+    "base_anchor": [
+      80.0,
+      202.0
+    ],
+    "top_anchor": [
+      80.0,
+      24.0
+    ],
+    "column_axis_x": 80.0
+  },
+  "layers": {
+    "back": "tornado_back.anm2",
+    "core": "tornado_core.anm2",
+    "front": "tornado_front.anm2"
+  },
+  "sheets": {
+    "back": "tornado_back.png",
+    "core": "tornado_core.png",
+    "front": "tornado_front.png"
+  },
+  "visual_scale_note": "ANM2 pivot at base_anchor; Lua places pivot at world base, scale = visual_scale only once.",
+  "candidate_reports": {
+    "C": {
+      "min_opaque": true,
+      "seam_ok": true,
+      "cx_stable": true,
+      "mid_filled": true
+    }
+  }
+}

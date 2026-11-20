@@ -1,0 +1,94 @@
+{
+  "seed": 2026102866,
+  "version": "6.6",
+  "anm2": "resources/gfx/boss/Zennith/storm/storm_v66.anm2",
+  "sheets": {
+    "column_back": {
+      "size": [
+        128,
+        160
+      ],
+      "frames": 2,
+      "prefix": "ColBack",
+      "tile": [
+        64,
+        160
+      ]
+    },
+    "column_core": {
+      "size": [
+        192,
+        160
+      ],
+      "frames": 3,
+      "prefix": "ColCore",
+      "tile": [
+        64,
+        160
+      ]
+    },
+    "column_front": {
+      "size": [
+        128,
+        160
+      ],
+      "frames": 2,
+      "prefix": "ColFront",
+      "tile": [
+        64,
+        160
+      ]
+    },
+    "spiral_band": {
+      "size": [
+        160,
+        40
+      ],
+      "frames": 4,
+      "prefix": "Spiral",
+      "tile": [
+        80,
+        20
+      ]
+    },
+    "spiral_highlight": {
+      "size": [
+        192,
+        14
+      ],
+      "frames": 3,
+      "prefix": "SpHigh",
+      "tile": [
+        64,
+        14
+      ]
+    }
+  },
+  "animations": [
+    "ColBack1",
+    "ColBack2",
+    "ColCore1",
+    "ColCore2",
+    "ColCore3",
+    "ColFront1",
+    "ColFront2",
+    "Spiral1",
+    "Spiral2",
+    "Spiral3",
+    "Spiral4",
+    "SpHigh1",
+    "SpHigh2",
+    "SpHigh3"
+  ],
+  "v63_orientation_audit": {
+    "note": "V6.3 ribbon/body audit (pre-V6.6)",
+    "findings": [
+      "All Tip/Body/Tail/TRibbon/TBody/TEdge tiles are horizontal long-axis.",
+      "ANM2 pivots are tile centers (Tip 16,4; TRibbon 48,12; TBody 32,16) \u2014 match geometry.",
+      "Rotation=0 aligns texture +X with world +X; Lua uses tangent GetAngleDegrees() \u2014 consistent.",
+      "TRibbon frame1 is tippy_right (right mass lower) \u2014 unsuitable as mid-column fill.",
+      "TBody soft envelope both ends \u2014 ok as soft volume strip but not a continuous funnel.",
+      "V6.6 replaces tornado volume with vertical Col* funnels + sparse Spiral/SpHigh."
+    ]
+  }
+}

@@ -103,7 +103,8 @@ end,
 })
 
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_PICKUP_COLLECTIBLE, params = nil,
-Function = function(_,player,id,touched,ent)
+Function = function(_,player,id,touched,ent,_source_context)
+	-- Display uses collectible id only; pedestal entity is optional.
 	if player:GetData()[item.own_key.."showing_buff"] == nil then
 		local config = Isaac:GetItemConfig()
 		local configitem = config:GetCollectible(id)

@@ -16,6 +16,20 @@ function item.settime(val)
 	Game().BlueWombParTime = Game().BlueWombParTime + val
 end
 
+--- Forward-only Game.TimeCounter push (display / timed events).
+--- Does not touch BlueWombParTime. Does not change room simulation speed.
+function item.advance_time(frames)
+	frames = math.max(0, math.floor(tonumber(frames) or 0))
+	if frames <= 0 then
+		return
+	end
+	local game = Game()
+	if not game then
+		return
+	end
+	game.TimeCounter = (tonumber(game.TimeCounter) or 0) + frames
+end
+
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_GET_SHADER_PARAMS, params = nil,
 Function = function(_,name)
 	if name == item.shader_name then 

@@ -240,7 +240,9 @@ local function try_escape(player, gained_id, gain_context)
 	if not gain_context then
 		return false
 	end
-	local pedestal = gain_context.pedestal or gain_context.pickup
+	-- Only the live original pedestal may rematerialize; historical source alone is insufficient.
+	local pedestal = collectible_holder.get_live_source_pedestal
+		and collectible_holder.get_live_source_pedestal(gain_context)
 	if not pedestal_is_valid_escape_target(pedestal) then
 		return false
 	end

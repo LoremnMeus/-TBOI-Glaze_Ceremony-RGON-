@@ -24,20 +24,54 @@ local item = {
 	},
 }
 
+local HURT_FLASH_FRAMES = 4
+local HURT_RED_OFFSET = 0.9
+local HURT_GB_OFFSET = 0.45
+
+local function hurt_flash_weight(effect)
+	local until_frame = effect and effect.hurt_until
+	if not until_frame then return 0 end
+	local left = until_frame - Game():GetFrameCount()
+	if left <= 0 then return 0 end
+	local t = left / HURT_FLASH_FRAMES
+	if t > 1 then t = 1 end
+	return t * t
+end
+
+local function color_with_hurt_flash(base, effect)
+	local weight = hurt_flash_weight(effect)
+	if weight <= 0 or not base then return base end
+	local color = auxi.color2table(base)
+	color.RO = (color.RO or 0) + HURT_RED_OFFSET * weight
+	color.GO = (color.GO or 0) - HURT_GB_OFFSET * weight
+	color.BO = (color.BO or 0) - HURT_GB_OFFSET * weight
+	return auxi.table2color(color)
+end
+
 table.insert(item.pre_ToCall,#item.pre_ToCall + 1,{CallBack = ModCallbacks.MC_ENTITY_TAKE_DMG, params = nil,
 Function = function(_,ent,amt,flag,source,cooldown)
-    local d = ent:GetData()
-	if d[item.own_key.."effect"] then
-		if flag & DamageFlag.DAMAGE_CLONES ~= DamageFlag.DAMAGE_CLONES then
-			d[item.own_key.."effect"].counter = (d[item.own_key.."effect"].counter or 0) + 1
-			if d[item.own_key.."effect"].counter == 1 then return false
-			else
-				ent:TakeDamage(amt * math.min(0.8,(d[item.own_key.."effect"].counter/10)),flag | DamageFlag.DAMAGE_CLONES,source,cooldown)
-				--if source.Entity and source.Entity:ToPlayer() then print(player.SamsonBerserkCharge) end		没有找到修理狂暴头的方法
-				return false
-			end
-		end
+	local effect = ent:GetData()[item.own_key.."effect"]
+	if not effect then
+		return
 	end
+	-- Scale the original hit. Do not cancel it and fire a nested TakeDamage.
+	effect.counter = (effect.counter or 0) + 1
+	if effect.counter == 1 then
+		return false
+	end
+	return {
+		Damage = amt * math.min(0.8, effect.counter / 10),
+	}
+end,
+})
+
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_ENTITY_TAKE_DMG, params = nil,
+Function = function(_,ent,amt)
+	local effect = ent:GetData()[item.own_key.."effect"]
+	if not effect or (tonumber(amt) or 0) <= 0 then
+		return
+	end
+	effect.hurt_until = Game():GetFrameCount() + HURT_FLASH_FRAMES
 end,
 })
 
@@ -63,7 +97,11 @@ Function = function(_,ent)
 		--auxi.PrintColor(ent.Color)
 		d[item.own_key.."effect"].Color = auxi.MulColor(d[item.own_key.."effect"].RecordColor,auxi.table2color(info))
 		d[item.own_key.."effect"].Scale = auxi.mul_t(d[item.own_key.."effect"].RecordScale or Vector(1,1),info.scale)
-		d[item.own_key.."Color"] = d[item.own_key.."Color"] or Attribute_holder.try_hold_attribute(ent,"Color",function(ent) if ent.Type == 963 then return Color(0.8,0.8,0.8,1,0.3,0.5,0.8) else return (ent:GetData()[item.own_key.."effect"] or {})["Color"] or ent:GetColor() end end,Attribute_holder.descriptors.color({protect = true}))
+		d[item.own_key.."Color"] = d[item.own_key.."Color"] or Attribute_holder.try_hold_attribute(ent,"Color",function(ent)
+			local effect = ent:GetData()[item.own_key.."effect"] or {}
+			local base = ent.Type == 963 and Color(0.8,0.8,0.8,1,0.3,0.5,0.8) or effect.Color or ent:GetColor()
+			return color_with_hurt_flash(base, effect)
+		end,Attribute_holder.descriptors.color({protect = true}))
 		d[item.own_key.."Scale"] = d[item.own_key.."Scale"] or Attribute_holder.try_hold_attribute(ent,"SpriteScale",function(ent) return (ent:GetData()[item.own_key.."effect"] or {})["Scale"] or ent.SpriteScale end,{protect = true,})
 	end
 end,

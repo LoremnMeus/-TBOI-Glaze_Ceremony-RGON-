@@ -1216,6 +1216,13 @@ Function = function(_, _, _, player, use_flags, active_slot)
 	local is_car_battery = use_flags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY
 	local charge
 
+	-- Slotless UseActiveItem (-1): ignore; GetActiveCharge rejects invalid ActiveSlot.
+	if type(active_slot) ~= "number"
+		or active_slot < ActiveSlot.SLOT_PRIMARY
+		or active_slot > (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET) then
+		return {Discharge = false, ShowAnim = false}
+	end
+
 	if is_car_battery and cached and cached.frame == Game():GetFrameCount() and cached.slot == active_slot then
 		charge = cached.charge
 		local cast = get_cast(player)

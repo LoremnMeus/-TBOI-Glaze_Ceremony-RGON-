@@ -934,7 +934,7 @@ item.Collectibles = {
             Name = "透特之书",
             Desc = "命运只是尚未整理的书页",
             Description = "{{ThothCard}} 拾取时生成1张透特牌，并记录获得过的透特牌面"..
-            "#{{Battery}} 登记新牌面+1启示，使用透特牌+2启示，最多12格"..
+            "#{{Battery}} 无其他待充能主动道具时，碰触电池将其变为随机透特牌；登记新牌面+1启示，使用透特牌+2启示，最多12格"..
             "#消耗3格启示，选择至多3张记录牌面进行占卜"..
             "#进入新战斗房时随机发动一张；每个牌面每层限一次",
             AbyssSynic = "命中后概率生成卡牌的蝗虫",
@@ -946,7 +946,7 @@ item.Collectibles = {
             Name = "Book of Thoth",
             Desc = "Fate is merely a book yet to be put in order.",
             Description = "{{ThothCard}} Spawns 1 Thoth card on pickup; records obtained Thoth faces"..
-            "#{{Battery}} Registering a new face +1 Revelation, using a Thoth card +2, up to 12"..
+            "#{{Battery}} Touching a battery turns it into a random Thoth card if no other active item needs charge; new faces +1 Revelation, Thoth cards used +2, up to 12"..
             "#Spend 3 Revelation to read up to 3 recorded faces"..
             "#Entering a new combat room plays one at random; each face once per floor",
             AbyssSynic = "Locust that may spawn a card on hit",
@@ -2846,14 +2846,14 @@ item.Collectibles = {
         zh = {
             Name = "宝宝露",
             Desc = "我来安排！",
-            Description = "举行仪式并依次标记数个特殊房间的宝宝"..
-            "#随后生成用于前往这些房间的传送入口",
+            Description = "每层揭示数个特殊房间的宝宝"..
+            "#进入已标记房间时：在房间内生成通往下一个目标房间的传送漩涡",
         },
         en = {
             Name = "Baby Lu",
             Desc = "I plan!",
-            Description = "A familiar that performs a ritual to mark several special rooms"..
-            "#Then creates portals leading to those rooms",
+            Description = "A familiar that reveals several special rooms each floor"..
+            "#Entering a marked room spawns a portal there to the next target",
         },
     },
     [130] = {
@@ -3333,13 +3333,13 @@ item.Collectibles = {
         zh = {
             Name = "拖延症",
             Desc = "马上就做……",
-            Description = "{{Timer}} 每30秒永久获得{{Damage}} +0.1攻击；每层最多+1"..
+            Description = "{{Timer}} 每30秒获得{{Damage}} +0.1攻击；每层最多+1"..
             "#{{BossRoom}} 击杀Boss后本层停止增长；Boss存活时房门保持开启",
         },
         en = {
             Name = "Procrastination",
             Desc = "I'll do it soon...",
-            Description = "{{Timer}} Permanently gain {{Damage}} +0.1 every 30 seconds, up to +1 per floor"..
+            Description = "{{Timer}} Gain {{Damage}} +0.1 every 30 seconds, up to +1 per floor"..
             "#{{BossRoom}} Killing a boss stops growth for this floor; doors stay open while a boss is alive",
         },
     },
@@ -3574,15 +3574,289 @@ item.Collectibles = {
             Name = "套娃弹珠",
             Desc = "一颗接着一颗！",
             Description = "#概率将眼泪变为套娃弹珠"..
-            "#套娃弹珠命中敌人后会弹起，并分裂成两颗更小的弹珠，最多分裂3次"..
-            "#弹珠始终受到沿原始发射方向的重力",
+            "#套娃弹珠碰撞后会弹开并分裂成两颗更小的弹珠，最多分裂3次",
         },
         en = {
             Name = "Matryoshka Marbles",
             Desc = "One after another!",
             Description = "#Chance to turn tears into matryoshka marbles"..
-            "#Marbles bounce off enemies and split into two smaller marbles, up to 3 times"..
-            "#Marbles are constantly pulled in their original firing direction",
+            "#Marbles bounce and split into two smaller marbles on impact, up to 3 times",
+        },
+    },
+    [166] = {
+        Name = "勇气",
+        id = Items.Bravery,
+        type = "passive",
+        xmlId = 177,
+        zh = {
+            Name = "勇气",
+            Desc = "我也有拒绝的权力",
+            Description = "#{{Damage}} +2 攻击"..
+            "#若在未清理的{{BossRoom}} Boss房、{{ChallengeRoom}}{{BossRushRoom}} 挑战房或Boss Rush中逃离，它会拒绝你"..
+            "#被拒绝后会在下一个房间掉落，且无法再次拾取",
+        },
+        en = {
+            Name = "Bravery",
+            Desc = "I have the right to refuse, too.",
+            Description = "#{{Damage}} +2 Damage"..
+            "#If you flee an uncleared {{BossRoom}} Boss, {{ChallengeRoom}}{{BossRushRoom}} Challenge, or Boss Rush room, it will reject you"..
+            "#It drops in the next room and cannot be picked up again",
+        },
+    },
+    [167] = {
+        Name = "孤立",
+        id = Items.Isolation,
+        type = "passive",
+        xmlId = 178,
+        zh = {
+            Name = "孤立",
+            Desc = "猜猜谁没受到邀请？",
+            Description = "#本局随机10件道具组成排挤孤立的小团体"..
+            "#遇见其中任意成员时，可从全部10件道具中选择1件"..
+            "#选择后加入小团体，孤立会被排挤出去，且无法再次拾取",
+        },
+        en = {
+            Name = "Isolation",
+            Desc = "Guess who wasn't invited?",
+            Description = "#Each run, 10 random items form a clique that keeps Isolation out"..
+            "#Encountering any member lets you choose 1 of all 10"..
+            "#Choosing one joins the clique; Isolation is pushed out and cannot be picked up again",
+        },
+    },
+    [168] = {
+        Name = "放逐证明",
+        id = Items.Exoneration_Certificate,
+        type = "active",
+        xmlId = 179,
+        zh = {
+            Name = "放逐证明",
+            Desc = "世界的边缘",
+            Description = "!!! 一次性"..
+            "#使用后，选择放逐一件道具，或前往放逐边境"..
+            "#被放逐的道具将永久退出道具池，最多32件"..
+            "#在放逐边境中，可以取回一件被放逐的道具并撤销其放逐",
+            BookOfVirtues = "放逐可召唤道具时，生成其对应的道具魂火",
+            BookOfBelial = "放逐道具时，依据其品质暂时提升攻击，最多+4",
+            SeijaNerf = "无法选择前往放逐边境",
+        },
+        en = {
+            Name = "Exoneration Certificate",
+            Desc = "The edge of the world.",
+            Description = "!!! SINGLE USE"..
+            "#Use it to banish an item, or enter the Border of Exile"..
+            "#Banished items permanently leave the item pools, up to 32"..
+            "#In the Border of Exile, take one back and lift its banishment",
+            BookOfVirtues = "Banish a summonable item to gain its item wisp",
+            BookOfBelial = "Banish an item to gain fading damage based on its quality, up to +4",
+            SeijaNerf = "Cannot choose to enter the Border of Exile",
+        },
+    },
+    [169] = {
+        Name = "计都星",
+        id = Items.Ketu,
+        type = "passive",
+        xmlId = 180,
+        zh = {
+            Name = "计都星",
+            Desc = "群星循轨",
+            Description = "#沿屏幕内侧运行，经过不同区域时获得临时增益"..
+            "#经过资源、生命和地图区域时，获得对应的特殊效果"..
+            "#经过主动道具、被动道具或饰品时，暂时强化对应效果",
+            SeijaNerf = "经过时间区域时，游戏时间加速，计都星缓慢移动",
+        },
+        en = {
+            Name = "Ketu",
+            Desc = "Stars follow their courses",
+            Description = "#Runs along the inner HUD track, granting brief boosts by region"..
+            "#Resources, hearts, and the map grant matching special effects"..
+            "#Actives, passives, and trinkets are briefly amplified when passed",
+            SeijaNerf = "While over the time region, game time accelerates and Ketu moves slowly",
+        },
+    },
+    [170] = {
+        Name = "罗喉星",
+        id = Items.Rahu,
+        type = "passive",
+        xmlId = 181,
+        zh = {
+            Name = "罗喉星",
+            Desc = "吞星之影",
+            Description = "#沿屏幕外侧逆行，经过不同区域时暂时削弱或封印对应效果"..
+            "#封印的资源会转化为持续攻击"..
+            "#经过主动道具、被动道具或饰品时，暂时封印其效果并转化为攻击",
+        },
+        en = {
+            Name = "Rahu",
+            Desc = "The shadow that swallows stars",
+            Description = "#Runs the outer HUD track in reverse, briefly weakening or sealing what it passes"..
+            "#Sealed resources become continuous attacks"..
+            "#Actives, passives, and trinkets are briefly sealed and converted into attacks",
+        },
+    },
+    [171] = {
+        Name = "荆棘花冠",
+        id = Items.Thorn_Flower_Crown,
+        type = "passive",
+        xmlId = 182,
+        zh = {
+            Name = "荆棘花冠",
+            Desc = "以血为冠",
+            Description = "#部分道具底座会长出荆棘"..
+            "#触碰荆棘会受到伤害，首次刺伤后荆棘染血"..
+            "#染血底座仍会伤人，空置后会长出一件{{ItemPoolUltraSecret}}红色道具",
+        },
+        en = {
+            Name = "Crown of Thorns",
+            Desc = "A crown of blood",
+            Description = "#Some item pedestals grow thorns"..
+            "#Touching the thorns deals damage; the first sting stains them with blood"..
+            "#Bloodstained pedestals still hurt and grow a {{ItemPoolUltraSecret}} red item when emptied",
+        },
+    },
+    [172] = {
+        Name = "天外救星",
+        id = Items.Alien_Savior,
+        type = "passive",
+        xmlId = 183,
+        zh = {
+            Name = "天外救星",
+            Desc = "他们听见了。",
+            Description = "#在未清理的战斗房中首次受到敌人伤害时发出求救信号"..
+            "#同房再次受伤时，抵挡伤害并召唤飞碟"..
+            "#飞碟吸走普通敌人、弹幕和障碍物，并用激光扫射剩余敌人"..
+            "#救援后需清理3个其他战斗房才能再次求救，换层时恢复",
+        },
+        en = {
+            Name = "Alien Savior",
+            Desc = "They heard you.",
+            Description = "#First enemy hit in an uncleared combat room sends an SOS"..
+            "#A second hit in the same room blocks the damage and summons a UFO"..
+            "#The UFO sucks up normal enemies, projectiles, and obstacles, then lasers the rest"..
+            "#After rescue, clear 3 other combat rooms to call again; restores on a new floor",
+        },
+    },
+    [173] = {
+        Name = "草莓蛋糕派",
+        id = Items.Cake_Berry,
+        type = "passive",
+        xmlId = 184,
+        zh = {
+            Name = "草莓蛋糕派",
+            Desc = "再来一块！",
+            Description = "#{{Heart}} +1心之容器，回复1红心"..
+            "#概率额外发射弹跳蛋糕"..
+            "#{{Slow}} 蛋糕每次碰撞都会洒落伤害周围敌人的碎屑，并造成减速",
+        },
+        en = {
+            Name = "Strawberry Cake Pie",
+            Desc = "One more slice!",
+            Description = "#{{Heart}} +1 heart container and restores 1 red heart"..
+            "#Chance to fire an additional bouncing cake"..
+            "#{{Slow}} Each collision scatters damaging crumbs and slows nearby enemies",
+        },
+    },
+    [174] = {
+        Name = "根植之魔",
+        id = Items.Rooted_Demon,
+        type = "passive",
+        xmlId = 185,
+        zh = {
+            Name = "根植之魔",
+            Desc = "向更深处扎根",
+            Description = "#进入新房间后，抛出顺位的上一件道具以向下扎根"..
+            "#抛出的道具将视为全新生成"..
+            "#到底后，向上蔓延根系，靠近根系节点的敌人会被穿刺"..
+            "#完成蔓延后，依节点数量沿屏幕边缘发动大规模穿刺攻击",
+        },
+        en = {
+            Name = "Rooted Demon",
+            Desc = "Rooted ever deeper",
+            Description = "#On entering a new room, ejects the preceding item in pickup order to dig deeper"..
+            "#Ejected items are treated as newly spawned"..
+            "#At the bottom, roots spread upward; enemies near root nodes are pierced"..
+            "#Once fully grown, launches a large-scale piercing attack along the screen edges, scaling with the number of nodes",
+        },
+    },
+    [175] = {
+        Name = "焚火",
+        id = Items.Incandescence_Flame,
+        type = "passive",
+        xmlId = 186,
+        zh = {
+            Name = "焚火",
+            Desc = "逆卷的神炎",
+            Description = "按住攻击蓄力，松开后喷火 3 秒"..
+            "#{{Damage}} 火焰每 0.2 秒造成 0.5 倍攻击伤害，并引燃敌人",
+        },
+        en = {
+            Name = "Incandescence Flame",
+            Desc = "A Divine Flame in Reverse",
+            Description = "Hold fire to charge, then release to breathe fire for 3 seconds"..
+            "#{{Damage}} Flames deal 0.5× damage every 0.2 seconds and ignite enemies",
+        },
+    },
+    [176] = {
+        Name = "棺中之魔",
+        id = Items.Entombed_Demon,
+        type = "passive",
+        xmlId = 187,
+        zh = {
+            Name = "棺中之魔",
+            Desc = "他如死不能知足",
+            Description = "每层吞噬此后获得的最早一件道具"..
+            "#前4次吞噬各封存一件恶魔房道具"..
+            "#每次吞噬都会生成所有已封存的道具",
+            SeijaNerf = "封存上限改为1个",
+        },
+        en = {
+            Name = "Entombed Demon",
+            Desc = "Like death, never satisfied",
+            Description = "Each floor, devours the earliest item acquired afterward"..
+            "#The first 4 sacrifices each seal a Devil Room item"..
+            "#Each sacrifice spawns all sealed items",
+            SeijaNerf = "Seals at most 1 item",
+        },
+    },
+    [177] = {
+        Name = "祈愿",
+        id = Items.Wishing,
+        type = "active",
+        xmlId = 188,
+        zh = {
+            Name = "祈愿",
+            Desc = "我要成为什么样的人呢？",
+            Description = "从3件随机道具中选择愿望"..
+            "#全部拒绝使下次选项+1"..
+            "#被重置时，变为愿望道具",
+            BookOfVirtues = "生成易碎魂火，愿望应验时变为愿望道具魂火",
+            BookOfBelial = "选项中至少有1件恶魔房道具",
+        },
+        en = {
+            Name = "Wishing",
+            Desc = "What do I want to become?",
+            Description = "Choose a wish from 3 random collectibles"..
+            "#Reject all for +1 option next use"..
+            "#When rerolled, becomes the wished collectible",
+            BookOfVirtues = "Spawns fragile wisps that become wisps of the wished collectible upon fulfillment",
+            BookOfBelial = "At least 1 option is a Devil Room collectible",
+        },
+    },
+    [178] = {
+        Name = "幻惑之月",
+        id = Items.Bewitching_Moon,
+        type = "familiar",
+        xmlId = 189,
+        zh = {
+            Name = "幻惑之月",
+            Desc = "伸手可及",
+            Description = "自动寻找敌人，周期性释放使敌人魅惑、眩晕或恐惧的月光"..
+            "#附近敌人优先攻击月亮",
+        },
+        en = {
+            Name = "Bewitching Moon",
+            Desc = "Within Reach",
+            Description = "Seeks enemies and periodically emits moonlight that charms, confuses, or fears them"..
+            "#Nearby enemies prefer attacking the moon",
         },
     },
 }
@@ -5505,6 +5779,26 @@ item.Players = {
             },
         },
     },
+    [12] = {Name = "里玛丽", id = enums.Players.Marriano_B, type = "player",
+        zh = {Name = "里玛丽", Desc = ""},
+        en = {Name = "Tainted Marriano", Desc = "", Animation = "Marriano_B", Sprite = "gfx/characterportraitsalt.anm2", Tainted = true},
+    },
+    [13] = {Name = "里艾提奥", id = enums.Players.Autio_B, type = "player",
+        zh = {Name = "里艾提奥", Desc = ""},
+        en = {Name = "Tainted Autio", Desc = "", Animation = "Autio_B", Sprite = "gfx/characterportraitsalt.anm2", Tainted = true},
+    },
+    [14] = {Name = "里露", id = enums.Players.Lu_B, type = "player",
+        zh = {Name = "里露", Desc = ""},
+        en = {Name = "Tainted Lu", Desc = "", Animation = "Lu_B", Sprite = "gfx/characterportraitsalt.anm2", Tainted = true},
+    },
+    [15] = {Name = "诺娅", id = enums.Players.Noia, type = "player",
+        zh = {Name = "诺娅", Desc = ""},
+        en = {Name = "Noia", Desc = "", Animation = "Noia", Sprite = "gfx/characterportraits.anm2"},
+    },
+    [16] = {Name = "里诺娅", id = enums.Players.Noia_B, type = "player",
+        zh = {Name = "里诺娅", Desc = ""},
+        en = {Name = "Tainted Noia", Desc = "", Animation = "Noia_B", Sprite = "gfx/characterportraitsalt.anm2", Tainted = true},
+    },
 }
 
 item.Birthrights = {
@@ -6855,7 +7149,8 @@ item.zh.PlayerSync = {
 		[CollectibleType.COLLECTIBLE_SPOON_BENDER] = {Description = "自动攻击目标周围的敌人",},
 		[CollectibleType.COLLECTIBLE_CONTINUUM] = {Description = "一击结束前按住攻击键可以重复上一攻击"..
 		    "#每个此道具一次攻击可触发一次",},
-		[CollectibleType.COLLECTIBLE_CHOCOLATE_MILK] = {Description = "蓄力时身体也随之放大",},
+		[CollectibleType.COLLECTIBLE_CHOCOLATE_MILK] = {Description = "蓄力达到基础进度的20%即可攻击，满蓄力上限为200%"..
+		    "#蓄力越久，体型、伤害和砸地范围越大",},
 		[CollectibleType.COLLECTIBLE_CURSED_EYE] = {Description = "额外使用幻影攻击角色与目标之间的位置",},
 		[CollectibleType.COLLECTIBLE_EYE_OF_THE_OCCULT] = {Description = "在空中可短暂位移调整攻击方向",},
 		--[CollectibleType.COLLECTIBLE_TERRA] = {Description = "",},
@@ -6864,8 +7159,8 @@ item.zh.PlayerSync = {
 		[CollectibleType.COLLECTIBLE_NEPTUNUS] = {Description = "蓄力50%以上即可攻击",},
 		[CollectibleType.COLLECTIBLE_ANTI_GRAVITY] = {Description = "每蓄力达到2倍攻击延迟，生成一个幻影在角色攻击后落下",},
 		[CollectibleType.COLLECTIBLE_TECHNOLOGY_ZERO] = {Description = "用激光连接攻击目标",},
-		[CollectibleType.COLLECTIBLE_LUMP_OF_COAL] = {Description = "准星距角色越远伤害越高",},
-		[CollectibleType.COLLECTIBLE_PROPTOSIS] = {Description = "准星距角色越近伤害越高",},
+		[CollectibleType.COLLECTIBLE_LUMP_OF_COAL] = {Description = "准星距角色越远，伤害与砸地范围越大",},
+		[CollectibleType.COLLECTIBLE_PROPTOSIS] = {Description = "准星距角色越近，伤害与砸地范围越大",},
 		[CollectibleType.COLLECTIBLE_EYE_SORE] = {Description = "额外攻击一个随机位置",},
 		[CollectibleType.COLLECTIBLE_MEGA_MUSH] = {Description = "巨化状态砸地时生成裂地波",},
 		[CollectibleType.COLLECTIBLE_EYE_OF_BELIAL] = {Description = "命中后额外生成红色幻影攻击敌人",},

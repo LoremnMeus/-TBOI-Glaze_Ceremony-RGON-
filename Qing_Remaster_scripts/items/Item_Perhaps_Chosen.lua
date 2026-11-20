@@ -1,4 +1,5 @@
 local save = require("Qing_Remaster_scripts.core.savedata")
+local g = require("Qing_Remaster_scripts.core.globals")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_holder")
@@ -11,6 +12,7 @@ local morph_txn = require("Qing_Remaster_scripts.others.Pickup_Morph_Transaction
 
 local item = {
 	ToCall = {},
+	pre_ToCall = {},
 	myToCall = {},
 	pre_myToCall = {},
 	entity = enums.Items.Perhaps_Chosen,
@@ -56,7 +58,6 @@ local item = {
 		pre_raw_state = nil,
 		pre_raw_abandoned = nil,
 		pre_raw_record_id = nil,
-		pre_refresh_would_succeed = nil,
 	},
 	-- DEBUG-ONLY：Carrier Morph 事务级 trace（Summary 数据源；不改 gameplay）
 	debug_morph_trace = {
@@ -161,7 +162,6 @@ end
 -- Forward: queue mutation 会在 debug_note 定义后挂接 instrumentation。
 local clear_pending
 local push_queue_entry
-local arm_pending_from_pickup
 local remove_token_from_queue
 local debug_note
 local debug_queue_mutation
@@ -376,11 +376,6 @@ push_queue_entry = function(entry, reason)
 	})
 end
 
---- DEPRECATED：自然放弃不得 alloc 新 token。保留空壳防外部误调用。
-arm_pending_from_pickup = function(_pickup)
-	debug_note("P_ARM_PENDING_DEPRECATED", { note = "use ensure+requeue same token" })
-end
-
 local function get_bound_record_id(ent)
 	if not ent then return nil end
 	local d = ent:GetData()
@@ -458,14 +453,6 @@ end
 --- PRE Morph snapshot：等同 build_carrier_snapshot，但命名强调无 Consistance mutation。
 local function build_live_carrier_snapshot(pickup)
 	return build_carrier_snapshot(pickup, get_bound_record_id(pickup))
-end
-
---- 仅当 lifecycle probe 已加载且启用时，做 DEBUG-ONLY refresh 对照（不参与 capture 结果）。
-local function pre_capture_refresh_compare_allowed()
-	local mod = package.loaded["Qing_Remaster_scripts.others.perhaps_chosen_lifecycle_probe"]
-	if type(mod) ~= "table" or not mod.get_config then return false end
-	local cfg = mod.get_config()
-	return cfg and cfg.enabled == true
 end
 
 local MAX_MORPH_CASES = 32
@@ -872,14 +859,17 @@ local function requeue_carrier_entry(carrier)
 	if not data then return false end
 	local token = data.pending_token
 	if data.reserved_lock ~= nil then return false end
+	local already_queued = false
 	do
 		local q = pending_queue()
 		for _, e in ipairs(q) do
-			if e.token == token then return true end
+			if e.token == token then already_queued = true; break end
 		end
 	end
 	notify_reserved_judgment_invalidate(carrier)
-	push_queue_entry(entry_from_data(data), "requeue_carrier")
+	if not already_queued then
+		push_queue_entry(entry_from_data(data), "requeue_carrier")
+	end
 	apply_carrier_hold(carrier, {
 		pending_entry_state = "queued",
 		abandoned_carrier = true,
@@ -1709,7 +1699,6 @@ local function capture_carrier_morph_snapshot(pickup)
 		a.pre_raw_state = raw and raw.pending_entry_state or nil
 		a.pre_raw_abandoned = raw and raw.abandoned_carrier == true or false
 		a.pre_raw_record_id = get_bound_record_id(pickup)
-		a.pre_refresh_would_succeed = nil
 	end
 
 	local data = read_live_materialized_carrier(pickup)
@@ -1717,9 +1706,6 @@ local function capture_carrier_morph_snapshot(pickup)
 		if a then
 			a.pre_raw_missing = (tonumber(a.pre_raw_missing) or 0) + 1
 			a.last_morph_result = "pre_raw_binding_missing"
-			if pre_capture_refresh_compare_allowed() then
-				a.pre_refresh_would_succeed = get_materialized_choice(pickup) ~= nil
-			end
 		end
 		debug_note("pre_non_carrier", {
 			subtype = pickup.SubType,
@@ -1854,6 +1840,25 @@ local function handle_carrier_morph_txn(txn)
 	open_carrier_morph_txn_from_pre(p, pre, post_generation_id)
 end
 
+local function resolve_carrier_token_from_generation_id(gid)
+	if gid == nil or not item._carrier_morph_txns then
+		return nil, nil, nil
+	end
+	for token, txn in pairs(item._carrier_morph_txns) do
+		if txn and txn.finalized ~= true and txn.post_generation_id ~= nil
+			and tostring(txn.post_generation_id) == tostring(gid) then
+			return token, txn.snapshot, "morph_txn"
+		end
+	end
+	-- Historical materialize: generation → pending_token map if recorded on txn snapshot
+	for token, txn in pairs(item._carrier_morph_txns) do
+		if txn and txn.pre_generation_id ~= nil and tostring(txn.pre_generation_id) == tostring(gid) then
+			return token, txn.snapshot, "morph_pre_generation"
+		end
+	end
+	return nil, nil, nil
+end
+
 local function resolve_carrier_token_from_pickup_event(ent)
 	if not ent then return nil, nil, nil end
 	local data = get_materialized_choice(ent)
@@ -1868,12 +1873,27 @@ local function resolve_carrier_token_from_pickup_event(ent)
 	-- 已进入 Morph txn：用 post_generation_id 关联，禁止 ptr
 	local gen = unique_holder.resolve_generation(ent)
 	local gid = gen and gen.id or nil
-	if gid ~= nil and item._carrier_morph_txns then
-		for token, txn in pairs(item._carrier_morph_txns) do
-			if txn and txn.finalized ~= true and txn.post_generation_id == gid then
-				return token, txn.snapshot, "morph_txn"
-			end
+	local token, snap, src = resolve_carrier_token_from_generation_id(gid)
+	if token ~= nil then
+		return token, snap, src
+	end
+	return nil, nil, nil
+end
+
+--- Prefer live carrier data; fall back to trusted historical source generation.
+local function resolve_carrier_token_from_source(source_context, ent)
+	local token, snap, src = resolve_carrier_token_from_pickup_event(ent)
+	if token ~= nil then
+		return token, snap, src
+	end
+	local gid = nil
+	if type(source_context) == "table" then
+		if type(source_context.source) == "table" then
+			gid = source_context.source.generation_id
 		end
+	end
+	if gid ~= nil then
+		return resolve_carrier_token_from_generation_id(gid)
 	end
 	return nil, nil, nil
 end
@@ -2472,6 +2492,15 @@ local function token_already_queued(token)
 end
 
 local function reject_or_abandon_on_leave()
+	local function retire_requeued_carrier(pickup)
+		-- The token survives in Pending; this room's carrier and its own record do not.
+		-- Remove only Perhaps ownership before deleting the actual pedestal.
+		if not requeue_carrier_entry(pickup) then return false end
+		forget_carrier_runtime(pickup)
+		consistance_holder.try_remove_entity(pickup, item.own_key)
+		pickup:Remove()
+		return true
+	end
 	local seen_tokens = {}
 	local list = auxi.getothers(nil, EntityType.ENTITY_PICKUP, PickupVariant.PICKUP_COLLECTIBLE)
 	for _, ent in ipairs(list) do
@@ -2497,7 +2526,7 @@ local function reject_or_abandon_on_leave()
 					forget_carrier_runtime(pickup)
 					-- Consistance payload 仍可随 entity unload；业务 token 在 RJ offer
 				else
-					requeue_carrier_entry(pickup)
+					retire_requeued_carrier(pickup)
 				end
 			else
 				-- 仅尚未绑定 token 的自然 Perhaps：补 MATERIALIZE 再 requeue 同一 token
@@ -2511,7 +2540,7 @@ local function reject_or_abandon_on_leave()
 						if data.reserved_lock ~= nil then
 							forget_carrier_runtime(pickup)
 						else
-							requeue_carrier_entry(pickup)
+							retire_requeued_carrier(pickup)
 						end
 					end
 				end
@@ -2537,8 +2566,6 @@ local function reject_or_abandon_on_leave()
 			end
 		end
 	end
-	-- 离房后 bridge/txn 结束；跨房身份只靠 Consistance + queue
-	clear_carrier_morph_runtime()
 end
 
 local function cleanup_rejected_or_abandoned(pickup)
@@ -2577,10 +2604,21 @@ Function = function(_, continue)
 end,
 })
 
-table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.PRE_NEW_ROOM, params = nil,
-Function = function(_)
+-- pre_ToCall has base priority -100; explicit -100 runs before Consistance's
+-- default-priority MC_PRE_ROOM_EXIT snapshot, independent of module load order.
+table.insert(item.pre_ToCall, #item.pre_ToCall + 1, {
+	CallBack = ModCallbacks.MC_PRE_ROOM_EXIT, params = nil, priority = -100,
+Function = function(_, _player, _new_level)
+	-- Hourglass / rewind restore save.elses from their own snapshot; this is not a rejection.
+	if not g.is_gameplay_world_active() or save.should_load == true or save.should_load2 == true then return end
 	final_sync_materialized_quotes()
 	reject_or_abandon_on_leave()
+end,
+})
+
+table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.PRE_NEW_ROOM, params = nil,
+Function = function(_)
+	clear_carrier_morph_runtime()
 	clear_encounter_targets("new_room")
 	item._natural_birth_seen = {}
 end,
@@ -2608,25 +2646,15 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 })
 
 table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.POST_PICKUP_COLLECTIBLE, params = nil,
-Function = function(_, player, colid, touched, ent)
-	local token, _snap, source = resolve_carrier_token_from_pickup_event(ent)
+Function = function(_, player, colid, touched, ent, source_context)
+	local token, _snap, source = resolve_carrier_token_from_source(source_context, ent)
 	if token == nil then return end
 
-local cycle = {}
-	if ent and ent.GetCollectibleCycle then
-		local ok, c = pcall(function()
-			return ent:GetCollectibleCycle()
-		end)
-		if ok and type(c) == "table" then
-			cycle = c
-		end
-	end
 	debug_note("P_PICKUP_TOKEN_RESOLVED", {
 		token = token,
 		colid = colid,
-		current_subtype = ent and ent.SubType or nil,
-		cycle = cycle,
 		source = source or "carrier_data",
+		attribution = type(source_context) == "table" and source_context.attribution or nil,
 	})
 
 	-- 任意成功拾取 MATERIALIZED Perhaps choice（含轮换显示为其它道具）→ CONSUMED

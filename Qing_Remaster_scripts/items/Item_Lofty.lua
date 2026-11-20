@@ -55,14 +55,6 @@ Function = function(_,player,offset)
 end,
 })
 
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = item.entity,
-Function = function(_,player,collid,count)
-	if count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,"Lofty")
-	end
-end,
-})
-
 function item.start_lofty(player,mode,dmg)
 	local d = player:GetData()
 	if d.Lofty_holder == nil then d.Lofty_holder = {} end
@@ -260,4 +252,5 @@ Function = function(_,ent,col,low)
 end,
 })
 
+Charging_Bar_holder.register_bar({id = "Lofty", owner = {type = "collectible", collectible = item.entity}})
 return item

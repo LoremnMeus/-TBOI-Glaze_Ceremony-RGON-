@@ -4,6 +4,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local selection_holder = require("Qing_Remaster_scripts.others.selection_holder")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
+local player_visual_render = require("Qing_Remaster_scripts.callbacks.player_visual_render_holder")
 
 local STAR = "="
 local BELIAL_SIX = "6"
@@ -978,16 +979,21 @@ local function update_visuals(player)
 	end
 end
 
-local function render_letter_list(player,behind_pass)
+local function letters_active(player)
+	return auxi.has_have_coll(player, item.entity) or player:GetData()[pending_key]
+end
+
+local function render_letter_list(player, behind_pass, ctx)
 	if Game():GetRoom():GetRenderMode() == RenderMode.RENDER_WATER_REFLECT then return end
-	if not auxi.has_have_coll(player,item.entity) and not player:GetData()[pending_key] then return end
+	if not letters_active(player) then return end
 	local state = get_state(player,true)
 	local visuals = ensure_visuals(player,state)
 	local matched,total = death_word_match_count(state.letters)
 	local progress = (total > 0) and (matched / total) or 0
 	if player:GetData()[death_ready_key] then progress = 1 end
 	local contributors = death_contributor_map(visuals,state.letters)
-	local base = Isaac.WorldToScreen(player.Position + player.PositionOffset)
+	local base = (ctx and ctx.screen_pos)
+		or player_visual_render.GetVisualScreen(player)
 	for _,vis in ipairs(visuals) do
 		local is_front_phase = vis.phase ~= "orbit"
 		local is_behind = (not is_front_phase) and (vis.offset.Y + 24) < 0
@@ -1002,6 +1008,22 @@ local function render_letter_list(player,behind_pass)
 		end
 	end
 end
+
+player_visual_render.register({
+	id = "death_sentence",
+	behind = {
+		active = letters_active,
+		render = function(ctx)
+			render_letter_list(ctx.player, true, ctx)
+		end,
+	},
+	front = {
+		active = letters_active,
+		render = function(ctx)
+			render_letter_list(ctx.player, false, ctx)
+		end,
+	},
+})
 
 local function status_color(status)
 	if status == "have" then return item.color_have end
@@ -1066,7 +1088,12 @@ table.insert(item.ToCall,{CallBack = ModCallbacks.MC_USE_ITEM,params = item.enti
 Function = function(_,_,rng,player,use_flags,active_slot)
 	if use_flags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then return end
 	if use_flags & UseFlag.USE_OWNED ~= UseFlag.USE_OWNED then return end
-	active_slot = active_slot or ActiveSlot.SLOT_PRIMARY
+	-- Slotless UseActiveItem (-1): ignore; charge APIs reject invalid ActiveSlot.
+	if type(active_slot) ~= "number"
+		or active_slot < ActiveSlot.SLOT_PRIMARY
+		or active_slot > (ActiveSlot.SLOT_POCKET2 or ActiveSlot.SLOT_POCKET) then
+		return {Discharge = false, ShowAnim = false}
+	end
 	local charge = player:GetActiveCharge(active_slot)
 	if charge <= 0 then
 		-- 面板已开：确认由 POST_PLAYER_UPDATE 处理，这里绝不再 open_panel。
@@ -1162,25 +1189,6 @@ Function = function(_)
 	item.room_selection_cleanup = true
 	item.pending_reopen_until = was_open and (Game():GetFrameCount() + 8) or nil
 	auxi.time_free(item.own_key)
-end,
-})
-
-if REPENTOGON and ModCallbacks.MC_PRE_PLAYER_RENDER then
-	table.insert(item.ToCall,{CallBack = ModCallbacks.MC_PRE_PLAYER_RENDER,params = nil,
-	Function = function(_,player,_)
-		render_letter_list(player,true)
-	end,
-	})
-end
-
-table.insert(item.ToCall,{CallBack = ModCallbacks.MC_POST_PLAYER_RENDER,params = nil,
-Function = function(_,player,_)
-	if REPENTOGON and ModCallbacks.MC_PRE_PLAYER_RENDER then
-		render_letter_list(player,false)
-	else
-		render_letter_list(player,true)
-		render_letter_list(player,false)
-	end
 end,
 })
 

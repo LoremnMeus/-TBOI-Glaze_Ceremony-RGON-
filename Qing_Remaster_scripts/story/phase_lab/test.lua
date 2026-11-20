@@ -86,13 +86,17 @@ function test.get_test_descriptor()
 			"实验室可在任意房间覆盖调试。正式入口：Mausoleum/Gehenna II Boss 后。",
 			"Lab can overlay any room for debug. Formal entry: post Mausoleum/Gehenna II boss."
 		),
-		build_advanced = function(parent_id)
-			test.build_advanced(parent_id)
+		build_thread_tools = function(parent_id)
+			test.build_thread_tools(parent_id)
 		end,
 	}
 end
 
 function test.build_advanced(parent_id)
+	return test.build_thread_tools(parent_id)
+end
+
+function test.build_thread_tools(parent_id)
 	if not ImGui or not parent_id then return end
 	local prefix = parent_id .. "_PhaseLab"
 

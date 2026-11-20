@@ -98,6 +98,15 @@ function item.try_collect(player,ent,toHeal)
 		player:AddEternalHearts(1)
 		if toHeal == 2 then	player:AddSoulHearts(1)	end
 		toplay.id = SoundEffect.SOUND_SUPERHOLY
+	elseif player:GetPlayerType() == PlayerType.PLAYER_BETHANY and not player:CanPickRedHearts() then
+		-- Red hearts are full. Bethany turns soul hearts into soul charges; do not reject the pickup.
+		local charge_before = player:GetSoulCharge()
+		local soul_before = player:GetSoulHearts()
+		player:AddSoulHearts(toHeal)
+		if player:GetSoulCharge() <= charge_before and player:GetSoulHearts() <= soul_before then
+			return nil
+		end
+		Heart_holder.add_soul_buff(player, toHeal)
 	else return nil end
 	sound_tracker.PlayStackedSound(toplay.id,toplay.vol,toplay.pit,false,0,2)
 	glaze_crown.notify_pickup(player, ent and ent.Position)

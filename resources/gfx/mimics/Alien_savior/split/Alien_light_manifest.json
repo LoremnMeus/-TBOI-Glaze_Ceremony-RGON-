@@ -1,0 +1,1150 @@
+{
+  "source_image": "Alien.png",
+  "source_size": [
+    256,
+    512
+  ],
+  "frame_size": [
+    256,
+    128
+  ],
+  "blocks": {
+    "block1": [
+      0,
+      0,
+      256,
+      128
+    ],
+    "block2": [
+      0,
+      128,
+      256,
+      128
+    ],
+    "block3": [
+      0,
+      256,
+      256,
+      128
+    ],
+    "block4": [
+      0,
+      384,
+      256,
+      128
+    ]
+  },
+  "body": "Alien_body.png",
+  "anm2_test": "Alien_layer_test.anm2",
+  "anm2_layer_order": [
+    "body",
+    "cabin",
+    "bottom_core",
+    "p2_01",
+    "p2_02",
+    "p2_03",
+    "p2_04",
+    "p2_05",
+    "p2_06",
+    "p2_07",
+    "p2_08",
+    "p2_09",
+    "p2_10",
+    "p2_11",
+    "p2_12",
+    "p2_13",
+    "p2_14",
+    "p2_15",
+    "p2_16",
+    "p2_17",
+    "p2_18",
+    "p2_19",
+    "p2_20",
+    "p2_21",
+    "p2_22",
+    "p2_23",
+    "p2_24",
+    "p2_25",
+    "p2_26",
+    "p2_27",
+    "p2_28",
+    "p2_29",
+    "p2_30",
+    "ring_m120",
+    "ring_m90",
+    "ring_m60",
+    "ring_base",
+    "ring_p60",
+    "ring_p90",
+    "ring_p120",
+    "bottom_core_indicators"
+  ],
+  "layers": [
+    {
+      "name": "Alien_p2_01.png",
+      "anm2_layer": "p2_01",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        38,
+        65,
+        4,
+        3
+      ],
+      "centroid": [
+        39.4,
+        65.8
+      ],
+      "pixel_count": 5,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_02.png",
+      "anm2_layer": "p2_02",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        48,
+        50,
+        4,
+        3
+      ],
+      "centroid": [
+        49.25,
+        51.25
+      ],
+      "pixel_count": 8,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "ring_red_markers"
+    },
+    {
+      "name": "Alien_p2_03.png",
+      "anm2_layer": "p2_03",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        48,
+        68,
+        4,
+        3
+      ],
+      "centroid": [
+        49.38,
+        68.75
+      ],
+      "pixel_count": 8,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_04.png",
+      "anm2_layer": "p2_04",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        57,
+        64,
+        11,
+        5
+      ],
+      "centroid": [
+        61.94,
+        66.09
+      ],
+      "pixel_count": 33,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_05.png",
+      "anm2_layer": "p2_05",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        65,
+        72,
+        2,
+        2
+      ],
+      "centroid": [
+        65.5,
+        72.5
+      ],
+      "pixel_count": 4,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_06.png",
+      "anm2_layer": "p2_06",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        73,
+        74,
+        8,
+        4
+      ],
+      "centroid": [
+        76.28,
+        75.67
+      ],
+      "pixel_count": 18,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_07.png",
+      "anm2_layer": "p2_07",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        77,
+        23,
+        3,
+        3
+      ],
+      "centroid": [
+        78.2,
+        24.0
+      ],
+      "pixel_count": 5,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_08.png",
+      "anm2_layer": "p2_08",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        79,
+        48,
+        3,
+        3
+      ],
+      "centroid": [
+        80.12,
+        48.88
+      ],
+      "pixel_count": 8,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "ring_red_markers"
+    },
+    {
+      "name": "Alien_p2_09.png",
+      "anm2_layer": "p2_09",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        83,
+        77,
+        4,
+        2
+      ],
+      "centroid": [
+        84.5,
+        77.33
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_10.png",
+      "anm2_layer": "p2_10",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        84,
+        65,
+        7,
+        6
+      ],
+      "centroid": [
+        87.26,
+        67.68
+      ],
+      "pixel_count": 19,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_11.png",
+      "anm2_layer": "p2_11",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        106,
+        28,
+        3,
+        2
+      ],
+      "centroid": [
+        107.0,
+        28.5
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_12.png",
+      "anm2_layer": "p2_12",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        109,
+        58,
+        5,
+        4
+      ],
+      "centroid": [
+        111.0,
+        59.5
+      ],
+      "pixel_count": 12,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "central_auxiliary"
+    },
+    {
+      "name": "Alien_p2_13.png",
+      "anm2_layer": "p2_13",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        119,
+        27,
+        3,
+        2
+      ],
+      "centroid": [
+        120.0,
+        27.75
+      ],
+      "pixel_count": 4,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_14.png",
+      "anm2_layer": "p2_14",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        121,
+        58,
+        2,
+        3
+      ],
+      "centroid": [
+        121.5,
+        59.0
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_15.png",
+      "anm2_layer": "p2_15",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        133,
+        58,
+        2,
+        3
+      ],
+      "centroid": [
+        133.5,
+        59.0
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_16.png",
+      "anm2_layer": "p2_16",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        134,
+        27,
+        3,
+        2
+      ],
+      "centroid": [
+        135.25,
+        27.75
+      ],
+      "pixel_count": 4,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_17.png",
+      "anm2_layer": "p2_17",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        142,
+        58,
+        6,
+        3
+      ],
+      "centroid": [
+        144.25,
+        59.42
+      ],
+      "pixel_count": 12,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "central_auxiliary"
+    },
+    {
+      "name": "Alien_p2_18.png",
+      "anm2_layer": "p2_18",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        147,
+        28,
+        3,
+        2
+      ],
+      "centroid": [
+        148.2,
+        28.6
+      ],
+      "pixel_count": 5,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_19.png",
+      "anm2_layer": "p2_19",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        165,
+        65,
+        7,
+        6
+      ],
+      "centroid": [
+        168.0,
+        67.79
+      ],
+      "pixel_count": 24,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_20.png",
+      "anm2_layer": "p2_20",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        173,
+        14,
+        2,
+        2
+      ],
+      "centroid": [
+        173.33,
+        14.67
+      ],
+      "pixel_count": 3,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_21.png",
+      "anm2_layer": "p2_21",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        169,
+        77,
+        4,
+        2
+      ],
+      "centroid": [
+        170.5,
+        77.33
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_22.png",
+      "anm2_layer": "p2_22",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        176,
+        23,
+        3,
+        3
+      ],
+      "centroid": [
+        177.2,
+        24.0
+      ],
+      "pixel_count": 5,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_23.png",
+      "anm2_layer": "p2_23",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        174,
+        47,
+        3,
+        4
+      ],
+      "centroid": [
+        175.0,
+        48.5
+      ],
+      "pixel_count": 8,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "ring_red_markers"
+    },
+    {
+      "name": "Alien_p2_24.png",
+      "anm2_layer": "p2_24",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        180,
+        32,
+        2,
+        2
+      ],
+      "centroid": [
+        180.5,
+        32.5
+      ],
+      "pixel_count": 4,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "navigation_red"
+    },
+    {
+      "name": "Alien_p2_25.png",
+      "anm2_layer": "p2_25",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        176,
+        74,
+        7,
+        4
+      ],
+      "centroid": [
+        179.28,
+        75.72
+      ],
+      "pixel_count": 18,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_26.png",
+      "anm2_layer": "p2_26",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        188,
+        72,
+        4,
+        2
+      ],
+      "centroid": [
+        189.5,
+        72.5
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_27.png",
+      "anm2_layer": "p2_27",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        188,
+        64,
+        11,
+        5
+      ],
+      "centroid": [
+        193.14,
+        66.14
+      ],
+      "pixel_count": 36,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_28.png",
+      "anm2_layer": "p2_28",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        204,
+        68,
+        4,
+        3
+      ],
+      "centroid": [
+        205.44,
+        68.89
+      ],
+      "pixel_count": 9,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_p2_29.png",
+      "anm2_layer": "p2_29",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        205,
+        50,
+        3,
+        3
+      ],
+      "centroid": [
+        206.0,
+        51.29
+      ],
+      "pixel_count": 7,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "ring_red_markers"
+    },
+    {
+      "name": "Alien_p2_30.png",
+      "anm2_layer": "p2_30",
+      "source_block": 2,
+      "group_rule": "connected_component",
+      "bbox": [
+        215,
+        65,
+        3,
+        3
+      ],
+      "centroid": [
+        216.0,
+        65.83
+      ],
+      "pixel_count": 6,
+      "default_color": [
+        1.0,
+        0.35,
+        0.25,
+        1.0
+      ],
+      "semantic_group": "bottom_blink_green"
+    },
+    {
+      "name": "Alien_cabin.png",
+      "anm2_layer": "cabin",
+      "source_block": 3,
+      "group_rule": "upper_region",
+      "bbox": [
+        93,
+        11,
+        70,
+        18
+      ],
+      "centroid": [
+        128.01,
+        18.09
+      ],
+      "pixel_count": 596,
+      "default_color": [
+        0.75,
+        1.0,
+        0.9,
+        1.0
+      ],
+      "semantic_group": "cabin"
+    },
+    {
+      "name": "Alien_ring_m120.png",
+      "anm2_layer": "ring_m120",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "m120",
+      "hue_delta_target": -120.0,
+      "hue_delta_mean": -120.0,
+      "hue_mean_block4": 48.43,
+      "hue_mean_block1": 149.68,
+      "bbox": [
+        179,
+        45,
+        25,
+        8
+      ],
+      "centroid": [
+        190.17,
+        48.97
+      ],
+      "pixel_count": 96,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_ring_m90.png",
+      "anm2_layer": "ring_m90",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "m90",
+      "hue_delta_target": -90.0,
+      "hue_delta_mean": -89.78,
+      "hue_mean_block4": 58.88,
+      "hue_mean_block1": 148.66,
+      "bbox": [
+        142,
+        44,
+        29,
+        7
+      ],
+      "centroid": [
+        155.85,
+        47.29
+      ],
+      "pixel_count": 98,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_ring_m60.png",
+      "anm2_layer": "ring_m60",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "m60",
+      "hue_delta_target": -60.0,
+      "hue_delta_mean": -60.0,
+      "hue_mean_block4": 90.63,
+      "hue_mean_block1": 150.63,
+      "bbox": [
+        209,
+        48,
+        23,
+        11
+      ],
+      "centroid": [
+        219.62,
+        53.24
+      ],
+      "pixel_count": 85,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_ring_base.png",
+      "anm2_layer": "ring_base",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "base",
+      "hue_delta_target": 0.0,
+      "hue_delta_mean": 0.0,
+      "hue_mean_block4": 147.6,
+      "hue_mean_block1": 147.6,
+      "bbox": [
+        118,
+        43,
+        21,
+        7
+      ],
+      "centroid": [
+        127.66,
+        46.73
+      ],
+      "pixel_count": 104,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_ring_p60.png",
+      "anm2_layer": "ring_p60",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "p60",
+      "hue_delta_target": 60.0,
+      "hue_delta_mean": 60.0,
+      "hue_mean_block4": 211.04,
+      "hue_mean_block1": 151.04,
+      "bbox": [
+        24,
+        48,
+        23,
+        11
+      ],
+      "centroid": [
+        34.81,
+        53.38
+      ],
+      "pixel_count": 84,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_ring_p90.png",
+      "anm2_layer": "ring_p90",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "p90",
+      "hue_delta_target": 90.0,
+      "hue_delta_mean": 90.19,
+      "hue_mean_block4": 239.35,
+      "hue_mean_block1": 149.16,
+      "bbox": [
+        85,
+        44,
+        29,
+        7
+      ],
+      "centroid": [
+        99.23,
+        47.31
+      ],
+      "pixel_count": 101,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_ring_p120.png",
+      "anm2_layer": "ring_p120",
+      "source_block": 4,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "p120",
+      "hue_delta_target": 120.0,
+      "hue_delta_mean": 120.0,
+      "hue_mean_block4": 270.29,
+      "hue_mean_block1": 150.29,
+      "bbox": [
+        52,
+        45,
+        26,
+        9
+      ],
+      "centroid": [
+        65.08,
+        49.02
+      ],
+      "pixel_count": 99,
+      "default_color": [
+        0.45,
+        1.0,
+        0.7,
+        1.0
+      ],
+      "semantic_group": "ring_main"
+    },
+    {
+      "name": "Alien_bottom_core.png",
+      "anm2_layer": "bottom_core",
+      "source_block": 3,
+      "group_rule": "lower_region_minus_indicators",
+      "semantic_group": "bottom_core",
+      "bbox": [
+        104,
+        72,
+        48,
+        15
+      ],
+      "centroid": [
+        127.83,
+        79.63
+      ],
+      "pixel_count": 404
+    },
+    {
+      "name": "Alien_bottom_core_indicators.png",
+      "anm2_layer": "bottom_core_indicators",
+      "source_block": 3,
+      "group_rule": "relative_hue_vs_block1",
+      "hue_tag": "p60",
+      "hue_delta_target": 60.0,
+      "semantic_group": "bottom_core_indicators",
+      "render_pass": "front",
+      "bbox": [
+        124,
+        64,
+        9,
+        7
+      ],
+      "centroid": [
+        127.64,
+        66.92
+      ],
+      "pixel_count": 36,
+      "indicator_components": [
+        {
+          "n": 18,
+          "centroid": [
+            124.94,
+            66.83
+          ]
+        },
+        {
+          "n": 18,
+          "centroid": [
+            130.33,
+            67.0
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": {
+    "light_layers": "white luminance masks for tinting",
+    "pivot": [
+      128,
+      64
+    ]
+  },
+  "ring_spatial_order": [
+    "ring_p60",
+    "ring_p120",
+    "ring_p90",
+    "ring_base",
+    "ring_m90",
+    "ring_m120",
+    "ring_m60"
+  ],
+  "ring_red_markers": [
+    "p2_02",
+    "p2_08",
+    "p2_23",
+    "p2_29"
+  ],
+  "semantic_groups": {
+    "ring_red_markers": [
+      "p2_02",
+      "p2_08",
+      "p2_23",
+      "p2_29"
+    ],
+    "navigation_red": [
+      "p2_07",
+      "p2_09",
+      "p2_11",
+      "p2_13",
+      "p2_14",
+      "p2_15",
+      "p2_16",
+      "p2_18",
+      "p2_20",
+      "p2_21",
+      "p2_22",
+      "p2_24"
+    ],
+    "bottom_blink_green": [
+      "p2_01",
+      "p2_03",
+      "p2_04",
+      "p2_05",
+      "p2_06",
+      "p2_10",
+      "p2_19",
+      "p2_25",
+      "p2_26",
+      "p2_27",
+      "p2_28",
+      "p2_30"
+    ],
+    "central_auxiliary": [
+      "p2_12",
+      "p2_17"
+    ],
+    "side_auxiliary": []
+  },
+  "layer_count": 41
+}

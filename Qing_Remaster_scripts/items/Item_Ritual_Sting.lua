@@ -5,6 +5,7 @@ local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
 local selection_holder = require("Qing_Remaster_scripts.others.selection_holder")
 local item_color_holder = require("Qing_Remaster_scripts.others.Item_color_holder")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 
 local item = {
@@ -68,8 +69,7 @@ function item.refresh_effects(player,force)
 	local sig=signature(item.get_values(player))
 	if force or d[item.own_key.."effect_signature"]~=sig then
 		d[item.own_key.."effect_signature"]=sig
-		player:AddCacheFlags(CacheFlag.CACHE_DAMAGE|CacheFlag.CACHE_SPEED|CacheFlag.CACHE_FIREDELAY|CacheFlag.CACHE_FLYING)
-		player:EvaluateItems()
+		unique_holder.request_evaluate_items(player, CacheFlag.CACHE_DAMAGE|CacheFlag.CACHE_SPEED|CacheFlag.CACHE_FIREDELAY|CacheFlag.CACHE_FLYING)
 	end
 end
 

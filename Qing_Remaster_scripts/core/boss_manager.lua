@@ -11,21 +11,17 @@ local modReference
 function Boss_manager.Init(mod)
 	modReference = mod
 
-	-- Floraine encounter
-	table.insert(Boss_manager.items, #Boss_manager.items + 1,
-		require("Qing_Remaster_scripts.bosses.Floraine.Enemy_chess_board"))
+	-- Floraine V2: sole Boss owner. Shared chess-piece NPC adapter stays registered.
 	table.insert(Boss_manager.items, #Boss_manager.items + 1,
 		require("Qing_Remaster_scripts.bosses.Floraine.Enemy_chess_pawn"))
 	table.insert(Boss_manager.items, #Boss_manager.items + 1,
-		require("Qing_Remaster_scripts.bosses.Floraine.Enemy_chess_staff"))
-	table.insert(Boss_manager.items, #Boss_manager.items + 1,
-		require("Qing_Remaster_scripts.bosses.Floraine.Enemy_Floraine"))
+		require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.init"))
 
 	-- Zennith encounter (Zennith_post is not registered by historical enemy_manager — keep that)
 	table.insert(Boss_manager.items, #Boss_manager.items + 1,
 		require("Qing_Remaster_scripts.bosses.Zennith.Zennith"))
 	table.insert(Boss_manager.items, #Boss_manager.items + 1,
-		require("Qing_Remaster_scripts.bosses.Zennith.Enemy_wind"))
+		require("Qing_Remaster_scripts.threads.wind.wind_runtime"))
 
 	-- Bum Emperor encounter
 	table.insert(Boss_manager.items, #Boss_manager.items + 1,

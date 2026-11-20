@@ -1892,7 +1892,7 @@ end
 function M.tick_knife_handle_driver(knife)
 	if not entity_alive(knife) then return false end
 	local kd = knife:GetData()
-	if kd._QingAeonKnifeSpatialDriver ~= true and kd._QingAeonEngineKnife ~= true then
+	if kd._QingAeonKnifeSpatialDriver ~= true then
 		return false
 	end
 	local handle = kd._QingAeonKnifeHandle
@@ -2022,7 +2022,6 @@ function M.spawn_replay_knife(track, ghost, owner_player, own_key, t)
 	end)
 	local kd = knife:GetData()
 	kd._QingAeonKnifeSpatialDriver = true
-	kd._QingAeonEngineKnife = true -- legacy alias
 	kd._QingAeonKnifeHandle = handle
 	return knife, handle
 end
@@ -2121,7 +2120,7 @@ function M.end_persistent_entity(ent, handle)
 	if ent and ent.GetData then
 		local ok, d = pcall(function() return ent:GetData() end)
 		if ok and d then
-			is_engine = d._QingAeonKnifeSpatialDriver == true or d._QingAeonEngineKnife == true
+			is_engine = d._QingAeonKnifeSpatialDriver == true
 			h = d._QingAeonKnifeHandle
 		end
 	end

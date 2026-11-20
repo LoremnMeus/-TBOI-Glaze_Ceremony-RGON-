@@ -76,7 +76,7 @@ local function ensure_sprite()
 	if sprite_ok then return true end
 	if not sprite then sprite = Sprite() end
 	local ok = pcall(function()
-		sprite:Load("gfx/ui/tiny_update/tiny_update_ui.anm2", true)
+		sprite:Load("gfx/mimics/Tiny_Update/ui/tiny_update_ui.anm2", true)
 	end)
 	sprite_ok = ok == true
 	return sprite_ok

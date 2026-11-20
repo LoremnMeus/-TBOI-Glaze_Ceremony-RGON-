@@ -71,6 +71,23 @@ function transport.resolve_preset(preset_id)
 	return registry.get_level_preset(preset_id)
 end
 
+--- True when current Stage/StageType already matches the preset (or preset has no stage).
+function transport.floor_matches_preset(preset_id)
+	if not preset_id or preset_id == "current" then
+		return true
+	end
+	local rows = transport.validate_step({ level_preset = preset_id })
+	if not rows then
+		return true
+	end
+	for _, row in ipairs(rows) do
+		if row.pass == false then
+			return false
+		end
+	end
+	return true
+end
+
 function transport.goto_level_preset(preset_id, opts)
 	opts = opts or {}
 	local log = {
@@ -80,10 +97,23 @@ function transport.goto_level_preset(preset_id, opts)
 	local preset = transport.resolve_preset(preset_id)
 	if not preset then
 		log.result = "kept current floor"
+		log.reused = true
 		return true, log.result, log
 	end
 	if not preset.command then
 		log.result = "preset has no command"
+		log.reused = true
+		return true, log.result, log
+	end
+	-- Default: reuse current floor when already correct (avoid wiping Stone layout via reseed).
+	local reuse = opts.reuse_current_floor
+	if reuse == nil then
+		reuse = true
+	end
+	if reuse and transport.floor_matches_preset(preset_id) then
+		log.reused = true
+		log.after = current_stage_info()
+		log.result = "reused current floor"
 		return true, log.result, log
 	end
 	log.stage_command = "stage " .. tostring(preset.command)
@@ -93,7 +123,11 @@ function transport.goto_level_preset(preset_id, opts)
 		return false, err, log
 	end
 	local mode = opts.mode or "natural"
-	if mode == "natural" or opts.reseed ~= false then
+	local do_reseed = opts.reseed
+	if do_reseed == nil then
+		do_reseed = (mode == "natural")
+	end
+	if do_reseed then
 		ok, err = safe_command("reseed")
 		log.reseed = true
 		if not ok then
@@ -101,6 +135,7 @@ function transport.goto_level_preset(preset_id, opts)
 			return false, err, log
 		end
 	end
+	log.reused = false
 	log.after = current_stage_info()
 	log.result = log.stage_command
 	return true, log.result, log
@@ -271,19 +306,46 @@ function transport.apply_room_selector(selector, opts)
 	}
 end
 
+local function stone_selector_target(selector)
+	if selector == "stone_origin" or selector == "stone_trigger" then
+		return "trigger"
+	end
+	if selector == "stone_route_middle" then
+		return "mid"
+	end
+	if selector == "stone_route_end" then
+		return "end"
+	end
+	if selector == "stone_terminal" then
+		return "terminal"
+	end
+	if selector == "stone_antechamber" then
+		return "ante"
+	end
+	if selector == "stone_boss" or selector == "stone_floraine" then
+		return "boss"
+	end
+	return "trigger"
+end
+
 function transport.prepare_run(step, opts)
 	opts = opts or {}
 	local messages = {}
 	local log = {steps = {}, readiness = READINESS.READY}
 	local preset = step.level_preset
+	local floor_reused = false
+	local floor_just_changed = false
 	if preset and preset ~= "current" then
 		local ok, msg, plog = transport.goto_level_preset(preset, {
 			mode = (step.entry and step.entry.mode) or "natural",
 			reseed = opts.reseed,
+			reuse_current_floor = opts.reuse_current_floor,
 		})
 		messages[#messages + 1] = tostring(msg)
 		log.steps[#log.steps + 1] = plog
 		log.level = plog
+		floor_reused = plog and plog.reused == true
+		floor_just_changed = plog and plog.reused == false and (plog.stage_command ~= nil)
 		if not ok then
 			log.readiness = READINESS.NOT_GENERATED
 			session.last_transport_log = log
@@ -291,25 +353,84 @@ function transport.prepare_run(step, opts)
 		end
 	else
 		messages[#messages + 1] = "no level change"
-		log.level = {result = "no level change", after = current_stage_info()}
+		log.level = {result = "no level change", after = current_stage_info(), reused = true}
+		floor_reused = true
 	end
 	local room = step.room or (step.run and step.run.room)
 	if room and room.selector then
-		local ok, msg, rlog = transport.apply_room_selector(room.selector, {
-			dimension = room.dimension,
-			spawn_anchor = room.spawn_anchor,
-		})
-		messages[#messages + 1] = tostring(msg)
-		log.room = rlog or {selector = room.selector, result = msg}
-		if rlog and rlog.readiness then
-			log.readiness = rlog.readiness
-		end
-		if not ok then
-			-- Floor may still be correct; keep NOT_GENERATED so UI can reseed.
-			log.readiness = (rlog and rlog.readiness) or READINESS.NOT_GENERATED
-			log.after = current_stage_info()
-			session.last_transport_log = log
-			return false, table.concat(messages, "; "), log
+		local sel = tostring(room.selector)
+		-- All Stone room selectors go through stone_debug prepare FSM.
+		-- Queued ≠ arrived. Never treat async enqueue as READY.
+		if sel:find("stone", 1, true) == 1 then
+			local ok_dbg, stone_debug = pcall(require, "Qing_Remaster_scripts.threads.stone.stone_debug")
+			if ok_dbg and stone_debug and stone_debug.goto_checkpoint then
+				local target = stone_selector_target(sel)
+				local on_floor = (not preset) or transport.floor_matches_preset(preset)
+				-- If we just issued stage/reseed, or already on floor, skip REQUEST_STAGE.
+				local skip_stage = floor_just_changed or on_floor
+				local result = stone_debug.goto_checkpoint(target, {
+					preset_id = preset or "mines_ashpit",
+					skip_stage = skip_stage,
+					reuse_layout = opts.reuse_layout ~= false,
+					reset_encounter = opts.reset_encounter == true,
+					suppress_boss = (sel == "stone_boss" or sel == "stone_floraine"),
+				})
+				local queued_msg = (result and result.message)
+					or ("stone QUEUED target=" .. tostring(target))
+				messages[#messages + 1] = queued_msg
+				log.room = {
+					selector = sel,
+					target = target,
+					result = "async_queued",
+					status = (result and result.status) or "queued",
+					readiness = READINESS.NEARBY,
+					arrived = false,
+					note = "await stone_debug.tick_prepare; only status=ready means arrived",
+				}
+				log.readiness = READINESS.NEARBY
+				log.arrived = false
+				log.stone_prepare = result
+			elseif ok_dbg and stone_debug and stone_debug.start_prepare then
+				local target = stone_selector_target(sel)
+				stone_debug.start_prepare({
+					preset_id = preset or "mines_ashpit",
+					target = target,
+					skip_stage = floor_just_changed or transport.floor_matches_preset(preset),
+					reuse_layout = opts.reuse_layout ~= false,
+					reset_encounter = opts.reset_encounter == true,
+				})
+				messages[#messages + 1] = "stone async queued (target=" .. tostring(target) .. "; not arrived yet)"
+				log.room = {
+					selector = sel,
+					target = target,
+					result = "async_queued",
+					readiness = READINESS.NEARBY,
+					arrived = false,
+				}
+				log.readiness = READINESS.NEARBY
+				log.arrived = false
+			else
+				messages[#messages + 1] = "stone async unavailable"
+				log.readiness = READINESS.NOT_GENERATED
+				session.last_transport_log = log
+				return false, table.concat(messages, "; "), log
+			end
+		else
+			local ok, msg, rlog = transport.apply_room_selector(room.selector, {
+				dimension = room.dimension,
+				spawn_anchor = room.spawn_anchor,
+			})
+			messages[#messages + 1] = tostring(msg)
+			log.room = rlog or {selector = room.selector, result = msg}
+			if rlog and rlog.readiness then
+				log.readiness = rlog.readiness
+			end
+			if not ok then
+				log.readiness = (rlog and rlog.readiness) or READINESS.NOT_GENERATED
+				log.after = current_stage_info()
+				session.last_transport_log = log
+				return false, table.concat(messages, "; "), log
+			end
 		end
 	end
 	if step.player then
@@ -321,6 +442,7 @@ function transport.prepare_run(step, opts)
 		end
 	end
 	log.after = current_stage_info()
+	log.floor_reused = floor_reused
 	session.last_transport_log = log
 	return true, table.concat(messages, "; "), log
 end
@@ -328,6 +450,7 @@ end
 local STAGE_NAME = {
 	[LevelStage and LevelStage.STAGE1_2 or -1] = "STAGE1_2",
 	[LevelStage and LevelStage.STAGE2_1 or -2] = "STAGE2_1",
+	[LevelStage and LevelStage.STAGE2_2 or -6] = "STAGE2_2",
 	[LevelStage and LevelStage.STAGE3_1 or -3] = "STAGE3_1",
 	[LevelStage and LevelStage.STAGE3_2 or -4] = "STAGE3_2",
 	[LevelStage and LevelStage.STAGE8 or -5] = "STAGE8",

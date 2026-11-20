@@ -4,7 +4,14 @@ local function all()save.elses[item.own_key.."origin"]=save.elses[item.own_key..
 local function rec(p)local idx=p:GetData().__Index;local a=all();a[idx]=a[idx]or{};return a[idx]end
 local function devil(p,r)local id=Game():GetItemPool():GetCollectible(ItemPoolType.POOL_DEVIL,true,r:GetSeed());r:Next();Isaac.Spawn(5,100,id,Game():GetRoom():FindFreePickupSpawnPosition(p.Position,20,true),Vector.Zero,p)end
 table.insert(item.myToCall,{CallBack=enums.Callbacks.PRE_GAME_STARTED,Function=function(_,cont)if not cont then save.elses[item.own_key.."origin"]={}end end})
-table.insert(item.myToCall,{CallBack=enums.Callbacks.POST_PICKUP_COLLECTIBLE,Function=function(_,p,id,touched,pickup)if not pickup or Game():GetRoom():GetType()~=RoomType.ROOM_ANGEL then return end;if pickup:Exists()and pickup.SubType>0 then return end;local r=rec(p);r[id]=(r[id]or 0)+1 end})
+table.insert(item.myToCall,{CallBack=enums.Callbacks.POST_PICKUP_COLLECTIBLE,Function=function(_,p,id,touched,pickup,source_context)
+	if Game():GetRoom():GetType()~=RoomType.ROOM_ANGEL then return end
+	-- Count when the offer is taken: empty pedestal, deleted pedestal, or trusted source without live ent.
+	local live=type(source_context)=="table" and source_context.pedestal or nil
+	local target=live or pickup
+	if target and target.Exists and target:Exists() and (target.SubType or 0)>0 then return end
+	local r=rec(p);r[id]=(r[id]or 0)+1
+end})
 table.insert(item.myToCall,{CallBack=enums.Callbacks.POST_CHANGE_COLLECTIBLE,Function=function(_,p,id,diff)if diff>=0 then return end;local r=rec(p);if r[id]then r[id]=math.max(0,r[id]+diff);if r[id]==0 then r[id]=nil end end end})
 table.insert(item.ToCall,{CallBack=ModCallbacks.MC_USE_CARD,params=item.entity,Function=function(_,card,p,f)if f&UseFlag.USE_CARBATTERY==UseFlag.USE_CARBATTERY then return end;local r=rec(p);local cloth=p:GetData().tarot_cloth_used==card;local rng=auxi.rng_for_sake(p:GetCardRNG(item.entity));local cfg=Isaac.GetItemConfig();local sacrifices={};for id,count in pairs(r)do id=tonumber(id);for _=1,math.min(count,p:GetCollectibleNum(id,true))do sacrifices[#sacrifices+1]=id end end;for _,id in ipairs(sacrifices)do local before=p:GetCollectibleNum(id,true);p:RemoveCollectible(id);if p:GetCollectibleNum(id,true)<before then devil(p,rng);if cloth then local info=cfg:GetCollectible(id);if info and info.Tags&ItemConfig.TAG_SUMMONABLE==ItemConfig.TAG_SUMMONABLE then p:AddItemWisp(id,p.Position,true)end end end end end})
 return item

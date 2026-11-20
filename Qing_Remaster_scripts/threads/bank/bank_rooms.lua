@@ -144,7 +144,14 @@ end
 function rooms.make_cycle_id(stage, stage_type)
 	stage = stage or (Game():GetLevel():GetStage())
 	stage_type = stage_type or (Game():GetLevel():GetStageType())
-	return string.format("greed_stage_%s_%s", tostring(stage), tostring(stage_type))
+	local floor_id = string.format("greed_stage_%s_%s", tostring(stage), tostring(stage_type))
+	local branch_state = bank_state.get().branch
+	if branch_state.cycle_floor_id ~= floor_id then
+		branch_state.cycle_floor_id = floor_id
+		branch_state.cycle_revision = 0
+	end
+	local revision = branch_state.cycle_revision or 0
+	return revision == 0 and floor_id or (floor_id .. ":" .. tostring(revision))
 end
 
 function rooms.get_current_def()
@@ -407,6 +414,69 @@ end
 
 -- ---- Branch spawn (Phase B: Greed exit-gated, idempotent per cycle) ----
 
+local function clear_branch_cell(room, index)
+	local grid = room:GetGridEntity(index)
+	if not grid then return end
+	local kind = grid:GetType()
+	if kind == GridEntityType.GRID_DOOR or kind == GridEntityType.GRID_TRAPDOOR
+		or kind == GridEntityType.GRID_STAIRS then return end
+	if room.RemoveGridEntityImmediate then
+		room:RemoveGridEntityImmediate(index, 0, false)
+	else
+		room:RemoveGridEntity(index, 0, false)
+	end
+end
+
+local function branch_cell_reachable(room, target, width)
+	local start = room:GetGridIndex(room:GetCenterPos())
+	local seen = {[start] = true}
+	local queue = {start}
+	local head = 1
+	while head <= #queue do
+		local index = queue[head]
+		head = head + 1
+		if index == target then return true end
+		local x, y = index % width, math.floor(index / width)
+		for _, step in ipairs({{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) do
+			local nx, ny = x + step[1], y + step[2]
+			local next_index = ny * width + nx
+			if nx > 0 and nx < width - 1 and ny > 0 and next_index < room:GetGridSize()
+				and not seen[next_index]
+				and room:IsPositionInRoom(room:GetGridPosition(next_index), 0)
+				and room:GetGridCollision(next_index) == GridCollisionClass.COLLISION_NONE then
+				seen[next_index] = true
+				queue[#queue + 1] = next_index
+			end
+		end
+	end
+	return false
+end
+
+local function prepare_branch_site(room)
+	local width = room:GetGridWidth()
+	local target = width + 7
+	local site = width + 10
+	for col = 9, 11 do clear_branch_cell(room, width + col) end
+	for _, ent in ipairs(Isaac.GetRoomEntities()) do
+		local kind = ent.Type
+		if kind ~= EntityType.ENTITY_PLAYER and kind ~= EntityType.ENTITY_FAMILIAR
+			and kind ~= EntityType.ENTITY_EFFECT and room:GetGridIndex(ent.Position) >= width + 9
+			and room:GetGridIndex(ent.Position) <= width + 11 then
+			ent:Remove()
+		end
+	end
+	if not branch_cell_reachable(room, target, width) then
+		local center = room:GetGridIndex(room:GetCenterPos())
+		local center_col, center_row = center % width, math.floor(center / width)
+		for row = 1, center_row do clear_branch_cell(room, row * width + 7) end
+		for col = math.min(7, center_col), math.max(7, center_col) do
+			clear_branch_cell(room, center_row * width + col)
+		end
+	end
+	if not branch_cell_reachable(room, target, width) then return nil end
+	return room:GetGridPosition(site)
+end
+
 function rooms.ensure_for_current_cycle(opts)
 	opts = opts or {}
 	local cycle = opts.cycle_id or rooms.make_cycle_id()
@@ -414,30 +484,24 @@ function rooms.ensure_for_current_cycle(opts)
 	if br.spawned_cycle_id == cycle then
 		return nil, "already_spawned"
 	end
-	-- Live entity for this cycle already present → mark spawned, do not double-spawn.
+	local skip = bank_state.consume_branch_closure(cycle)
+	bank_state.on_branch_arrival(cycle, skip)
+	if skip then
+		br.spawned_cycle_id = cycle
+		return nil, "destroyed_previous_floor"
+	end
+	-- The bank state owns the cycle. A live branch in this room already fulfills it.
 	if bank_branch.entity then
 		for _, ent in ipairs(Isaac.FindByType(bank_branch.entity.Type, bank_branch.entity.Variant, -1, false, false)) do
 			if ent and ent:Exists() and not bank_branch.is_broken(ent) then
-				local d = ent:GetData()
-				if d.BankCycleId == cycle then
-					br.spawned_cycle_id = cycle
-					return ent, "already_present"
-				end
+				br.spawned_cycle_id = cycle
+				return ent, "already_present"
 			end
 		end
 	end
-	local closed = bank_state.consume_branch_closure(cycle)
-	bank_state.on_branch_arrival(cycle, closed)
-	local pos = opts.pos
-	if not pos then
-		local trap = bank_branch.find_greed_trapdoor_pos and bank_branch.find_greed_trapdoor_pos()
-		if trap then
-			pos = Vector(trap.X, trap.Y - 80)
-		else
-			pos = bank_branch.find_exit_anchor()
-		end
-	end
-	local ent = bank_branch.spawn(pos, closed and "closed" or "open")
+	local pos = opts.pos or prepare_branch_site(Game():GetRoom())
+	if not pos then return nil, "site_blocked" end
+	local ent = bank_branch.spawn(pos, "open")
 	br.spawned_cycle_id = cycle
 	return ent
 end
@@ -464,14 +528,14 @@ function rooms.try_auto_spawn_branch()
 	if br.spawned_cycle_id == cycle then
 		return nil, "already_spawned"
 	end
-	local pos = Vector(trap.X, trap.Y - 80)
-	return rooms.ensure_for_current_cycle({ cycle_id = cycle, pos = pos })
+	return rooms.ensure_for_current_cycle({ cycle_id = cycle })
 end
 
 function rooms.debug_advance_cycle(closed)
 	local b = bank_state.get()
-	local n = (tonumber((b.branch.last_cycle_id or ""):match("debug_(%d+)")) or 0) + 1
-	local cycle = "debug_" .. tostring(n)
+	rooms.make_cycle_id()
+	b.branch.cycle_revision = (b.branch.cycle_revision or 0) + 1
+	local cycle = rooms.make_cycle_id()
 	if closed == nil then
 		closed = bank_state.consume_branch_closure(cycle)
 	elseif closed then
@@ -481,15 +545,25 @@ function rooms.debug_advance_cycle(closed)
 		closed = false
 	end
 	bank_state.on_branch_arrival(cycle, closed == true)
-	local pos = bank_branch.find_exit_anchor()
+	b.branch.spawned_cycle_id = cycle
+	local existing
 	if bank_branch.entity then
 		for _, ent in ipairs(Isaac.FindByType(bank_branch.entity.Type, bank_branch.entity.Variant, -1, false, false)) do
-			ent:Remove()
+			if ent and ent:Exists() then
+				if closed or bank_branch.is_broken(ent) or existing then
+					ent:Remove()
+				else
+					existing = ent
+				end
+			end
 		end
 	end
-	local ent = bank_branch.spawn(pos, closed and "closed" or "open")
-	b.branch.spawned_cycle_id = cycle
-	return ent, cycle, closed
+	if closed then return nil, cycle, true end
+	if existing then
+		bank_branch.set_closed(existing, false)
+		return existing, cycle, false
+	end
+	return bank_branch.spawn(bank_branch.find_exit_anchor(), "open"), cycle, false
 end
 
 -- ---- Terminal session (Deposit / Settlement) ----
@@ -955,7 +1029,7 @@ function rooms.render_player(player)
 
 	local sess = get_session(player)
 	if sess and sess.state == "panel" then
-		local lines = { "BANK OF BUM" }
+		local lines = { tr("乞丐银行", "BANK OF BUM") }
 		if sess.mode == "deposit" then
 			lines[#lines + 1] = tr("保险库", "VAULT")
 			lines[#lines + 1] = string.format(tr("余额  %d¢", "Balance  %d¢"), bank_state.get_deposit())

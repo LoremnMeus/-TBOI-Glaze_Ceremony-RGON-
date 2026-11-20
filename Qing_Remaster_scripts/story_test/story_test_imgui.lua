@@ -429,6 +429,12 @@ local function transport_status_text(info)
 	if tlog.room then
 		local r = tlog.room
 		lines[#lines + 1] = tr("房间：", "Room: ") .. tostring(r.result or r.selector or "-")
+		if r.target then
+			lines[#lines + 1] = tr("  目标：", "  Target: ") .. tostring(r.target)
+		end
+		if r.arrived == false then
+			lines[#lines + 1] = tr("  到达：尚未（异步排队）", "  Arrived: no (async queued)")
+		end
 		if r.room_index ~= nil then
 			lines[#lines + 1] = tr("  索引：", "  Index: ") .. tostring(r.room_index)
 		end
@@ -441,6 +447,40 @@ local function transport_status_text(info)
 		end
 		if r.mirror_world ~= nil then
 			lines[#lines + 1] = tr("  镜像世界：", "  Mirror world: ") .. tostring(r.mirror_world)
+		end
+	end
+	-- Stone async prepare: surface live Prepare State / Last Error (queued ≠ arrived).
+	do
+		local sel = tlog.room and tlog.room.selector
+		local want_stone = type(sel) == "string" and sel:find("stone", 1, true) == 1
+		if want_stone or (tlog.room and tlog.room.result == "async_queued") then
+			local ok_dbg, stone_debug = pcall(require, "Qing_Remaster_scripts.threads.stone.stone_debug")
+			if ok_dbg and stone_debug and stone_debug.prepare_status then
+				local prep = stone_debug.prepare_status()
+				if prep and prep.phase and prep.phase ~= "IDLE" then
+					lines[#lines + 1] = tr("Stone Prepare：", "Stone Prepare: ")
+						.. tostring(prep.phase)
+						.. (prep.arrived and " (arrived)" or "")
+					if prep.layout_result then
+						lines[#lines + 1] = tr("  布局：", "  Layout: ") .. tostring(prep.layout_result)
+					end
+					if prep.trigger_sgi then
+						lines[#lines + 1] = "  Trigger SGI: " .. tostring(prep.trigger_sgi)
+					end
+					if prep.warp_issued ~= nil then
+						lines[#lines + 1] = "  Warp Issued: " .. tostring(prep.warp_issued)
+					end
+					if prep.current_sgi then
+						lines[#lines + 1] = "  Current SGI: " .. tostring(prep.current_sgi)
+					end
+					local err = prep.last_error or prep.error or prep.warp_error
+					if err then
+						lines[#lines + 1] = tr("  错误：", "  Error: ") .. tostring(err)
+					elseif prep.message then
+						lines[#lines + 1] = tr("  消息：", "  Message: ") .. tostring(prep.message)
+					end
+				end
+			end
 		end
 	end
 	if tlog.player and tlog.player.result then
@@ -563,17 +603,13 @@ local function sync_offset_from_pause()
 	local off = pause_ui.get_debug_offsets()
 	ui.quest_ox = math.floor((off.panel and off.panel.X or 0) + 0.5)
 	ui.quest_oy = math.floor((off.panel and off.panel.Y or 0) + 0.5)
-	ui.hint_ox = math.floor((off.hint and off.hint.X or 0) + 0.5)
-	ui.hint_oy = math.floor((off.hint and off.hint.Y or 0) + 0.5)
+	ui.hint_ox = math.floor((off.toggle_open and off.toggle_open.X or 0) + 0.5)
+	ui.hint_oy = math.floor((off.toggle_open and off.toggle_open.Y or 0) + 0.5)
 end
 
 local function apply_offsets()
-	if pause_ui.set_debug_panel_offset then
-		pause_ui.set_debug_panel_offset(ui.quest_ox, ui.quest_oy)
-	else
-		pause_ui.set_debug_quest_offset(ui.quest_ox, ui.quest_oy)
-	end
-	pause_ui.set_debug_hint_offset(ui.hint_ox, ui.hint_oy)
+	pause_ui.set_debug_panel_offset(ui.quest_ox, ui.quest_oy)
+	pause_ui.set_debug_toggle_open_offset(ui.hint_ox, ui.hint_oy)
 end
 
 function imgui.build(parent_id)

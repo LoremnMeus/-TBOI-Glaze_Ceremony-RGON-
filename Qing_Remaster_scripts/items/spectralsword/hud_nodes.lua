@@ -535,6 +535,10 @@ local function resource_anchor(player, kind)
 	return slot_offer_lift.get_pickup_hud_screen_pos(player, kind, 0)
 end
 
+local function resource_pair_origin(player, kind)
+	return resource_anchor(player, kind) + LAYOUT.resource_value_offset
+end
+
 local function ghost_offset_for_group(group)
 	if group == "resource" then
 		return LAYOUT.ghost_resource_offset
@@ -629,6 +633,7 @@ function M.get_stat_logical_anchor_by_row(row_index, opts)
 	if ctx and ctx.twin == true then
 		base = base + LAYOUT.twin_stat_base_offset
 	end
+	base = base + ui.GetBethanyBelowOffset(opts.player)
 	if include_shake then
 		base = base + ui.GetHUDRenderOffset()
 	end
@@ -810,7 +815,7 @@ function M.layout_resource_pair_for(player, resource_id)
 	if not def or not player then
 		return nil
 	end
-	local base = resource_anchor(player, def.kind) + LAYOUT.resource_value_offset
+	local base = resource_pair_origin(player, def.kind)
 	local gaps = M.get_resource_pair_gaps()
 	return hud_fonts.layout_resource_pair(base, def.get(player), def.get_max(player), gaps)
 end
@@ -1018,7 +1023,7 @@ local function make_resource_node(id)
 			return zh and def.label.zh or def.label.en
 		end,
 		get_anchor = function(player)
-			return resource_anchor(player, def.kind) + LAYOUT.resource_value_offset
+			return resource_pair_origin(player, def.kind)
 		end,
 		read = function(player)
 			return def.get(player)
@@ -1072,7 +1077,7 @@ local function make_cap_node(id)
 				return layout.cap_pos
 			end
 			-- fallback：仅在 layout 失败时用旧固定列
-			return resource_anchor(player, rdef.kind) + LAYOUT.resource_value_offset
+			return resource_pair_origin(player, rdef.kind)
 		end,
 		read = function(player)
 			return rdef.get_max(player)

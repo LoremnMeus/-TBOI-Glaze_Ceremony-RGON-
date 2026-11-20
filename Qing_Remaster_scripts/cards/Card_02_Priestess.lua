@@ -276,4 +276,11 @@ Function = function(_,cardtype,player,useFlags)
 end,
 })
 
+Charging_Bar_holder.register_bar({
+	id = "cd2_Priestess_sprite",
+	owner = {type = "custom", valid = function(player)
+		local effect = get_roots()
+		return player:ToPlayer() and effect[player:GetData().__Index] ~= nil
+	end},
+})
 return item

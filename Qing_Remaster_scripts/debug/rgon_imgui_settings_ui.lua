@@ -43,7 +43,6 @@ function M.build(api)
 	local systems_tab = api.systems_tab
 	local visual_tab = api.visual_tab
 	local data_tab = api.data_tab
-	local tests_tab = api.tests_tab
 	local story_test_tab = api.story_test_tab
 
 
@@ -395,7 +394,6 @@ function M.build_achievements(api)
 	local systems_tab = api.systems_tab
 	local visual_tab = api.visual_tab
 	local data_tab = api.data_tab
-	local tests_tab = api.tests_tab
 	local story_test_tab = api.story_test_tab
 
 

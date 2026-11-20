@@ -196,9 +196,4 @@ function M.restore_active_to_slot(player, id, slot, main, battery, first_time)
 	end
 end
 
---- @deprecated 兼容旧名 → restore_active_to_slot
-function M.restore_player_active_charges(player, id, slot, main, battery, first_time)
-	M.restore_active_to_slot(player, id, slot, main, battery, first_time)
-end
-
 return M

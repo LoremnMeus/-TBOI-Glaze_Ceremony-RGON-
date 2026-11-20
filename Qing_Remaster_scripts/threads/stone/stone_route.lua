@@ -51,6 +51,32 @@ function route.get_outgoing_slot(desc)
 	return info and info.outgoing_slot
 end
 
+--- Off-route return table entry for a SafeGridIndex (nil on main route / unknown).
+function route.get_offroute_info(desc_or_sgi)
+	local sgi
+	if type(desc_or_sgi) == "number" then
+		sgi = desc_or_sgi
+	else
+		local desc = desc_or_sgi or Game():GetLevel():GetCurrentRoomDesc()
+		sgi = desc and desc.SafeGridIndex
+	end
+	if sgi == nil then
+		return nil
+	end
+	local r = runtime.get()
+	if not r.route or type(r.route.offroute_rooms) ~= "table" then
+		return nil
+	end
+	return r.route.offroute_rooms[tostring(sgi)] or r.route.offroute_rooms[sgi]
+end
+
+--- Door slot on the current room that leads back toward the main Stone route.
+function route.get_return_slot(desc)
+	desc = desc or Game():GetLevel():GetCurrentRoomDesc()
+	local info = route.get_offroute_info(desc)
+	return info and info.return_slot
+end
+
 function route.get_progress(desc)
 	local path = route.get_path()
 	if #path < 1 then return 0 end

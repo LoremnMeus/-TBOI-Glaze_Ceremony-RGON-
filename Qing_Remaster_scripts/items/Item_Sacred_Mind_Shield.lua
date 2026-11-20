@@ -3,6 +3,7 @@ local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local item = {
 	ToCall = {},
@@ -152,12 +153,7 @@ function item.add_kill_bonus(player, count)
 	if not bonus then return end
 	bonus.mul = (bonus.mul or 0) + item.damage_mul_per_kill * count
 	bonus.shot = (bonus.shot or 0) + item.shotspeed_per_kill * count
-	player:AddCacheFlags(CacheFlag.CACHE_DAMAGE | CacheFlag.CACHE_SHOTSPEED)
-	if player.EvaluateItems then
-		player:EvaluateItems()
-	else
-		player:GetData().should_evaluate_on_update_once = true
-	end
+	unique_holder.request_evaluate_items(player, CacheFlag.CACHE_DAMAGE | CacheFlag.CACHE_SHOTSPEED)
 end
 
 local function grant_heart_container(player)

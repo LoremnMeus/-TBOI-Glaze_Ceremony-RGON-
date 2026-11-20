@@ -334,12 +334,17 @@ local LANG = {
 		debug_page_systems = "Systems",
 		debug_page_visual = "Visual",
 		debug_page_data = "Data",
-		debug_page_tests = "Tests",
 		probe_page_items = "Items",
 		probe_page_characters = "Characters",
-		probe_page_systems = "Systems",
-		probe_page_visual = "Visual",
-		probe_page_runtime = "Runtime",
+		probe_page_combat = "Combat",
+		probe_page_render = "Render",
+		probe_page_rooms = "Rooms & Map",
+		probe_page_story = "Story & Threads",
+		probe_page_systems = "Systems & Runtime",
+		probe_page_experiments = "Experiments",
+		-- LEGACY keys (unused tabs; keep for any stale text() calls)
+		probe_page_visual = "Render",
+		probe_page_runtime = "Systems & Runtime",
 		debug_page_flight = "Blueprint & Flight",
 		debug_recent_help = "Home mirrors pinned controls and recently edited parameters (same settings paths, no navigation).",
 		debug_recent_empty = "No recently edited controls yet.",
@@ -657,6 +662,11 @@ local LANG = {
 		colorblind_bans_empty = "(no next-run bans)",
 		colorblind_bans_clear = "Clear next-run bans",
 		colorblind_bans_cleared = "Colorblindness next-run bans cleared.",
+		group_exoneration = "Exoneration Certificate",
+		exoneration_help = "Permanent banish list for this save slot. Clearing it does not put those items back into the current run's pools; they return next run.",
+		exoneration_empty = "(no banished items)",
+		exoneration_clear = "Clear banish list",
+		exoneration_cleared = "Exoneration Certificate banish list cleared.",
 		group_diamond_permanent = "Diamond permanent price",
 		diamond_permanent_help = "Cross-run shop price / last sale for Qing's Faceted Market Diamond.",
 		diamond_last_sale = "Last sale price",
@@ -926,6 +936,7 @@ local LANG = {
 		group_tiny_update = "Tiny Update",
 		tiny_update_help = "Force a real update, preview the notice, or reopen the last one. Force Update uses the same commit path and skips the chance and floor cap.",
 		tiny_update_force = "Force Update",
+		tiny_update_force_cake_berry = "Force: Strawberry Cake Pie",
 		tiny_update_preview = "Preview Notice",
 		tiny_update_last = "Show Last Notice",
 		tiny_update_category = "Force Category",
@@ -1122,12 +1133,16 @@ local LANG = {
 		debug_page_systems = "系统",
 		debug_page_visual = "视觉",
 		debug_page_data = "数据",
-		debug_page_tests = "测试",
 		probe_page_items = "道具",
 		probe_page_characters = "角色",
-		probe_page_systems = "系统",
-		probe_page_visual = "视觉",
-		probe_page_runtime = "运行时",
+		probe_page_combat = "战斗",
+		probe_page_render = "渲染",
+		probe_page_rooms = "房间与地图",
+		probe_page_story = "剧情与支线",
+		probe_page_systems = "系统与运行时",
+		probe_page_experiments = "实验与审计",
+		probe_page_visual = "渲染",
+		probe_page_runtime = "系统与运行时",
 		debug_page_flight = "蓝图与飞行器",
 		debug_recent_help = "首页镜像已固定模块的核心参数，以及最近编辑过的控件（同一配置路径，不做跳转）。",
 		debug_recent_empty = "暂无最近编辑的控件。",
@@ -1445,6 +1460,11 @@ local LANG = {
 		colorblind_bans_empty = "（暂无下局移除）",
 		colorblind_bans_clear = "清空下局点踩移除",
 		colorblind_bans_cleared = "已清空色盲下局点踩列表。",
+		group_exoneration = "放逐证明",
+		exoneration_help = "当前存档槽的永久放逐名单。清空后，这些道具不会立刻回到本局道具池，下一局才恢复。",
+		exoneration_empty = "（暂无放逐）",
+		exoneration_clear = "清空放逐名单",
+		exoneration_cleared = "已清空放逐证明的放逐名单。",
 		group_diamond_permanent = "钻石·永久售价",
 		diamond_permanent_help = "跨局保留的钻石商店售价与上次成交价。",
 		diamond_last_sale = "上次成交价",
@@ -1708,6 +1728,7 @@ local LANG = {
 		group_tiny_update = "微型更新",
 		tiny_update_help = "强制发布走与正常更新相同的提交函数，只跳过概率和每层限制。预览公告不会改动道具。",
 		tiny_update_force = "强制发布更新",
+		tiny_update_force_cake_berry = "强制更新：草莓蛋糕派",
 		tiny_update_preview = "预览公告",
 		tiny_update_last = "重看最近公告",
 		tiny_update_category = "指定类别",
@@ -1974,95 +1995,44 @@ local function clear_defaults_keys(root, defaults)
 	end
 end
 
-local function apply_debug_migrations(root)
+local function normalize_debug_settings(root)
 	local debug_settings = root.QingRemasterOptions and root.QingRemasterOptions.Debug
 	if not debug_settings then return end
 	if (tonumber(debug_settings.SuperBombsTimerPositionVersion) or 0) < 2 then
 		local timer_x = tonumber(debug_settings.SuperBombsTimerX)
-		if timer_x == nil or timer_x == -11 or timer_x == -7 then
+		if timer_x == -11 or timer_x == -7 then
 			debug_settings.SuperBombsTimerX = -5
 		end
 		local timer_y = tonumber(debug_settings.SuperBombsTimerY)
-		if timer_y == nil or timer_y == -8.25 then
+		if timer_y == -8.25 then
 			debug_settings.SuperBombsTimerY = -5
 		end
 		local mama_x = tonumber(debug_settings.SuperBombsMamaTimerX)
-		if mama_x == nil or mama_x == -8 then
+		if mama_x == -8 then
 			debug_settings.SuperBombsMamaTimerX = 5
 		end
 		local mama_y = tonumber(debug_settings.SuperBombsMamaTimerY)
-		if mama_y == nil or mama_y == -20 then
+		if mama_y == -20 then
 			debug_settings.SuperBombsMamaTimerY = 9
 		end
 		debug_settings.SuperBombsTimerPositionVersion = 2
 	end
-	if (tonumber(debug_settings.CharonSettingsVersion) or 0) < 3 then
-		debug_settings.CharonAnimationSpeed = nil
-		debug_settings.CharonSettingsVersion = 3
-	end
 	if (tonumber(debug_settings.CharonSettingsVersion) or 0) < 4 then
-		if debug_settings.CharonPickupProtectRadius == nil or debug_settings.CharonPickupProtectRadius == 48 then
+		debug_settings.CharonAnimationSpeed = nil
+		if tonumber(debug_settings.CharonPickupProtectRadius) == 48 then
 			debug_settings.CharonPickupProtectRadius = 120
 		end
 		debug_settings.CharonSettingsVersion = 4
 	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 1 then
-		debug_settings.BlueprintBgOffsetY = 13
-		debug_settings.BlueprintAuditTextY = 27
-		if debug_settings.BlueprintCostOffsetY == nil then
-			debug_settings.BlueprintCostOffsetY = 21
+	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 8 then
+		-- Only replace defaults known to be historical. Missing fields are filled
+		-- by the current defaults tree; all other values are user customization.
+		if tonumber(debug_settings.BlueprintAuditTextY) == 27 then
+			debug_settings.BlueprintAuditTextY = 2
 		end
-		if debug_settings.BlueprintCostExtraCount == nil then
-			debug_settings.BlueprintCostExtraCount = 0
-		end
-		debug_settings.BlueprintSettingsVersion = 1
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 2 then
-		debug_settings.BlueprintCostOffsetY = 21
-		debug_settings.BlueprintSettingsVersion = 2
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 3 then
-		debug_settings.BlueprintAuditTextY = 2
-		debug_settings.BlueprintCraftGroupY = 14
-		debug_settings.BlueprintCostTokenScale = 0.5
-		debug_settings.BlueprintSettingsVersion = 3
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 4 then
-		debug_settings.BlueprintCostSlotSize = 18
-		if debug_settings.BlueprintCostQmarkOffsetX == nil then
-			debug_settings.BlueprintCostQmarkOffsetX = -2
-		end
-		if debug_settings.BlueprintCostQmarkOffsetY == nil then
-			debug_settings.BlueprintCostQmarkOffsetY = 1
-		end
-		debug_settings.BlueprintSettingsVersion = 4
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 5 then
-		debug_settings.BlueprintCostSlotSize = 18
-		debug_settings.BlueprintCostQmarkOffsetX = -2
-		debug_settings.BlueprintCostQmarkOffsetY = 1
-		debug_settings.BlueprintSettingsVersion = 5
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 6 then
-		if debug_settings.BlueprintTagColOffsetX == nil then
-			debug_settings.BlueprintTagColOffsetX = -36
-		end
-		if debug_settings.BlueprintTagColOffsetY == nil then
-			debug_settings.BlueprintTagColOffsetY = 0
-		end
-		if debug_settings.BlueprintTagColWidth == nil then
-			debug_settings.BlueprintTagColWidth = 56
-		end
-		debug_settings.BlueprintSettingsVersion = 6
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 7 then
-		-- 审计标签列默认 X：-48 → -36（仅仍为旧默认时迁移）
 		if tonumber(debug_settings.BlueprintTagColOffsetX) == -48 then
 			debug_settings.BlueprintTagColOffsetX = -36
 		end
-		debug_settings.BlueprintSettingsVersion = 7
-	end
-	if (tonumber(debug_settings.BlueprintSettingsVersion) or 0) < 8 then
 		if debug_settings.BlueprintAllItemsModeEnabled == nil then
 			debug_settings.BlueprintAllItemsModeEnabled = not dev_env.is_public_release()
 		end
@@ -2080,7 +2050,7 @@ end
 
 function item.get_settings()
 	local root = save.ModConfigSettings or ModConfig.ModConfigSettings or {}
-	apply_debug_migrations(root)
+	normalize_debug_settings(root)
 	local defaults = get_defaults_tree()
 	prune_matching_defaults(root, defaults)
 	shallow_merge_defaults(root, defaults)
@@ -2319,7 +2289,6 @@ local DEBUG_PAGE = {
 	systems = "systems",
 	visual = "visual",
 	data = "data",
-	tests = "tests",
 }
 local PROBE_PAGE = probe_registry.PROBE_PAGE
 local DEBUG_RECENT_LIMIT = 6
@@ -2480,7 +2449,6 @@ local function page_label(page)
 	if page == DEBUG_PAGE.systems then return text("debug_page_systems") end
 	if page == DEBUG_PAGE.visual then return text("debug_page_visual") end
 	if page == DEBUG_PAGE.data then return text("debug_page_data") end
-	if page == DEBUG_PAGE.tests then return text("debug_page_tests") end
 	return text("debug_page_recent")
 end
 
@@ -2810,20 +2778,28 @@ function item.create_debug_window()
 	local systems_tab = tabbar.."_Systems"
 	local visual_tab = tabbar.."_Visual"
 	local data_tab = tabbar.."_Data"
-	local tests_tab = tabbar.."_Tests"
 	local story_progress_tab = tabbar.."_StoryProgress"
 	local story_dev_tab = tabbar.."_StoryDev"
 	local boss_test_tab = tabbar.."_BossTest"
 	local probes_item = item.menu_id.."_ProbesItem"
 	local probes_window = item.debug_id.."_Probes"
 	local probes_tabbar = probes_window.."_TabBar"
-	local probe_tabs = {
-		[PROBE_PAGE.items] = probes_tabbar.."_Items",
-		[PROBE_PAGE.characters] = probes_tabbar.."_Characters",
-		[PROBE_PAGE.systems] = probes_tabbar.."_Systems",
-		[PROBE_PAGE.visual] = probes_tabbar.."_Visual",
-		[PROBE_PAGE.runtime] = probes_tabbar.."_Runtime",
-	}
+	local probe_tabs = {}
+	for _, key in ipairs(probe_registry.PROBE_TAB_ORDER or {
+		"items", "characters", "combat", "render", "rooms", "story", "systems", "experiments",
+	}) do
+		local page_id = PROBE_PAGE[key]
+		if page_id then
+			probe_tabs[page_id] = probes_tabbar .. "_" .. key
+		end
+	end
+	-- Legacy category aliases share the same tab element ids.
+	if PROBE_PAGE.visual and PROBE_PAGE.render then
+		probe_tabs[PROBE_PAGE.visual] = probe_tabs[PROBE_PAGE.render]
+	end
+	if PROBE_PAGE.runtime and PROBE_PAGE.systems then
+		probe_tabs[PROBE_PAGE.runtime] = probe_tabs[PROBE_PAGE.systems]
+	end
 
 	ImGui.AddElement(item.menu_id, debug_item, ImGuiElement.MenuItem, text("debug_item"))
 	ImGui.CreateWindow(window_id, text("debug_title"))
@@ -2838,11 +2814,13 @@ function item.create_debug_window()
 		ImGui.LinkWindowToElement(probes_window, probes_item)
 	end
 	ImGui.AddTabBar(probes_window, probes_tabbar)
-	ImGui.AddTab(probes_tabbar, probe_tabs[PROBE_PAGE.items], text("probe_page_items"))
-	ImGui.AddTab(probes_tabbar, probe_tabs[PROBE_PAGE.characters], text("probe_page_characters"))
-	ImGui.AddTab(probes_tabbar, probe_tabs[PROBE_PAGE.systems], text("probe_page_systems"))
-	ImGui.AddTab(probes_tabbar, probe_tabs[PROBE_PAGE.visual], text("probe_page_visual"))
-	ImGui.AddTab(probes_tabbar, probe_tabs[PROBE_PAGE.runtime], text("probe_page_runtime"))
+	for _, key in ipairs(probe_registry.PROBE_TAB_ORDER or {}) do
+		local page_id = PROBE_PAGE[key]
+		local tab_el = page_id and probe_tabs[page_id]
+		if tab_el then
+			ImGui.AddTab(probes_tabbar, tab_el, text("probe_page_" .. key))
+		end
+	end
 	imgui_layout.set_context({debug_window_width = item.default_window.debug.w or 800})
 	local uninstall_touch_hooks = install_debug_touch_hooks()
 	debug_footer_opts = {}
@@ -2854,7 +2832,6 @@ function item.create_debug_window()
 	ImGui.AddTab(tabbar, systems_tab, text("debug_page_systems"))
 	ImGui.AddTab(tabbar, visual_tab, text("debug_page_visual"))
 	ImGui.AddTab(tabbar, data_tab, text("debug_page_data"))
-	ImGui.AddTab(tabbar, tests_tab, text("debug_page_tests"))
 	ImGui.AddTab(tabbar, story_progress_tab, (Options and Options.Language == "en") and "Story Progress" or "剧情进度")
 	if dev_env.probes_allowed() then
 		ImGui.AddTab(tabbar, story_dev_tab, (Options and Options.Language == "en") and "Story Dev" or "支线调试")
@@ -2868,7 +2845,6 @@ function item.create_debug_window()
 		[DEBUG_PAGE.systems] = systems_tab,
 		[DEBUG_PAGE.visual] = visual_tab,
 		[DEBUG_PAGE.data] = data_tab,
-		[DEBUG_PAGE.tests] = tests_tab,
 	}
 	debug_page_parent = page_parent
 	debug_nav.tab_ids = {
@@ -2879,7 +2855,6 @@ function item.create_debug_window()
 		[DEBUG_PAGE.systems] = systems_tab,
 		[DEBUG_PAGE.visual] = visual_tab,
 		[DEBUG_PAGE.data] = data_tab,
-		[DEBUG_PAGE.tests] = tests_tab,
 	}
 
 	imgui_layout.bind_access({
@@ -2907,7 +2882,6 @@ function item.create_debug_window()
 		[DEBUG_PAGE.systems] = systems_tab,
 		[DEBUG_PAGE.visual] = visual_tab,
 		[DEBUG_PAGE.data] = data_tab,
-		[DEBUG_PAGE.tests] = tests_tab,
 	})
 
 	-- Home dashboard built after home_control_registry is filled
@@ -2946,7 +2920,6 @@ function item.create_debug_window()
 		systems_tab = systems_tab,
 		visual_tab = visual_tab,
 		data_tab = data_tab,
-		tests_tab = tests_tab,
 		story_progress_tab = story_progress_tab,
 		story_dev_tab = story_dev_tab,
 		boss_test_tab = boss_test_tab,

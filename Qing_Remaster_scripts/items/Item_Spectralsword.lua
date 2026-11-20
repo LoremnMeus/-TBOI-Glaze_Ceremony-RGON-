@@ -20,6 +20,7 @@ local input_repeater = require("Qing_Remaster_scripts.items.spectralsword.input_
 local angel_reshape = require("Qing_Remaster_scripts.items.spectralsword.angel_reshape")
 local deal_chance_holder = require("Qing_Remaster_scripts.callbacks.deal_chance_holder")
 local deal_chance_semantics = require("Qing_Remaster_scripts.auxiliary.deal_chance_semantics")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -325,8 +326,7 @@ function item.get_stat_hud_anchor(stat_index, player)
 end
 
 local function apply_stat_cache(player)
-	player:AddCacheFlags(CACHE_ALL)
-	player:EvaluateItems()
+	unique_holder.request_evaluate_items(player, CACHE_ALL)
 end
 
 local function refresh_cap_cache(player, tag)
@@ -348,11 +348,6 @@ local function session_interactive()
 	return session_exists()
 		and item.session.closing ~= true
 		and item.session.presentation_only ~= true
-end
-
---- @deprecated use session_exists / session_interactive
-local function session_active()
-	return session_exists()
 end
 
 local function player_screen_pos(player)
@@ -1343,12 +1338,11 @@ end
 table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
 Function = function(_, player, collid, count)
 	if collid ~= item.entity then return end
-	if count <= 0 and session_active() and item.session.player and auxi.check_for_the_same(item.session.player, player) then
+	if count <= 0 and session_exists() and item.session.player and auxi.check_for_the_same(item.session.player, player) then
 		close_session(true)
 	end
-	-- 失去妖刀只关掉编辑入口；Evaluate 后仍会重新应用本局 reshape / caps。
-	player:AddCacheFlags(CACHE_ALL)
-	player:EvaluateItems()
+	-- 失去妖刀只关掉编辑入口；延迟重算后仍会重新应用本局 reshape / caps。
+	unique_holder.request_evaluate_items(player, CACHE_ALL)
 	refresh_cap_cache(player, nil)
 	sync_level_angel_conversion()
 end,
@@ -1382,8 +1376,7 @@ Function = function(_)
 		if p then
 			local pdata = item.get_player_data(p, false)
 			if pdata then
-				p:AddCacheFlags(CACHE_ALL)
-				p:EvaluateItems()
+				unique_holder.request_evaluate_items(p, CACHE_ALL)
 			end
 		end
 	end

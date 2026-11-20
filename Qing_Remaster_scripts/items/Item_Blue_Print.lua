@@ -401,7 +401,9 @@ Function = function(_, _, rng, player, use_flags, active_slot)
 	if use_flags & UseFlag.USE_CARBATTERY == UseFlag.USE_CARBATTERY then
 		return {Discharge = false, ShowAnim = false}
 	end
-	if use_flags & UseFlag.USE_OWNED ~= UseFlag.USE_OWNED then
+	-- 模拟使用没有实际主动槽；普通角色可直接打开面板，里小青仍需真实持有才能走举物流程。
+	if player:GetPlayerType() == enums.Players.Spwq
+		and use_flags & UseFlag.USE_OWNED ~= UseFlag.USE_OWNED then
 		return {Discharge = false, ShowAnim = false}
 	end
 	-- 书包副槽不可打开；仅主主动 / 口袋副手

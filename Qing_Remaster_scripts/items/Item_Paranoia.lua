@@ -46,7 +46,6 @@ Function = function(_,ent,col,low)
 				end)
 			end
 			auxi.try_start_ambush()
-			print(ent.Touched)
 			if auxi.REPENTENCE_PLUS() then
 				player:AddCollectible(colinfo.ID, ent.Charge,not ent.Touched)  -- 新版本使用AddCollectible
 			else

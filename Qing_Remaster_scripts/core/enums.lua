@@ -12,6 +12,11 @@ enums.Players = {
 	Marriano = Isaac.GetPlayerTypeByName("Marriano"),
 	Autio = Isaac.GetPlayerTypeByName("Autio"),
 	Lu = Isaac.GetPlayerTypeByName("Lu"),
+	Marriano_B = Isaac.GetPlayerTypeByName("Marriano_B",true),
+	Autio_B = Isaac.GetPlayerTypeByName("Autio_B",true),
+	Lu_B = Isaac.GetPlayerTypeByName("Lu_B",true),
+	Noia = Isaac.GetPlayerTypeByName("Noia"),
+	Noia_B = Isaac.GetPlayerTypeByName("Noia_B",true),
 }
 
 enums.Items = {
@@ -154,7 +159,19 @@ enums.Items = {
 	Zero_Presence = Isaac.GetItemIdByName("Zero Presence"),
 	Tiny_Update = Isaac.GetItemIdByName("Tiny Update"),
 	Matryoshka_Marbles = Isaac.GetItemIdByName("Matryoshka Marbles"),
-	
+	Bravery = Isaac.GetItemIdByName("Bravery"),
+	Isolation = Isaac.GetItemIdByName("Isolation"),
+	Exoneration_Certificate = Isaac.GetItemIdByName("Exoneration Certificate"),
+	Ketu = Isaac.GetItemIdByName("Ketu"),
+	Rahu = Isaac.GetItemIdByName("Rahu"),
+	Thorn_Flower_Crown = Isaac.GetItemIdByName("Crown of Thorns"),
+	Alien_Savior = Isaac.GetItemIdByName("Alien Savior"),
+	Cake_Berry = Isaac.GetItemIdByName("Strawberry Cake Pie"),
+	Rooted_Demon = Isaac.GetItemIdByName("Rooted Demon"),
+	Incandescence_Flame = Isaac.GetItemIdByName("Incandescence Flame"),
+	Entombed_Demon = Isaac.GetItemIdByName("Entombed Demon"),
+	Wishing = Isaac.GetItemIdByName("Wishing"),
+
 	Baby_Tecro = Isaac.GetItemIdByName("Baby Tecro"),
 	Baby_Anna = Isaac.GetItemIdByName("Baby Anna"),
 	Baby_Zeis = Isaac.GetItemIdByName("Baby Zeis"),
@@ -185,6 +202,7 @@ enums.Items = {
 	D_Pack = Isaac.GetItemIdByName("D Pack"),
 	
 	Reversal_Film = Isaac.GetItemIdByName("Reversal Film"),
+	Bewitching_Moon = Isaac.GetItemIdByName("Bewitching Moon"),
 }
 
 enums.Trinkets = {
@@ -402,6 +420,12 @@ enums.SoundEffect = {
 	Qing_Heartbeat = Isaac.GetSoundIdByName("Qing Heartbeat"),
 	Qing_Heartbeat_Faster = Isaac.GetSoundIdByName("Qing Heartbeat Faster"),
 	Qing_Heartbeat_Fastest = Isaac.GetSoundIdByName("Qing Heartbeat Fastest"),
+	Alien_Savior_SOS_Search = Isaac.GetSoundIdByName("Alien Savior SOS Search"),
+	Alien_Savior_SOS_Connected = Isaac.GetSoundIdByName("Alien Savior SOS Connected"),
+	Alien_Savior_UFO_Arrival = Isaac.GetSoundIdByName("Alien Savior UFO Arrival"),
+	Alien_Savior_UFO_Hover = Isaac.GetSoundIdByName("Alien Savior UFO Hover"),
+	Cake_Berry_Plate_Impact = Isaac.GetSoundIdByName("Cake Berry Plate Impact"),
+	Zennith_Arena_Thunder = Isaac.GetSoundIdByName("Zennith Arena Thunder"),
 }
 
 enums.Music = {
@@ -435,8 +459,11 @@ enums.Costumes = {
 	TianYi_Hair = Isaac.GetCostumeIdByPath("gfx/characters/TianYi_Hair.anm2"),
 	Zeistos_Head = Isaac.GetCostumeIdByPath("gfx/characters/Zeistos_Head.anm2"),
 	Delicate_Flower_Head = Isaac.GetCostumeIdByPath("gfx/characters/Delicate_Flower_Head.anm2"),
+	Alien_Head = Isaac.GetCostumeIdByPath("gfx/characters/Alien_Head.anm2"),
 	Tecrorun_body = Isaac.GetCostumeIdByPath("gfx/characters/Tecrorun_body.anm2"),
 	Tecrorun_head = Isaac.GetCostumeIdByPath("gfx/characters/Tecrorun_head.anm2"),
+	Bewitching_Moon_Head = Isaac.GetCostumeIdByPath("gfx/characters/Bewitching_Moon_Head.anm2"),
+	Bewitching_Moon_Head2 = Isaac.GetCostumeIdByPath("gfx/characters/Bewitching_Moon_Head2.anm2"),
 }
 
 enums.Familiars = {
@@ -462,12 +489,14 @@ enums.Familiars = {
 	Baby_Lu = Isaac.GetEntityVariantByName("Baby Lu"),
 	Abiogenesis = Isaac.GetEntityVariantByName("Abiogenesis"),
 	Regenesis = Isaac.GetEntityVariantByName("Regenesis Baby"),
+	Bewitching_Moon = Isaac.GetEntityVariantByName("Bewitching Moon"),
 }
 
 enums.Enemies = {
 	Prince_Glaze = Isaac.GetEntityVariantByName("Prince Glaze"),
 	chess_piece = Isaac.GetEntityVariantByName("Chess Piece"),
 	chess_board = Isaac.GetEntityVariantByName("Chess Board"),
+	stone_giant_pawn = Isaac.GetEntityVariantByName("Stone Giant Pawn"),
 	Floraine = Isaac.GetEntityVariantByName("Floraine"),
 	Staff_Strike = Isaac.GetEntityVariantByName("staff strike"),
 	Zennith = Isaac.GetEntityVariantByName("Zennith"),
@@ -540,8 +569,13 @@ enums.Entities = {
 	Art_Effect = Isaac.GetEntityVariantByName("Art Effect"),
 	Matryoshka_Marble_Visual = Isaac.GetEntityVariantByName("Matryoshka Marble Visual"),
 	Death_Field_Proxy = Isaac.GetEntityVariantByName("Death Field Proxy"),
+	Player_Visual_Proxy = Isaac.GetEntityVariantByName("Player Visual Proxy"),
+	Floraine_Temp_Piece = Isaac.GetEntityVariantByName("Floraine Temp Piece"),
+	Floraine_Matte_Piece = Isaac.GetEntityVariantByName("Floraine Matte Piece"),
 	Bank_Room_Marker = Isaac.GetEntityVariantByName("Bank Room Marker"),
 	Stone_Room_Marker = Isaac.GetEntityVariantByName("Stone Room Marker"),
+	Stone_Board_Overlay = Isaac.GetEntityVariantByName("Stone Board Overlay"),
+	Arena_Render_Anchor = Isaac.GetEntityVariantByName("Arena Render Anchor"),
 	Phase_Lab_Room_Marker = Isaac.GetEntityVariantByName("Phase Lab Room Marker"),
 	Phase_Lab_Fixture = Isaac.GetEntityVariantByName("Phase Lab Fixture"),
 	Runtime_Stitch_Linker = Isaac.GetEntityVariantByName("Runtime Stitch Linker"),
@@ -599,6 +633,8 @@ enums.Pickups = {
 	Inspiration_helper = {Variant = Isaac.GetEntityVariantByName("Inspiration Helper"),SubType = 2439,wei = 0,heavy = 0,},
 	-- SubType 运行时 = 收藏品 ID；此处仅登记 Variant
 	Blueprint_Prototype = {Variant = Isaac.GetEntityVariantByName("Blueprint Prototype"), SubType = 0, wei = 0, heavy = 0,},
+	-- Stone / Floraine first-clear quest seal (Pickup; not collectible).
+	Floraine_Seal = {Variant = Isaac.GetEntityVariantByName("Floraine Seal"), SubType = 0, wei = 0, heavy = 0,},
 }
 
 enums.Challenges = {

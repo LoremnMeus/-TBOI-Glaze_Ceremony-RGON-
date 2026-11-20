@@ -165,4 +165,5 @@ Function = function(_, player)
 end,
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key .. "lock", owner = {type = "collectible", collectible = item.entity}})
 return item

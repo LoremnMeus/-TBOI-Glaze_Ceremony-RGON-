@@ -96,17 +96,7 @@ Function = function(_,player,offset)
 					d[item.own_key.."active"] = true
 				end,
 			})
-		else
-			Charging_Bar_holder.remove_charge_bar(player,item.own_key)
 		end
-	end
-end,
-})
-
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = item.entity,
-Function = function(_,player,collid,count)
-	if count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,item.own_key)
 	end
 end,
 })
@@ -379,4 +369,10 @@ QF.register_mod_familiar({
 	exclude_from_formation = true,
 })
 
+Charging_Bar_holder.register_bar({
+	id = item.own_key,
+	owner = {type = "custom", valid = function(player)
+		return player:ToPlayer() and player:GetCollectibleNum(item.entity) > 0 and has_player_controlled_torch(player)
+	end},
+})
 return item

@@ -451,14 +451,6 @@ Function = function(_,player,offset)
 end,
 })
 
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
-Function = function(_,player,collid,count)
-	if collid == item.entity and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,"Blaststone")
-	end
-end,
-})
-
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_PLAYER_UPDATE, params = nil,
 Function = function(_,player)
 	local d = player:GetData()
@@ -524,4 +516,5 @@ Function = function(_,ent,col,low)
 end,
 })
 
+Charging_Bar_holder.register_bar({id = "Blaststone", owner = {type = "collectible", collectible = item.entity}})
 return item

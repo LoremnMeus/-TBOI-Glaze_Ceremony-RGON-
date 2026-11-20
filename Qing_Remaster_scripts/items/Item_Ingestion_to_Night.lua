@@ -396,6 +396,7 @@ Function = function(_)
 		::continue::
 	end
 	push_visual()
+	night_vis.prepare_resources()
 end,
 })
 
@@ -457,7 +458,6 @@ end,
 table.insert(item.myToCall, #item.myToCall + 1, {CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
 Function = function(_, player, collid, count)
 	if collid == item.entity and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player, "I_2_N")
 		local st = player_state(player, false)
 		if st then finish_recover(player, st) end
 		night_vis.clear_all()
@@ -465,4 +465,12 @@ Function = function(_, player, collid, count)
 end,
 })
 
+Charging_Bar_holder.register_bar({
+	id = "I_2_N",
+	owner = {type = "custom", valid = function(player)
+		if not player:ToPlayer() or player:GetCollectibleNum(item.entity) <= 0 then return false end
+		local st = player_state(player, false)
+		return not st or (st.state ~= STATE.RELEASING and st.state ~= STATE.BLACKOUT and st.state ~= STATE.RECOVER)
+	end},
+})
 return item

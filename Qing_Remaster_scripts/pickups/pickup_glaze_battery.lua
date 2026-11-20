@@ -48,6 +48,11 @@ local function player_pending(player)
 	return pending_bag()[idx] == true
 end
 
+-- UseActiveItem(..., Slot=-1) means no real ActiveSlot. Charge APIs reject -1.
+local function is_real_active_slot(slot)
+	return type(slot) == "number" and item.available_slot[slot] == true
+end
+
 function item.try_collect(ent,player)
 	if ent:IsShopItem() and auxi.check_shop_pickup(ent,player) then return nil end
 	local has_active = nil
@@ -111,6 +116,8 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_USE_ITEM, params = nil,
 Function = function(_,col,rng,player,flags,slot,vardata)
 	if not player_pending(player) then return end
+	-- Slotless scripted uses: ignore and keep pending.
+	if not is_real_active_slot(slot) then return end
 	if flags & UseFlag.USE_CARBATTERY ~= 0 then return end
 	local cfg = Isaac.GetItemConfig():GetCollectible(col)
 	if not cfg or (cfg.MaxCharges or 0) <= 0 or (cfg.ChargeType or 0) ~= 0 then return end
@@ -125,14 +132,22 @@ end,
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_USE_ITEM, params = nil,
 Function = function(_,col,rng,player,flags,slot,vardata)
 	if not player_pending(player) then return end
+	if not is_real_active_slot(slot) then return end
 	if flags & UseFlag.USE_CARBATTERY ~= 0 then return end
 	local d = player:GetData()
 	local snap = d[item.own_key.."snap"]
 	if not snap or snap.cid ~= col then return end
+	-- Prefer snap.slot; reject if the use was not a real active slot.
+	slot = snap.slot
+	if not is_real_active_slot(slot) then
+		d[item.own_key.."snap"] = nil
+		return
+	end
 	d[item.own_key.."snap"] = nil
 	delay_buffer.addeffe(function()
 		if not auxi.check_all_exists(player) then return end
 		if not player_pending(player) then return end
+		if not is_real_active_slot(slot) then return end
 		local after = (player:GetActiveCharge(slot) or 0) + (player:GetBatteryCharge(slot) or 0)
 		local delta = (snap.charge or 0) - after
 		if delta <= 0 then return end

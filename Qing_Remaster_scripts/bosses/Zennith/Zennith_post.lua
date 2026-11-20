@@ -5,7 +5,7 @@ local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local delay_buffer = require("Qing_Remaster_scripts.auxiliary.delay_buffer")
-local wind = require("Qing_Remaster_scripts.bosses.Zennith.Enemy_wind")
+local boss_wind = require("Qing_Remaster_scripts.bosses.Zennith.boss_wind_controller")
 
 local item = {
 	ToCall = {},
@@ -330,7 +330,7 @@ Function = function(_,ent)
 					q.DepthOffset = 100
 					q.PositionOffset = Vector(0,-20)
 					q:SetColor(Color(1,1,1,1,0,0.7,1),60,99,false,false)
-					wind.change_control(1,{ang = d.dir:GetAngleDegrees() - 90,power = math.random(4) - 1,})
+					boss_wind.set_direction({ang = d.dir:GetAngleDegrees() - 90, power = math.random(4) - 1})
 					if ent.HitPoints / ent.MaxHitPoints < 0.6 and d.State == 0 then
 						delay_buffer.addeffe(function(params)
 							local level = Game():GetLevel()
@@ -506,7 +506,7 @@ Function = function(_,ent)
 						end
 					end
 					local rnd = math.random(2)
-					wind.change_control(1,{ang = d.dir:GetAngleDegrees() - 90 - 30 + 20 * rnd,power = math.random(4) - 1,})
+					boss_wind.set_direction({ang = d.dir:GetAngleDegrees() - 90 - 30 + 20 * rnd, power = math.random(4) - 1})
 				end
 			end
 		end
@@ -515,7 +515,7 @@ Function = function(_,ent)
 			if s:IsEventTriggered("Shoot") then
 				if d.State == 0 then
 					local wind_ang = math.random(8) * 45
-					wind.change_control(3,{ent = ent,power = math.random(5) - 1,pos_rev_del = wind_ang})
+					boss_wind.set_vortex({ent = ent, power = math.random(5) - 1, delta_rotation = wind_ang})
 					local rnd = math.random(3) * 2 + 6
 					for i = 1,rnd do
 						local q = Isaac.Spawn(9,4,0,ent.Position,auxi.MakeVector(360/rnd * i) * 10,ent):ToProjectile()
@@ -533,7 +533,7 @@ Function = function(_,ent)
 					end
 				elseif d.State == 2 then
 					local wind_ang = math.random(16) * 22.5
-					wind.change_control(3,{ent = ent,power = math.random(5) - 1,pos_rev_del = wind_ang})
+					boss_wind.set_vortex({ent = ent, power = math.random(5) - 1, delta_rotation = wind_ang})
 					local rnd = math.random(10) + 5
 					local rnd2 = math.random(2) + 1
 					for i = 1,rnd2 do
@@ -548,7 +548,7 @@ Function = function(_,ent)
 					--print(1)
 				elseif d.State == 1 then
 					local wind_ang = math.random(6) * 60
-					wind.change_control(3,{ent = ent,power = math.random(5) - 1,pos_rev_del = wind_ang})
+					boss_wind.set_vortex({ent = ent, power = math.random(5) - 1, delta_rotation = wind_ang})
 					local rnd = math.random(2) * 2 + 4
 					for i = 1,rnd do
 						local q = Isaac.Spawn(9,4,0,ent.Position,auxi.MakeVector(360/rnd * i) * 15,nil):ToProjectile()
@@ -577,7 +577,7 @@ Function = function(_,ent)
 		if s:IsPlaying("AttackDown3") then
 			if s:IsEventTriggered("Shoot") then
 				if d.State == 0 then
-					wind.change_control(3,{ent = ent,power = math.random(3),pos_rev_del = math.random(2) * 180})
+					boss_wind.set_vortex({ent = ent, power = math.random(3), delta_rotation = math.random(2) * 180})
 					local dir = math.random(10000)/10000 * 180
 					for i = 1,10 do
 						delay_buffer.addeffe(function(params)
@@ -595,7 +595,7 @@ Function = function(_,ent)
 						end,{ent = ent,},i * 6)
 					end
 				elseif d.State == 1 then
-					wind.change_control(3,{ent = ent,power = math.random(3),pos_rev_del = math.random(2) * 180})
+					boss_wind.set_vortex({ent = ent, power = math.random(3), delta_rotation = math.random(2) * 180})
 					local dir = math.random(10000)/10000 * 180
 					for i = 1,15 do
 						delay_buffer.addeffe(function(params)
@@ -611,7 +611,7 @@ Function = function(_,ent)
 						end,{ent = ent,},i * 4)
 					end
 				elseif d.State == 2 then
-					wind.change_control(3,{ent = ent,power = math.random(4),pos_rev_del = math.random(4) * 90})
+					boss_wind.set_vortex({ent = ent, power = math.random(4), delta_rotation = math.random(4) * 90})
 					local dir = math.random(10000)/10000 * 180
 					local rnd = math.random(10000)/10000 * 90
 					for i = 1,5 do
@@ -685,37 +685,23 @@ Function = function(_,ent)
 	local level = Game():GetLevel()
 	local desc = level:GetCurrentRoomDesc()
 	if ent.Variant == item.enemy then
-		if save.elses.should_Zennith_spawn and save.elses.should_Zennith_spawn == true and save.elses["Zennith_room"] and save.elses["Zennith_room"] == desc.SafeGridIndex then
-			-- Legacy Lava Shard pedestal retired: Story token only.
-			save.elses.should_Zennith_spawn = false
-			save.elses.Zennith_end = true
-			local ok, material_adapter = pcall(require, "Qing_Remaster_scripts.story.material_story_adapter")
-			if ok and material_adapter and material_adapter.on_thread_complete then
-				-- should_Zennith_spawn + room match means this Wind encounter is Story-owned.
-				material_adapter.on_thread_complete("wind", {story_owned = true})
-			end
-		end
+		-- V5: Story settlement moved to storm_encounter.notify_boss_defeated via Zennith KILL.
+		-- Zennith_post remains unregistered historical AI; do not grant materials here.
 		local pos = ent.Position
-		if wind.now_hold ~= nil and wind.now_hold:Exists() then
-			local language = Options.Language
-			if item.Words[language] == nil then language = "zh" end
-			local words = item.Words[language]
-			for i = 1,30 do
-				delay_buffer.addeffe(function(params)
-					local level = Game():GetLevel()
-					local desc = level:GetCurrentRoomDesc()
-					if wind.now_hold ~= nil and wind.now_hold:Exists() then
-						wind.change_control(2,{pos = pos,pos_rev_del = i * 6,power = i})
-					end
-					local rnd = math.random(3) + 2
-					local rrnd = math.random(#words)
-					for i = 1,rnd do
-						local ret = auxi.random_shuffle_string(words[rrnd],Game():GetPlayer(0):GetCollectibleRNG(33))
-						local wd = auxi.collect_table_to_string(ret,1,math.random(#ret))
-						gui.draw_ch_with_time_to_dispair(pos,Vector((math.random(2) * 2 - 3) * (math.random(50)+30),(math.random(2) * 2 - 3) * (math.random(50)+30)),wd,math.random(40)+10)
-					end
-				end,{},i * 2)
-			end
+		local language = Options.Language
+		if item.Words[language] == nil then language = "zh" end
+		local words = item.Words[language]
+		for i = 1, 30 do
+			delay_buffer.addeffe(function()
+				boss_wind.set_vortex({pos = pos, delta_rotation = i * 6, power = i})
+				local rnd = math.random(3) + 2
+				local rrnd = math.random(#words)
+				for j = 1, rnd do
+					local ret = auxi.random_shuffle_string(words[rrnd], Game():GetPlayer(0):GetCollectibleRNG(33))
+					local wd = auxi.collect_table_to_string(ret, 1, math.random(#ret))
+					gui.draw_ch_with_time_to_dispair(pos, Vector((math.random(2) * 2 - 3) * (math.random(50) + 30), (math.random(2) * 2 - 3) * (math.random(50) + 30)), wd, math.random(40) + 10)
+				end
+			end, {}, i * 2)
 		end
 	end
 end,

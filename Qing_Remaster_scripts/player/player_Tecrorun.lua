@@ -681,14 +681,6 @@ Function = function(_,player,offset)
 end,
 })
 
-table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_CHANGE_COLLECTIBLE, params = nil,
-Function = function(_,player,collid,count)
-	if collid == CollectibleType.COLLECTIBLE_ANTI_GRAVITY and count < 0 then
-		Charging_Bar_holder.remove_charge_bar(player,item.own_key.."anti_counter")
-	end
-end,
-})
-
 function item.get_cutting_info(ret,laser)
 	ret = ret or {res = 0,}
 	ret.res = ret.res or 0
@@ -2268,4 +2260,9 @@ CharacterAttackCompat.register(item.entity, {
 	audit = "familiar full layers; Aeon uses recorded layers from release snapshot",
 })
 
+Charging_Bar_holder.register_bar({id = item.own_key, owner = {type = "player_type", player_type = item.entity}})
+Charging_Bar_holder.register_bar({id = item.own_key .. "anti_counter", owner = {type = "custom", valid = function(player)
+	return player:ToPlayer() and player:GetPlayerType() == item.entity
+		and player:GetCollectibleNum(CollectibleType.COLLECTIBLE_ANTI_GRAVITY) > 0
+end}})
 return item

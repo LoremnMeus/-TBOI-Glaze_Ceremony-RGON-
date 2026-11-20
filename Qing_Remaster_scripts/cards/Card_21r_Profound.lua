@@ -8,6 +8,7 @@ local option_index_holder = require("Qing_Remaster_scripts.others.Option_Index_h
 local gui = require("Qing_Remaster_scripts.auxiliary.gui")
 local ui = require("Qing_Remaster_scripts.auxiliary.ui")
 local Room_holder = require("Qing_Remaster_scripts.others.Room_holder")
+local hidden_rooms = require("Qing_Remaster_scripts.callbacks.hidden_room_holder")
 local item_displaying_holder = require("Qing_Remaster_scripts.callbacks.item_displaying_holder")
 local grid_door = require("Qing_Remaster_scripts.grids.grid_doors")
 local card_01_wizard = require("Qing_Remaster_scripts.cards.Card_01_Wizard")
@@ -735,18 +736,34 @@ Function = function(_)
 end,
 })
 
+local function claim_profound_rooms()
+	if save.elses[item.own_key.."curse"] then
+		hidden_rooms.note_map_curse(true)
+		save.elses[item.own_key.."curse"] = nil
+	end
+	hidden_rooms.release_owner("profound")
+	local rooms = Game():GetLevel():GetRooms()
+	for i = 0, rooms.Size - 1 do
+		local tg = rooms:Get(i)
+		if item.is_profound_room(tg) then
+			hidden_rooms.keep(tg.SafeGridIndex, auxi.GetDimension(tg) or 0, {
+				hide = true,
+				hide_map = true,
+				owner = "profound",
+			})
+		end
+	end
+	hidden_rooms.refresh()
+end
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_NEW_ROOM, params = nil,
 Function = function(_)
+	claim_profound_rooms()
 	local room = Game():GetRoom()
 	local level = Game():GetLevel()
-	local curse = level:GetCurses()
 	if item.is_profound_room() then
 		local player = get_effect_player()
 		item_displaying_holder.check_and_description("Level","Profound","Profound","",player,false)
-		if curse & (1<<2) ~= (1<<2) and save.elses[item.own_key.."curse"] == nil then
-			save.elses[item.own_key.."curse"] = true
-			level:AddCurse(1<<2,false)
-		end
 		for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 			local door = room:GetDoor(slot)
 			if door then room:RemoveDoor(slot) end 
@@ -817,23 +834,12 @@ Function = function(_)
 			end
 		else card_01_wizard.spawn_a_fool_port(room:FindFreePickupSpawnPosition(room:GetCenterPos(),10,true)) end
 	else
-		if save.elses[item.own_key.."curse"] then
-			save.elses[item.own_key.."curse"] = nil
-			level:RemoveCurses(1<<2)
-		end
 		for slot = 0, DoorSlot.NUM_DOOR_SLOTS - 1 do
 			local door = room:GetDoor(slot)
 			if door and door.TargetRoomIndex then 
 				local desc = level:GetRoomByIdx(door.TargetRoomIndex)
 				if desc and item.is_profound_room(desc) then room:RemoveDoor(slot) end
 			end 
-		end
-		local lastdesc = level:GetLastRoomDesc()
-		if item.is_profound_room(lastdesc) then 
-			local desc = level:GetRoomByIdx(lastdesc.SafeGridIndex,auxi.GetDimension(lastdesc))
-			desc.DisplayFlags = 0
-			desc.VisitedCount = 0
-			level:UpdateVisibility()
 		end
 	end
 end,

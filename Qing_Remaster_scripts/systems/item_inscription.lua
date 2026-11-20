@@ -4,6 +4,7 @@
 local save = require("Qing_Remaster_scripts.core.savedata")
 local enums = require("Qing_Remaster_scripts.core.enums")
 local auxi = require("Qing_Remaster_scripts.auxiliary.functions")
+local unique_holder = require("Qing_Remaster_scripts.others.Unique_holder")
 
 local item = {
 	pre_ToCall = {},
@@ -164,8 +165,7 @@ function item.try_reforge(player, collectible_id, opts)
 	for i = 0, Game():GetNumPlayers() - 1 do
 		local target_player = Game():GetPlayer(i)
 		if target_player:GetCollectibleNum(collectible_id, true) > 0 then
-			target_player:AddCacheFlags(stat_cache_flags)
-			target_player:EvaluateItems()
+			unique_holder.request_evaluate_items(target_player, stat_cache_flags)
 		end
 	end
 	return true

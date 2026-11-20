@@ -28,8 +28,16 @@ local item = {
 
 local STATE_KEY = item.own_key .. "state"
 local RECORD_CAP = 12
-local SCHEMA_VERSION = 1
+-- Disk schema 2 stores each loss as a dense array. Runtime records stay objects.
+local SCHEMA_VERSION = 2
 local EID_QUEUE_VISIBLE = 6
+-- Payload slot: collectible id, or card / pill / battery subtype. 0 means absent.
+local PAYLOAD_FIELD = {
+	collectible = "collectible_id",
+	card = "subtype",
+	pill = "subtype",
+	charge = "subtype",
+}
 
 local COIN_DENOMINATIONS = {
 	{value = 10, subtype = CoinSubType.COIN_DIME},
@@ -102,12 +110,12 @@ local function normalize_player_state(ps)
 	ps.stored = ps.stored or {}
 	ps.dormant = ps.dormant or {}
 	for _, rec in ipairs(ps.stored) do
-		if type(rec) == "table" then
+		if type(rec) == "table" and type(rec.kind) == "string" then
 			rec.progress = math.max(0, math.floor(tonumber(rec.progress) or 0))
 		end
 	end
 	for _, rec in ipairs(ps.dormant) do
-		if type(rec) == "table" then
+		if type(rec) == "table" and type(rec.kind) == "string" then
 			rec.progress = 0
 		end
 	end
@@ -122,9 +130,6 @@ local function get_root()
 	end
 	root.players = root.players or {}
 	root.schema_version = SCHEMA_VERSION
-	for _, ps in pairs(root.players) do
-		normalize_player_state(ps)
-	end
 	return root
 end
 
@@ -236,6 +241,145 @@ local function copy_record(rec)
 		source = rec.source,
 		progress = math.max(0, math.floor(tonumber(rec.progress) or 0)),
 	}
+end
+
+-- Disk array, no payload: stored {kind, amount, progress}; dormant {kind, amount}.
+-- Disk array, with payload: stored {kind, amount, payload, progress}; dormant {kind, amount, payload}.
+-- source / active_item / active_slot are runtime-only. Charge restore uses subtype.
+local function pack_record(rec, keep_progress)
+	if type(rec) ~= "table" then return nil end
+	if type(rec.kind) ~= "string" or rec.kind == "" then
+		if type(rec[1]) == "string" then
+			return rec
+		end
+		return nil
+	end
+	local row = {
+		rec.kind,
+		math.max(1, math.floor(tonumber(rec.amount) or 1)),
+	}
+	if PAYLOAD_FIELD[rec.kind] then
+		row[3] = math.max(0, math.floor(tonumber(rec[PAYLOAD_FIELD[rec.kind]]) or 0))
+	end
+	if keep_progress then
+		row[#row + 1] = math.max(0, math.floor(tonumber(rec.progress) or 0))
+	end
+	return row
+end
+
+local function runtime_record(kind, amount, payload, progress)
+	local rec = {
+		kind = kind,
+		amount = math.max(1, math.floor(tonumber(amount) or 1)),
+		progress = math.max(0, math.floor(tonumber(progress) or 0)),
+	}
+	local field = PAYLOAD_FIELD[kind]
+	payload = math.floor(tonumber(payload) or 0)
+	if field and payload ~= 0 then
+		rec[field] = payload
+	end
+	return rec
+end
+
+-- LEGACY-SAVE-006: object records {kind,amount,source,progress,...} from schema 1.
+local function unpack_record(rec, dormant)
+	if type(rec) ~= "table" then return nil end
+	if type(rec.kind) == "string" and rec.kind ~= "" then
+		local payload = nil
+		local field = PAYLOAD_FIELD[rec.kind]
+		if field then
+			payload = rec[field]
+		end
+		local progress = dormant and 0 or rec.progress
+		return runtime_record(rec.kind, rec.amount, payload, progress)
+	end
+	if type(rec[1]) ~= "string" or rec[1] == "" then
+		return nil
+	end
+	local kind = rec[1]
+	local payload, progress
+	if PAYLOAD_FIELD[kind] then
+		payload = rec[3]
+		progress = dormant and 0 or rec[4]
+	else
+		progress = dormant and 0 or rec[3]
+	end
+	return runtime_record(kind, rec[2], payload, progress)
+end
+
+local function unpack_queue(list, dormant)
+	local out = {}
+	if type(list) ~= "table" then return out end
+	for i = 1, #list do
+		local rec = unpack_record(list[i], dormant)
+		if rec then
+			out[#out + 1] = rec
+		end
+	end
+	return out
+end
+
+function item.pack_for_save(root)
+	if type(root) ~= "table" then return root end
+	local players = {}
+	for idx, ps in pairs(root.players or {}) do
+		if type(ps) == "table" then
+			local stored, dormant = {}, {}
+			for i = 1, #(ps.stored or {}) do
+				local row = pack_record(ps.stored[i], true)
+				if row then stored[#stored + 1] = row end
+			end
+			for i = 1, #(ps.dormant or {}) do
+				local row = pack_record(ps.dormant[i], false)
+				if row then dormant[#dormant + 1] = row end
+			end
+			local packed_ps = {
+				stored = stored,
+				dormant = dormant,
+			}
+			if type(ps.room) == "table" then
+				packed_ps.room = {
+					key = ps.room.key,
+					eligible = ps.room.eligible == true,
+					rewarded = ps.room.rewarded == true,
+				}
+			end
+			if type(ps.last_loss) == "table" and type(ps.last_loss.kind) == "string" then
+				packed_ps.last_loss = {
+					kind = ps.last_loss.kind,
+					amount = ps.last_loss.amount,
+					subtype = ps.last_loss.subtype,
+					collectible_id = ps.last_loss.collectible_id,
+				}
+			end
+			players[idx] = packed_ps
+		end
+	end
+	return {
+		schema_version = SCHEMA_VERSION,
+		players = players,
+	}
+end
+
+function item.unpack_from_save(root)
+	if type(root) ~= "table" then return root end
+	local players = root.players
+	if type(players) ~= "table" then
+		root.players = {}
+		root.schema_version = SCHEMA_VERSION
+		return root
+	end
+	for _, ps in pairs(players) do
+		if type(ps) == "table" then
+			ps.stored = unpack_queue(ps.stored, false)
+			ps.dormant = unpack_queue(ps.dormant, true)
+			if type(ps.room) == "table" then
+				ps.room.had_loss = nil
+			end
+		end
+	end
+	root.schema_version = SCHEMA_VERSION
+	return root
 end
 
 local function trim_dormant(ps)

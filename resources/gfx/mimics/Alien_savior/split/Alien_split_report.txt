@@ -1,0 +1,11 @@
+Alien Savior light split report
+source=resources/gfx/mimics/Alien_savior/Alien.png
+out=resources/gfx/mimics/Alien_savior/split
+block2_connected_lights=30
+block3_cabin_pixels=596 block3_core_pixels=440 block3_ok=True
+block4_relative_hue_groups=7 block4_pixels=667 block4_missing_block1_ref=0 block4_assign_err_mean=0.066 block4_assign_err_max=0.698
+rebuild_alpha_xor_pixels=0
+rebuild_preview=Alien_rebuild_preview.png
+anm2=resources/gfx/mimics/Alien_savior/split/Alien_layer_test.anm2
+anm2_layers=40
+PASS criteria: open Alien_layer_test.anm2 and toggle layers.

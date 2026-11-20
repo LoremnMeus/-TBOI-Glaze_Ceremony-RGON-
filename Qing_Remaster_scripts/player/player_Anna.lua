@@ -3256,4 +3256,11 @@ CharacterAttackCompat.register(item.entity, {
 	audit = "familiar uses live averaged ammo; Aeon uses frozen release snapshot on attack.tags",
 })
 
+for _, suffix in ipairs({"", "_", "__"}) do
+	Charging_Bar_holder.register_bar({
+		id = item.own_key .. suffix,
+		owner = {type = "player_type", player_type = item.entity},
+		entity_owner = suffix == "" and {type = "entity"} or nil,
+	})
+end
 return item
