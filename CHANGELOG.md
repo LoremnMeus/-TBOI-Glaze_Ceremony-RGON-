@@ -3,6 +3,18 @@
 Public Alpha notes for Glaze Ceremony: Promised Land. This file belongs to the
 public GitHub repository overlay; it is not shipped inside the player ZIP.
 
+## alpha-0.1.3a
+
+### Added
+
+- Golden Compass: straight-corridor next-floor route with special rooms and deal endpoints.
+- Wiki home “Recently Added” list and homepage presentation polish.
+
+### Changed
+
+- GitHub Releases publish as Latest even on alpha channel tags.
+- Wiki public `docs:build` validates prebuilt home-updates data instead of regenerating from Git.
+
 ## alpha-0.1.3
 
 ### Added
