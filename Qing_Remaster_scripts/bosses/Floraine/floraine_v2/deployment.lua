@@ -170,8 +170,10 @@ function deployment.start(piece_id, opts)
 
 	local phase = S.SELECTED
 	if opts.from_infuse then
+		-- Keep continuous command_glow timeline; only motion phase starts at LIFTING.
 		phase = S.LIFTING
 		row.state = S.LIFTING
+		-- Do not reset glow_elapsed / glow_alpha here — that caused the red flash.
 	end
 
 	serial = serial + 1
@@ -280,7 +282,19 @@ local function handoff_npc(job, row)
 		data.action_state = "IDLE"
 		data._deploy_settle = reserve_defs.DEPLOY.SETTLE
 		data._deploy_color_progress = row.visual_color_progress or 1
-		data._deploy_outline_fade = 0.55
+		-- Stamp gold before settle branch so chess_piece_visual never flashes red→clear→gold.
+		data.is_gold = row.command_kind == "GOLD"
+		data._deploy_gold_settle = data.is_gold == true
+		-- Continue from last Matte-displayed alpha (not a default re-init).
+		local last_a = tonumber(row._last_outline_alpha)
+		if last_a == nil then
+			last_a = tonumber(row.glow_alpha) or 0
+		end
+		if data.is_gold and last_a < 0.01 then
+			local gglow = reserve_defs.COMMAND_GLOW_GOLD or {}
+			last_a = tonumber(gglow.PERSIST_ALPHA) or 0.72
+		end
+		data._deploy_outline_fade = last_a
 		if job.command_id then
 			data.floraine_command = {
 				session_id = job.session_id,
@@ -298,6 +312,13 @@ local function handoff_npc(job, row)
 	local souls_ok, souls = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.command_souls")
 	if souls_ok and souls and souls.on_handoff then
 		souls.on_handoff(row.id, ent, data)
+	end
+	-- First NPC frame continues Matte outline immediately (same Owner path as settle).
+	if data then
+		local ok_pv, piece_visual = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.chess_piece_visual")
+		if ok_pv and piece_visual and piece_visual.apply_pose then
+			piece_visual.apply_pose(ent, data)
+		end
 	end
 	if job.is_opening then
 		opening_landed = opening_landed + 1

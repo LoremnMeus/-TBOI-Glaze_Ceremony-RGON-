@@ -1,7 +1,8 @@
 -- P1 signature attack「重落子」: Floraine temporarily steers one active combat NPC.
 -- Same Entity / floraine_command / generation — never rematerialize.
--- Flow: RAISE → PARTICLE → EMPOWER → LIFT → TRANSFER → HOVER → RELEASE → DROP → IMPACT → RECOVER
--- Drop waits on Release Drop event. Empower only after particle ENTERING completes.
+-- Flow: RAISE → PARTICLE → EMPOWER → LIFT → TRANSFER → ALIGN → HOVER → RELEASE → DROP → IMPACT → RECOVER
+-- V4: same-kind outline ghost (auxiliary) + hard 40×40 dest-cell fill/border until impact.
+-- Cell binds to job.dest / dest_gidx; never uses piece_ground_shadow as telegraph.
 
 local enums = require("Qing_Remaster_scripts.core.enums")
 local piece_defs = require("Qing_Remaster_scripts.bosses.Floraine.chess_piece_defs")
@@ -20,6 +21,7 @@ local PHASE = {
 	EMPOWER = "EMPOWER",
 	LIFT = "LIFT",
 	TRANSFER = "TRANSFER",
+	ALIGN = "ALIGN",
 	HOVER = "HOVER",
 	RELEASE = "RELEASE",
 	DROP = "DROP",
@@ -27,19 +29,36 @@ local PHASE = {
 	RECOVER = "RECOVER",
 }
 
+local OUTLINE = {
+	HIDDEN = "HIDDEN",
+	APPEARING = "APPEARING",
+	HOLDING = "HOLDING",
+	MATCHED = "MATCHED",
+	DONE = "DONE",
+}
+
 local job = nil
 local job_serial = 0
 local last_fail = "none"
-local telegraph_sprite = nil
+local target_outline_sprite = nil
+local target_outline_kind = nil
 local ring_shots = {}
 local bullet_diag = { fired = 0, culled_dist = 0, culled_gone = 0, last_dist = 0 }
 
+local function cell_cfg()
+	return defs.P1_ROYAL_CELL or {}
+end
+
 local function cfg()
+	local cc = cell_cfg()
 	return {
 		raise = defs.P1_ROYAL_RAISE or 12,
 		empower = defs.P1_ROYAL_EMPOWER or 8,
 		lift = defs.P1_ROYAL_LIFT or 14,
 		transfer = defs.P1_ROYAL_TRANSFER or 13,
+		align = defs.P1_ROYAL_ALIGN or 4,
+		outline_appear = defs.P1_ROYAL_OUTLINE_APPEAR or 5,
+		outline_hold = defs.P1_ROYAL_OUTLINE_HOLD or 0.55,
 		hover_min = defs.P1_ROYAL_HOVER or 12,
 		drop = defs.P1_ROYAL_DROP or 7,
 		impact = defs.P1_ROYAL_IMPACT or 3,
@@ -54,8 +73,16 @@ local function cfg()
 		bullet_max_dist = defs.P1_ROYAL_BULLET_MAX_DIST or 260,
 		tilt = 8,
 		particle_timeout = 120, -- safety only; never treated as hit
+		cell_appear = cc.appear_frames or 5,
+		cell_fill_alpha = cc.fill_alpha or 0.40,
+		cell_release_alpha = cc.release_alpha or 0.48,
+		cell_drop_alpha = cc.drop_alpha or 0.58,
+		cell_impact_alpha = cc.impact_alpha or 0.85,
+		cell_fade_frames = cc.fade_frames or 7,
+		cell_border_thickness = cc.border_thickness or 2,
 	}
 end
+
 
 local function ease_out(t)
 	t = math.max(0, math.min(1, t))
@@ -167,15 +194,198 @@ local function pick_dest(ent, data)
 	return best
 end
 
-local function ensure_telegraph()
-	if telegraph_sprite then
-		return telegraph_sprite
+local function clear_cell_mark()
+	if job then
+		job.cell_alpha = 0
+		job.cell_fade_left = nil
+		job.cell_fade_armed = nil
+		job.cell_flash_left = nil
+	end
+end
+
+--- Phase-driven fill alpha for the dest cell (no breathing scale).
+local function resolve_cell_alpha(c)
+	if not job or not job.dest then
+		return 0, 0
+	end
+	-- Impact/recover fade owns the mark after smash.
+	if job.cell_fade_left ~= nil then
+		local fade_n = math.max(1, c.cell_fade_frames or 7)
+		local left = math.max(0, job.cell_fade_left)
+		local t = left / fade_n
+		local flash = (job.cell_flash_left or 0) > 0
+		local base = (c.cell_impact_alpha or 0.85) * t
+		if flash then
+			base = math.min(1, base + 0.15)
+		end
+		return base, math.min(1, base + 0.2)
+	end
+	local phase = job.phase
+	if phase == PHASE.RAISE or phase == PHASE.PARTICLE or phase == PHASE.EMPOWER then
+		return 0, 0
+	end
+	if phase == PHASE.LIFT then
+		local appear = math.max(1, c.cell_appear or 5)
+		local start = math.max(0, (c.lift or 14) - appear)
+		if (job.elapsed or 0) < start then
+			return 0, 0
+		end
+		local t = ((job.elapsed or 0) - start) / appear
+		local a = (c.cell_fill_alpha or 0.40) * math.max(0, math.min(1, t))
+		return a, math.min(1, a + 0.35)
+	end
+	local hold = c.cell_fill_alpha or 0.40
+	if phase == PHASE.TRANSFER or phase == PHASE.ALIGN or phase == PHASE.HOVER then
+		return hold, math.min(1, hold + 0.4)
+	end
+	if phase == PHASE.RELEASE then
+		local a = c.cell_release_alpha or 0.48
+		return a, math.min(1, a + 0.4)
+	end
+	if phase == PHASE.DROP then
+		local a = c.cell_drop_alpha or 0.58
+		return a, math.min(1, a + 0.35)
+	end
+	return 0, 0
+end
+
+local function tick_cell_mark(c)
+	if not job then
+		return
+	end
+	if job.cell_fade_left ~= nil then
+		job.cell_fade_left = (job.cell_fade_left or 0) - 1
+		if (job.cell_flash_left or 0) > 0 then
+			job.cell_flash_left = job.cell_flash_left - 1
+		end
+		if job.cell_fade_left < 0 then
+			clear_cell_mark()
+		end
+		return
+	end
+	local fill_a = select(1, resolve_cell_alpha(c))
+	job.cell_alpha = fill_a
+end
+
+local function set_layer_vis_color(sprite, layer_id, visible, color)
+	if not sprite or not sprite.GetLayer then
+		return
+	end
+	local ok, layer = pcall(function()
+		if type(layer_id) == "string" then
+			return sprite:GetLayer(layer_id) or sprite:GetLayer(layer_id == "outline" and 1 or 0)
+		end
+		return sprite:GetLayer(layer_id)
+	end)
+	if not (ok and layer) then
+		return
+	end
+	if layer.SetVisible then
+		layer:SetVisible(visible == true)
+	end
+	if layer.SetColor and color then
+		layer:SetColor(color)
+	end
+end
+
+--- Outline-only ghost using the same ANM2 / pivot / scale as the real piece.
+local function ensure_target_outline(kind)
+	kind = tonumber(kind) or piece_defs.KIND.PAWN
+	if target_outline_sprite and target_outline_kind == kind then
+		return target_outline_sprite
 	end
 	local s = Sprite()
-	s:Load(piece_defs.GROUND_SHADOW_ANM2 or "gfx/boss/Floraine/piece_ground_shadow.anm2", true)
+	local profile = piece_defs.get(kind)
+	s:Load(piece_defs.ANM2 or "gfx/boss/Floraine/pieces.anm2", true)
+	s:ReplaceSpritesheet(0, profile.spritesheet)
+	s:ReplaceSpritesheet(1, piece_defs.outline_sheet(kind))
+	s:LoadGraphics()
 	s:Play("Idle", true)
-	telegraph_sprite = s
+	s.Offset = Vector.Zero
+	s.Rotation = 0
+	s.Scale = Vector(1, 1)
+	s.Color = Color(1, 1, 1, 1, 0, 0, 0)
+	set_layer_vis_color(s, "body", false, Color(1, 1, 1, 0, 0, 0, 0))
+	set_layer_vis_color(s, "outline", false, Color(1, 1, 1, 0, 0, 0, 0))
+	target_outline_sprite = s
+	target_outline_kind = kind
 	return s
+end
+
+local function apply_target_outline_alpha(alpha)
+	local s = target_outline_sprite
+	if not s then
+		return
+	end
+	local a = math.max(0, math.min(1, alpha or 0))
+	local visible = a > 0.01
+	set_layer_vis_color(s, "body", false, Color(1, 1, 1, 0, 0, 0, 0))
+	-- Soft red/white outline; body stays hidden.
+	set_layer_vis_color(s, "outline", visible, Color(1.0, 0.28, 0.32, visible and a or 0, 0.12, 0.02, 0.02))
+end
+
+local function clear_target_outline()
+	if job and job.target_outline then
+		job.target_outline.alpha = 0
+		job.target_outline.phase = OUTLINE.DONE
+	end
+	apply_target_outline_alpha(0)
+end
+
+local function tick_target_outline_lift(c)
+	local to = job and job.target_outline
+	if not to then
+		return
+	end
+	local appear = math.max(1, c.outline_appear or 5)
+	local start = math.max(0, (c.lift or 14) - appear)
+	if job.elapsed < start then
+		to.phase = OUTLINE.HIDDEN
+		to.alpha = 0
+		return
+	end
+	to.phase = OUTLINE.APPEARING
+	local t = (job.elapsed - start) / appear
+	t = math.max(0, math.min(1, t))
+	to.alpha = (c.outline_hold or 0.55) * t
+	if t >= 1 then
+		to.phase = OUTLINE.HOLDING
+		to.alpha = c.outline_hold or 0.55
+	end
+end
+
+local function tick_target_outline_hold(c)
+	local to = job and job.target_outline
+	if not to or to.phase == OUTLINE.DONE or to.phase == OUTLINE.HIDDEN then
+		return
+	end
+	to.phase = OUTLINE.HOLDING
+	-- Mild breath; must not overpower the real piece.
+	local pulse = 0.5 + 0.5 * math.sin((job.elapsed or 0) * 0.35)
+	local hold = c.outline_hold or 0.55
+	to.alpha = hold * (0.92 + 0.08 * pulse)
+end
+
+local function tick_target_outline_align(c)
+	local to = job and job.target_outline
+	if not to then
+		return
+	end
+	to.phase = OUTLINE.MATCHED
+	local dur = math.max(1, c.align or 4)
+	local t = math.max(0, math.min(1, (job.elapsed or 0) / dur))
+	-- Brief brighten on match, then collapse to transparent.
+	local hold = c.outline_hold or 0.55
+	if t < 0.25 then
+		to.alpha = math.min(1, hold + 0.25)
+	else
+		local u = (t - 0.25) / 0.75
+		to.alpha = hold * (1 - u)
+	end
+	if t >= 1 then
+		to.alpha = 0
+		to.phase = OUTLINE.DONE
+	end
 end
 
 local function prune_ring_shots()
@@ -239,15 +449,21 @@ local function ensure_rdv(data)
 	return data.royal_drop_visual
 end
 
-local function clear_piece_job_fields(data)
+local function clear_piece_job_fields(data, ent)
 	if not data then
 		return
 	end
 	data.royal_drop = nil
-	data.royal_drop_visual = nil
-	data.visual_height = 0
-	data.visual_tilt = 0
-	data.visual_squash = nil
+	-- Sprite outline/body must reset BEFORE dropping royal_drop_visual ownership.
+	local ok_v, piece_visual = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.chess_piece_visual")
+	if ok_v and piece_visual and piece_visual.clear_royal_drop_visual and ent then
+		piece_visual.clear_royal_drop_visual(ent, data)
+	else
+		data.royal_drop_visual = nil
+		data.visual_height = 0
+		data.visual_tilt = 0
+		data.visual_squash = nil
+	end
 	if data.action_state == "ROYAL_DROP" then
 		data.action_state = "IDLE"
 	end
@@ -265,19 +481,13 @@ function royal.cancel(reason)
 			occupancy.release_target(job.piece_ptr)
 			occupancy.resync(job.piece_ptr, ent.Position, {})
 		end
-		clear_piece_job_fields(data)
-		if data then
-			-- Restore neutral layers after cancel.
-			local s = ent:GetSprite()
-			if s then
-				s.Color = Color(1, 1, 1, 1, 0, 0, 0)
-				s.Scale = Vector(1, 1)
-			end
-		end
+		clear_piece_job_fields(data, ent)
 	elseif job.piece_ptr and job.occ_committed then
 		occupancy.release_target(job.piece_ptr)
 		occupancy.release_current(job.piece_ptr)
 	end
+	clear_target_outline()
+	clear_cell_mark()
 	last_fail = reason or "cancelled"
 	job = nil
 end
@@ -338,6 +548,12 @@ function royal.try_begin(boss_ent)
 		boss_ptr = boss_ent and GetPtrHash(boss_ent) or nil,
 		height = c.height,
 		tilt = c.tilt,
+		target_outline = {
+			kind = data.kind or piece_defs.KIND.PAWN,
+			pos = Vector(dest.X, dest.Y),
+			alpha = 0,
+			phase = OUTLINE.HIDDEN,
+		},
 	}
 	data.action_state = "ROYAL_DROP"
 	data.phase_elapsed = 0
@@ -351,6 +567,8 @@ function royal.try_begin(boss_ent)
 	data.royal_drop_visual.color_progress = 0
 	data.royal_drop_visual.outline_alpha = 0
 	data.royal_drop_visual.impact_progress = 0
+	ensure_target_outline(job.target_outline.kind)
+	apply_target_outline_alpha(0)
 	if boss_ent then
 		visual.order(boss_ent)
 		visual.flash(boss_ent, 0.3, 0.12, 0.05, c.raise)
@@ -401,6 +619,7 @@ function royal.tick(boss_ent)
 	end
 	local c = cfg()
 	job.elapsed = (job.elapsed or 0) + 1
+	tick_cell_mark(c)
 	local ent = find_piece(job.piece_ptr)
 	if not ent then
 		royal.cancel("piece_gone")
@@ -490,8 +709,14 @@ function royal.tick(boss_ent)
 		rdv.color_progress = 1
 		rdv.outline_alpha = 1
 		sync_piece_visual(ent, data, c.height * t, c.tilt * t)
+		tick_target_outline_lift(c)
 		if job.elapsed >= c.lift then
 			occupancy.release_current(job.piece_ptr)
+			-- Snap outline to hold so TRANSFER never starts with a half-faded ghost.
+			if job.target_outline then
+				job.target_outline.phase = OUTLINE.HOLDING
+				job.target_outline.alpha = c.outline_hold or 0.55
+			end
 			set_phase(PHASE.TRANSFER)
 		end
 		return
@@ -507,8 +732,28 @@ function royal.tick(boss_ent)
 		rdv.color_progress = 1
 		rdv.outline_alpha = 1
 		sync_piece_visual(ent, data, c.height, c.tilt * (1 - t))
+		tick_target_outline_hold(c)
+		-- Near arrival: slightly brighten the fixed ghost (still not moving).
+		if job.target_outline and t > 0.75 then
+			local hold = c.outline_hold or 0.55
+			job.target_outline.alpha = math.min(0.85, hold + 0.2 * ((t - 0.75) / 0.25))
+		end
 		if job.elapsed >= c.transfer then
 			ent.Position = Vector(job.dest.X, job.dest.Y)
+			set_phase(PHASE.ALIGN)
+		end
+		return
+	end
+
+	if job.phase == PHASE.ALIGN then
+		-- Exact airborne overlap: no XY drift, tilt zero, height held.
+		ent.Position = Vector(job.dest.X, job.dest.Y)
+		rdv.color_progress = 1
+		rdv.outline_alpha = 1
+		sync_piece_visual(ent, data, c.height, 0)
+		tick_target_outline_align(c)
+		if job.elapsed >= (c.align or 4) then
+			clear_target_outline()
 			set_phase(PHASE.HOVER)
 		end
 		return
@@ -519,6 +764,10 @@ function royal.tick(boss_ent)
 		rdv.color_progress = 1
 		rdv.outline_alpha = 1
 		sync_piece_visual(ent, data, c.height, 0)
+		-- Ghost already finished its job in ALIGN.
+		if job.target_outline and job.target_outline.phase ~= OUTLINE.DONE then
+			clear_target_outline()
+		end
 		if job.elapsed >= c.hover_min then
 			if boss_ent then
 				visual.release(boss_ent)
@@ -565,12 +814,22 @@ function royal.tick(boss_ent)
 		sync_piece_visual(ent, data, 0, 0)
 		if not job.impact_fired then
 			job.impact_fired = true
-			-- One-shot: sfx + bullets share IMPACT.
-			sound_tracker.PlayStackedSound(SoundEffect.SOUND_ROCK_CRUMBLE, 1.05, 0.85, false, 0, 2)
-			sound_tracker.PlayStackedSound(SoundEffect.SOUND_STONE_IMPACT, 0.85, 0.9, false, 0, 2)
+			-- One-shot exclusive slam SFX (death uses ROCK_CRUMBLE separately).
+			local drop_sfx = enums.SoundEffect and enums.SoundEffect.Floraine_Royal_Drop
+			if drop_sfx and drop_sfx >= 0 then
+				sound_tracker.PlayStackedSound(drop_sfx, 1.05, 1.0, false, 0, 2)
+			else
+				-- Fallback if content/sounds.xml not loaded yet.
+				sound_tracker.PlayStackedSound(SoundEffect.SOUND_STONE_IMPACT, 1.0, 0.85, false, 0, 2)
+			end
 			fire_ring(ent.Position, ent)
 			rdv.impact_progress = 1
+			-- Cell mark: flash then fade (continues into RECOVER). Armed after tick_cell_mark.
+			job.cell_fade_armed = true
+			job.cell_fade_left = c.cell_fade_frames or 7
+			job.cell_flash_left = 2
 		end
+
 		local t = math.min(1, job.elapsed / math.max(1, c.impact))
 		-- Squash then recover: Y scale dips then returns.
 		local squash = 1 - 0.18 * math.sin(t * math.pi)
@@ -596,7 +855,7 @@ function royal.tick(boss_ent)
 		rdv.impact_progress = 0
 		data.visual_squash = 1
 		if job.elapsed >= c.recover then
-			clear_piece_job_fields(data)
+			clear_piece_job_fields(data, ent)
 			data.action_state = "IDLE"
 			last_fail = "landed"
 			job = nil
@@ -605,39 +864,54 @@ function royal.tick(boss_ent)
 	end
 end
 
-function royal.render()
+--- Board-cell overlay for stone_board (drawn after the base chess tile on dest_gidx).
+--- Returns nil when idle / wrong index. Does not draw by itself.
+function royal.get_board_cell_overlay(index)
+	if not job or job.dest_gidx == nil then
+		return nil
+	end
+	if index ~= job.dest_gidx then
+		return nil
+	end
+	local c = cfg()
+	local fill_a, border_a = resolve_cell_alpha(c)
+	if fill_a <= 0.01 and border_a <= 0.01 then
+		return nil
+	end
+	local cc = cell_cfg()
+	return {
+		fill = cc.fill or { 1.0, 0.22, 0.28 },
+		border = cc.border or { 1.0, 0.48, 0.50 },
+		fill_alpha = fill_a,
+		border_alpha = border_a,
+		border_thickness = c.cell_border_thickness or 2,
+		dest_gidx = job.dest_gidx,
+	}
+end
+
+--- Airborne same-kind outline only (POST_RENDER). Ground mark is owned by stone_board.
+function royal.render_air_cues()
 	if not job then
 		return
 	end
-	if job.phase ~= PHASE.HOVER and job.phase ~= PHASE.RELEASE and job.phase ~= PHASE.TRANSFER
-		and job.phase ~= PHASE.DROP and job.phase ~= PHASE.IMPACT then
-		return
+	local c = cfg()
+	local to = job.target_outline
+	if to and to.phase ~= OUTLINE.DONE and to.phase ~= OUTLINE.HIDDEN and (to.alpha or 0) > 0.01 then
+		local kind = to.kind or piece_defs.KIND.PAWN
+		local s = ensure_target_outline(kind)
+		apply_target_outline_alpha(to.alpha)
+		local visual_point = Vector(job.dest.X, job.dest.Y - (job.height or c.height))
+		s:Render(Isaac.WorldToScreen(visual_point), Vector.Zero, Vector.Zero)
 	end
-	local s = ensure_telegraph()
-	local screen = Isaac.WorldToScreen(job.dest)
-	local pulse = 0.5 + 0.5 * math.sin((job.elapsed or 0) * 0.45)
-	local alpha = 0.4
-	local scale = 1.05
-	if job.phase == PHASE.TRANSFER then
-		alpha = 0.25 + 0.2 * ease_out(math.min(1, (job.elapsed or 0) / math.max(1, cfg().transfer)))
-		scale = 0.95
-	elseif job.phase == PHASE.HOVER or job.phase == PHASE.RELEASE then
-		alpha = 0.45 + 0.4 * pulse
-		scale = 1.1 + 0.12 * pulse
-	elseif job.phase == PHASE.DROP then
-		local t = ease_in_cubic(math.min(1, (job.elapsed or 0) / math.max(1, cfg().drop)))
-		alpha = 0.35 + 0.4 * t
-		scale = 1.15 + 0.15 * t
-	elseif job.phase == PHASE.IMPACT then
-		alpha = 0.55 * (1 - math.min(1, (job.elapsed or 0) / math.max(1, cfg().impact)))
-		scale = 1.3
-	end
-	s.Color = Color(1, 0.12, 0.18, alpha * 0.55, 0.45, 0.05, 0.05)
-	s.Scale = Vector(scale * 1.35, scale * 1.35)
-	s:Render(screen, Vector.Zero, Vector.Zero)
-	s.Color = Color(1, 0.18, 0.22, alpha, 0.4, 0.04, 0.04)
-	s.Scale = Vector(scale, scale)
-	s:Render(screen, Vector.Zero, Vector.Zero)
+end
+
+--- Compatibility alias: air cues only (ground mark via stone_board provider).
+function royal.render()
+	royal.render_air_cues()
+end
+
+--- LEGACY no-op: ground mark no longer draws from Backdrop / POST_RENDER.
+function royal.render_dest_cell()
 end
 
 function royal.on_piece_removed(ent)
@@ -650,6 +924,12 @@ function royal.on_piece_removed(ent)
 end
 
 function royal.diag()
+	local to = job and job.target_outline
+	local c = cfg()
+	local cell_fill, cell_border = 0, 0
+	if job then
+		cell_fill, cell_border = resolve_cell_alpha(c)
+	end
 	return {
 		busy = job ~= nil,
 		last_fail = last_fail,
@@ -660,6 +940,19 @@ function royal.diag()
 		impact_fired = job and job.impact_fired == true,
 		piece_ptr = job and job.piece_ptr,
 		dest = job and job.dest and { x = job.dest.X, y = job.dest.Y },
+		dest_gidx = job and job.dest_gidx,
+		cell_mark = job and {
+			fill_alpha = cell_fill,
+			border_alpha = cell_border,
+			fade_left = job.cell_fade_left,
+			flash_left = job.cell_flash_left,
+		} or nil,
+		target_outline = to and {
+			kind = to.kind,
+			alpha = to.alpha,
+			phase = to.phase,
+			pos = to.pos and { x = to.pos.X, y = to.pos.Y },
+		} or nil,
 		bullets = {
 			active = #ring_shots,
 			fired = bullet_diag.fired,
@@ -672,6 +965,37 @@ function royal.diag()
 	}
 end
 
+--- Debug: start (or reuse) a royal drop and jump to late LIFT so outline + align can be inspected.
+function royal.debug_align_preview(boss_ent)
+	if job then
+		royal.cancel("debug_align_preview")
+	end
+	local ok, why = royal.try_begin(boss_ent)
+	if not ok then
+		return false, why or last_fail
+	end
+	local ent = find_piece(job.piece_ptr)
+	local data = ent and piece_controller.get_data(ent)
+	if not ent or not data then
+		royal.cancel("debug_no_piece")
+		return false, "no_piece"
+	end
+	local c = cfg()
+	local rdv = ensure_rdv(data)
+	rdv.empowered = true
+	rdv.color_progress = 1
+	rdv.outline_alpha = 1
+	job.particle_sent = true
+	job.particle_hit = true
+	-- Jump into the outline appear window of LIFT.
+	job.phase = PHASE.LIFT
+	job.elapsed = math.max(0, (c.lift or 14) - (c.outline_appear or 5))
+	sync_piece_visual(ent, data, c.height * ease_out(job.elapsed / math.max(1, c.lift)), c.tilt * 0.5)
+	tick_target_outline_lift(c)
+	last_fail = "debug_align_preview"
+	return true, "ok"
+end
+
 function royal.clear(reason)
 	royal.cancel(reason or "clear")
 	for _, row in ipairs(ring_shots) do
@@ -681,8 +1005,12 @@ function royal.clear(reason)
 		end
 	end
 	ring_shots = {}
+	target_outline_sprite = nil
+	target_outline_kind = nil
 end
 
+
 royal.PHASE = PHASE
+royal.OUTLINE = OUTLINE
 
 return royal

@@ -54,13 +54,120 @@ function arena.boss_home_grid_pos()
 	return room:GetClampedPosition(Vector(x, y), 20)
 end
 
-function arena.boss_spawn_pos()
-	-- Prefer layout marker (kept in sync with top+1); fallback matches the same rule.
-	local marker = rooms.find_marker(stone_defs.MARKER.FLORAINE_ENTRY)
-	if marker then
-		return marker.Position
+--- Snap any raw world point to its grid-cell center (stable Home identity).
+local function snap_boss_home(raw)
+	local room = Game():GetRoom()
+	if not raw then
+		return arena.boss_home_grid_pos()
 	end
-	return arena.boss_home_grid_pos()
+	local idx = room:GetGridIndex(raw)
+	if idx ~= nil and idx >= 0 then
+		local p = room:GetGridPosition(idx)
+		return Vector(p.X, p.Y)
+	end
+	return room:GetClampedPosition(raw, 20)
+end
+
+--- Canonical Boss Home: fixed top-grid rule only (no FLORAINE_ENTRY Marker).
+--- Room XML may still contain the marker as unused layout leftover.
+function arena.resolve_boss_home()
+	return snap_boss_home(arena.boss_home_grid_pos())
+end
+
+function arena.boss_spawn_pos()
+	return arena.resolve_boss_home()
+end
+
+--- World point fully left of the current camera (sprite half-width + pad).
+function arena.world_offscreen_left(target_y, sprite_half, pad)
+	sprite_half = sprite_half or 24
+	pad = pad or 8
+	local room = Game():GetRoom()
+	local x = room:GetTopLeftPos().X
+	for _ = 1, 48 do
+		local scr = Isaac.WorldToScreen(Vector(x, target_y))
+		if scr.X < -(sprite_half + pad) then
+			return Vector(x, target_y)
+		end
+		x = x - 40
+	end
+	return Vector(x, target_y)
+end
+
+--- World point fully right of the current camera.
+function arena.world_offscreen_right(target_y, sprite_half, pad)
+	sprite_half = sprite_half or 24
+	pad = pad or 8
+	local room = Game():GetRoom()
+	local x = room:GetBottomRightPos().X
+	local limit = Isaac.GetScreenWidth() + sprite_half + pad
+	for _ = 1, 48 do
+		local scr = Isaac.WorldToScreen(Vector(x, target_y))
+		if scr.X > limit then
+			return Vector(x, target_y)
+		end
+		x = x + 40
+	end
+	return Vector(x, target_y)
+end
+
+--- World point fully above the current camera (sprite top extent).
+function arena.world_offscreen_above(target_x, sprite_extent, pad)
+	sprite_extent = sprite_extent or 48
+	pad = pad or 8
+	local room = Game():GetRoom()
+	local y = room:GetTopLeftPos().Y
+	for _ = 1, 48 do
+		local scr = Isaac.WorldToScreen(Vector(target_x, y))
+		if scr.Y < -(sprite_extent + pad) then
+			return Vector(target_x, y)
+		end
+		y = y - 40
+	end
+	return Vector(target_x, y)
+end
+
+--- World point fully below the current camera (sprite top must clear bottom edge).
+function arena.world_offscreen_below(target_x, sprite_extent, pad)
+	sprite_extent = sprite_extent or 8
+	pad = pad or 8
+	local room = Game():GetRoom()
+	local y = room:GetBottomRightPos().Y
+	local limit = Isaac.GetScreenHeight() + pad
+	for _ = 1, 64 do
+		-- Treat (x,y) as the visual top of the piece.
+		local scr = Isaac.WorldToScreen(Vector(target_x, y))
+		if scr.Y > limit then
+			return Vector(target_x, y + sprite_extent)
+		end
+		y = y + 40
+	end
+	return Vector(target_x, y)
+end
+
+--- True when the full sprite (approx AABB) is below the screen bottom.
+function arena.is_sprite_fully_below_screen(ground, visual_height, half_w, top_extent)
+	if not ground then
+		return true
+	end
+	half_w = half_w or 24
+	top_extent = top_extent or 48
+	local h = visual_height or 0
+	-- Pivot ≈ feet; top of art sits above pivot by top_extent, minus lift.
+	local top_y = ground.Y - h - top_extent
+	local limit = Isaac.GetScreenHeight() + 2
+	local samples = {
+		Vector(ground.X - half_w, top_y),
+		Vector(ground.X, top_y),
+		Vector(ground.X + half_w, top_y),
+	}
+	for i = 1, #samples do
+		local scr = Isaac.WorldToScreen(samples[i])
+		if scr.Y <= limit then
+			return false
+		end
+	end
+	return true
 end
 
 local function is_walkable_grid(room, index)

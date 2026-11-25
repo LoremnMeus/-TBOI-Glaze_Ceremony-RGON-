@@ -1302,6 +1302,14 @@ add("Item",enums.Items.Bewitching_Moon,{
 		achievement = false,
 		achievement_path = "",
 })
+add("Item",enums.Items.Golden_Compass,{
+		content_type = "Item",
+		key = "Golden_Compass",
+		name = "Golden Compass",
+		remaster_status = "new",
+		achievement = false,
+		achievement_path = "",
+})
 add("Trinket",enums.Trinkets.Pacification_Mark,{
 		content_type = "Trinket",
 		key = "Pacification_Mark",

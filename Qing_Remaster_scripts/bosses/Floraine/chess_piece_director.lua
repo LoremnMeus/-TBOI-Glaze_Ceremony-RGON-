@@ -152,12 +152,65 @@ local function standoff_score(kind, dest, target_pos)
 	return math.max(0, 1 - math.abs(cells - 4.5) / 5)
 end
 
+-- Per plan_round only. Cleared at the start of each planning pass.
+local round_cache = nil
+
+local function begin_round_cache()
+	round_cache = {
+		landings_ent = {}, -- ptr -> landing list
+		landings_at = {}, -- kind:gidx:self_ptr -> landing list
+		coverage = {}, -- kind:gidx -> coverage vs fixed round target
+	}
+end
+
+local function end_round_cache()
+	round_cache = nil
+end
+
+local function cached_legal_landings(ent)
+	if not ent then
+		return {}
+	end
+	local id = ptr(ent)
+	if round_cache and round_cache.landings_ent[id] then
+		return round_cache.landings_ent[id]
+	end
+	local list = controller.legal_landings(ent) or {}
+	if round_cache then
+		round_cache.landings_ent[id] = list
+	end
+	return list
+end
+
+local function cached_legal_landings_at(dest, kind, self_ptr)
+	local room = Game():GetRoom()
+	local gidx = room:GetGridIndex(dest)
+	local key = tostring(kind) .. ":" .. tostring(gidx) .. ":" .. tostring(self_ptr or 0)
+	if round_cache and round_cache.landings_at[key] then
+		return round_cache.landings_at[key]
+	end
+	local list = controller.legal_landings_at(dest, kind, self_ptr) or {}
+	if round_cache then
+		round_cache.landings_at[key] = list
+	end
+	return list
+end
+
 --- Next-round attack coverage from a hypothetical landing (real legal moves from dest).
 local function attack_coverage_from(ent, dest, target_pos)
 	local data = controller.get_data(ent)
 	local kind = data and data.kind or defs.KIND.PAWN
-	local probes = controller.legal_landings_at(dest, kind, GetPtrHash(ent))
+	local room = Game():GetRoom()
+	local gidx = room:GetGridIndex(dest)
+	local ckey = tostring(kind) .. ":" .. tostring(gidx)
+	if round_cache and round_cache.coverage[ckey] ~= nil then
+		return round_cache.coverage[ckey]
+	end
+	local probes = cached_legal_landings_at(dest, kind, GetPtrHash(ent))
 	if #probes < 1 then
+		if round_cache then
+			round_cache.coverage[ckey] = 0
+		end
 		return 0
 	end
 	local best = 0
@@ -169,6 +222,9 @@ local function attack_coverage_from(ent, dest, target_pos)
 			break
 		end
 		best = math.max(best, math.max(0, 1 - d / (g * 5)))
+	end
+	if round_cache then
+		round_cache.coverage[ckey] = best
 	end
 	return best
 end
@@ -203,7 +259,7 @@ end
 
 local function landing_toward(ent, target)
 	local target_pos = target.Position or target
-	local landings = controller.legal_landings(ent)
+	local landings = cached_legal_landings(ent)
 	if #landings < 1 then
 		return nil, -1, 0
 	end
@@ -250,7 +306,7 @@ local function score_maneuver(ent, dest, target, primary_dest, used)
 end
 
 local function best_maneuver(ent, target, primary_dest, used)
-	local landings = controller.legal_landings(ent)
+	local landings = cached_legal_landings(ent)
 	local best, best_s = nil, -1
 	for _, dest in ipairs(landings) do
 		local s = score_maneuver(ent, dest, target, primary_dest, used)
@@ -335,17 +391,23 @@ local function evaluate_flank(members, target)
 end
 
 local function evaluate_pin_and_leap(members, target)
-	local pawn, knight = nil, nil
+	local pawn, gold_pawn, knight = nil, nil, nil
 	for _, ent in ipairs(members) do
 		if controller.can_accept_order(ent) then
-			local k = controller.get_data(ent).kind
-			if k == defs.KIND.PAWN and not pawn then
-				pawn = ent
+			local data = controller.get_data(ent)
+			local k = data and data.kind
+			if k == defs.KIND.PAWN then
+				if data.is_gold and not gold_pawn then
+					gold_pawn = ent
+				elseif not pawn then
+					pawn = ent
+				end
 			elseif k == defs.KIND.KNIGHT and not knight then
 				knight = ent
 			end
 		end
 	end
+	pawn = gold_pawn or pawn
 	if not pawn then
 		return nil
 	end
@@ -360,9 +422,10 @@ local function evaluate_pin_and_leap(members, target)
 			follow[#follow + 1] = {ent = knight, dest = kdest, kind = defs.KIND.KNIGHT}
 		end
 	end
+	local gold_bonus = (controller.get_data(pawn).is_gold and 0.12) or 0
 	return {
 		name = "pin_and_leap",
-		score = 0.7 + (#follow > 0 and 0.25 or 0),
+		score = 0.7 + (#follow > 0 and 0.25 or 0) + gold_bonus,
 		primary = {{ent = pawn, dest = pdest, kind = defs.KIND.PAWN}},
 		follow = follow,
 		maneuver = {},
@@ -508,7 +571,7 @@ local function fill_maneuvers(plan, members, target)
 	for _, ent in ipairs(members) do
 		local id = ptr(ent)
 		if not assigned[id] and controller.can_accept_order(ent) then
-			local landings = controller.legal_landings(ent, controller.get_data(ent).kind)
+			local landings = cached_legal_landings(ent)
 			local n_land = landings and #landings or 0
 			local dest, s, n = best_maneuver(ent, target, primary_dest, used)
 			if dest and s > 0.15 then
@@ -703,7 +766,57 @@ local function tick_execute()
 	end
 end
 
+local function is_gold_piece(ent)
+	local data = controller.get_data(ent)
+	return data and data.is_gold == true
+end
+
+--- Prefer gold pieces (especially gold pawns) when filling ready attack slots.
+local function prefer_gold_ready(members)
+	local gold_pawns, gold_other, rest = {}, {}, {}
+	for _, ent in ipairs(members) do
+		local data = controller.get_data(ent)
+		if data and data.is_gold then
+			if data.kind == defs.KIND.PAWN then
+				gold_pawns[#gold_pawns + 1] = ent
+			else
+				gold_other[#gold_other + 1] = ent
+			end
+		else
+			rest[#rest + 1] = ent
+		end
+	end
+	local out = {}
+	for _, e in ipairs(gold_pawns) do out[#out + 1] = e end
+	for _, e in ipairs(gold_other) do out[#out + 1] = e end
+	for _, e in ipairs(rest) do out[#out + 1] = e end
+	return out
+end
+
+local function boost_gold_strikes(plan)
+	if not plan then
+		return
+	end
+	local function gold_first(rows)
+		if not rows or #rows < 2 then
+			return rows
+		end
+		table.sort(rows, function(a, b)
+			local ag = a and a.ent and is_gold_piece(a.ent)
+			local bg = b and b.ent and is_gold_piece(b.ent)
+			if ag ~= bg then
+				return ag
+			end
+			return false
+		end)
+		return rows
+	end
+	plan.primary = gold_first(plan.primary)
+	plan.follow = gold_first(plan.follow)
+end
+
 local function plan_round()
+	begin_round_cache()
 	refresh_members()
 	local members = member_list()
 	-- Only idle pieces receive new orders; mid-maneuver keep their current task.
@@ -713,26 +826,32 @@ local function plan_round()
 			ready_members[#ready_members + 1] = ent
 		end
 	end
+	ready_members = prefer_gold_ready(ready_members)
 	active.diag.member_count = #members
 	active.diag.ready_count = #ready_members
 	active.diag.moving_maneuvers = count_busy_tasks(defs.TASK.MANEUVER, nil)
 	active.diag.move_choices = {}
 	local target = pick_target()
 	if not target or #ready_members < 1 then
+		end_round_cache()
 		active.phase = director.PHASE.SETTLE
 		active.phase_frame = 0
 		return
 	end
 	local plan = choose_tactic(ready_members, target)
 	if not plan then
+		end_round_cache()
 		active.phase = director.PHASE.SETTLE
 		active.phase_frame = 0
 		return
 	end
+	boost_gold_strikes(plan)
 	trim_attack_budget(plan, #ready_members)
+	boost_gold_strikes(plan)
 	note_plan_strikes(plan)
 	fill_maneuvers(plan, ready_members, target)
 	begin_execute(plan)
+	end_round_cache()
 	active.phase = director.PHASE.EXECUTE
 	active.phase_frame = 0
 end

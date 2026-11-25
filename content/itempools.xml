@@ -1,5 +1,6 @@
 <ItemPools>
 	<Pool Name="treasure">
+		<Item DecreaseBy="1" Name="Golden Compass" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Bewitching Moon" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Wishing" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Strawberry Cake Pie" RemoveOn="0.1" Weight="1" />
@@ -99,6 +100,7 @@
 		<Item DecreaseBy="1" Name="Incandescence Flame" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="shop">
+		<Item DecreaseBy="1" Name="Golden Compass" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="0.5" Name="Memory" RemoveOn="0.05" Weight="0.5" />
 		<Item DecreaseBy="1" Name="Black Map" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="More Options??!" RemoveOn="0.1" Weight="1" />
@@ -169,6 +171,7 @@
 		<Item DecreaseBy="1" Name="Exoneration Certificate" RemoveOn="0.1" Weight="1" />
 	</Pool>
 	<Pool Name="angel">
+		<Item DecreaseBy="1" Name="Golden Compass" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Wishing" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Crown of the Glaze" RemoveOn="0.1" Weight="1" />
 		<Item DecreaseBy="1" Name="Apocalypse" RemoveOn="0.1" Weight="1" />

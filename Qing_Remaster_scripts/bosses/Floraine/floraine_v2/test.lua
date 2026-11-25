@@ -1,6 +1,5 @@
 -- Floraine V2 debug helpers (no permanent unlock by default).
 
-local stone_defs = require("Qing_Remaster_scripts.threads.stone.stone_defs")
 local runtime = require("Qing_Remaster_scripts.threads.stone.stone_runtime")
 local controller = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.controller")
 local director = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.director")
@@ -62,13 +61,33 @@ function test.boss_chain_anims()
 	return BOSS_ANIMS
 end
 
-function test.enter_arena()
-	runtime.normalize_floraine_variant()
-	Isaac.ExecuteCommand("goto " .. stone_defs.goto_floraine())
+--- Ensure Stone layout + board activation so stone_board (and royal-drop overlay) can draw.
+--- Uses existing stone_debug facilities; does not invent a Floraine-only board.
+function test.ensure_stone_board()
+	local stone_debug = require("Qing_Remaster_scripts.threads.stone.stone_debug")
+	if not (runtime.has_layout() and runtime.floor_matches()) then
+		local ok_l, err_l = stone_debug.ensure_layout({ force = true, ignore_gate = true })
+		if not ok_l then
+			return false, err_l or "layout_failed"
+		end
+	end
+	if not runtime.is_board_active() then
+		local ok_a, why_a = runtime.activate_board("floraine_boss_test")
+		if ok_a == false and why_a ~= "already" then
+			return false, why_a or "activate_failed"
+		end
+	end
 	return true
 end
 
+--- Goto Floraine via stone_debug (layout + board on). Bare goto skips the board gate.
+function test.enter_arena()
+	local stone_debug = require("Qing_Remaster_scripts.threads.stone.stone_debug")
+	return stone_debug.goto_floraine({ suppress_boss = false })
+end
+
 function test.start_combat()
+	test.ensure_stone_board()
 	controller.debug_start_combat()
 	return true
 end
@@ -271,6 +290,21 @@ function test.force_royal_drop()
 	return ok, why or (royal_drop.diag() and royal_drop.diag().last_fail)
 end
 
+--- Jump into late LIFT so target outline + ALIGN can be checked without full cast windup.
+function test.royal_align_preview()
+	local ent = controller.find_boss and controller.find_boss() or nil
+	if not ent then
+		return false, "no_boss"
+	end
+	local ok, why = royal_drop.debug_align_preview(ent)
+	if ok then
+		local st = scheduler.get_state()
+		st.mode = defs.SCHED.ROYAL_DROP
+		st.next_royal_frame = 999999
+	end
+	return ok, why or (royal_drop.diag() and royal_drop.diag().last_fail)
+end
+
 function test.royal_drop_diag()
 	return royal_drop.diag()
 end
@@ -455,6 +489,64 @@ function test.play_release_drop()
 	return true, "Release"
 end
 
+local function souls_mod()
+	return require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.command_souls")
+end
+
+function test.gold_trigger_next()
+	local souls = souls_mod()
+	local boss = controller.find_boss and controller.find_boss()
+	local ok, th = souls.debug_trigger_next_gold()
+	if not ok then
+		return false, th
+	end
+	souls.tick(boss)
+	return true, "threshold=" .. tostring(th)
+end
+
+function test.gold_spawn_test()
+	local souls = souls_mod()
+	local boss = controller.find_boss and controller.find_boss()
+	if not boss then
+		return false, "no_boss"
+	end
+	return souls.debug_spawn_gold_now(boss)
+end
+
+function test.gold_kill_reward()
+	local piece_controller = require("Qing_Remaster_scripts.bosses.Floraine.chess_piece_controller")
+	for _, ent in ipairs(Isaac.FindByType(996, -1, -1, false, false)) do
+		local d = piece_controller.get_data(ent)
+		if d and d.is_gold and ent:Exists() and not ent:IsDead() then
+			ent:Kill()
+			return true, d.floraine_command and d.floraine_command.command_id
+		end
+	end
+	return false, "no_gold"
+end
+
+function test.gold_report()
+	local souls = souls_mod()
+	local d = souls.diag()
+	local boss = controller.find_boss and controller.find_boss()
+	local sess = controller.get_session and controller.get_session()
+	local summary = string.format(
+		"kills=%s unlocked=%s pending=%s cap=%s live=%s hp=%s/%s phase=%s",
+		tostring(d.kill_count),
+		tostring(d.unlocked_gold),
+		tostring(d.pending_gold),
+		tostring(d.p1_guard_cap),
+		tostring(d.live_commands),
+		boss and string.format("%.1f", boss.HitPoints) or "?",
+		boss and string.format("%.1f", boss.MaxHitPoints) or "?",
+		sess and tostring(sess.phase) or "?"
+	)
+	d.summary = summary
+	d.boss_hp = boss and boss.HitPoints or nil
+	d.session_state = sess and sess.state or nil
+	return d
+end
+
 function test.directed_order()
 	return director.begin_directed_order(controller.find_boss and controller.find_boss())
 end
@@ -513,6 +605,148 @@ function test.outline_force(mode)
 	return applied
 end
 
+--- Replay opening camera hold→soft release (no full room restart).
+function test.replay_opening_camera()
+	return controller.debug_replay_opening_camera()
+end
+
+local function outline_layer_visible(ent)
+	if not ent or not ent.GetSprite then
+		return nil
+	end
+	local s = ent:GetSprite()
+	if not s or not s.GetLayer then
+		return nil
+	end
+	local ok, layer = pcall(function()
+		return s:GetLayer("outline") or s:GetLayer(1)
+	end)
+	if not (ok and layer) then
+		return nil
+	end
+	if layer.IsVisible then
+		local ok_v, vis = pcall(function()
+			return layer:IsVisible()
+		end)
+		if ok_v then
+			return vis == true
+		end
+	end
+	return nil
+end
+
+--- Full single-piece command glow path: INFUSING → lift → land → NPC handoff.
+-- Use command_glow_diag() while it runs to inspect alpha / fade_start / NPC fade.
+function test.preview_command_glow()
+	if not reserve_controller.is_active() then
+		reserve_controller.spawn_formation()
+	end
+	director.bind()
+	director.stop_orders()
+	local rv = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.reserve_visual")
+	rv.set_outline_force(nil)
+	local row = reserve_controller.pick_for_kind(nil)
+	if not row then
+		return false, "empty"
+	end
+	local id = row.id
+	-- Drop other deploy jobs so this single-piece preview owns the queue.
+	deployment.cancel_all("preview_command_glow")
+	reserve_controller.set_state(id, reserve_defs.STATE.INFUSING)
+	row = reserve_controller.get_row(id)
+	if not row then
+		return false, "lost_row"
+	end
+	row.phase_elapsed = 0
+	row.freeze_debug = false
+	row.visual_height = 0
+	row.visual_color_progress = 0
+	row.visual_tilt = 0
+	rv.begin_command_glow(row)
+	local ok, why = deployment.start(id, {
+		from_infuse = true,
+		auto_drop = true,
+		is_opening = false,
+	})
+	if not ok then
+		return false, why or "deploy_start_failed", id
+	end
+	test._glow_preview_id = id
+	rv.sync_all()
+	Isaac.DebugString(string.format(
+		"[FloraineV2] preview_command_glow piece=%s glow_alpha=%.3f",
+		tostring(id),
+		tonumber(row.glow_alpha) or 0
+	))
+	return true, id
+end
+
+--- Live diag for the preview / command-glow timeline (matte + NPC handoff).
+function test.command_glow_diag(piece_id)
+	piece_id = piece_id or test._glow_preview_id
+	local row = piece_id and reserve_controller.get_row(piece_id) or nil
+	local effect = row and row.effect or nil
+	local effect_alive = effect and effect.Exists and effect:Exists() or false
+	local npc = nil
+	local npc_fade = nil
+	local npc_outline_vis = nil
+	if row and row.npc_ptr then
+		for _, ent in ipairs(Isaac.FindByType(996, -1, -1, false, false)) do
+			if GetPtrHash(ent) == row.npc_ptr then
+				npc = ent
+				break
+			end
+		end
+	end
+	if not npc and piece_id then
+		local enums = require("Qing_Remaster_scripts.core.enums")
+		for _, ent in ipairs(Isaac.FindByType(996, enums.Enemies.chess_piece, -1, false, false)) do
+			local d = ent:GetData().QingChessPiece
+			if d and d.floraine_command and d.floraine_command.reserve_piece_id == piece_id then
+				npc = ent
+				break
+			end
+		end
+	end
+	if npc then
+		local d = npc:GetData().QingChessPiece
+		if d then
+			npc_fade = d._deploy_outline_fade
+		end
+		npc_outline_vis = outline_layer_visible(npc)
+	end
+	local out = {
+		piece_id = piece_id,
+		state = row and row.state or nil,
+		command_kind = row and row.command_kind or nil,
+		command_glow = row and row.command_glow == true or false,
+		glow_alpha = row and row.glow_alpha or nil,
+		last_outline_alpha = row and row._last_outline_alpha or nil,
+		glow_fade_start = row and row.glow_fade_start or nil,
+		glow_elapsed = row and row.glow_elapsed or nil,
+		effect_exists = effect_alive,
+		npc_exists = npc ~= nil,
+		npc_outline_fade = npc_fade,
+		npc_outline_visible = npc_outline_vis,
+		effect_outline_visible = effect_alive and outline_layer_visible(effect) or nil,
+	}
+	Isaac.DebugString(string.format(
+		"[FloraineV2] command_glow_diag id=%s st=%s kind=%s glow=%s elapsed=%s a=%.3f last=%.3f fade_start=%s effect=%s npc_fade=%s npc_vis=%s",
+		tostring(out.piece_id),
+		tostring(out.state),
+		tostring(out.command_kind),
+		tostring(out.command_glow),
+		tostring(out.glow_elapsed),
+		tonumber(out.glow_alpha) or -1,
+		tonumber(out.last_outline_alpha) or -1,
+		tostring(out.glow_fade_start),
+		tostring(out.effect_exists),
+		tostring(out.npc_outline_fade),
+		tostring(out.npc_outline_visible)
+	))
+	return out
+end
+
 function test.snapshot()
 	local s = controller.get_session()
 	local matte = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.piece_matte_fx")
@@ -543,6 +777,8 @@ function test.snapshot()
 		scheduler = scheduler.get_diag(),
 		temp = temp_piece.get_diag(),
 		royal_drop = royal_drop.diag(),
+		opening_camera = controller.get_opening_camera and controller.get_opening_camera().get_diag() or nil,
+		opening_timeline = controller.get_opening_timeline and controller.get_opening_timeline() or nil,
 		phase_diag = phase_d,
 		patterns = {
 			rook = defs.PATTERN.ROOK_PIERCE,

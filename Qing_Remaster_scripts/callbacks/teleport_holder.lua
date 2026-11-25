@@ -164,20 +164,50 @@ Function = function(_,player)
 end,
 })
 
+--- Native-door approach geometry: center = door_pos - dir * 18, radius 25.
+--- dir is the door's Direction vector (into-room for slot_dir_map / Door.Direction).
+function item.door_approach_center(door_pos, dir)
+	dir = dir or Vector(0, 0)
+	return door_pos - dir * 18
+end
+
+function item.player_in_door_approach(player, door_pos, dir, radius)
+	if not player or not door_pos then
+		return false, nil, nil
+	end
+	radius = radius or 25
+	local center = item.door_approach_center(door_pos, dir)
+	local dist = (player.Position - center):Length()
+	return dist < radius, dist, center
+end
+
+--- Virtual / slot-based doors: resolve world position from DoorSlot + slot_dir_map.
+function item.player_in_slot_approach(player, slot, radius)
+	local room = Game():GetRoom()
+	if not room or slot == nil then
+		return false, nil, nil, nil
+	end
+	local door_pos = room:GetDoorSlotPosition(slot)
+	local dir_id = item.slot_dir_map[slot]
+	local dir = item.dir_map[dir_id] or Vector(0, 0)
+	local ok, dist, center = item.player_in_door_approach(player, door_pos, dir, radius)
+	return ok, dist, center, door_pos
+end
+
 table.insert(item.myToCall,#item.myToCall + 1,{CallBack = enums.Callbacks.POST_GRID_UPDATE, params = 16,
 Function = function(_,idx,gent)
-	local room = Game():GetRoom()
 	local door = gent:ToDoor()
 	if door then
 		local player = auxi.get_nearest(auxi.GetPlayers(),gent.Position).tg
 		local dir = item.dir_map[door.Direction] or Vector(0,0)
-		if player and (player.Position - (door.Position - dir * 18)):Length() < 25 and (item.Leave_frame or -1) ~= Game():GetFrameCount() then		--有时候似乎会重复2次
+		local hit, dist = item.player_in_door_approach(player, door.Position, dir, 25)
+		if player and hit and (item.Leave_frame or -1) ~= Game():GetFrameCount() then		--有时候似乎会重复2次
 			item.Leave_frame = Game():GetFrameCount()
 			local ty = "door"
 			-- 必须回传回调返回值，否则 return false 无法 stop
 			callback_manager.work("PRE_GET_TELEPORT",function(funct,params)
 				if params == nil or params == ty then
-					return funct(nil,player,ty,{door = door,dist = (player.Position - (door.Position - dir * 18)):Length(),})
+					return funct(nil,player,ty,{door = door,dist = dist,})
 				end
 			end,false)
 		end

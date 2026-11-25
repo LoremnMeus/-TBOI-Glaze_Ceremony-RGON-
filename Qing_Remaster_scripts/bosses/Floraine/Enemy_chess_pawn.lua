@@ -99,12 +99,15 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 	end,
 })
 
--- Floraine V2 P1: command-soul inheritance on true combat death only.
+-- True combat death: stone shatter SFX + Floraine command inheritance (if bound).
 table.insert(item.ToCall, #item.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_NPC_DEATH,
 	params = 996,
 	Function = function(_, ent)
 		if not ent or ent.Variant ~= item.enemy then return end
+		if controller.on_combat_death then
+			controller.on_combat_death(ent)
+		end
 		local data = controller.get_data(ent)
 		if not data or not data.floraine_command then
 			return
@@ -115,5 +118,6 @@ table.insert(item.ToCall, #item.ToCall + 1, {
 		end
 	end,
 })
+
 
 return item

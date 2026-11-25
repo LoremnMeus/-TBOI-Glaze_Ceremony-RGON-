@@ -213,6 +213,34 @@ local entries = {
 	},
 
 	-- rooms
+	fixed_corridor = {
+		runtime = "Qing_Remaster_scripts.debug.fixed_corridor_probe",
+		ui = {id = "audit_fixed_corridor", category = "rooms"},
+	},
+	-- UI nested under 楼层直道探针 → 支线门状态 (no separate top-level probe group).
+	golden_compass_door = {
+		runtime = "Qing_Remaster_scripts.debug.golden_compass_door_probe",
+	},
+	-- UI nested under 楼层直道探针 → 镜像门物理诊断 (default OFF).
+	golden_compass_mirror_physics = {
+		runtime = "Qing_Remaster_scripts.debug.golden_compass_mirror_physics_probe",
+	},
+	-- UI nested under 楼层直道探针 → 矿井维度诊断 (default OFF).
+	golden_compass_mineshaft_dim = {
+		runtime = "Qing_Remaster_scripts.debug.golden_compass_mineshaft_dim_probe",
+	},
+	-- UI nested under 楼层直道探针 → 虚拟门生命周期 (default OFF).
+	golden_compass_virtual_door_life = {
+		runtime = "Qing_Remaster_scripts.debug.golden_compass_virtual_door_life_probe",
+	},
+	-- UI nested under 楼层直道探针 → Boss 池审计 (default OFF; read-only scan).
+	golden_compass_boss_pool = {
+		runtime = "Qing_Remaster_scripts.debug.golden_compass_boss_pool_probe",
+	},
+	-- UI nested under 楼层直道探针 → StageAPI 绑定时序 (default OFF; read-only).
+	golden_compass_stageapi_bind = {
+		runtime = "Qing_Remaster_scripts.debug.golden_compass_stageapi_bind_probe",
+	},
 	grid_rock_topology = {
 		runtime = "Qing_Remaster_scripts.debug.grid_rock_topology_probe",
 		ui = {id = "audit_grid_rock_topology", category = "rooms"},

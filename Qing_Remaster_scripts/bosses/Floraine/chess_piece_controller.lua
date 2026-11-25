@@ -281,6 +281,10 @@ function controller.initialize(ent, spec)
 	ent.MaxHitPoints = profile.hp or ent.MaxHitPoints
 	apply_combat_collision(ent, data)
 	ent:AddEntityFlags(EntityFlag.FLAG_NO_STATUS_EFFECTS)
+	-- Stone body: suppress native blood splash; rock gibs come from entities2.
+	if EntityFlag.FLAG_NO_BLOOD_SPLASH then
+		ent:AddEntityFlags(EntityFlag.FLAG_NO_BLOOD_SPLASH)
+	end
 	if spec.skip_occupancy ~= true then
 		local ok, a, b = occupancy.register_current(ptr(ent), ent.Position, {})
 		if ok and b then
@@ -388,7 +392,12 @@ local function apply_move_acceptance(ent, data, dest_pos, dest_gidx, opts)
 	if opts.travel_frames ~= nil then
 		data.travel_frames_override = math.max(3, math.floor(tonumber(opts.travel_frames) or 3))
 	else
-		data.travel_frames_override = defs.travel_frames_for(data.kind, data.start_position, dest_pos)
+		data.travel_frames_override = defs.travel_frames_for(
+			data.kind,
+			data.start_position,
+			dest_pos,
+			{ is_gold = data.is_gold == true }
+		)
 	end
 	-- Spread afterimage samples along long dashes (not clustered at the start).
 	local travel_len = (dest_pos - data.start_position):Length()
@@ -398,9 +407,15 @@ local function apply_move_acceptance(ent, data, dest_pos, dest_gidx, opts)
 	data._land_fx_id = (data._land_fx_id or 0) + 1
 	data.landing_sound_token = data._land_fx_id
 	data._land_sound_played = nil
-	afterimage.clear(data)
+	-- Normal short trail resets on new action; gold trail spans the whole lifetime.
+	if afterimage.reset_normal_action_trail then
+		afterimage.reset_normal_action_trail(data)
+	elseif data.is_gold ~= true then
+		afterimage.clear(data)
+	end
 	combat.begin_attack(data)
 end
+
 
 local function begin_move(ent, data, dest, opts)
 	opts = opts or {}
@@ -732,27 +747,35 @@ end
 
 local function tick_action(ent, data)
 	local profile = defs.get(data.kind)
+	local timing = defs.action_timing and defs.action_timing(data) or profile
 	data.phase_elapsed = (data.phase_elapsed or 0) + 1
 	local st = data.action_state
 	-- P1 重落子: motion owned by floraine_v2.royal_drop (still apply pose each frame).
+	-- Gold afterimages still sample XY translation / age / hit during this path.
 	if st == "ROYAL_DROP" or data.royal_drop then
 		visual.apply_pose(ent, data)
+		afterimage.record(ent, data)
+		afterimage.tick(data)
+		if afterimage.tick_damage then
+			afterimage.tick_damage(ent, data)
+		end
 		return
 	end
 	if st == "WINDUP" then
-		local t = motion.lerp_frames(data.phase_elapsed, profile.windup_frames)
+		local windup = timing.windup_frames or profile.windup_frames
+		local t = motion.lerp_frames(data.phase_elapsed, windup)
 		local _, height, tilt = motion.sample(profile, data.start_position, data.landing_position or ent.Position, t, "WINDUP")
 		data.visual_height = height
 		data.visual_tilt = tilt
 		visual.flash_tint(ent, 0.25 * t)
-		if data.phase_elapsed >= profile.windup_frames then
+		if data.phase_elapsed >= windup then
 			data.action_state = data.move_is_attack and "ATTACKING" or "MOVING"
 			data.phase_elapsed = 0
 			combat.set_active(data, data.move_is_attack and data.attack_enabled == true)
 			visual.clear_tint(ent)
 		end
 	elseif st == "MOVING" or st == "ATTACKING" then
-		local travel = data.travel_frames_override or profile.travel_frames
+		local travel = data.travel_frames_override or timing.travel_frames or profile.travel_frames
 		local t = motion.lerp_frames(data.phase_elapsed, travel)
 		local pos, height, tilt = motion.sample(profile, data.start_position, data.landing_position or ent.Position, t, st)
 		ent.Position = pos
@@ -767,7 +790,7 @@ local function tick_action(ent, data)
 			data.phase_elapsed = 0
 		end
 	elseif st == "LANDING" then
-		local land_frames = math.max(1, profile.land_frames or 5)
+		local land_frames = math.max(1, timing.land_frames or profile.land_frames or 5)
 		local t = motion.lerp_frames(data.phase_elapsed, land_frames)
 		local _, height, tilt = motion.sample(profile, data.start_position, data.landing_position or ent.Position, t, "LANDING")
 		data.visual_height = height
@@ -784,7 +807,8 @@ local function tick_action(ent, data)
 	elseif st == "RECOVERY" then
 		data.visual_height = 0
 		data.visual_tilt = (data.visual_tilt or 0) * 0.7
-		if data.phase_elapsed >= profile.recover_frames then
+		local recover = timing.recover_frames or profile.recover_frames
+		if data.phase_elapsed >= recover then
 			data.action_state = "IDLE"
 			data.phase_elapsed = 0
 			data.visual_tilt = 0
@@ -799,6 +823,9 @@ local function tick_action(ent, data)
 	visual.apply_pose(ent, data)
 	afterimage.record(ent, data)
 	afterimage.tick(data)
+	if afterimage.tick_damage then
+		afterimage.tick_damage(ent, data)
+	end
 end
 
 local function autonomous_decide(ent, data)
@@ -842,6 +869,28 @@ function controller.render_afterimages(ent)
 	end
 end
 
+--- True combat death only (not Remove / phase clear / leave). Plays rock crumble once.
+function controller.on_combat_death(ent)
+	if not ent or not ent:Exists() then
+		return
+	end
+	if ent.Variant ~= enums.Enemies.chess_piece then
+		return
+	end
+	local data = data_of(ent)
+	if not data then
+		return
+	end
+	if data._death_sfx_played then
+		return
+	end
+	data._death_sfx_played = true
+	local ok_st, sound_tracker = pcall(require, "Qing_Remaster_scripts.auxiliary.sound_tracker")
+	if ok_st and sound_tracker and sound_tracker.PlayStackedSound then
+		sound_tracker.PlayStackedSound(SoundEffect.SOUND_ROCK_CRUMBLE, 0.95, 1.0, false, 0, 2)
+	end
+end
+
 function controller.on_remove(ent)
 	local data = data_of(ent)
 	if data then
@@ -860,6 +909,7 @@ function controller.on_remove(ent)
 		end
 	end
 end
+
 
 --- True when piece can take a new Director order (must not interrupt mid-move).
 function controller.can_accept_order(ent)

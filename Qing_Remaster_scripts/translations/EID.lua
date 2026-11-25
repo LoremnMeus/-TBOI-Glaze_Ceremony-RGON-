@@ -163,6 +163,15 @@ for u,v in pairs(enums.Players) do
 	end)
 end
 
+-- One-time actives: collect SingleUse=true from translate.lua source entries.
+-- Runtime collectible id (info.id), never items.xml xmlId.
+EID.SingleUseCollectibles = EID.SingleUseCollectibles or {}
+for _, info in pairs(translations.Collectibles or {}) do
+	if type(info) == "table" and info.SingleUse == true and type(info.id) == "number" and info.id > 0 then
+		EID.SingleUseCollectibles[info.id] = true
+	end
+end
+
 end
 
 return item

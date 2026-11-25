@@ -11,6 +11,7 @@ local patterns = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.temp
 local royal_drop = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.royal_drop")
 local p2_columns = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
 local p2_promotion = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_promotion")
+local p2_chess_drop = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_chess_drop")
 
 local scheduler = {}
 
@@ -21,12 +22,22 @@ local S = {
 	next_temp_frame = 60,
 	next_boss_frame = 90,
 	next_royal_frame = 90,
+	next_chess_drop_frame = 150,
 	force_pattern = nil,
 	last_temp = nil,
 	last_fail = nil,
 	p3_cycle = 0,
 	command_dir = nil,
 }
+
+local function chess_drop_interval()
+	local c = defs.P2_CHESS_DROP or {}
+	local min_v = c.INTERVAL_MIN or 240
+	local span = c.INTERVAL_SPAN or 60
+	local r = RNG()
+	r:SetSeed(Game():GetRoom():GetSpawnSeed() + (S.elapsed or 0) * 17 + 3, 35)
+	return min_v + r:RandomInt(math.max(1, span))
+end
 
 local function royal_interval()
 	local min_v = defs.P1_ROYAL_INTERVAL_MIN or 150
@@ -43,11 +54,16 @@ function scheduler.reset(phase)
 	S.next_temp_frame = (S.phase >= 3) and 45 or 999999
 	S.next_boss_frame = defs.P3_ATTACK_COOLDOWN
 	S.next_royal_frame = defs.P1_ROYAL_FIRST_DELAY or 90
+	local cd = defs.P2_CHESS_DROP or {}
+	local first_min = cd.FIRST_DELAY_MIN or cd.FIRST_DELAY or 75
+	local first_span = cd.FIRST_DELAY_SPAN or 31
+	S.next_chess_drop_frame = first_min + Game():GetPlayer(0):GetCollectibleRNG(CollectibleType.COLLECTIBLE_DADS_KEY):RandomInt(math.max(1, first_span))
 	S.force_pattern = nil
 	S.last_temp = nil
 	S.last_fail = nil
 	S.p3_cycle = 0
 	royal_drop.clear("sched_reset")
+	p2_chess_drop.clear("sched_reset")
 	if S.phase == 2 then
 		S.mode = defs.SCHED.P2_COLUMNS
 	end
@@ -175,7 +191,7 @@ function scheduler.tick(ent, data, session_frame, phase)
 		return false
 	end
 
-	-- P2: dual columns + promotion chase (before any ensure_guards / formation).
+	-- P2: dual columns + promotion chase + periodic「棋落」.
 	if S.phase == 2 then
 		S.mode = defs.SCHED.P2_COLUMNS
 		if not p2_columns.is_active() then
@@ -184,6 +200,27 @@ function scheduler.tick(ent, data, session_frame, phase)
 		end
 		p2_columns.tick()
 		p2_promotion.tick(ent)
+
+		-- Chess-drop runs in parallel with columns (warn may wait for march clear).
+		if p2_chess_drop.is_busy() then
+			S.mode = defs.SCHED.P2_CHESS_DROP
+			local finished = p2_chess_drop.tick(ent)
+			if finished then
+				S.mode = defs.SCHED.P2_COLUMNS
+				S.next_chess_drop_frame = session_frame + chess_drop_interval()
+			end
+		elseif session_frame >= (S.next_chess_drop_frame or 0)
+			and not royal_drop.is_busy() then
+			local ok = p2_chess_drop.try_begin(ent)
+			if ok then
+				S.mode = defs.SCHED.P2_CHESS_DROP
+				p2_chess_drop.tick(ent)
+			else
+				S.next_chess_drop_frame = session_frame + 45
+				S.last_fail = p2_chess_drop.diag().last_fail
+			end
+		end
+
 		if ent then
 			visual.tick_chain(ent)
 		end
@@ -264,9 +301,21 @@ function scheduler.tick(ent, data, session_frame, phase)
 	return false
 end
 
+--- Stop issuing new combat work for an in-fight phase transition.
+--- Does NOT clear P2 columns / promotion / chess-drop entities (evac handoff needs them).
+function scheduler.suspend_for_transition()
+	S.mode = defs.SCHED.FORMATION
+	S.force_pattern = nil
+	-- Push chess-drop far away so a stale timer cannot fire if tick races.
+	S.next_chess_drop_frame = (S.elapsed or 0) + 999999
+	director.stop_orders()
+end
+
+--- Boss defeat / leave arena: hard-clear combat entities and resume formation bookkeeping.
 function scheduler.on_defeat_or_leave()
 	temp_piece.clear_all("defeat_or_leave")
 	royal_drop.clear("defeat_or_leave")
+	p2_chess_drop.clear("defeat_or_leave")
 	p2_promotion.clear("defeat_or_leave")
 	p2_columns.clear("defeat_or_leave")
 	S.mode = defs.SCHED.FORMATION
@@ -283,12 +332,14 @@ function scheduler.get_diag()
 		next_temp_frame = S.next_temp_frame,
 		next_boss_frame = S.next_boss_frame,
 		next_royal_frame = S.next_royal_frame,
+		next_chess_drop_frame = S.next_chess_drop_frame,
 		last_temp = S.last_temp,
 		last_fail = S.last_fail,
 		temp = t,
 		royal_drop = royal_drop.diag(),
 		p2_columns = p2_columns.diag(),
 		p2_promotion = p2_promotion.diag(),
+		p2_chess_drop = p2_chess_drop.diag(),
 	}
 end
 

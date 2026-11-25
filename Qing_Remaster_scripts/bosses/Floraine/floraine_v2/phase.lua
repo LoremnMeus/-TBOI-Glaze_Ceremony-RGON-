@@ -53,7 +53,14 @@ function phase.next_target(current, ent)
 end
 
 function phase.guard_cap(p)
-	return defs.GUARD_CAP[tonumber(p) or 1] or 3
+	p = tonumber(p) or 1
+	if p == defs.PHASE.P1 then
+		local ok, souls = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.command_souls")
+		if ok and souls and souls.get_p1_guard_cap then
+			return souls.get_p1_guard_cap()
+		end
+	end
+	return defs.GUARD_CAP[p] or 3
 end
 
 return phase

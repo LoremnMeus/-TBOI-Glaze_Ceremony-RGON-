@@ -192,6 +192,11 @@ function item.commit_selection(picked, player, opts)
 	if not pickup then
 		return nil, {}
 	end
+	-- Beds are not Options winners: collision ≠ successful sleep / pickup.
+	-- Letting beds commit_selection would mark sibling pedestals Remove on touch.
+	if pickup.Variant == PickupVariant.PICKUP_BED then
+		return nil, {}
+	end
 	if (pickup.OptionsPickupIndex or 0) == 0 then
 		return nil, {}
 	end

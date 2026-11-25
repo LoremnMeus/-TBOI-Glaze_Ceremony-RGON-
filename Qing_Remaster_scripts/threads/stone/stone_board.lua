@@ -16,6 +16,10 @@ local board = {}
 
 local CELL = 40
 local FILL_ANM2 = "gfx/effects/chess/fill_tile.anm2"
+-- Optional per-cell overlay after base tile (e.g. Floraine royal-drop telegraph).
+-- Provider: function(index) → nil | { fill={r,g,b}, fill_alpha=, border={r,g,b}, border_alpha=, border_thickness= }
+local cell_overlay_provider = nil
+
 local OVERLAY_DATA = "QingStoneBoardOverlay"
 -- fill_tile.png / ANM2 = 48×48 full alpha (verified). Sprite:Render ≠ world px 1:1.
 -- In-game seam check locked production to 2/3 of 40/48 (≈0.5556).
@@ -147,6 +151,21 @@ end
 function board.get_tile_scale()
 	return resolve_tile_scale()
 end
+
+--- Register a lightweight per-index overlay drawn immediately after the base chess tile.
+--- stone_board never owns overlay lifecycle; provider returns nil when idle.
+function board.set_cell_overlay_provider(fn)
+	if fn == nil or type(fn) == "function" then
+		cell_overlay_provider = fn
+		return true
+	end
+	return false
+end
+
+function board.clear_cell_overlay_provider()
+	cell_overlay_provider = nil
+end
+
 
 function board.set_tile_scale(scale)
 	local s = tonumber(scale)
@@ -1064,6 +1083,54 @@ local function cell_color(index, owner)
 	return cell_color_from_ctx(index, owner, ctx)
 end
 
+--- Dynamic overlay on the same fill_tile footprint (fill Sprite + hard border).
+local function render_cell_overlay(index, world, screen, ctx, base_alpha)
+	if not cell_overlay_provider then
+		return
+	end
+	local ok, overlay = pcall(cell_overlay_provider, index)
+	if not ok or type(overlay) ~= "table" then
+		return
+	end
+	local fill_a = tonumber(overlay.fill_alpha) or 0
+	local border_a = tonumber(overlay.border_alpha) or 0
+	fill_a = fill_a * (base_alpha or 1)
+	border_a = border_a * (base_alpha or 1)
+	if fill_a <= 0.01 and border_a <= 0.01 then
+		return
+	end
+	local P = render_probe
+	local skip_sprite = P and P.no_sprite_draw == true
+	local fill = overlay.fill or { 1, 0.22, 0.28 }
+	if not skip_sprite and fill_a > 0.01 then
+		local spr = ctx.sprite or ensure_tile_sprite()
+		spr.Color = Color(
+			fill[1] or 1,
+			fill[2] or 0.22,
+			fill[3] or 0.28,
+			fill_a,
+			0, 0, 0
+		)
+		spr:Render(screen, Vector.Zero, Vector.Zero)
+		board_perf.inc("sprite_renders", 1)
+	end
+	-- Hard border sized to the same Sprite footprint (ANM2 48×pivot, production Scale).
+	if Isaac.DrawLine and border_a > 0.01 then
+		local border = overlay.border or { 1, 0.48, 0.50 }
+		local half = ANM2_PX * resolve_tile_scale() * 0.5
+		local tl = screen + Vector(-half, -half)
+		local tr = screen + Vector(half, -half)
+		local br = screen + Vector(half, half)
+		local bl = screen + Vector(-half, half)
+		local col = KColor(border[1] or 1, border[2] or 0.48, border[3] or 0.5, border_a)
+		local thick = math.max(1, math.floor(tonumber(overlay.border_thickness) or 2))
+		Isaac.DrawLine(tl, tr, col, col, thick)
+		Isaac.DrawLine(tr, br, col, col, thick)
+		Isaac.DrawLine(br, bl, col, col, thick)
+		Isaac.DrawLine(bl, tl, col, col, thick)
+	end
+end
+
 local function render_cell_fast(index, owner, ctx, source)
 	source = source or ctx.source or "cell"
 	-- Prefer the shared visible set from begin_render_ctx (same for EMPTY/GRID/PIT).
@@ -1107,6 +1174,8 @@ local function render_cell_fast(index, owner, ctx, source)
 		done_spr()
 		board_perf.inc("sprite_renders", 1)
 	end
+	-- Same cell, same timing: optional dynamic cover (royal-drop dest mark, etc.).
+	render_cell_overlay(index, world, screen, ctx, alpha)
 	render_perf.render_calls = (render_perf.render_calls or 0) + 1
 	board_perf.mark_draw(index, source)
 	if P and P.on_cell_draw then
@@ -1119,6 +1188,7 @@ local function render_cell_fast(index, owner, ctx, source)
 	end
 	return true
 end
+
 
 --- Draw a single room-grid cell. Clip via Grid-aligned 40px center (no spill intent).
 function board.render_cell(index, source)

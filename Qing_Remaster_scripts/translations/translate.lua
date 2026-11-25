@@ -229,12 +229,12 @@ item.Collectibles = {
         Name = "回忆",
         id = Items.Memory,
         type = "active",
+        SingleUse = true,
         xmlId = 11,
         zh = {
             Name = "回忆",
             Desc = "我好像掉进了一个怪圈...",
-            Description = "!!! 一次性"..
-            "#本局后续道具只会从角色已拥有的道具中生成"..
+            Description = "本局后续道具只会从角色已拥有的道具中生成"..
             "#重复持有会提高再次出现的概率",
             AbyssSynic = "彩色蝗虫",
             BookOfBelial = "50%概率改为从恶魔房道具池生成",
@@ -245,8 +245,7 @@ item.Collectibles = {
         en = {
             Name = "Memory",
             Desc = "I fall into a loop...",
-            Description = "!!! SINGLE USE"..
-            "#For this run, new collectibles only come from items you already hold"..
+            Description = "For this run, new collectibles only come from items you already hold"..
             "#More copies of an item make it more likely to appear again",
             AbyssSynic = "Colorful locust",
             BookOfBelial = "50% chance to spawn from the Devil Room pool instead",
@@ -805,12 +804,12 @@ item.Collectibles = {
         Name = "D-V-F",
         id = Items.DVF,
         type = "active",
+        SingleUse = true,
         xmlId = 50,
         zh = {
             Name = "D-V-F",
             Desc = "不惜一切代价",
-            Description = "!!! 一次性"..
-            "#使用后举起，按射击键掷出二向箔"..
+            Description = "使用后举起，按射击键掷出二向箔"..
             "#{{Timer}} 箔片悬停后倒计时7秒，结束后抹除范围内相交的所有房间"..
             "# 仅留下一个连接残存边界的额外房间"..
             "#{{BossRoom}} 抹除最终Boss房时，在额外房间生成下层入口",
@@ -818,8 +817,7 @@ item.Collectibles = {
         en = {
             Name = "D-V-F",
             Desc = "At any cost",
-            Description = "!!! One-time use"..
-            "#Raise it, then press a fire key to throw a Dual Vector Foil"..
+            Description = "Raise it, then press a fire key to throw a Dual Vector Foil"..
             "#{{Timer}} After it lands, a 7-second countdown starts; when it ends, erase every room intersecting its range"..
             "# Leaves only an extra room linking the surviving boundaries"..
             "#{{BossRoom}} Erasing the final boss room spawns a next-floor entrance in the extra room",
@@ -2136,20 +2134,19 @@ item.Collectibles = {
         Name = "天象破幻",
         id = Items.Illumination,
         type = "active",
+        SingleUse = true,
         xmlId = 108,
         zh = {
             Name = "天象破幻",
             Desc = "I",
-            Description = "!!! 一次性"..
-            "#使用后举起道具，按攻击方向确认"..
+            Description = "使用后举起道具，按攻击方向确认"..
             "#{{Collectible580}} 沿所选方向连续开启红房间，直到无法继续"..
             "#举起后再次使用可取消选择",
         },
         en = {
             Name = "Illumination",
             Desc = "I",
-            Description = "!!! SINGLE USE"..
-            "#Lift it overhead, then press a fire direction to confirm"..
+            Description = "Lift it overhead, then press a fire direction to confirm"..
             "#{{Collectible580}} Opens Red Rooms along that direction until blocked"..
             "#Press active again while raised to cancel",
         },
@@ -3627,12 +3624,12 @@ item.Collectibles = {
         Name = "放逐证明",
         id = Items.Exoneration_Certificate,
         type = "active",
+        SingleUse = true,
         xmlId = 179,
         zh = {
             Name = "放逐证明",
             Desc = "世界的边缘",
-            Description = "!!! 一次性"..
-            "#使用后，选择放逐一件道具，或前往放逐边境"..
+            Description = "使用后，选择放逐一件道具，或前往放逐边境"..
             "#被放逐的道具将永久退出道具池，最多32件"..
             "#在放逐边境中，可以取回一件被放逐的道具并撤销其放逐",
             BookOfVirtues = "放逐可召唤道具时，生成其对应的道具魂火",
@@ -3642,8 +3639,7 @@ item.Collectibles = {
         en = {
             Name = "Exoneration Certificate",
             Desc = "The edge of the world.",
-            Description = "!!! SINGLE USE"..
-            "#Use it to banish an item, or enter the Border of Exile"..
+            Description = "Use it to banish an item, or enter the Border of Exile"..
             "#Banished items permanently leave the item pools, up to 32"..
             "#In the Border of Exile, take one back and lift its banishment",
             BookOfVirtues = "Banish a summonable item to gain its item wisp",
@@ -3857,6 +3853,29 @@ item.Collectibles = {
             Desc = "Within Reach",
             Description = "Seeks enemies and periodically emits moonlight that charms, confuses, or fears them"..
             "#Nearby enemies prefer attacking the moon",
+        },
+    },
+    [179] = {
+        Name = "黄金罗盘",
+        id = Items.Golden_Compass,
+        type = "active",
+        SingleUse = true,
+        xmlId = 190,
+        zh = {
+            Name = "黄金罗盘",
+            Desc = "愿你前路光明",
+            Description = "使用后，将下一层的地图替换为一条特殊的直道",
+            BookOfVirtues = "火堆房间的奖励改为天使房道具，并生成天使雕像",
+            BookOfBelial = "火堆房间的奖励改为恶魔房道具，并生成恶魔雕像",
+            SeijaNerf = "直道楼层获得黑暗、迷失、未知、迷宫与盲目诅咒",
+        },
+        en = {
+            Name = "Golden Compass",
+            Desc = "May your path be bright",
+            Description = "On use, replaces the next floor's map with a special straight corridor",
+            BookOfVirtues = "Fireplace room reward becomes an Angel Room item with an angel statue",
+            BookOfBelial = "Fireplace room reward becomes a Devil Room item with a devil statue",
+            SeijaNerf = "The corridor floor gains Darkness, Lost, Unknown, Maze, and Blind",
         },
     },
 }

@@ -152,4 +152,7 @@
 		<sample weight="1" path="zennith/thunder_02.wav" />
 		<sample weight="1" path="zennith/thunder_03.wav" />
 	</sound>
+	<sound name="Floraine Royal Drop">
+		<sample weight="1" path="Floraine/royal_drop.wav" />
+	</sound>
 </sounds>

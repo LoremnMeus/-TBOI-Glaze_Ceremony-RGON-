@@ -2,6 +2,7 @@
 -- Owned by controller; not a global phase infrastructure.
 
 local defs = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.defs")
+local arena = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.arena")
 local visual = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.visual")
 local director = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.director")
 local reserve_controller = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.reserve_controller")
@@ -22,6 +23,32 @@ local evac = {
 	items = {}, -- { kind="npc"|"matte"|"proxy", ent=, start=, tilt=, elapsed= }
 	session_id = 0,
 }
+
+local function append_evac(dst, src)
+	if type(src) ~= "table" then
+		return
+	end
+	for i = 1, #src do
+		dst[#dst + 1] = src[i]
+	end
+end
+
+local function dedupe_evac_items(items)
+	local out = {}
+	local seen = {}
+	for i = 1, #items do
+		local it = items[i]
+		local ent = it and it.ent
+		if ent and ent.Exists and ent:Exists() then
+			local h = GetPtrHash(ent)
+			if not seen[h] then
+				seen[h] = true
+				out[#out + 1] = it
+			end
+		end
+	end
+	return out
+end
 
 local function piece_controller()
 	local ok, mod = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.chess_piece_controller")
@@ -116,8 +143,7 @@ local function tick_evac()
 	if not evac.active then
 		return true
 	end
-	local room = Game():GetRoom()
-	local bottom = room:GetBottomRightPos().Y + 80
+	local half = 24
 	local keep = {}
 	for i = 1, #evac.items do
 		local it = evac.items[i]
@@ -127,25 +153,35 @@ local function tick_evac()
 		else
 			it.elapsed = (it.elapsed or 0) + 1
 			local e = it.elapsed
+			-- Stagger each piece slightly so the scatter is not a single sheet.
+			local delay = it.delay or ((i - 1) % 5)
 			local height = it.height0 or 0
-			local tilt = 0
-			local alpha = 1
+			local tilt = it.tilt or 0
 			local pos = Vector(it.start.X, it.start.Y)
 			if e <= 8 then
-				-- flash
 				if ent.SetColor then
 					ent:SetColor(Color(1, 0.4, 0.4, 1, 0.3, 0.05, 0.05), 2, 1, true, false)
 				end
-			elseif e <= 22 then
-				local t = (e - 8) / 14
+				height = it.height0 or 0
+			elseif e <= (8 + delay) then
+				-- hold height while neighbors start lifting
+				height = it.height0 or 0
+			elseif e <= 24 + delay then
+				local t = (e - 8 - delay) / math.max(1, 16)
 				height = (it.height0 or 0) + 24 * t
-				tilt = -8 * t
+				tilt = (it.tilt or 0) - 8 * t
 			else
-				local t = math.min(1, (e - 22) / 32)
-				height = (it.height0 or 0) + 24 - 10 * t
-				tilt = -8 - 12 * t
-				pos = Vector(it.start.X, it.start.Y + (bottom - it.start.Y) * (t * t))
-				alpha = 1 - t
+				local fly = e - 24 - delay
+				local dest = it.fly_dest
+				if not dest then
+					dest = arena.world_offscreen_below(it.start.X, half, 16)
+					it.fly_dest = dest
+				end
+				local t = math.min(1, fly / 36)
+				local ease = t * t
+				height = (it.height0 or 0) + 24 - 8 * t
+				tilt = (it.tilt or 0) - 8 - 14 * t
+				pos = Vector(it.start.X, it.start.Y + (dest.Y - it.start.Y) * ease)
 			end
 			ent.Position = pos
 			ent.PositionOffset = Vector(0, -height)
@@ -153,9 +189,15 @@ local function tick_evac()
 			local spr = ent.GetSprite and ent:GetSprite()
 			if spr then
 				spr.Rotation = tilt
-				spr.Color = Color(1, 1, 1, math.max(0, alpha), 0, 0, 0)
+				-- Keep full alpha until the sprite clears the camera (no premature fade).
+				spr.Color = Color(1, 1, 1, 1, 0, 0, 0)
 			end
-			if e > 65 or pos.Y > bottom then
+			-- Normal exit: full sprite below camera. e>=300 is failsafe only.
+			local done = arena.is_sprite_fully_below_screen(pos, height, half, 48)
+			if (not done) and e >= 300 then
+				done = true
+			end
+			if done then
 				if it.kind == "npc" then
 					ent:Remove()
 				else
@@ -180,8 +222,10 @@ function pt.begin(session, boss_ent, to_phase, reason)
 	session.frame = 0
 	session.pending_phase = to_phase or defs.PHASE.P2
 	session.transition_reason = reason or "hp_threshold"
+	session.transition_kind = "p1_to_p2"
 	session.transition_stage = defs.TRANSITION_STAGE.LOCK
 	session.transition_id = (session.transition_id or 0) + 1
+	session.p2_systems_cleared = false
 
 	director.stop_orders()
 	royal_drop.clear("phase_transition")
@@ -210,8 +254,7 @@ function pt.begin(session, boss_ent, to_phase, reason)
 		if data then
 			data.invulnerable = true
 		end
-		visual.stagger(boss_ent)
-		visual.flash(boss_ent, 0.55, 0.05, 0.05, 18)
+		-- No SetColor phase filter here — P2 identity is columns/staff, not a white tint.
 		Isaac.Spawn(EntityType.ENTITY_EFFECT, EffectVariant.BLOOD_EXPLOSION, 0,
 			boss_ent.Position + Vector(0, -20), Vector.Zero, boss_ent)
 		-- Body recoil via PositionOffset (staff will detach separately).
@@ -222,24 +265,126 @@ function pt.begin(session, boss_ent, to_phase, reason)
 	return true
 end
 
+--- P2→P3: take ownership of visible P2 pieces, evacuate, then allow clear_p2_systems.
+function pt.begin_p2_to_p3(session, boss_ent, reason)
+	session = session or {}
+	session.state = defs.STATE.PHASE_TRANSITION
+	session.frame = 0
+	session.pending_phase = defs.PHASE.P3
+	session.transition_reason = reason or "hp_threshold"
+	session.transition_kind = "p2_to_p3"
+	session.transition_stage = defs.TRANSITION_STAGE.LOCK
+	session.transition_id = (session.transition_id or 0) + 1
+	session.p2_summon_started = false
+	session.p2_systems_cleared = false
+
+	director.stop_orders()
+	royal_drop.clear("phase_transition")
+	temp_piece.clear_all("phase_transition")
+	command_souls.stop_phase()
+
+	local items = {}
+	local claimed = {}
+	local n_drop, n_promo, n_cols = 0, 0, 0
+
+	local ok_cd, chess_drop = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_chess_drop")
+	if ok_cd and chess_drop and chess_drop.take_evac_entities then
+		local drop_items = chess_drop.take_evac_entities() or {}
+		n_drop = #drop_items
+		append_evac(items, drop_items)
+	end
+
+	local ok_p, promo = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_promotion")
+	if ok_p and promo and promo.take_evac_entities then
+		local promo_items, claimed_slots = promo.take_evac_entities()
+		promo_items = promo_items or {}
+		n_promo = #promo_items
+		append_evac(items, promo_items)
+		claimed = claimed_slots or {}
+	end
+
+	local ok_c, cols = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
+	if ok_c and cols and cols.take_evac_entities then
+		local col_items = cols.take_evac_entities(claimed) or {}
+		n_cols = #col_items
+		append_evac(items, col_items)
+	end
+
+	evac.session_id = session.transition_id
+	evac.items = dedupe_evac_items(items)
+	evac.active = #evac.items > 0
+	session.p2_evac_handoff = {
+		drop = n_drop,
+		promo = n_promo,
+		columns = n_cols,
+		total = #evac.items,
+	}
+	Isaac.DebugString(string.format(
+		"[Floraine P2→P3] handoff: drop=%d, promo=%d, columns=%d, total=%d",
+		n_drop, n_promo, n_cols, #evac.items
+	))
+
+	if boss_ent then
+		local data = boss_ent:GetData()[defs.DATA_KEY]
+		if data then
+			data.invulnerable = true
+		end
+		Isaac.Spawn(EntityType.ENTITY_EFFECT, EffectVariant.BLOOD_EXPLOSION, 0,
+			boss_ent.Position + Vector(0, -20), Vector.Zero, boss_ent)
+		boss_ent.PositionOffset = Vector(-8, -3)
+		if visual.command then
+			visual.command(boss_ent)
+		end
+		if visual.phase_tint then
+			visual.phase_tint(boss_ent, defs.PHASE.P3)
+		end
+	end
+	return true
+end
+
 local function stage_for_frame(f)
 	local tl = defs.TRANSITION_TIMELINE or {}
-	if f < (tl.LOCK_END or 4) then
+	local fall0 = tl.STAFF_FALL_START or 0
+	-- Staff windows overlap piece clear; column summon begins at STAFF_FLOAT_END.
+	if f < (tl.LOCK_END or 6) and f < fall0 then
 		return defs.TRANSITION_STAGE.LOCK
-	elseif f < (tl.STAGGER_END or 12) then
+	elseif f < (tl.STAGGER_END or 6) and f < fall0 then
 		return defs.TRANSITION_STAGE.STAGGER
-	elseif f < (tl.CLEAR_END or 70) then
+	elseif f < fall0 then
 		return defs.TRANSITION_STAGE.CLEAR_PIECES
-	elseif f < (tl.STAFF_FALL_END or 88) then
+	elseif f < (tl.STAFF_FALL_END or 30) then
+		-- Fall overlaps early lock/stagger when FALL_START=0.
+		if f < (tl.LOCK_END or 6) then
+			return defs.TRANSITION_STAGE.LOCK
+		end
 		return defs.TRANSITION_STAGE.STAFF_FALL
-	elseif f < (tl.STAFF_GROUND_END or 110) then
+	elseif f < (tl.STAFF_GROUND_END or 66) then
 		return defs.TRANSITION_STAGE.STAFF_GROUND
-	elseif f < (tl.STAFF_RECALL_END or 148) then
-		return defs.TRANSITION_STAGE.STAFF_RECALL
-	elseif f < (tl.P2_SUMMON_END or 205) then
+	elseif f < (tl.STAFF_FLOAT_END or 96) then
+		return defs.TRANSITION_STAGE.STAFF_RECALL -- float / glow rise
+	elseif f < (tl.STAFF_HOVER_END or 108) then
+		return defs.TRANSITION_STAGE.STAFF_RECALL -- hover pause
+	elseif f < (tl.STAFF_RECALL_END or 132) then
+		return defs.TRANSITION_STAGE.STAFF_RECALL -- fly back
+	elseif f < (tl.P2_SUMMON_END or 180) then
 		return defs.TRANSITION_STAGE.P2_SUMMON
 	end
 	return defs.TRANSITION_STAGE.FINISH
+end
+
+local function force_clear_evac()
+	for i = 1, #evac.items do
+		local it = evac.items[i]
+		if it.ent and it.ent.Exists and it.ent:Exists() then
+			if it.kind == "npc" then
+				it.ent:Remove()
+			else
+				piece_matte.remove(it.ent)
+			end
+		end
+	end
+	evac.items = {}
+	evac.active = false
 end
 
 --- Returns true when transition finished and combat may resume at pending_phase.
@@ -248,10 +393,52 @@ function pt.tick(session, boss_ent)
 		return false
 	end
 	local f = session.frame or 0
+
+	-- P2→P3: evacuate only (no staff show). Clear system tables after visuals leave.
+	if session.transition_kind == "p2_to_p3" then
+		session.transition_stage = defs.TRANSITION_STAGE.CLEAR_PIECES
+		local evac_done = tick_evac()
+		visual.tick_chain(boss_ent)
+		if boss_ent and f < 20 then
+			local t = f / 20
+			boss_ent.PositionOffset = Vector(-8 * (1 - t), -3 * (1 - t))
+		elseif boss_ent then
+			boss_ent.PositionOffset = Vector.Zero
+		end
+		local tl3 = defs.P2_TO_P3_TIMELINE or {}
+		local min_finish = tl3.MIN_FINISH or 28
+		if evac_done and f >= min_finish then
+			if not session.p2_systems_cleared then
+				session.p2_systems_cleared = true
+				Isaac.DebugString(string.format(
+					"[Floraine P2→P3] evac_done: frames=%d, remaining=0, handoff_total=%s",
+					f,
+					tostring(session.p2_evac_handoff and session.p2_evac_handoff.total)
+				))
+				local ok_cd, chess_drop = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_chess_drop")
+				if ok_cd and chess_drop and chess_drop.clear then
+					chess_drop.clear("to_p3")
+				end
+				local ok_p, promo = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_promotion")
+				if ok_p and promo and promo.clear then
+					promo.clear("to_p3")
+				end
+				local ok_c, cols = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
+				if ok_c and cols and cols.clear then
+					cols.clear("to_p3")
+				end
+			end
+			force_clear_evac()
+			return true
+		end
+		return false
+	end
+
 	session.transition_stage = stage_for_frame(f)
 
 	tick_evac()
-	staff_transition.tick(boss_ent)
+	-- Staff pose follows absolute transition frame (TRANSITION_TIMELINE sole clock).
+	staff_transition.tick(boss_ent, f)
 	visual.tick_chain(boss_ent)
 
 	-- Ease boss recoil back during stagger.
@@ -263,11 +450,12 @@ function pt.tick(session, boss_ent)
 	end
 
 	local tl = defs.TRANSITION_TIMELINE or {}
-	-- Begin P2 column summon once.
-	if session.transition_stage == defs.TRANSITION_STAGE.P2_SUMMON
-		and not session.p2_summon_started
-		and session.pending_phase == defs.PHASE.P2 then
+	-- Begin P2 column summon during staff float/hover (overlaps recall fly-back).
+	if not session.p2_summon_started
+		and session.pending_phase == defs.PHASE.P2
+		and f >= (tl.STAFF_FLOAT_END or 96) then
 		session.p2_summon_started = true
+		session.transition_stage = defs.TRANSITION_STAGE.P2_SUMMON
 		local ok, cols = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
 		if ok and cols and cols.begin then
 			local ok2, why = cols.begin()
@@ -294,25 +482,17 @@ function pt.tick(session, boss_ent)
 		end
 	end
 
-	if f >= (tl.FINISH_END or 240) then
+	if f >= (tl.FINISH_END or 200) then
 		-- Hold finish until side-entrance lands (combat must not start mid-fly-in).
 		local ok_c, cols = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
 		if ok_c and cols and cols.is_entrance_busy and cols.is_entrance_busy() then
 			return false
 		end
-		-- Ensure evac leftover cleaned.
-		for i = 1, #evac.items do
-			local it = evac.items[i]
-			if it.ent and it.ent.Exists and it.ent:Exists() then
-				if it.kind == "npc" then
-					it.ent:Remove()
-				else
-					piece_matte.remove(it.ent)
-				end
-			end
+		-- Also wait for P1 evacuate leftovers (screen-exit based).
+		if evac.active and not tick_evac() then
+			return false
 		end
-		evac.items = {}
-		evac.active = false
+		force_clear_evac()
 		-- Force staff reattach + boss Idle2 restore if proxy still out.
 		if staff_transition.is_detached() then
 			staff_transition.clear(boss_ent)
@@ -350,7 +530,8 @@ function pt.debug_play_clear_only(session, boss_ent)
 end
 
 function pt.debug_play_staff_only(boss_ent)
-	return staff_transition.begin(boss_ent, (evac.session_id or 0) + 1)
+	-- Standalone clock maps onto the same STAFF_* windows (no full phase transition).
+	return staff_transition.begin(boss_ent, (evac.session_id or 0) + 1, { standalone = true })
 end
 
 function pt.diag()

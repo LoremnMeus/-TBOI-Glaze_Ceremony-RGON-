@@ -54,6 +54,16 @@ local adapter = {
 		{ id = "to_p2", label = "P1 → P2 完整转场" },
 		{ id = "to_p3", label = "P2 → P3 转场" },
 		{ id = "staff_restore", label = "法杖 · 强制回收恢复" },
+		{ id = "opening_camera", label = "开场 · 重播镜头" },
+		{ id = "command_glow", label = "开场 · 红光完整授令预览" },
+		{ id = "command_glow_diag", label = "开场 · 红光诊断打印" },
+		{ id = "royal_drop", label = "重落子 · 强制执行" },
+		{ id = "royal_align", label = "重落子 · 目标对位预览" },
+		{ id = "royal_diag", label = "重落子 · 诊断打印" },
+		{ id = "gold_next", label = "金棋 · 触发下一次" },
+		{ id = "gold_spawn", label = "金棋 · 生成测试对象" },
+		{ id = "gold_kill", label = "金棋 · 击杀与回归" },
+		{ id = "gold_report", label = "金棋 · 状态报告" },
 		{ id = "p2_entrance", label = "P2 · 侧翼入场重播" },
 		{ id = "p2_step", label = "P2 · 完整列队步进" },
 		{ id = "p2_lift", label = "P2 · 跳至 LIFT" },
@@ -76,6 +86,8 @@ function adapter.spawn()
 		test.enter_arena()
 		return false, "goto_arena_issued_reenter_then_spawn"
 	end
+	-- Already in arena: still ensure Stone board so royal-drop cell overlay can paint.
+	test.ensure_stone_board()
 	local ent = controller.find_boss and controller.find_boss()
 	if ent then
 		return true, "boss_already_present"
@@ -184,6 +196,36 @@ function adapter.play_performance(id)
 		return test.transition_to_phase(3)
 	elseif id == "staff_restore" then
 		return test.staff_force_restore()
+	elseif id == "opening_camera" then
+		return test.replay_opening_camera()
+	elseif id == "command_glow" then
+		return test.preview_command_glow()
+	elseif id == "command_glow_diag" then
+		local d = test.command_glow_diag()
+		return true, d
+	elseif id == "royal_drop" then
+		return test.force_royal_drop()
+	elseif id == "royal_align" then
+		return test.royal_align_preview()
+	elseif id == "royal_diag" then
+		local d = test.royal_drop_diag()
+		Isaac.DebugString(string.format(
+			"[FloraineV2] royal_diag phase=%s outline=%s a=%s",
+			tostring(d and d.phase),
+			tostring(d and d.target_outline and d.target_outline.phase),
+			tostring(d and d.target_outline and d.target_outline.alpha)
+		))
+		return true, d
+	elseif id == "gold_next" then
+		return test.gold_trigger_next()
+	elseif id == "gold_spawn" then
+		return test.gold_spawn_test()
+	elseif id == "gold_kill" then
+		return test.gold_kill_reward()
+	elseif id == "gold_report" then
+		local d = test.gold_report()
+		Isaac.DebugString("[FloraineV2] gold_report " .. tostring(d and d.summary))
+		return true, d and d.summary
 	elseif id == "p2_entrance" then
 		if sess.phase ~= defs.PHASE.P2 then
 			local ok, why = test.load_phase(2)

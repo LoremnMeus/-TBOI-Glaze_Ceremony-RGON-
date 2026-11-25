@@ -152,6 +152,9 @@ function fx.spawn(kind, ground_pos, opts)
 	local s = ent:GetSprite()
 	if s then
 		s.Rotation = tonumber(opts.visual_tilt) or 0
+		local sx = tonumber(opts.scale_x) or 1
+		local sy = tonumber(opts.scale_y) or 1
+		s.Scale = Vector(sx, sy)
 	end
 	fx.apply_layers(ent, {
 		color_progress = opts.color_progress or 0,
@@ -178,6 +181,11 @@ function fx.sync(ent, opts)
 	local s = ent:GetSprite()
 	if s then
 		s.Rotation = tonumber(opts.visual_tilt) or 0
+		local sx = tonumber(opts.scale_x)
+		local sy = tonumber(opts.scale_y)
+		if sx ~= nil or sy ~= nil then
+			s.Scale = Vector(sx or 1, sy or 1)
+		end
 	end
 	fx.apply_layers(ent, opts)
 	return true

@@ -17,7 +17,11 @@ local item = {
 		[RoomType.ROOM_DEFAULT] = true,
 		[RoomType.ROOM_BOSS] = true,
 		[RoomType.ROOM_MINIBOSS] = true,
+		-- Ultra Secret / red-key rooms must not enter the movable special-room pool.
+		[RoomType.ROOM_ULTRASECRET] = true,
 	},
+	-- RoomDescriptor.FLAG_RED_ROOM: red-key generated rooms (any Type).
+	FLAG_RED_ROOM = (RoomDescriptor and RoomDescriptor.FLAG_RED_ROOM) or (1 << 10),
 }
 
 function item.random_red_room()
@@ -71,9 +75,16 @@ Function = function(_)
 			if tgroom and tgroom.Data and auxi.GetDimension(tgroom) == dimen then
 				local tret = {val = 1,}
 				if tgroom.Data.Shape == 1 and tgroom.Data.Doors & 15 == 15 then
-					if not item.Ignore_room[tgroom.Data.Type] then tret.Sel = 1
-					elseif tgroom.Data.Type == 1 then Masker = level:GetRoomByIdx(tgroom.SafeGridIndex).Data end
-					if tgroom.Data.Type == 29 then UltraSecret = level:GetRoomByIdx(tgroom.SafeGridIndex) end
+					local is_red_room = (tgroom.Flags & item.FLAG_RED_ROOM) == item.FLAG_RED_ROOM
+					-- Candidate filter: never relocate Ultra Secret or FLAG_RED_ROOM cells.
+					if not item.Ignore_room[tgroom.Data.Type] and not is_red_room then
+						tret.Sel = 1
+					elseif tgroom.Data.Type == 1 then
+						Masker = level:GetRoomByIdx(tgroom.SafeGridIndex).Data
+					end
+					if tgroom.Data.Type == RoomType.ROOM_ULTRASECRET or tgroom.Data.Type == 29 then
+						UltraSecret = level:GetRoomByIdx(tgroom.SafeGridIndex)
+					end
 				end
 				if tgroom.Data.Type == RoomType.ROOM_BOSS then tret.Boss = true end
 				local sgids = auxi.get_all_gridindexs(tgroom)

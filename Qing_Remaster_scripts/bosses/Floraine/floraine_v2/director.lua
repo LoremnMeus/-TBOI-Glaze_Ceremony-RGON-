@@ -71,10 +71,19 @@ end
 --- P1 damage taken multiplier from live combat pieces (+ command vuln floor).
 function director.guard_damage_factor()
 	local n = director.count_guards()
-	if n > 3 then
-		n = 3
-	end
 	local table_ = defs.GUARD_DAMAGE_FACTOR or {}
+	local max_key = 0
+	for k in pairs(table_) do
+		if type(k) == "number" and k > max_key then
+			max_key = k
+		end
+	end
+	if max_key < 1 then
+		max_key = 7
+	end
+	if n > max_key then
+		n = max_key
+	end
 	local factor = table_[n]
 	if factor == nil then
 		factor = 1

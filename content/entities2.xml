@@ -83,7 +83,8 @@
 	<entity anm2path="boss/Floraine/pieces.anm2" name="Chess Piece" id="996" variant="23751" boss="0" baseHP="50"
     collisionDamage="1" collisionRadius="16" numGridCollisionPoints="8" collisionMass="1000" friction="1" shadowSize="24"
     tags="nodelirium" reroll="true" shutdoors="false" portrait="2" >
-		<gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+		<!-- Stone shatter only: rock gibs, no flesh blood. Pair with FLAG_NO_BLOOD_SPLASH. -->
+		<gibs amount="6" blood="0" bone="0" eye="0" gut="0" large="0" rock="1" dust="0" />
         <bestiary transform="0,0,1" anim="Idle" />
     </entity>
 	<!-- Stone route destructible prop: stationary, no contact damage, does not lock doors. -->

@@ -21,6 +21,7 @@ local staff_transition = require("Qing_Remaster_scripts.bosses.Floraine.floraine
 local p2_columns = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
 local p2_promotion = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_promotion")
 local royal_drop = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.royal_drop")
+local opening_camera = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.opening_camera")
 
 local controller = {}
 
@@ -79,22 +80,29 @@ function controller.find_boss()
 	return refresh_boss_wrapper()
 end
 
-function controller.spawn_boss(pos)
-	pos = pos or arena.boss_spawn_pos()
-	for _, ent in ipairs(Isaac.FindByType(996, enums.Enemies.Floraine, -1, false, false)) do
-		if not controller.is_owned(ent) then
-			ent:Remove()
-		end
+local function resolved_home(prefer_pos)
+	if prefer_pos then
+		session.boss_home = Vector(prefer_pos.X, prefer_pos.Y)
+		return session.boss_home
 	end
-	local ent = Isaac.Spawn(996, enums.Enemies.Floraine, 0, pos, Vector.Zero, nil):ToNPC()
-	if not ent then
-		return nil
+	if session.boss_home then
+		return Vector(session.boss_home.X, session.boss_home.Y)
 	end
+	local home = arena.boss_spawn_pos()
+	session.boss_home = Vector(home.X, home.Y)
+	return session.boss_home
+end
+
+local function configure_boss_ent(ent, pos)
 	local data = data_of(ent)
 	data.home = Vector(pos.X, pos.Y)
 	data.v2 = true
+	ent.Position = pos
+	ent.Velocity = Vector.Zero
 	ent.MaxHitPoints = defs.BOSS_MAX_HP
-	ent.HitPoints = defs.BOSS_MAX_HP
+	if (ent.HitPoints or 0) <= 0 or (ent.HitPoints or 0) > ent.MaxHitPoints then
+		ent.HitPoints = defs.BOSS_MAX_HP
+	end
 	ent.EntityCollisionClass = EntityCollisionClass.ENTCOLL_PLAYEROBJECTS
 	ent:AddEntityFlags(EntityFlag.FLAG_NO_STATUS_EFFECTS)
 	ent.State = NpcState.STATE_IDLE
@@ -102,25 +110,88 @@ function controller.spawn_boss(pos)
 	if ent.CollisionDamage ~= nil then
 		ent.CollisionDamage = 0
 	end
+	visual.set_staff_visible(ent, true)
 	visual.idle(ent)
 	session.boss_ptr = GetPtrHash(ent)
 	session.boss = ent
 	return ent
 end
 
+--- Ensure exactly one V2 Floraine in the room. Reuses the session-owned boss when present.
+function controller.spawn_boss(pos)
+	pos = resolved_home(pos)
+	local keep = refresh_boss_wrapper()
+	for _, ent in ipairs(Isaac.FindByType(996, enums.Enemies.Floraine, -1, false, false)) do
+		if keep and GetPtrHash(ent) == GetPtrHash(keep) then
+			-- keep
+		else
+			ent:Remove()
+		end
+	end
+	if keep and keep.Exists and keep:Exists() then
+		return configure_boss_ent(keep, pos)
+	end
+	session.boss_ptr = nil
+	session.boss = nil
+	local ent = Isaac.Spawn(996, enums.Enemies.Floraine, 0, pos, Vector.Zero, nil):ToNPC()
+	if not ent then
+		return nil
+	end
+	ent.HitPoints = defs.BOSS_MAX_HP
+	return configure_boss_ent(ent, pos)
+end
+
 local function init_p1_return_budget(ent)
 	session.commands_returned = 0
 	session.returned_ids = {}
+	session.gold_reward_ids = {}
 	if not ent or not ent.MaxHitPoints then
 		session.command_return_chunk = 0
 		session.p1_hp_start = nil
 		return
 	end
-	local h2 = phase_mod.threshold_hp(ent, defs.PHASE.P2)
 	session.p1_hp_start = ent.HitPoints
-	local d = math.max(0, session.p1_hp_start - h2)
-	local n = defs.P1_COMMAND_COUNT or 3
-	session.command_return_chunk = d / math.max(1, n)
+	-- Secondary return bleed: fixed MaxHP ratio (gold rewards own the main P1 push).
+	local ratio = tonumber(defs.P1_RETURN_DAMAGE_RATIO) or 0.02
+	session.command_return_chunk = ent.MaxHitPoints * ratio
+end
+
+local function p1_floor_hp(ent)
+	return phase_mod.threshold_hp(ent, defs.PHASE.P2)
+end
+
+-- Forward declare: maybe_finish_p1 runs before the full definition below.
+local begin_transition
+
+local function maybe_finish_p1(ent, reason)
+	if not ent or session.phase ~= defs.PHASE.P1 then
+		return false
+	end
+	if session.state == defs.STATE.PHASE_TRANSITION then
+		return false
+	end
+	local h2 = p1_floor_hp(ent)
+	if ent.HitPoints <= h2 + 0.01 then
+		ent.HitPoints = h2
+		begin_transition(defs.PHASE.P2, reason or "p1_floor")
+		return true
+	end
+	-- Soft wrap: no live/pending P1 activity left → don't softlock under guard DR.
+	-- Also wait for in-flight gold reward bursts so P2 cleanup cannot void unpaid damage.
+	local busy = command_souls.get_live_command_count and command_souls.get_live_command_count() or 0
+	local pending = command_souls.get_pending_gold_count and command_souls.get_pending_gold_count() or 0
+	local pending_rewards = command_particles.get_pending_gold_reward_count
+		and command_particles.get_pending_gold_reward_count()
+		or 0
+	local opening = command_souls.opening_status and command_souls.opening_status()
+	if busy <= 0 and pending <= 0 and pending_rewards <= 0 and not (opening and opening.active) then
+		if command_souls.all_commands_returned and command_souls.all_commands_returned() then
+			ent.HitPoints = h2
+			begin_transition(defs.PHASE.P2, reason or "commands_exhausted")
+			return true
+		end
+	end
+	return false
 end
 
 local function begin_combat()
@@ -131,6 +202,7 @@ local function begin_combat()
 	session.transition_reason = nil
 	session.p2_summon_started = false
 	session.opening_retried = false
+	opening_camera.release("combat")
 	deployment.clear_opening_flag()
 	director.resume_orders()
 	director.mark_initial_done(defs.PHASE.P1)
@@ -140,8 +212,8 @@ local function begin_combat()
 		local data = data_of(ent)
 		if data then
 			data.invulnerable = false
-			-- Keep boss at designed top home for P1/P2.
-			local home = arena.boss_spawn_pos()
+			-- Keep boss at session Home (same source as spawn / finish_transition).
+			local home = resolved_home()
 			data.home = Vector(home.X, home.Y)
 			ent.Position = home
 		end
@@ -157,17 +229,18 @@ local function begin_opening_selection()
 	session.opening_retried = false
 	session.opening_first_land_frame = nil
 	session.opening_command_played = false
+	session.opening_camera_release_signaled = false
 	local ent = refresh_boss_wrapper()
 	if ent then
 		local data = data_of(ent)
 		if data then
 			data.invulnerable = true
 		end
-		visual.command(ent)
-		session.opening_command_played = true
-		director.begin_command_vuln(defs.COMMAND_VULN_FRAMES)
+		-- Stage B: pan formation → Boss. Raise starts only after camera hold.
+		visual.idle(ent)
+		opening_camera.begin_pan_to_boss(ent)
 	end
-	-- Three command souls + staff red lights (not legacy staggered deploy_opening).
+	-- Lock targets + await Cast.Call; do not start Raise here.
 	command_souls.begin_opening(ent)
 end
 
@@ -182,10 +255,15 @@ local function begin_formation_enter()
 		if data then
 			data.invulnerable = true
 		end
-		visual.command(ent)
+		-- Stage A: keep Boss idle; camera locks on reserve formation.
+		visual.idle(ent)
 	end
 	if not reserve_controller.is_prepared or not reserve_controller.is_prepared() then
 		reserve_controller.prepare_formation()
+	end
+	local focus = reserve_controller.formation_focus and reserve_controller.formation_focus()
+	if focus then
+		opening_camera.begin_formation(focus)
 	end
 	local ok, why = reserve_controller.begin_march()
 	if not ok then
@@ -200,9 +278,12 @@ local function begin_intro()
 	session.frame = 0
 	session.phase = defs.PHASE.P1
 	session.transition_stage = nil
+	session.opening_command_played = false
+	session.opening_camera_release_signaled = false
 	temp_piece.clear_all("intro")
 	command_souls.clear("intro")
 	deployment.cancel_all("intro")
+	opening_camera.clear("intro")
 	-- Layout only — no matte pieces until FORMATION_ENTER march.
 	reserve_controller.prepare_formation()
 	director.bind()
@@ -214,10 +295,12 @@ local function begin_intro()
 		if data then
 			data.invulnerable = true
 		end
+		-- Brief throne idle; camera stays free until formation march.
 		visual.idle(ent)
 		visual.flash(ent, 0.3, 0.25, 0.1, 24)
 	end
 end
+
 
 --- One-shot Raise→Cast chain for 点将 (scheduler / deploy path may also call).
 function controller.on_command_cast(_reason)
@@ -231,6 +314,7 @@ local function begin_defeat(ent)
 	session.state = defs.STATE.DEFEAT
 	session.frame = 0
 	session.transition_stage = nil
+	opening_camera.release("defeat")
 	scheduler.on_defeat_or_leave()
 	director.stop_orders()
 	command_souls.set_suppress_death(true)
@@ -266,11 +350,15 @@ local function begin_reward_pending()
 end
 
 local function clear_p2_systems(reason)
+	local ok_cd, chess_drop = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_chess_drop")
+	if ok_cd and chess_drop and chess_drop.clear then
+		chess_drop.clear(reason or "clear")
+	end
 	p2_promotion.clear(reason or "clear")
 	p2_columns.clear(reason or "clear")
 end
 
-local function begin_transition(to_phase, reason)
+begin_transition = function(to_phase, reason)
 	if session.state == defs.STATE.PHASE_TRANSITION then
 		return false, "already_transitioning"
 	end
@@ -286,23 +374,28 @@ local function begin_transition(to_phase, reason)
 		end
 	end
 
+	-- P2→P3 is an in-fight handoff: suspend scheduling only — do NOT
+	-- scheduler.on_defeat_or_leave() (that clears columns/promo before take_evac).
+	if session.phase == defs.PHASE.P2 and to_phase == defs.PHASE.P3 then
+		scheduler.suspend_for_transition()
+		phase_transition.begin_p2_to_p3(session, ent, reason)
+		return true
+	end
+
 	royal_drop.clear("phase_transition")
 	scheduler.on_defeat_or_leave()
-
-	if session.phase == defs.PHASE.P2 or to_phase == defs.PHASE.P3 then
-		clear_p2_systems("to_p3")
-	end
 
 	if to_phase == defs.PHASE.P2 and session.phase == defs.PHASE.P1 then
 		phase_transition.begin(session, ent, to_phase, reason)
 		return true
 	end
 
-	-- P2→P3 (or other): shorter lock without full staff show.
+	-- Other compact transitions (debug skips): no P2 board to preserve.
 	session.state = defs.STATE.PHASE_TRANSITION
 	session.frame = 0
 	session.pending_phase = to_phase
 	session.transition_reason = reason
+	session.transition_kind = "compact"
 	session.transition_stage = defs.TRANSITION_STAGE.LOCK
 	session.p2_summon_started = false
 	director.stop_orders()
@@ -323,7 +416,9 @@ local function finish_transition()
 	session.pending_phase = nil
 	session.transition_stage = nil
 	session.transition_reason = nil
+	session.transition_kind = nil
 	session.p2_summon_started = false
+	session.p2_systems_cleared = false
 	session.state = defs.STATE.COMBAT
 	session.frame = 0
 	director.resume_orders()
@@ -348,7 +443,7 @@ local function finish_transition()
 		end
 		visual.phase_tint(ent, session.phase)
 		if session.phase == defs.PHASE.P1 or session.phase == defs.PHASE.P2 then
-			local home = arena.boss_spawn_pos()
+			local home = resolved_home()
 			if data then
 				data.home = Vector(home.X, home.Y)
 			end
@@ -359,6 +454,7 @@ local function finish_transition()
 			if data then
 				data.home = Vector(dest.X, dest.Y)
 			end
+			session.boss_home = Vector(dest.X, dest.Y)
 			ent.Position = dest
 		end
 		if session.phase == defs.PHASE.P2 and not p2_columns.is_active() then
@@ -371,13 +467,16 @@ local function finish_transition()
 	end
 end
 
---- One-shot command return settle (from command_souls). Idempotent per command id.
-function controller.on_command_returned(cmd_id, _cmd)
+--- One-shot NORMAL command return settle. Secondary P1 push (not forced P2 alone).
+function controller.on_command_returned(cmd_id, cmd)
 	if session.phase ~= defs.PHASE.P1 then
 		return false, "not_p1"
 	end
 	if session.state == defs.STATE.PHASE_TRANSITION then
 		return false, "transitioning"
+	end
+	if cmd and cmd.kind == "GOLD" then
+		return false, "gold_no_return"
 	end
 	cmd_id = tonumber(cmd_id) or 0
 	if session.returned_ids[cmd_id] then
@@ -389,24 +488,50 @@ function controller.on_command_returned(cmd_id, _cmd)
 	if not ent then
 		return false, "no_boss"
 	end
-	local h2 = phase_mod.threshold_hp(ent, defs.PHASE.P2)
+	local h2 = p1_floor_hp(ent)
 	local chunk = session.command_return_chunk or 0
-	local next_hp = math.max(h2, ent.HitPoints - chunk)
-	ent.HitPoints = next_hp
+	ent.HitPoints = math.max(h2, ent.HitPoints - chunk)
 	local idx = math.min(3, session.commands_returned)
-	local scale = (defs.P1_RETURN_BLEED and defs.P1_RETURN_BLEED[idx]) or 1
-	visual.flash(ent, 0.55 * scale, 0.05, 0.05, math.floor(10 + 6 * scale))
+	local scale = (defs.P1_RETURN_BLEED and defs.P1_RETURN_BLEED[idx]) or 0.7
+	visual.flash(ent, 0.40 * scale, 0.05, 0.05, math.floor(8 + 4 * scale))
 	Isaac.Spawn(EntityType.ENTITY_EFFECT, EffectVariant.BLOOD_EXPLOSION, 0,
 		ent.Position + Vector(0, -18), Vector.Zero, ent)
-	if idx >= 3 then
-		Game():ShakeScreen(math.floor(6 * scale))
-	end
-	if session.commands_returned >= (defs.P1_COMMAND_COUNT or 3)
-		or ent.HitPoints <= h2 + 0.01 then
-		ent.HitPoints = h2
-		begin_transition(defs.PHASE.P2, "commands_exhausted")
-	end
+	maybe_finish_p1(ent, "commands_exhausted")
 	return true
+end
+
+--- Gold kill reward: fixed MaxHP ratio, ignores guard DR, clamps to P2 floor.
+function controller.apply_gold_reward(cmd_id, _cmd)
+	if session.phase ~= defs.PHASE.P1 then
+		return false, "not_p1"
+	end
+	if session.state == defs.STATE.PHASE_TRANSITION then
+		return false, "transitioning"
+	end
+	cmd_id = tonumber(cmd_id) or 0
+	session.gold_reward_ids = session.gold_reward_ids or {}
+	if session.gold_reward_ids[cmd_id] then
+		return false, "already"
+	end
+	local ent = refresh_boss_wrapper()
+	if not ent or not ent.MaxHitPoints then
+		return false, "no_boss"
+	end
+	session.gold_reward_ids[cmd_id] = true
+	local h2 = p1_floor_hp(ent)
+	local ratio = tonumber(defs.P1_GOLD_DAMAGE_RATIO) or 0.05
+	local damage = ent.MaxHitPoints * ratio
+	ent.HitPoints = math.max(h2, ent.HitPoints - damage)
+	-- Distinct feedback: staff flash + stronger bleed (not guard-softened).
+	visual.flash(ent, 0.95, 0.72, 0.20, 18)
+	Isaac.Spawn(EntityType.ENTITY_EFFECT, EffectVariant.BLOOD_EXPLOSION, 0,
+		ent.Position + Vector(0, -22), Vector.Zero, ent)
+	Game():ShakeScreen(8)
+	if visual.stagger then
+		visual.stagger(ent)
+	end
+	maybe_finish_p1(ent, "gold_reward_floor")
+	return true, damage
 end
 
 function controller.on_arena_enter()
@@ -420,12 +545,23 @@ function controller.on_arena_enter()
 	clear_p2_systems("arena_enter")
 	phase_transition.clear(nil)
 	staff_transition.clear(nil)
+	opening_camera.clear("arena_enter")
 	scheduler.on_defeat_or_leave()
 	session.frame = 0
 	session.force_phase = nil
 	session.transition_stage = nil
 	session.commands_returned = 0
 	session.returned_ids = {}
+	session.gold_reward_ids = {}
+	session.opening_camera_release_signaled = false
+	session.boss_home = nil
+
+	-- Room may still hold leftover Floraines (Continue / failed leave). Clear before intro spawn.
+	for _, ent in ipairs(Isaac.FindByType(996, enums.Enemies.Floraine, -1, false, false)) do
+		ent:Remove()
+	end
+	session.boss_ptr = nil
+	session.boss = nil
 
 	if runtime.is_boss_defeated() then
 		session.state = runtime.is_unlock_pending() and defs.STATE.REWARD_PENDING or defs.STATE.CLEARED
@@ -441,10 +577,13 @@ function controller.on_arena_enter()
 		return
 	end
 
+	-- Fresh encounter: single Home + single Boss from begin_intro → spawn_boss.
+	resolved_home()
 	begin_intro()
 end
 
 function controller.on_arena_leave()
+	opening_camera.clear("arena_leave")
 	scheduler.on_defeat_or_leave()
 	director.unbind()
 	command_souls.set_suppress_death(true)
@@ -478,8 +617,19 @@ function controller.update(ent)
 	if not controller.is_owned(ent) then
 		return
 	end
-	session.boss_ptr = GetPtrHash(ent)
+	local ptr = GetPtrHash(ent)
+	-- Exactly one V2 Boss: drop stray owned duplicates instead of overwriting session.boss.
+	if session.boss_ptr and ptr ~= session.boss_ptr then
+		ent:Remove()
+		return
+	end
+	session.boss_ptr = ptr
 	session.boss = ent
+	-- Standalone staff debug (outside PHASE_TRANSITION) still needs a clock.
+	if session.state ~= defs.STATE.PHASE_TRANSITION
+		and staff_transition.is_active and staff_transition.is_active() then
+		staff_transition.tick(ent)
+	end
 	local data = data_of(ent)
 	if not attacks.is_busy(data) then
 		ent.Velocity = ((data.home or ent.Position) - ent.Position) * 0.15
@@ -499,6 +649,16 @@ function controller.update(ent)
 		command_particles.tick()
 	end
 
+	-- Opening camera timeline (SetFocusPosition applied in MC_POST_UPDATE).
+	if session.state == defs.STATE.INTRO
+		or session.state == defs.STATE.FORMATION_ENTER
+		or session.state == defs.STATE.OPENING_SELECTION then
+		opening_camera.tick(ent)
+		opening_camera.tick_replay_auto()
+	elseif opening_camera.is_active() then
+		opening_camera.release("left_opening")
+	end
+
 	local function tick_reserve_visual()
 		local ok_rv, rv = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.reserve_visual")
 		if ok_rv and rv and rv.tick then
@@ -507,11 +667,9 @@ function controller.update(ent)
 	end
 
 	if session.state == defs.STATE.INTRO then
-		-- Brief idle on throne; raise staff near the end of the hold.
-		if session.frame == math.max(1, (defs.INTRO_FRAMES or 24) - 8) then
-			visual.command(ent)
-		else
-			visual.tick_chain(ent)
+		-- Brief idle on throne; no Raise / no Boss camera yet.
+		if ent then
+			visual.idle(ent)
 		end
 		if session.frame >= (defs.INTRO_FRAMES or 24) then
 			begin_formation_enter()
@@ -520,7 +678,10 @@ function controller.update(ent)
 	end
 
 	if session.state == defs.STATE.FORMATION_ENTER then
-		visual.tick_chain(ent)
+		-- Stage A: pieces march in under formation focus; Boss stays idle.
+		if ent then
+			visual.idle(ent)
+		end
 		local done = reserve_controller.tick_march()
 		tick_reserve_visual()
 		if done then
@@ -530,10 +691,31 @@ function controller.update(ent)
 	end
 
 	if session.state == defs.STATE.OPENING_SELECTION then
-		visual.tick_chain(ent)
+		-- Stage B→C: after pan+hold, start Raise once; Cast.Call launches souls.
+		if ent then
+			if not session.opening_command_played then
+				if opening_camera.is_ready_for_command() then
+					visual.command(ent, true)
+					session.opening_command_played = true
+					director.begin_command_vuln(defs.COMMAND_VULN_FRAMES)
+				else
+					visual.idle(ent)
+				end
+			else
+				visual.tick_chain(ent)
+			end
+		end
 		command_souls.tick(ent)
 		deployment.tick()
 		tick_reserve_visual()
+		-- Stage D: soft-release camera once staff command particles launch.
+		if not session.opening_camera_release_signaled then
+			local ost_cam = command_souls.opening_status()
+			if ost_cam and ost_cam.launched then
+				opening_camera.notify_command_launched()
+				session.opening_camera_release_signaled = true
+			end
+		end
 		local ost = command_souls.opening_status()
 		local timed_out = session.frame >= (defs.OPENING_TIMEOUT_FRAMES or 240)
 		-- Wait for the full opening batch to hand off before combat.
@@ -559,7 +741,14 @@ function controller.update(ent)
 				session.opening_retried = true
 				Isaac.DebugString("[FloraineV2] opening timeout; retry command souls")
 				command_souls.begin_opening(ent)
-				visual.command(ent)
+				session.opening_command_played = false
+				session.opening_camera_release_signaled = false
+				if ent then
+					opening_camera.begin(ent)
+					visual.command(ent, true)
+					session.opening_command_played = true
+					director.begin_command_vuln(defs.COMMAND_VULN_FRAMES)
+				end
 			else
 				Isaac.DebugString("[FloraineV2] opening still empty after retry; forcing combat (safety)")
 				begin_combat()
@@ -568,17 +757,21 @@ function controller.update(ent)
 		return
 	end
 
+
 	if session.state == defs.STATE.PHASE_TRANSITION then
 		director.clear_command_vuln()
-		-- Full P1→P2 show.
-		if (session.pending_phase or 0) == defs.PHASE.P2 and (session.phase or 0) == defs.PHASE.P1 then
+		local kind = session.transition_kind
+		-- Full P1→P2 staff show, or P2→P3 evacuate-driven transition.
+		if kind == "p1_to_p2" or kind == "p2_to_p3"
+			or ((session.pending_phase or 0) == defs.PHASE.P2 and (session.phase or 0) == defs.PHASE.P1)
+			or ((session.pending_phase or 0) == defs.PHASE.P3 and (session.phase or 0) == defs.PHASE.P2) then
 			local done = phase_transition.tick(session, ent)
 			if done then
 				finish_transition()
 			end
 			return
 		end
-		-- Compact P2→P3 (and debug skips).
+		-- Compact debug skips.
 		visual.tick_chain(ent)
 		if session.frame >= (defs.TRANSITION_FRAMES or 40) then
 			finish_transition()
@@ -610,6 +803,13 @@ function controller.update(ent)
 	if want > session.phase then
 		begin_transition(want, "hp_threshold")
 		return
+	end
+
+	-- P1 gold HP bailout (unlock quotas; does not fake kill_count).
+	if session.phase == defs.PHASE.P1 and ent and ent.MaxHitPoints and ent.MaxHitPoints > 0 then
+		if command_souls.notify_hp_ratio then
+			command_souls.notify_hp_ratio(ent.HitPoints / ent.MaxHitPoints)
+		end
 	end
 
 	scheduler.tick(ent, data, session.frame, session.phase)
@@ -767,9 +967,12 @@ function controller.debug_load_phase(target_phase)
 	session.transition_stage = nil
 	session.transition_reason = nil
 	session.p2_summon_started = false
+	session.opening_camera_release_signaled = false
 	session.phase = target_phase
 	session.state = defs.STATE.COMBAT
 	session.frame = 0
+	-- Debug phase jump must not inherit a prior opening camera claim.
+	opening_camera.clear("debug_load_phase")
 
 	local ratio = 1
 	if target_phase == defs.PHASE.P2 then
@@ -782,12 +985,12 @@ function controller.debug_load_phase(target_phase)
 	if data then
 		data.invulnerable = false
 	end
-	visual.set_staff_detached(ent, false)
+	visual.set_staff_visible(ent, true)
 	visual.idle2(ent)
 	visual.phase_tint(ent, target_phase)
 
 	if target_phase == defs.PHASE.P1 then
-		local home = arena.boss_spawn_pos()
+		local home = resolved_home()
 		if data then data.home = Vector(home.X, home.Y) end
 		ent.Position = home
 		reserve_controller.spawn_formation()
@@ -797,7 +1000,7 @@ function controller.debug_load_phase(target_phase)
 		init_p1_return_budget(ent)
 		director.mark_initial_done(defs.PHASE.P1)
 	elseif target_phase == defs.PHASE.P2 then
-		local home = arena.boss_spawn_pos()
+		local home = resolved_home()
 		if data then data.home = Vector(home.X, home.Y) end
 		ent.Position = home
 		local ok, why = p2_columns.begin()
@@ -808,8 +1011,9 @@ function controller.debug_load_phase(target_phase)
 		director.mark_initial_done(defs.PHASE.P2)
 	else
 		local room = Game():GetRoom()
-		local dest = room:GetClampedPosition(arena.boss_spawn_pos() + Vector(0, 60), 20)
+		local dest = room:GetClampedPosition(resolved_home() + Vector(0, 60), 20)
 		if data then data.home = Vector(dest.X, dest.Y) end
+		session.boss_home = Vector(dest.X, dest.Y)
 		ent.Position = dest
 		director.mark_initial_done(defs.PHASE.P3)
 	end
@@ -887,12 +1091,14 @@ function controller.debug_reset_combat()
 	clear_p2_systems("debug_reset_combat")
 	phase_transition.clear(nil)
 	staff_transition.clear(nil)
+	opening_camera.clear("debug_reset_combat")
 	local ent = refresh_boss_wrapper()
 	if ent then ent:Remove() end
 	session.boss_ptr = nil
 	session.boss = nil
 	session.state = defs.STATE.WAITING
 	session.transition_stage = nil
+	session.opening_camera_release_signaled = false
 	begin_intro()
 	return true
 end
@@ -914,12 +1120,14 @@ function controller.debug_reset_test_state()
 	clear_p2_systems("debug_reset_test")
 	phase_transition.clear(nil)
 	staff_transition.clear(nil)
+	opening_camera.clear("debug_reset_test")
 	local ent = refresh_boss_wrapper()
 	if ent then ent:Remove() end
 	session.boss_ptr = nil
 	session.boss = nil
 	session.state = defs.STATE.WAITING
 	session.transition_stage = nil
+	session.opening_camera_release_signaled = false
 	begin_intro()
 	return true
 end
@@ -927,5 +1135,48 @@ end
 function controller.debug_reset_encounter()
 	return controller.debug_reset_combat()
 end
+
+function controller.debug_replay_opening_camera()
+	local ent = refresh_boss_wrapper()
+	if not ent then
+		return false, "no_boss"
+	end
+	session.opening_camera_release_signaled = false
+	return opening_camera.replay(ent)
+end
+
+--- Opening timeline diag: phase / camera / boss anim / Call / launch / formation.
+function controller.get_opening_timeline()
+	local ent = refresh_boss_wrapper()
+	local anim, frame = nil, nil
+	if ent and ent.GetSprite then
+		local s = ent:GetSprite()
+		if s then
+			anim = s:GetAnimation()
+			frame = s.GetFrame and s:GetFrame() or nil
+		end
+	end
+	local ost = command_souls.opening_status and command_souls.opening_status() or {}
+	local marching = reserve_controller.is_marching and reserve_controller.is_marching()
+	return {
+		opening_phase = session.state,
+		camera_phase = opening_camera.get_phase and opening_camera.get_phase() or nil,
+		boss_anim = anim,
+		boss_anim_frame = frame,
+		call_triggered = ost.call_triggered == true,
+		call_fallback_used = ost.call_fallback_used == true,
+		command_launch_count = ost.launch_count or 0,
+		souls_phase = ost.phase,
+		formation_complete = marching ~= true,
+		opening_command_played = session.opening_command_played == true,
+		camera_ready = opening_camera.is_ready_for_command and opening_camera.is_ready_for_command() or false,
+		frame = session.frame,
+	}
+end
+
+function controller.get_opening_camera()
+	return opening_camera
+end
+
 
 return controller

@@ -419,6 +419,21 @@ Function = function(_,ent)
 end,
 })
 
+-- PRE: LayerState / overlay prep before engine draws the MeusNil sprite.
+table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_PRE_EFFECT_RENDER, params = enums.Entities.ID_EFFECT_MeusNIL,
+Function = function(_,ent,offset)
+	if (Game():GetRoom():GetRenderMode() == RenderMode.RENDER_WATER_REFLECT) then return end
+	local d = ent:GetData()
+	local s = ent:GetSprite()
+	local player = (d.Params and d.Params.player) or Game():GetPlayer(0)
+	local mode = item.resolve_mode(d)
+	local h = mode and item.handlers[mode]
+	if h and h.pre_render then
+		h.pre_render(ent, d, s, player, offset)
+	end
+end,
+})
+
 table.insert(item.ToCall,#item.ToCall + 1,{CallBack = ModCallbacks.MC_POST_EFFECT_RENDER, params = enums.Entities.ID_EFFECT_MeusNIL,
 Function = function(_,ent,offset)
 	if (Game():GetRoom():GetRenderMode() == RenderMode.RENDER_WATER_REFLECT) then return end

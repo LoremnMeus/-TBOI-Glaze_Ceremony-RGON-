@@ -103,6 +103,8 @@ defs.OPENING_KINDS = {
 defs.MATTE_COLOR = Color(0.22, 0.22, 0.24, 1, 0, 0, 0)
 
 -- Outline styles: white mask layer tinted at runtime (Body+Outline dual layer).
+-- Legacy SELECTED/PULSING paths still pulse. Command-soul infusion uses COMMAND_GLOW
+-- (continuous timeline across INFUSING → LIFTING → … → LANDING) instead.
 defs.OUTLINE_STYLES = {
 	dormant = {
 		visible = false,
@@ -145,6 +147,24 @@ defs.OUTLINE_STYLES = {
 		pulse_frames = 10,
 		fade_out = true,
 	},
+}
+
+-- Continuous command-soul glow (30Hz). Does not restart on INFUSING→LIFTING.
+defs.COMMAND_GLOW = {
+	RAMP_FRAMES = 7,
+	HOLD_ALPHA = 0.92,
+	COLOR = { 1.0, 0.22, 0.26 },
+	-- Red command extinguishes on LANDING.
+	LAND_TO_PERSIST = false,
+	PERSIST_ALPHA = 0,
+}
+-- Gold command: same continuous timeline, gold color; landing blends to persistent outline.
+defs.COMMAND_GLOW_GOLD = {
+	RAMP_FRAMES = 7,
+	HOLD_ALPHA = 0.92,
+	COLOR = { 1.0, 0.82, 0.28 },
+	LAND_TO_PERSIST = true,
+	PERSIST_ALPHA = 0.72,
 }
 
 defs.GROUND_SHADOW = piece_defs.GROUND_SHADOW

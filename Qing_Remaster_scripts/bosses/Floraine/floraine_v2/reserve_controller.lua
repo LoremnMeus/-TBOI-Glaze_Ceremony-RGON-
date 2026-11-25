@@ -24,12 +24,14 @@ local selected_count = 0
 local last_fail = "none"
 local path_saved = {} -- gridIndex -> previous GridPath (only set when first claimed)
 local path_owner = {} -- gridIndex -> blocker owner_id currently renewing this cell
+local path_by_owner = {} -- blocker owner_id -> gridIndex (O(1) reverse index)
 local perf = {
 	enabled = false,
 	blocker_refresh = 0,
 	gridpath_writes = 0,
 	blocker_releases = 0,
 	sync_calls = 0,
+	blocker_skips = 0,
 }
 
 local function row_of(id)
@@ -47,6 +49,7 @@ function ctrl.get_perf()
 		gridpath_writes = perf.gridpath_writes,
 		blocker_releases = perf.blocker_releases,
 		sync_calls = perf.sync_calls,
+		blocker_skips = perf.blocker_skips,
 	}
 end
 
@@ -55,6 +58,7 @@ function ctrl.reset_perf()
 	perf.gridpath_writes = 0
 	perf.blocker_releases = 0
 	perf.sync_calls = 0
+	perf.blocker_skips = 0
 end
 
 local function count_state(st)
@@ -83,6 +87,7 @@ local function clear_grid_path()
 	end
 	path_saved = {}
 	path_owner = {}
+	path_by_owner = {}
 end
 
 function ctrl.note_sync()
@@ -100,8 +105,12 @@ local function restore_path_at(room, gidx)
 		return
 	end
 	local prev = path_saved[gidx]
+	local owner = path_owner[gidx]
 	path_saved[gidx] = nil
 	path_owner[gidx] = nil
+	if owner and path_by_owner[owner] == gidx then
+		path_by_owner[owner] = nil
+	end
 	if not room or not room.SetGridPath or prev == nil then
 		return
 	end
@@ -131,7 +140,13 @@ local function renew_path_at(room, gidx, bid)
 			path_saved[gidx] = cost
 		end
 	end
+	local prev_owner_cell = path_by_owner[bid]
+	if prev_owner_cell and prev_owner_cell ~= gidx and path_owner[prev_owner_cell] == bid then
+		path_owner[prev_owner_cell] = nil
+	end
 	path_owner[gidx] = bid
+	path_by_owner[bid] = gidx
+	-- GridPath 900 must be rewritten every logic frame (engine decay).
 	room:SetGridPath(gidx, cost)
 	if perf.enabled then
 		perf.gridpath_writes = perf.gridpath_writes + 1
@@ -146,38 +161,34 @@ function ctrl.refresh_blockers_and_path()
 	end
 	local room = Game():GetRoom()
 	local S = reserve_defs.STATE
-	local grounded = {
-		[S.RESERVE] = true,
-	}
-	local want = {} -- owner_id -> gidx
-	local function path_gidx_for(bid)
-		for gidx, owner in pairs(path_owner) do
-			if owner == bid then
-				return gidx
-			end
-		end
-		return nil
-	end
 	for _, id in ipairs(order) do
 		local row = pieces[id]
 		if not row then
 			-- skip
-		elseif grounded[row.state] and row.home_pos then
+		elseif row.state == S.RESERVE and row.home_pos then
 			local bid = blocker_id(row)
-			local old_gidx = path_gidx_for(bid)
-			local ok, gidx = occupancy.set_blocker("reserve_piece", bid, row.home_pos)
-			if ok and type(gidx) == "number" and gidx >= 0 then
-				want[bid] = gidx
-				if old_gidx and old_gidx ~= gidx then
-					restore_path_at(room, old_gidx)
+			local old_gidx = path_by_owner[bid]
+			local _, snap_gidx = occupancy.snap_world(row.home_pos, room)
+			if old_gidx and snap_gidx and old_gidx == snap_gidx then
+				-- Occupancy unchanged: renew GridPath only (still every frame).
+				renew_path_at(room, old_gidx, bid)
+				if perf.enabled then
+					perf.blocker_skips = perf.blocker_skips + 1
 				end
-				renew_path_at(room, gidx, bid)
+			else
+				local ok, gidx = occupancy.set_blocker("reserve_piece", bid, row.home_pos)
+				if ok and type(gidx) == "number" and gidx >= 0 then
+					if old_gidx and old_gidx ~= gidx then
+						restore_path_at(room, old_gidx)
+					end
+					renew_path_at(room, gidx, bid)
+				end
 			end
 		else
 			local bid = blocker_id(row)
-			local prev_gidx = path_gidx_for(bid)
-			occupancy.clear_blocker(bid)
+			local prev_gidx = path_by_owner[bid]
 			if prev_gidx then
+				occupancy.clear_blocker(bid)
 				restore_path_at(room, prev_gidx)
 				if perf.enabled then
 					perf.blocker_releases = perf.blocker_releases + 1
@@ -223,13 +234,7 @@ function ctrl.release_home_blocker(id)
 		return
 	end
 	local bid = blocker_id(row)
-	local prev_gidx = nil
-	for gidx, owner in pairs(path_owner) do
-		if owner == bid then
-			prev_gidx = gidx
-			break
-		end
-	end
+	local prev_gidx = path_by_owner[bid]
 	occupancy.clear_blocker(bid)
 	if prev_gidx then
 		restore_path_at(Game():GetRoom(), prev_gidx)
@@ -239,6 +244,7 @@ end
 function ctrl.clear(reason)
 	clear_grid_path()
 	path_owner = {}
+	path_by_owner = {}
 	occupancy.clear_blockers_by_owner("reserve_piece")
 	for _, id in ipairs(order) do
 		local row = pieces[id]
@@ -655,6 +661,32 @@ function ctrl.get_order()
 	return order
 end
 
+--- Bounding-box center of prepared reserve homes (opening camera formation focus).
+function ctrl.formation_focus()
+	local minx, maxx, miny, maxy
+	local n = 0
+	for _, id in ipairs(order) do
+		local row = pieces[id]
+		local p = row and (row.home_pos or row.pos)
+		if p and p.X and p.Y then
+			n = n + 1
+			if n == 1 then
+				minx, maxx, miny, maxy = p.X, p.X, p.Y, p.Y
+			else
+				if p.X < minx then minx = p.X end
+				if p.X > maxx then maxx = p.X end
+				if p.Y < miny then miny = p.Y end
+				if p.Y > maxy then maxy = p.Y end
+			end
+		end
+	end
+	if n < 1 then
+		return nil
+	end
+	return Vector((minx + maxx) * 0.5, (miny + maxy) * 0.5)
+end
+
+
 function ctrl.set_state(id, st)
 	local row = row_of(id)
 	if not row then return false end
@@ -669,6 +701,11 @@ function ctrl.mark_active(id, npc_ptr)
 	row.hidden = true
 	row.visual_height = 0
 	row.outline_pulse = 0
+	row.command_glow = nil
+	row.glow_elapsed = nil
+	row.glow_alpha = nil
+	row.glow_fade_start = nil
+	row.command_kind = nil
 	row.npc_ptr = npc_ptr
 	row.deploy_target = nil
 	row.deploy_target_gidx = nil
@@ -686,6 +723,11 @@ function ctrl.mark_defeated(id)
 	if not row then return false end
 	row.state = reserve_defs.STATE.DEFEATED
 	row.hidden = true
+	row.command_glow = nil
+	row.glow_elapsed = nil
+	row.glow_alpha = nil
+	row.glow_fade_start = nil
+	row.command_kind = nil
 	row.npc_ptr = nil
 	occupancy.clear_blocker(blocker_id(row))
 	return true
@@ -699,6 +741,11 @@ function ctrl.revert_to_reserve(id)
 	row.visual_height = 0
 	row.visual_color_progress = 0
 	row.outline_pulse = 0
+	row.command_glow = nil
+	row.glow_elapsed = nil
+	row.glow_alpha = nil
+	row.glow_fade_start = nil
+	row.command_kind = nil
 	row.phase_elapsed = 0
 	row.deploy_target = nil
 	row.deploy_target_gidx = nil

@@ -154,6 +154,7 @@ function Item_manager.Init(mod)
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Entombed_Demon"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Wishing"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Bewitching_Moon"))
+	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Golden_Compass"))
 
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Tecro"))
 	table.insert(Item_manager.items,#Item_manager.items + 1,require("Qing_Remaster_scripts.items.Item_Baby_Anna"))

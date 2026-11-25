@@ -520,7 +520,7 @@
 	gfx="collectibles_Exoneration_Certificate.png" quality="4" craftquality="4" tags="" maxcharges="0"
 	/>
 	<passive name="Ketu" description="Stars follow their courses" id="180"
-	gfx="collectibles_Ketu.png" quality="3" craftquality="3" tags="summonable offensive" cache="all"
+	gfx="collectibles_Ketu.png" quality="4" craftquality="4" tags="summonable offensive" cache="all"
 	/>
 	<passive name="Rahu" description="The shadow that swallows stars" id="181"
 	gfx="collectibles_Rahu.png" quality="3" craftquality="3" tags="offensive summonable" cache="all"
@@ -529,10 +529,10 @@
 	gfx="collectibles_Thorn_Flower_Crown.png" quality="3" craftquality="3" tags="summonable offensive"
 	/>
 	<passive name="Alien Savior" description="They heard you" id="183"
-	gfx="collectibles_Alien_Savior.png" quality="3" craftquality="3" tags="summonable offensive"
+	gfx="collectibles_Alien_Savior.png" quality="2" craftquality="2" tags="summonable offensive"
 	/>
 	<passive name="Strawberry Cake Pie" description="One more slice!" id="184"
-	gfx="collectibles_Cake_Berry.png" quality="3" craftquality="3" tags="offensive summonable" maxhearts="2" hearts="2"
+	gfx="collectibles_Cake_Berry.png" quality="2" craftquality="2" tags="offensive summonable" maxhearts="2" hearts="2"
 	/>
 	<passive name="Rooted Demon" description="Deep into the soil" id="185"
 	gfx="collectibles_Rooted_Demon.png" quality="3" craftquality="3" tags="offensive devil"
@@ -548,6 +548,9 @@
 	/>
 	<familiar name="Bewitching Moon" description="Within Reach" id="189"
 	gfx="collectibles_Bewitching_Moon.png" quality="1" craftquality="1" cache="familiars speed" tags="summonable"
+	/>
+	<active name="Golden Compass" description="May your path be bright" id="190"
+	gfx="collectibles_Golden_Compass.png" quality="4" craftquality="4" maxcharges="0" tags="nogreed"
 	/>
 
 

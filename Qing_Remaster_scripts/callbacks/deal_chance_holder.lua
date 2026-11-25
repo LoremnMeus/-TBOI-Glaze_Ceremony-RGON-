@@ -24,7 +24,7 @@ local state = {
 	last_devil_post_frame = nil,
 }
 
--- key -> fn(): { total_deal = number? }
+-- key -> fn(): { total_deal = number?, min_total_deal = number? }
 local providers = {}
 
 local function game_frame()
@@ -58,6 +58,32 @@ local function sum_provider_field(field)
 		end
 	end
 	return total
+end
+
+--- Highest min_total_deal among providers (nil if none).
+local function max_provider_field(field)
+	local best = nil
+	for key, fn in pairs(providers) do
+		if type(fn) == "function" then
+			local ok, result = pcall(fn)
+			if not ok then
+				print(
+					"[deal_chance_holder] provider failed: "
+					.. tostring(key)
+					.. " / "
+					.. tostring(result)
+				)
+			elseif type(result) == "table" then
+				local v = tonumber(result[field])
+				if v ~= nil then
+					if best == nil or v > best then
+						best = v
+					end
+				end
+			end
+		end
+	end
+	return best
 end
 
 function M.register_provider(key, fn)
@@ -113,6 +139,7 @@ function M.snapshot_cached()
 		raw_total_deal = state.raw_total_deal,
 		modified_total_deal = state.modified_total_deal,
 		total_deal_mod_applied = state.total_deal_mod_applied,
+		min_total_deal_applied = state.min_total_deal_applied,
 		post_devil_calculate = state.raw_total_deal,
 		modified_final_deal = state.modified_total_deal,
 		devil_mod_applied = state.total_deal_mod_applied,
@@ -188,9 +215,16 @@ function M.on_post_devil_calculate(chance)
 	if modified < 0 then
 		modified = 0
 	end
+	local min_total = max_provider_field("min_total_deal")
+	local floored = false
+	if min_total ~= nil and modified < min_total then
+		modified = min_total
+		floored = true
+	end
 	state.modified_total_deal = modified
+	state.min_total_deal_applied = min_total
 
-	if math.abs(mod) < 1e-9 then
+	if math.abs(mod) < 1e-9 and not floored then
 		return nil
 	end
 	return modified

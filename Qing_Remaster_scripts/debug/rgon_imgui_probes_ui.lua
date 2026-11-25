@@ -3890,6 +3890,552 @@ local runtime_stitch_group = start_probe_module("audit_runtime_stitch", "Sprite 
 	end
 	end
 
+	local fixed_corridor_group = start_probe_module(
+		"audit_fixed_corridor",
+		"楼层直道探针",
+		"QingRemasterOptions_GroupFixedCorridor"
+	)
+	if fixed_corridor_group then
+	do
+		local live = require("Qing_Remaster_scripts.debug.probe_live_cache")
+		local function corridor_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.fixed_corridor_probe")
+		end
+		add_text(
+			fixed_corridor_group,
+			"楼层直道探针→黄金罗盘正式运行时。武装=预约下一层直道（Root Seed）。正式玩法不依赖本页。"
+		)
+		imgui_layout.add_small_action_row(fixed_corridor_group, {
+			{id = "QingRemasterOptions_FixedCorridorGive", label = "给予黄金罗盘", on_click = function()
+				local p = corridor_probe(); if p and p.give_compass then p.give_compass() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorArmMain", label = "武装下一层直道测试", on_click = function()
+				local p = corridor_probe(); if p and p.arm_main_test then p.arm_main_test() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorForceMom", label = "下次直道强制妈腿", on_click = function()
+				local p = corridor_probe(); if p and p.arm_force_mom_next then p.arm_force_mom_next() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorForceBlueWomb", label = "强制尝试蓝子宫门", on_click = function()
+				local p = corridor_probe()
+				if p and p.force_try_blue_womb_door then
+					p.force_try_blue_womb_door("imgui_force_blue_womb")
+				end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorMirrorSpecials", label = "对照镜子特殊房", on_click = function()
+				local p = corridor_probe()
+				if p and p.log_mirror_special_compare then
+					p.log_mirror_special_compare("imgui_mirror_special_compare")
+				elseif p and p.prepare_mirror_corridor then
+					p.prepare_mirror_corridor("imgui_prepare_mirror")
+				end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorClear", label = "Clear Events", on_click = function()
+				local p = corridor_probe(); if p and p.clear then p.clear() end
+			end},
+		})
+		do
+			local seija_id = "QingRemasterOptions_FixedCorridorForceSeija"
+			local gc_item = require("Qing_Remaster_scripts.items.Item_Golden_Compass")
+			ImGui.AddCheckbox(fixed_corridor_group, seija_id, "强制 Seija", function(value)
+				if gc_item.debug_set_force_seija then
+					gc_item.debug_set_force_seija(value == true)
+				end
+			end, gc_item.debug_force_seija and gc_item.debug_force_seija() or false)
+			ImGui.AddCallback(seija_id, ImGuiCallback.Render, function()
+				if gc_item.debug_force_seija then
+					live.update_checkbox_if_changed(seija_id, gc_item.debug_force_seija() == true)
+				end
+			end)
+			ImGui.AddButton(fixed_corridor_group, "QingRemasterOptions_FixedCorridorSeijaRestore", "恢复 Seija 默认", function()
+				if gc_item.debug_set_force_seija then
+					gc_item.debug_set_force_seija(false)
+				end
+			end)
+		end
+		local status_id = "QingRemasterOptions_FixedCorridorStatus"
+		imgui_layout.add_wrapped_text(fixed_corridor_group, status_id, "idle")
+		ImGui.AddCallback(status_id, ImGuiCallback.Render, function()
+			local p = corridor_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(status_id, ImGuiData.Label, text_body)
+		end)
+		local probe_output = require("Qing_Remaster_scripts.debug.probe_output")
+		probe_output.add_probe_output_controls(fixed_corridor_group, corridor_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorOut",
+			export_label = "Export JSONL",
+		})
+
+		-- —— 支线门状态（独立只读探针；默认关闭）——
+		local door_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorDoorSec",
+			"支线门状态"
+		)
+		local function door_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.golden_compass_door_probe")
+		end
+		add_text(
+			door_sec,
+			"只读观察 State/PreviousState/VarData/主Sprite/ExtraSprite。不调用 Open/Close/Play/SetFrame。默认关闭。"
+		)
+		local door_en = "QingRemasterOptions_FixedCorridorDoorEnabled"
+		ImGui.AddCheckbox(door_sec, door_en, "启用支线门探针", nil, false)
+		ImGui.AddCallback(door_en, ImGuiCallback.Render, function()
+			local p = door_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(door_en, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(door_en, ImGuiCallback.Edited, function(value)
+			local p = door_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local door_burst_mode = "QingRemasterOptions_FixedCorridorDoorBurstMode"
+		ImGui.AddCheckbox(door_sec, door_burst_mode, "记录方式：连续90帧（否=状态变化）", nil, false)
+		ImGui.AddCallback(door_burst_mode, ImGuiCallback.Render, function()
+			local p = door_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(door_burst_mode, cfg.record_mode == "burst")
+		end)
+		ImGui.AddCallback(door_burst_mode, ImGuiCallback.Edited, function(value)
+			local p = door_probe()
+			if p and p.set_record_mode then
+				p.set_record_mode(value == true and "burst" or "change")
+			end
+		end)
+		imgui_layout.add_small_action_row(door_sec, {
+			{id = "QingRemasterOptions_FixedCorridorDoorCapture", label = "捕获当前状态", on_click = function()
+				local p = door_probe(); if p and p.capture_now then p.capture_now("manual_ui") end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorDoorBurst", label = "开始90帧记录", on_click = function()
+				local p = door_probe(); if p and p.start_burst then p.start_burst(90) end
+			end},
+		})
+		local door_status_id = "QingRemasterOptions_FixedCorridorDoorStatus"
+		imgui_layout.add_wrapped_text(door_sec, door_status_id, "idle")
+		ImGui.AddCallback(door_status_id, ImGuiCallback.Render, function()
+			local p = door_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(door_status_id, ImGuiData.Label, text_body)
+		end)
+		probe_output.add_probe_output_controls(door_sec, door_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorDoorOut",
+			export_label = "Export JSONL",
+			full_label = "复制完整报告",
+			clear_label = "清空记录",
+		})
+
+		-- —— 镜像门物理诊断（独立只读；默认关闭；不改通行/进门）——
+		local mirror_phys_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorMirrorPhysSec",
+			"镜像门物理诊断"
+		)
+		local function mirror_phys_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.golden_compass_mirror_physics_probe")
+		end
+		add_text(
+			mirror_phys_sec,
+			"仅 Entry@78 LEFT0。记录 GRID_DOOR 出现时点、玩家撞击 Grid、GetGridCollision。默认关闭。不改 CollisionClass / confirmed_door。"
+		)
+		local mirror_phys_en = "QingRemasterOptions_FixedCorridorMirrorPhysEnabled"
+		ImGui.AddCheckbox(mirror_phys_sec, mirror_phys_en, "启用镜像门碰撞记录", nil, false)
+		ImGui.AddCallback(mirror_phys_en, ImGuiCallback.Render, function()
+			local p = mirror_phys_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(mirror_phys_en, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(mirror_phys_en, ImGuiCallback.Edited, function(value)
+			local p = mirror_phys_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local detail_log_id = "QingRemasterOptions_FixedCorridorDetailLogging"
+		ImGui.AddCheckbox(mirror_phys_sec, detail_log_id, "详细楼层生成日志", nil, false)
+		ImGui.AddCallback(detail_log_id, ImGuiCallback.Render, function()
+			local p = corridor_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(detail_log_id, cfg.detail_logging == true)
+		end)
+		ImGui.AddCallback(detail_log_id, ImGuiCallback.Edited, function(value)
+			local rt = require("Qing_Remaster_scripts.items.golden_compass.runtime")
+			if rt and rt.set_detail_logging then
+				rt.set_detail_logging(value == true)
+			end
+		end)
+		imgui_layout.add_small_action_row(mirror_phys_sec, {
+			{id = "QingRemasterOptions_FixedCorridorMirrorPhysCapture", label = "捕获当前碰撞", on_click = function()
+				local p = mirror_phys_probe(); if p and p.capture_now then p.capture_now("manual_ui") end
+			end},
+		})
+		local mirror_phys_status_id = "QingRemasterOptions_FixedCorridorMirrorPhysStatus"
+		imgui_layout.add_wrapped_text(mirror_phys_sec, mirror_phys_status_id, "idle")
+		ImGui.AddCallback(mirror_phys_status_id, ImGuiCallback.Render, function()
+			local p = mirror_phys_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(mirror_phys_status_id, ImGuiData.Label, text_body)
+		end)
+		probe_output.add_probe_output_controls(mirror_phys_sec, mirror_phys_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorMirrorPhysOut",
+			export_label = "Export JSONL",
+			full_label = "复制完整报告",
+			clear_label = "清空记录",
+		})
+
+		-- —— 矿井维度诊断（只读；默认关闭详细房间列表）——
+		local mines_dim_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorMinesDimSec",
+			"矿井维度诊断"
+		)
+		local function mines_dim_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.golden_compass_mineshaft_dim_probe")
+		end
+		add_text(
+			mines_dim_sec,
+			"矿二 Dimension 1 房间清单 + SGID 162 校验。默认关闭。开启后接收楼层完成/进78/炸板开放扫描；完整房间列表仅在「详细房间列表」打开时写入事件。"
+		)
+		local mines_dim_en = "QingRemasterOptions_FixedCorridorMinesDimEnabled"
+		ImGui.AddCheckbox(mines_dim_sec, mines_dim_en, "启用矿井维度诊断", nil, false)
+		ImGui.AddCallback(mines_dim_en, ImGuiCallback.Render, function()
+			local p = mines_dim_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(mines_dim_en, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(mines_dim_en, ImGuiCallback.Edited, function(value)
+			local p = mines_dim_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local mines_dim_detail = "QingRemasterOptions_FixedCorridorMinesDimDetail"
+		ImGui.AddCheckbox(mines_dim_sec, mines_dim_detail, "详细房间列表（写入事件）", nil, false)
+		ImGui.AddCallback(mines_dim_detail, ImGuiCallback.Render, function()
+			local p = mines_dim_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(mines_dim_detail, cfg.detail_full == true)
+		end)
+		ImGui.AddCallback(mines_dim_detail, ImGuiCallback.Edited, function(value)
+			local p = mines_dim_probe()
+			if p and p.set_detail_full then p.set_detail_full(value == true) end
+		end)
+		imgui_layout.add_small_action_row(mines_dim_sec, {
+			{id = "QingRemasterOptions_FixedCorridorMinesDimCapture", label = "立即扫描 Dim1", on_click = function()
+				local p = mines_dim_probe(); if p and p.capture_now then p.capture_now("manual_ui") end
+			end},
+		})
+		local mines_dim_status_id = "QingRemasterOptions_FixedCorridorMinesDimStatus"
+		imgui_layout.add_wrapped_text(mines_dim_sec, mines_dim_status_id, "idle")
+		ImGui.AddCallback(mines_dim_status_id, ImGuiCallback.Render, function()
+			local p = mines_dim_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(mines_dim_status_id, ImGuiData.Label, text_body)
+		end)
+		probe_output.add_probe_output_controls(mines_dim_sec, mines_dim_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorMinesDimOut",
+			export_label = "Export JSONL",
+			full_label = "复制完整报告",
+			clear_label = "清空记录",
+		})
+
+		-- —— 虚拟门生命周期（create/reuse/cleanup + 首次绘制帧；默认关闭）——
+		local vdoor_life_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorVDoorLifeSec",
+			"虚拟门生命周期"
+		)
+		local function vdoor_life_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.golden_compass_virtual_door_life_probe")
+		end
+		add_text(
+			vdoor_life_sec,
+			"记录 create/reuse/replace/cleanup、ensure_gate、collapse_fx 交接，以及首次 PRE/POST 绘制帧与存活 MeusNil 数。默认关闭。「直接播放坍塌」在矿二 78 强制播 Collapse FX（SORTING_NORMAL）。"
+		)
+		local vdoor_life_en = "QingRemasterOptions_FixedCorridorVDoorLifeEnabled"
+		ImGui.AddCheckbox(vdoor_life_sec, vdoor_life_en, "启用虚拟门生命周期探针", nil, false)
+		ImGui.AddCallback(vdoor_life_en, ImGuiCallback.Render, function()
+			local p = vdoor_life_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(vdoor_life_en, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(vdoor_life_en, ImGuiCallback.Edited, function(value)
+			local p = vdoor_life_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		imgui_layout.add_small_action_row(vdoor_life_sec, {
+			{id = "QingRemasterOptions_FixedCorridorVDoorLifeCapture", label = "立即快照", on_click = function()
+				local p = vdoor_life_probe(); if p and p.capture_now then p.capture_now("manual_ui") end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorForceCollapse", label = "直接播放坍塌", on_click = function()
+				local p = corridor_probe()
+				if p and p.force_mineshaft_collapse_playback then
+					p.force_mineshaft_collapse_playback("manual_ui")
+				else
+					local rt = require("Qing_Remaster_scripts.items.golden_compass.runtime")
+					if rt.force_mineshaft_collapse_playback then
+						rt.force_mineshaft_collapse_playback("manual_ui")
+					end
+				end
+			end},
+		})
+		local vdoor_life_status_id = "QingRemasterOptions_FixedCorridorVDoorLifeStatus"
+		imgui_layout.add_wrapped_text(vdoor_life_sec, vdoor_life_status_id, "idle")
+		ImGui.AddCallback(vdoor_life_status_id, ImGuiCallback.Render, function()
+			local p = vdoor_life_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(vdoor_life_status_id, ImGuiData.Label, text_body)
+		end)
+		probe_output.add_probe_output_controls(vdoor_life_sec, vdoor_life_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorVDoorLifeOut",
+			export_label = "Export JSONL",
+			full_label = "复制完整报告",
+			clear_label = "清空记录",
+		})
+
+		-- —— Boss 池审计 ——
+		local boss_pool_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorBossPoolSec",
+			"Boss 池审计"
+		)
+		local function boss_pool_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.golden_compass_boss_pool_probe")
+		end
+		add_text(
+			boss_pool_sec,
+			"只读扫描 v5：目标 STB + SPECIAL_ROOMS；身份别名/共享实体消歧；unsupported_shape 与 selectable_for_89；摘要按独立问题汇总；完整报告 layouts 去重。含 Mother 89/6000 与 -10 专项检查。StageAPI 扩展三项：candidates / usable_lr / rejected（固定 Seed；未安装则跳过）。不启用正式抽选。默认关闭。纯 StageAPI 房间清单也可在「StageAPI 绑定时序」页单独扫描。"
+		)
+		local boss_pool_en = "QingRemasterOptions_FixedCorridorBossPoolEnabled"
+		ImGui.AddCheckbox(boss_pool_sec, boss_pool_en, "启用 Boss 池审计探针", nil, false)
+		ImGui.AddCallback(boss_pool_en, ImGuiCallback.Render, function()
+			local p = boss_pool_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(boss_pool_en, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(boss_pool_en, ImGuiCallback.Edited, function(value)
+			local p = boss_pool_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		imgui_layout.add_small_action_row(boss_pool_sec, {
+			{id = "QingRemasterOptions_FixedCorridorBossPoolScan", label = "扫描全部目标楼层", on_click = function()
+				local p = boss_pool_probe()
+				if p and p.scan_all then p.scan_all("manual_ui") end
+			end},
+		})
+		local boss_pool_status_id = "QingRemasterOptions_FixedCorridorBossPoolStatus"
+		imgui_layout.add_wrapped_text(boss_pool_sec, boss_pool_status_id, "idle")
+		ImGui.AddCallback(boss_pool_status_id, ImGuiCallback.Render, function()
+			local p = boss_pool_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(boss_pool_status_id, ImGuiData.Label, text_body)
+		end)
+		probe_output.add_probe_output_controls(boss_pool_sec, boss_pool_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorBossPoolOut",
+			summary_label = "复制摘要",
+			export_label = "导出 JSON",
+			full_label = "复制完整报告",
+			clear_label = "清空报告",
+		})
+
+		-- —— StageAPI 绑定时序（只读；确认 89 ListIndex / OverrideData / GetLevelRoom）——
+		local sa_bind_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorStageApiBindSec",
+			"StageAPI 绑定时序"
+		)
+		local function sa_bind_probe()
+			return dev_env.require_probe("Qing_Remaster_scripts.debug.golden_compass_stageapi_bind_probe")
+		end
+		add_text(
+			sa_bind_sec,
+			"绑定时序：记录 Boss@89 after_plan / after_replace / layout_ready|failed / post_new_level / enter_89。默认关闭。\n"
+				.. "抽取池：预览当前楼层 vanilla/StageAPI 候选与排除原因；走廊生成后快照含 pick_pool_summary。\n"
+				.. "强制扩展：一次性把下次直道 Boss@89 指定为 StageAPI 扩展 Boss（不改正式随机权重）。\n"
+				.. "房间资源审计：离线扫描扩展 Boss 1×1 LR（固定 Seed），不换层。"
+		)
+		local sa_bind_en = "QingRemasterOptions_FixedCorridorStageApiBindEnabled"
+		ImGui.AddCheckbox(sa_bind_sec, sa_bind_en, "启用 StageAPI 绑定时序探针", nil, false)
+		ImGui.AddCallback(sa_bind_en, ImGuiCallback.Render, function()
+			local p = sa_bind_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(sa_bind_en, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(sa_bind_en, ImGuiCallback.Edited, function(value)
+			local p = sa_bind_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		imgui_layout.add_small_action_row(sa_bind_sec, {
+			{id = "QingRemasterOptions_FixedCorridorStageApiBindCapture", label = "立即快照", on_click = function()
+				local p = sa_bind_probe(); if p and p.capture_now then p.capture_now("manual_ui") end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiRoomsScan", label = "扫描 StageAPI 房间资源", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.scan_stageapi_rooms then p.scan_stageapi_rooms("manual_ui") end
+			end},
+		})
+		imgui_layout.add_small_action_row(sa_bind_sec, {
+			{id = "QingRemasterOptions_FixedCorridorStageApiPickPool", label = "预览当前楼层抽取池", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.inspect_pick_pool_now then p.inspect_pick_pool_now("manual_ui") end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiForceExt", label = "下次强制扩展 Boss@89", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.arm_force_stageapi_extension_next then p.arm_force_stageapi_extension_next() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiForceClear", label = "清除强制扩展", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.clear_force_stageapi_extension_next then p.clear_force_stageapi_extension_next() end
+			end},
+		})
+		imgui_layout.add_small_action_row(sa_bind_sec, {
+			{id = "QingRemasterOptions_FixedCorridorStageApiPickSummary", label = "复制抽取池摘要", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.copy_pick_pool_summary then p.copy_pick_pool_summary() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiPickFull", label = "复制抽取池完整 JSON", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.copy_pick_pool_full then p.copy_pick_pool_full() end
+			end},
+		})
+		local sa_bind_status_id = "QingRemasterOptions_FixedCorridorStageApiBindStatus"
+		imgui_layout.add_wrapped_text(sa_bind_sec, sa_bind_status_id, "idle")
+		ImGui.AddCallback(sa_bind_status_id, ImGuiCallback.Render, function()
+			local p = sa_bind_probe()
+			local text_body = p and p.status_text and p.status_text() or "idle"
+			ImGui.UpdateData(sa_bind_status_id, ImGuiData.Label, text_body)
+		end)
+		local sa_rooms_status_id = "QingRemasterOptions_FixedCorridorStageApiRoomsStatus"
+		imgui_layout.add_wrapped_text(sa_bind_sec, sa_rooms_status_id, "stageapi_rooms idle")
+		ImGui.AddCallback(sa_rooms_status_id, ImGuiCallback.Render, function()
+			local p = sa_bind_probe()
+			local text_body = p and p.stageapi_rooms_status_text and p.stageapi_rooms_status_text() or "idle"
+			ImGui.UpdateData(sa_rooms_status_id, ImGuiData.Label, text_body)
+		end)
+		imgui_layout.add_small_action_row(sa_bind_sec, {
+			{id = "QingRemasterOptions_FixedCorridorStageApiRoomsSummary", label = "复制房间审计摘要", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.copy_stageapi_rooms_summary then p.copy_stageapi_rooms_summary() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiRoomsFull", label = "复制房间审计完整报告", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.copy_stageapi_rooms_full then p.copy_stageapi_rooms_full() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiRoomsExport", label = "导出房间审计 JSON", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.export_stageapi_rooms then p.export_stageapi_rooms() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorStageApiRoomsClear", label = "清空房间审计", on_click = function()
+				local p = sa_bind_probe()
+				if p and p.clear_stageapi_rooms_report then p.clear_stageapi_rooms_report() end
+			end},
+		})
+		probe_output.add_probe_output_controls(sa_bind_sec, sa_bind_probe, {
+			id_prefix = "QingRemasterOptions_FixedCorridorStageApiBindOut",
+			export_label = "Export JSONL",
+			full_label = "复制完整报告",
+			clear_label = "清空记录",
+		})
+
+		-- —— 见证者测试 ——
+		local witness_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorWitnessSec",
+			"陵墓 II · 见证者路线测试"
+		)
+		add_text(witness_sec, "默认关闭；手动开启。正式出口规则不变。")
+		local witness_id = "QingRemasterOptions_FixedCorridorWitness"
+		ImGui.AddCheckbox(witness_sec, witness_id, "见证者测试：绕过陵墓II出口排除", nil, false)
+		ImGui.AddCallback(witness_id, ImGuiCallback.Render, function()
+			local p = corridor_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(witness_id, cfg.witness_mausoleum_test == true)
+		end)
+		ImGui.AddCallback(witness_id, ImGuiCallback.Edited, function(value)
+			local p = corridor_probe()
+			if p and p.set_witness_mausoleum_test then
+				p.set_witness_mausoleum_test(value == true)
+			end
+		end)
+		imgui_layout.add_small_action_row(witness_sec, {
+			{id = "QingRemasterOptions_FixedCorridorForceMomMaus", label = "下次强制强化妈腿(89)", on_click = function()
+				local p = corridor_probe()
+				if p and p.arm_force_mom_mausoleum_next then p.arm_force_mom_mausoleum_next() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorWitnessSnap", label = "快照见证者状态", on_click = function()
+				local p = corridor_probe()
+				if p and p.snapshot_witness_route then p.snapshot_witness_route("manual_ui") end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorWitnessSoft", label = "TrySpawnSecretExit(软)", on_click = function()
+				local p = corridor_probe()
+				if p and p.try_spawn_witness_secret_exit_soft then
+					p.try_spawn_witness_secret_exit_soft()
+				end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorWitnessForce", label = "TrySpawnSecretExit(Force)", on_click = function()
+				local p = corridor_probe()
+				if p and p.try_spawn_witness_secret_exit_force then
+					p.try_spawn_witness_secret_exit_force()
+				end
+			end},
+		})
+
+		-- —— 高级对照 ——
+		local adv_sec = imgui_layout.add_section(
+			fixed_corridor_group,
+			"QingRemasterOptions_FixedCorridorAdvSec",
+			"高级对照（日常可忽略）"
+		)
+		local enable_id = "QingRemasterOptions_FixedCorridorEnabled"
+		ImGui.AddCheckbox(adv_sec, enable_id, "启用探针（不武装）", nil, false)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Render, function()
+			local p = corridor_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(enable_id, cfg.enabled == true)
+		end)
+		ImGui.AddCallback(enable_id, ImGuiCallback.Edited, function(value)
+			local p = corridor_probe()
+			if p and p.set_enabled then p.set_enabled(value == true) end
+		end)
+		local api_game_id = "QingRemasterOptions_FixedCorridorApiGame"
+		ImGui.AddCheckbox(adv_sec, api_game_id, "入层用 Game:ChangeRoom（否=Level）", nil, true)
+		ImGui.AddCallback(api_game_id, ImGuiCallback.Render, function()
+			local p = corridor_probe()
+			local cfg = p and p.get_config and p.get_config() or {}
+			live.update_checkbox_if_changed(api_game_id, cfg.entry_change_api ~= "level")
+		end)
+		ImGui.AddCallback(api_game_id, ImGuiCallback.Edited, function(value)
+			local p = corridor_probe()
+			if p and p.set_entry_change_api then
+				p.set_entry_change_api(value == true and "game" or "level")
+			end
+		end)
+		imgui_layout.add_small_action_row(adv_sec, {
+			{id = "QingRemasterOptions_FixedCorridorArmFull", label = "武装全直道", on_click = function()
+				local p = corridor_probe(); if p and p.arm_full_corridor then p.arm_full_corridor() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorArmP0", label = "P0", on_click = function()
+				local p = corridor_probe(); if p and p.arm_p0 then p.arm_p0() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorArmP1", label = "P1", on_click = function()
+				local p = corridor_probe(); if p and p.arm_p0_p1 then p.arm_p0_p1() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorArmP2A", label = "P2-A", on_click = function()
+				local p = corridor_probe(); if p and p.arm_p2a then p.arm_p2a() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorArmP2B", label = "P2-B", on_click = function()
+				local p = corridor_probe(); if p and p.arm_p2b then p.arm_p2b() end
+			end},
+		})
+		imgui_layout.add_small_action_row(adv_sec, {
+			{id = "QingRemasterOptions_FixedCorridorCapture", label = "捕获当前楼层", on_click = function()
+				local p = corridor_probe(); if p and p.capture_current_level then p.capture_current_level() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorForce", label = "立即 stage 13", on_click = function()
+				local p = corridor_probe(); if p and p.force_console_home_now then p.force_console_home_now() end
+			end},
+			{id = "QingRemasterOptions_FixedCorridorPlace108", label = "实验 Place@108(25601)", on_click = function()
+				local p = corridor_probe(); if p and p.experiment_force_place_108 then p.experiment_force_place_108() end
+			end},
+		})
+	end
+	end
+
 	local grid_topo_group = start_probe_module(
 		"audit_grid_rock_topology",
 		"Grid Rock Topology",

@@ -171,6 +171,7 @@ enums.Items = {
 	Incandescence_Flame = Isaac.GetItemIdByName("Incandescence Flame"),
 	Entombed_Demon = Isaac.GetItemIdByName("Entombed Demon"),
 	Wishing = Isaac.GetItemIdByName("Wishing"),
+	Golden_Compass = Isaac.GetItemIdByName("Golden Compass"),
 
 	Baby_Tecro = Isaac.GetItemIdByName("Baby Tecro"),
 	Baby_Anna = Isaac.GetItemIdByName("Baby Anna"),
@@ -238,6 +239,8 @@ enums.Callbacks = {		-- Old misspelled callback names were normalized during the
 	POST_PICKUP_POCKET_ITEM = "POST_PICKUP_POCKET_ITEM",
 	POST_CHANGE_POCKET_ITEM = "POST_CHANGE_POCKET_ITEM",
 	PRE_GET_TELEPORT = "PRE_GET_TELEPORT",
+	-- Virtual doors opting into confirmed_door detection (grid_doors). Not native door teleport.
+	PRE_VIRTUAL_DOOR_ENTER = "PRE_VIRTUAL_DOOR_ENTER",
 	POST_CHANGE_BASIC = "POST_CHANGE_BASIC",
 	POST_CHANGE_ALL_BASIC = "POST_CHANGE_ALL_BASIC",
 	POST_PLAYER_LOSS = "POST_PLAYER_LOSS",
@@ -426,6 +429,7 @@ enums.SoundEffect = {
 	Alien_Savior_UFO_Hover = Isaac.GetSoundIdByName("Alien Savior UFO Hover"),
 	Cake_Berry_Plate_Impact = Isaac.GetSoundIdByName("Cake Berry Plate Impact"),
 	Zennith_Arena_Thunder = Isaac.GetSoundIdByName("Zennith Arena Thunder"),
+	Floraine_Royal_Drop = Isaac.GetSoundIdByName("Floraine Royal Drop"),
 }
 
 enums.Music = {

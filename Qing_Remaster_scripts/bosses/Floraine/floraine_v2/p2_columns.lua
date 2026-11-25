@@ -71,8 +71,123 @@ local function ease_in(t)
 	return t * t
 end
 
+local function lerp(a, b, t)
+	return a + (b - a) * t
+end
+
 local function lerp_vec(a, b, t)
 	return Vector(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t)
+end
+
+local function march_cfg()
+	return (cfg().MARCH_VISUAL) or {}
+end
+
+--- TRANSFER: ~3f accel, cruise, ~3f decel (shared by whole column).
+local function ease_march_transfer(t, frames)
+	t = math.max(0, math.min(1, t or 0))
+	frames = math.max(1, frames or 20)
+	local mv = march_cfg()
+	local a = math.max(0.01, (mv.TRANSFER_ACCEL or 3) / frames)
+	local d = math.max(0.01, (mv.TRANSFER_DECEL or 3) / frames)
+	if a + d >= 0.95 then
+		a, d = 0.15, 0.15
+	end
+	local v = 1 / (1 - 0.5 * a - 0.5 * d)
+	local cruise_end = 1 - d
+	if t < a then
+		local u = t / a
+		return 0.5 * v * a * u * u
+	elseif t <= cruise_end then
+		return 0.5 * v * a + v * (t - a)
+	end
+	local u = (t - cruise_end) / d
+	return 0.5 * v * a + v * (cruise_end - a) + v * d * (u - 0.5 * u * u)
+end
+
+--- Shared squash / silver outline for on-board march (not entrance / exit flight).
+local function compute_march_pose(phase, elapsed, durs)
+	local mv = march_cfg()
+	local sx, sy = 1, 1
+	local oa = 0
+	local rgb = mv.OUTLINE_RGB or { 0.85, 0.81, 0.82 }
+	local omax = mv.OUTLINE_MAX or 0.80
+	elapsed = math.max(0, elapsed or 0)
+
+	if phase == PHASE.LIFT then
+		local n = math.max(1, durs.lift or 14)
+		local t = math.min(1, elapsed / n)
+		local ant_n = math.min(n - 1, mv.ANTICIPATE_FRAMES or 3)
+		local ax = mv.ANTICIPATE_X or 1.04
+		local ay = mv.ANTICIPATE_Y or 0.94
+		local airx = mv.AIR_X or 0.98
+		local airy = mv.AIR_Y or 1.05
+		if elapsed <= ant_n then
+			local u = ant_n > 0 and (elapsed / ant_n) or 1
+			sx = lerp(1, ax, u)
+			sy = lerp(1, ay, u)
+			oa = omax * 0.25 * u
+		else
+			local u = (elapsed - ant_n) / math.max(1, n - ant_n)
+			sx = lerp(ax, airx, ease_out(u))
+			sy = lerp(ay, airy, ease_out(u))
+			oa = omax * (0.25 + 0.75 * ease_out(u))
+		end
+	elseif phase == PHASE.HOVER then
+		sx = mv.AIR_X or 0.98
+		sy = mv.AIR_Y or 1.05
+		oa = omax
+	elseif phase == PHASE.TRANSFER then
+		sx = mv.TRANSFER_X or mv.AIR_X or 0.98
+		sy = mv.TRANSFER_Y or 1.04
+		oa = omax
+	elseif phase == PHASE.LAND then
+		local n = math.max(1, durs.land or 14)
+		local t = math.min(1, elapsed / n)
+		local imp_n = math.min(n, mv.IMPACT_FRAMES or 3)
+		local airx = mv.TRANSFER_X or mv.AIR_X or 0.98
+		local airy = mv.TRANSFER_Y or mv.AIR_Y or 1.04
+		local ix = mv.IMPACT_X or 1.10
+		local iy = mv.IMPACT_Y or 0.88
+		if elapsed > n - imp_n then
+			local u = imp_n > 0 and ((elapsed - (n - imp_n)) / imp_n) or 1
+			sx = lerp(airx, ix, u)
+			sy = lerp(airy, iy, u)
+		else
+			local u = (n - imp_n) > 0 and (elapsed / (n - imp_n)) or 1
+			sx = airx
+			sy = airy
+			-- Slight pre-impact lean as height drops.
+			sx = lerp(airx, ix, 0.15 * ease_in(u))
+			sy = lerp(airy, iy, 0.15 * ease_in(u))
+		end
+		oa = omax * (1 - 0.35 * t)
+	elseif phase == PHASE.SETTLE then
+		local n = math.max(1, durs.settle or 10)
+		local reb_n = math.min(n, mv.REBOUND_FRAMES or 3)
+		local ix = mv.IMPACT_X or 1.10
+		local iy = mv.IMPACT_Y or 0.88
+		local rx = mv.REBOUND_X or 0.97
+		local ry = mv.REBOUND_Y or 1.04
+		if elapsed <= reb_n then
+			local u = reb_n > 0 and (elapsed / reb_n) or 1
+			sx = lerp(ix, rx, u)
+			sy = lerp(iy, ry, u)
+			oa = omax * 0.45 * (1 - u)
+		else
+			local u = (n - reb_n) > 0 and ((elapsed - reb_n) / (n - reb_n)) or 1
+			sx = lerp(rx, 1, ease_out(u))
+			sy = lerp(ry, 1, ease_out(u))
+			oa = 0
+		end
+	end
+
+	return {
+		scale_x = sx,
+		scale_y = sy,
+		outline_alpha = oa,
+		outline_rgb = rgb,
+	}
 end
 
 local function new_id()
@@ -138,16 +253,28 @@ local function spawn_matte_at(slot, ground_pos)
 		return nil
 	end
 	ground_pos = ground_pos or slot.visual_pos or slot.pos
-	local outline_a = slot.state == SLOT.TARGET_LOCKED and 0.55 or 0
-	local outline_rgb = slot.state == SLOT.TARGET_LOCKED and { 1, 0.2, 0.25 } or nil
+	-- Promote lock red outline always wins over march silver.
+	local outline_a, outline_rgb
+	if slot.state == SLOT.TARGET_LOCKED then
+		outline_a = 0.55
+		outline_rgb = { 1, 0.2, 0.25 }
+	else
+		outline_a = slot.march_outline_alpha or 0
+		outline_rgb = slot.march_outline_rgb
+	end
+	local sx = slot.march_scale_x or 1
+	local sy = slot.march_scale_y or 1
+	local opts = {
+		ground_pos = ground_pos,
+		visual_height = slot.visual_height or 0,
+		color_progress = 0,
+		outline_alpha = outline_a,
+		outline_rgb = outline_rgb,
+		scale_x = sx,
+		scale_y = sy,
+	}
 	if slot.fx and slot.fx.Exists and slot.fx:Exists() then
-		piece_matte.sync(slot.fx, {
-			ground_pos = ground_pos,
-			visual_height = slot.visual_height or 0,
-			color_progress = 0,
-			outline_alpha = outline_a,
-			outline_rgb = outline_rgb,
-		})
+		piece_matte.sync(slot.fx, opts)
 		return slot.fx
 	end
 	local ent = piece_matte.spawn(piece_defs.KIND.PAWN, ground_pos, {
@@ -157,9 +284,28 @@ local function spawn_matte_at(slot, ground_pos)
 		outline_alpha = outline_a,
 		outline_rgb = outline_rgb,
 		visual_height = slot.visual_height or 0,
+		scale_x = sx,
+		scale_y = sy,
 	})
 	slot.fx = ent
 	return ent
+end
+
+local function apply_pose_to_slot(slot, pose, skip_march)
+	if not slot then
+		return
+	end
+	if skip_march or not pose then
+		slot.march_scale_x = 1
+		slot.march_scale_y = 1
+		slot.march_outline_alpha = 0
+		slot.march_outline_rgb = nil
+		return
+	end
+	slot.march_scale_x = pose.scale_x or 1
+	slot.march_scale_y = pose.scale_y or 1
+	slot.march_outline_alpha = pose.outline_alpha or 0
+	slot.march_outline_rgb = pose.outline_rgb
 end
 
 local function refresh_blockers_side(side)
@@ -210,6 +356,7 @@ end
 
 local function make_slot(side_name, row, pos, opts)
 	opts = opts or {}
+	local spawn_ground = opts.spawn_ground
 	local slot = {
 		id = new_id(),
 		side = side_name,
@@ -218,16 +365,24 @@ local function make_slot(side_name, row, pos, opts)
 		state = opts.state or SLOT.MATTE,
 		kind = "pawn",
 		pos = Vector(pos.X, pos.Y),
-		visual_pos = Vector(pos.X, pos.Y),
+		visual_pos = spawn_ground and Vector(spawn_ground.X, spawn_ground.Y) or Vector(pos.X, pos.Y),
 		visual_height = opts.visual_height or 0,
 		promote_token = nil,
-		fx = nil,
+		fx = opts.adopt_fx,
 		exiting = false,
 		entering = opts.entering == true,
 		is_stray = opts.is_stray == true,
 	}
+	if opts.defer_spawn then
+		return slot
+	end
 	if slot.state == SLOT.MATTE or slot.state == SLOT.TARGET_LOCKED then
-		spawn_matte_at(slot, slot.visual_pos)
+		if opts.adopt_fx and opts.adopt_fx.Exists and opts.adopt_fx:Exists() then
+			slot.fx = opts.adopt_fx
+			spawn_matte_at(slot, slot.visual_pos)
+		else
+			spawn_matte_at(slot, slot.visual_pos)
+		end
 	end
 	return slot
 end
@@ -257,27 +412,29 @@ local function occupied_keys()
 	return keys
 end
 
-local function is_screen_fully_below(ground, visual_height)
-	if not ground then
-		return true
-	end
-	-- Approximate sprite bottom (ground + half body), accounting for lift offset.
-	local sprite_bottom = Vector(ground.X, ground.Y - (visual_height or 0) + 36)
-	local screen = Isaac.WorldToScreen(sprite_bottom)
-	return screen.Y > Isaac.GetScreenHeight() + 4
+local function sprite_half()
+	return (cfg().SPRITE_HALF or 24)
 end
 
-local function offscreen_start(side_name, target, side_offset)
-	local room = Game():GetRoom()
-	local tl = room:GetTopLeftPos()
-	local br = room:GetBottomRightPos()
-	local x
+local function is_screen_fully_below(ground, visual_height)
+	return arena.is_sprite_fully_below_screen(ground, visual_height, sprite_half(), 48)
+end
+
+--- Full sprite starts beyond the real camera edge (not merely room bounds ±80).
+local function offscreen_start(side_name, target, _side_offset)
+	local half = sprite_half()
 	if side_name == "left" then
-		x = tl.X - (side_offset or 80)
-	else
-		x = br.X + (side_offset or 80)
+		return arena.world_offscreen_left(target.Y, half, 8)
 	end
-	return Vector(x, target.Y)
+	return arena.world_offscreen_right(target.Y, half, 8)
+end
+
+local function offscreen_above(target)
+	return arena.world_offscreen_above(target.X, 48, 8)
+end
+
+local function offscreen_below(target)
+	return arena.world_offscreen_below(target.X, 8, 8)
 end
 
 --- Build initial slots with per-row random band X (anti-adjacent same col).
@@ -293,30 +450,24 @@ local function build_initial_slots(layout, play_entrance)
 		local ro = pick_option(row.right, rng, right_avoid)
 		if lo then
 			left_avoid = lo.col
+			local start = play_entrance and offscreen_start("left", lo.pos) or nil
 			local slot = make_slot("left", i, lo.pos, {
 				grid_col = lo.col,
 				visual_height = play_entrance and durs.height or 0,
+				entering = play_entrance,
+				spawn_ground = start,
 			})
-			if play_entrance then
-				local start = offscreen_start("left", lo.pos, durs.side_offset)
-				slot.visual_pos = start
-				slot.entering = true
-				spawn_matte_at(slot, start)
-			end
 			state.left.slots[i] = slot
 		end
 		if ro then
 			right_avoid = ro.col
+			local start = play_entrance and offscreen_start("right", ro.pos) or nil
 			local slot = make_slot("right", i, ro.pos, {
 				grid_col = ro.col,
 				visual_height = play_entrance and durs.height or 0,
+				entering = play_entrance,
+				spawn_ground = start,
 			})
-			if play_entrance then
-				local start = offscreen_start("right", ro.pos, durs.side_offset)
-				slot.visual_pos = start
-				slot.entering = true
-				spawn_matte_at(slot, start)
-			end
 			state.right.slots[i] = slot
 		end
 	end
@@ -444,6 +595,22 @@ function columns.clear(reason)
 	clear_side(state.left)
 	clear_side(state.right)
 	clear_strays()
+	-- Finish in-flight exits so their Effects are not orphaned across rebuilds.
+	for _, ex in ipairs(state.motion.exit_pending or {}) do
+		local s = ex and ex.slot
+		if s then
+			if s.id then
+				occupancy.clear_blocker(stray_blocker_id(s.id))
+				occupancy.clear_blocker(blocker_id(s.id))
+			end
+			if s.fx then
+				piece_matte.remove(s.fx)
+				s.fx = nil
+			end
+			s.exiting = false
+			s.state = SLOT.EMPTY
+		end
+	end
 	occupancy.clear_blockers_by_owner(OWNER)
 	occupancy.clear_blockers_by_owner(STRAY_OWNER)
 	state.active = false
@@ -457,6 +624,103 @@ function columns.clear(reason)
 	state.motion.exit_pending = {}
 	state.motion.logic_committed = false
 	return true, reason
+end
+
+--- Stop writing poses so phase_transition can own visuals. Does not remove Effects.
+--- Keeps slot.visual_pos / visual_height / fx pose intact for handoff continuity.
+function columns.freeze_for_evac()
+	state.paused = true
+	state.motion.phase = PHASE.IDLE
+	state.motion.elapsed = 0
+	-- Drop march plans only; do not rewrite slot visual_pos (mid-TRANSFER must keep last shown pose).
+	state.motion.left_plan = nil
+	state.motion.right_plan = nil
+	state.motion.stray_plan = nil
+	state.motion.logic_committed = false
+end
+
+--- Hand visible column / stray / exit Effects to the evacuate driver (ownership transfer).
+--- skip_ids: optional set of slot.id already claimed by promotion morph visuals.
+function columns.take_evac_entities(skip_ids)
+	skip_ids = skip_ids or {}
+	columns.freeze_for_evac()
+	local items = {}
+	local seen = {}
+
+	local function take_fx(slot, force)
+		if not slot then
+			return
+		end
+		if slot.id and skip_ids[slot.id] then
+			-- Promote morph owns the visible ghost; drop pawn Effect quietly.
+			if slot.fx then
+				piece_matte.remove(slot.fx)
+				slot.fx = nil
+			end
+			if slot.id then
+				occupancy.clear_blocker(blocker_id(slot.id))
+				occupancy.clear_blocker(stray_blocker_id(slot.id))
+			end
+			slot.state = SLOT.EMPTY
+			slot.exiting = false
+			slot.promote_token = nil
+			return
+		end
+		if slot.state == SLOT.EMPTY and not force then
+			return
+		end
+		local fx = slot.fx
+		if not fx or not fx.Exists or not fx:Exists() then
+			slot.fx = nil
+			slot.state = SLOT.EMPTY
+			return
+		end
+		local h = GetPtrHash(fx)
+		if seen[h] then
+			slot.fx = nil
+			return
+		end
+		seen[h] = true
+		-- Live Effect pose = last displayed frame (TRANSFER mid-air). Never snap to slot.pos.
+		local ground = Vector(fx.Position.X, fx.Position.Y)
+		local height = -(fx.PositionOffset and fx.PositionOffset.Y or 0)
+		local spr = fx.GetSprite and fx:GetSprite()
+		items[#items + 1] = {
+			kind = "matte",
+			ent = fx,
+			start = Vector(ground.X, ground.Y),
+			height0 = height or 0,
+			tilt = (spr and spr.Rotation) or 0,
+			elapsed = 0,
+			alpha = 1,
+		}
+		slot.fx = nil
+		if slot.id then
+			occupancy.clear_blocker(blocker_id(slot.id))
+			occupancy.clear_blocker(stray_blocker_id(slot.id))
+		end
+		slot.state = SLOT.EMPTY
+		slot.exiting = false
+		slot.promote_token = nil
+	end
+
+	for _, slot in ipairs(state.left.slots or {}) do
+		take_fx(slot)
+	end
+	for _, slot in ipairs(state.right.slots or {}) do
+		take_fx(slot)
+	end
+	for _, slot in ipairs(state.strays or {}) do
+		take_fx(slot)
+	end
+	for _, ex in ipairs(state.motion.exit_pending or {}) do
+		if ex and ex.slot then
+			take_fx(ex.slot, true)
+		end
+	end
+	state.motion.exit_pending = {}
+	state.strays = {}
+	return items
 end
 
 function columns.set_paused(p)
@@ -568,21 +832,43 @@ function columns.rollback_promote(slot_id, token)
 	return false, "bad_state"
 end
 
---- Demote a promoted NPC in-place into a stray matte pawn.
+--- Demote / register a persistent stray matte pawn.
+--- opts.gidx + opts.exact: land on that grid only (棋落 commit; no nearby search).
+--- opts.adopt_fx: reuse an existing matte Effect (seamless fall → stray).
 --- Returns stray slot or nil, why.
 function columns.demote_at(pos, opts)
 	opts = opts or {}
-	if not pos then
+	if not pos and opts.gidx == nil then
 		return nil, "no_pos"
 	end
 	local keys = occupied_keys()
 	local room = Game():GetRoom()
-	local land, idx = arena.nearest_walkable(pos, opts.search_radius or 4)
-	if not land then
-		return nil, "no_cell"
+	local land, idx
+	if opts.gidx ~= nil then
+		idx = opts.gidx
+		local p = room:GetGridPosition(idx)
+		land = Vector(p.X, p.Y)
+		local col = room:GetGridCollision(idx)
+		if col ~= GridCollisionClass.COLLISION_NONE then
+			return nil, "blocked"
+		end
+		if keys[idx] and opts.exact then
+			return nil, "occupied"
+		end
+		if keys[idx] and not opts.exact then
+			-- Fall through to ring search from this cell.
+			pos = land
+			land = nil
+		end
 	end
-	-- Resolve occupancy conflict: search ring if taken.
-	if idx and keys[idx] then
+	if not land then
+		land, idx = arena.nearest_walkable(pos, opts.search_radius or 4)
+		if not land then
+			return nil, "no_cell"
+		end
+	end
+	-- Resolve occupancy conflict: search ring if taken (unless exact gidx already failed).
+	if idx and keys[idx] and not opts.exact then
 		land = nil
 		local width = room:GetGridWidth()
 		local height = room:GetGridHeight()
@@ -615,13 +901,30 @@ function columns.demote_at(pos, opts)
 	end
 	local slot = make_slot("stray", 0, land, {
 		is_stray = true,
-		visual_height = 0,
+		visual_height = opts.visual_height or 0,
 		state = SLOT.MATTE,
+		adopt_fx = opts.adopt_fx,
+		spawn_ground = land,
 	})
 	slot.side = "stray"
 	state.strays[#state.strays + 1] = slot
 	refresh_stray_blockers()
 	return slot
+end
+
+function columns.count_matte()
+	local n = 0
+	local function add(list)
+		for _, s in ipairs(list or {}) do
+			if s.state == SLOT.MATTE or s.state == SLOT.TARGET_LOCKED then
+				n = n + 1
+			end
+		end
+	end
+	add(state.left.slots)
+	add(state.right.slots)
+	add(state.strays)
+	return n
 end
 
 local function build_side_plan(side, layout, durs)
@@ -634,24 +937,28 @@ local function build_side_plan(side, layout, durs)
 	local rng = layout_rng()
 
 	local bottom = old[n]
-	if bottom and bottom.state ~= SLOT.EMPTY then
+	-- Promote-locked pieces stay put; march must wait via is_board_busy, but skip as safety.
+	if bottom and bottom.state == SLOT.TARGET_LOCKED then
+		-- hold bottom cell occupied for this cycle
+	elseif bottom and bottom.state ~= SLOT.EMPTY then
 		local start = Vector(bottom.pos.X, bottom.pos.Y)
 		local transfer_target = Vector(bottom.pos.X, bottom.pos.Y + (durs.top_offset or 40))
 		plan.exit = {
 			slot = bottom,
 			start = start,
 			transfer_target = transfer_target,
-			-- fly continues until off-screen; initial aim far below
-			fly_target = Vector(bottom.pos.X, bottom.pos.Y + 200),
+			fly_target = offscreen_below(transfer_target),
 		}
 		bottom.exiting = true
 	elseif bottom and bottom.state == SLOT.EMPTY then
 		-- Empty hole also scrolls off (no fx).
+		local start = Vector(bottom.pos.X, bottom.pos.Y)
+		local transfer_target = Vector(bottom.pos.X, bottom.pos.Y + (durs.top_offset or 40))
 		plan.exit = {
 			slot = bottom,
-			start = Vector(bottom.pos.X, bottom.pos.Y),
-			transfer_target = Vector(bottom.pos.X, bottom.pos.Y + (durs.top_offset or 40)),
-			fly_target = Vector(bottom.pos.X, bottom.pos.Y + 200),
+			start = start,
+			transfer_target = transfer_target,
+			fly_target = offscreen_below(transfer_target),
 			silent = true,
 		}
 		bottom.exiting = true
@@ -659,7 +966,7 @@ local function build_side_plan(side, layout, durs)
 
 	for i = 1, n - 1 do
 		local src = old[i]
-		if src then
+		if src and src.state ~= SLOT.TARGET_LOCKED and src.state ~= SLOT.EMPTY then
 			local target_row = layout[i + 1]
 			-- Keep X (grid_col); only Y advances with the row.
 			local target = Vector(src.pos.X, target_row.y_world)
@@ -690,14 +997,13 @@ local function build_side_plan(side, layout, durs)
 	local picked = pick_option(opts, rng, avoid)
 	if picked then
 		local top_target = Vector(picked.pos.X, picked.pos.Y)
-		local top_start = Vector(top_target.X, top_target.Y - (durs.top_offset or 40))
+		local top_start = offscreen_above(top_target)
 		local enter_slot = make_slot(side.side, 1, top_target, {
 			grid_col = picked.col,
 			visual_height = 0,
 			entering = true,
+			spawn_ground = top_start,
 		})
-		enter_slot.visual_pos = Vector(top_start.X, top_start.Y)
-		spawn_matte_at(enter_slot, enter_slot.visual_pos)
 		plan.enter = {
 			slot = enter_slot,
 			start = top_start,
@@ -707,73 +1013,151 @@ local function build_side_plan(side, layout, durs)
 	return plan
 end
 
-local function build_stray_plan(durs)
+--- Strict one-cell down, same X. "exit" only at true column bottom.
+local function stray_down_intent(pos)
+	if not pos then
+		return "exit", nil
+	end
+	local room = Game():GetRoom()
+	local width = room:GetGridWidth()
+	local height = room:GetGridHeight()
+	local idx = room:GetGridIndex(pos)
+	if not idx or idx < 0 then
+		return "exit", nil
+	end
+	local x = idx % width
+	local y = math.floor(idx / width)
+	local ny = y + 1
+	if ny >= height then
+		return "exit", nil
+	end
+	local cell = room:GetGridPosition(ny * width + x)
+	local found = arena.nearest_walkable(cell, 0)
+	if found and found.Y > pos.Y + 8 then
+		return "move", Vector(found.X, found.Y)
+	end
+	-- Next cell unwalkable: stay unless no further walkable cells remain below.
+	for yy = ny + 1, height - 1 do
+		local deeper = arena.nearest_walkable(room:GetGridPosition(yy * width + x), 0)
+		if deeper then
+			return "blocked", nil
+		end
+	end
+	return "exit", nil
+end
+
+local function apply_side_plan_cells(plan, vacating, claimed)
+	if not plan then
+		return
+	end
+	local room = Game():GetRoom()
+	local function mark(pos, tbl)
+		if not pos then return end
+		local idx = room:GetGridIndex(pos)
+		if idx and idx >= 0 then
+			tbl[idx] = true
+		end
+	end
+	if plan.exit and plan.exit.slot and plan.exit.slot.state ~= SLOT.EMPTY then
+		mark(plan.exit.start or plan.exit.slot.pos, vacating)
+	end
+	for _, mv in ipairs(plan.moves or {}) do
+		mark(mv.start, vacating)
+		mark(mv.target, claimed)
+	end
+	if plan.enter and plan.enter.target then
+		mark(plan.enter.target, claimed)
+	end
+end
+
+--- Batch stray advance: movers vacate for each other; static blockers still stop the column.
+local function build_stray_plan(durs, left_plan, right_plan)
 	local plan = { moves = {}, exits = {} }
-	local keep_preview = {}
+	local room = Game():GetRoom()
+	local static_keys = occupied_keys()
+	local vacating = {}
+	local claimed = {}
+	apply_side_plan_cells(left_plan, vacating, claimed)
+	apply_side_plan_cells(right_plan, vacating, claimed)
+
+	local intents = {}
 	for _, slot in ipairs(state.strays) do
-		if slot.state == SLOT.EMPTY then
-			-- skip
-		else
-			local next_pos = arena.step_down_walkable(slot.pos)
-			local keys = occupied_keys()
-			-- Temporarily ignore this slot's own cell.
-			local room = Game():GetRoom()
-			local self_idx = room:GetGridIndex(slot.pos)
-			if self_idx and self_idx >= 0 then
-				keys[self_idx] = nil
+		if slot.state ~= SLOT.EMPTY and not slot.exiting then
+			local kind, next_pos = stray_down_intent(slot.pos)
+			local start_idx = room:GetGridIndex(slot.pos)
+			intents[#intents + 1] = {
+				slot = slot,
+				kind = kind,
+				next_pos = next_pos,
+				start_idx = start_idx,
+				y = slot.pos.Y,
+			}
+		end
+	end
+	-- Bottom-first so a lower mover/exit frees its cell for the piece above.
+	table.sort(intents, function(a, b)
+		return (a.y or 0) > (b.y or 0)
+	end)
+
+	for _, it in ipairs(intents) do
+		if it.kind == "exit" then
+			local transfer_target = Vector(it.slot.pos.X, it.slot.pos.Y + (durs.top_offset or 40))
+			plan.exits[#plan.exits + 1] = {
+				slot = it.slot,
+				start = Vector(it.slot.pos.X, it.slot.pos.Y),
+				transfer_target = transfer_target,
+				fly_target = offscreen_below(transfer_target),
+			}
+			it.slot.exiting = true
+			if it.start_idx and it.start_idx >= 0 then
+				vacating[it.start_idx] = true
+				static_keys[it.start_idx] = nil
 			end
-			if next_pos then
-				local nidx = room:GetGridIndex(next_pos)
-				if nidx and keys[nidx] then
-					-- Conflict: try slight lateral search.
-					local alt = arena.nearest_walkable(Vector(next_pos.X + 40, next_pos.Y), 2)
-						or arena.nearest_walkable(Vector(next_pos.X - 40, next_pos.Y), 2)
-					if alt then
-						local aidx = room:GetGridIndex(alt)
-						if aidx and not keys[aidx] then
-							next_pos = alt
-							nidx = aidx
-						else
-							next_pos = nil
-						end
-					else
-						next_pos = nil
-					end
+		elseif it.kind == "move" and it.next_pos then
+			local nidx = room:GetGridIndex(it.next_pos)
+			local blocked = false
+			if nidx and nidx >= 0 then
+				if claimed[nidx] then
+					blocked = true
+				elseif static_keys[nidx] and not vacating[nidx] then
+					blocked = true
 				end
 			end
-			if not next_pos then
-				-- Treat as exit if near bottom or no step.
-				plan.exits[#plan.exits + 1] = {
-					slot = slot,
-					start = Vector(slot.pos.X, slot.pos.Y),
-					transfer_target = Vector(slot.pos.X, slot.pos.Y + (durs.top_offset or 40)),
-					fly_target = Vector(slot.pos.X, slot.pos.Y + 200),
-				}
-				slot.exiting = true
+			if blocked then
+				-- Stay; keep occupying start cell.
 			else
 				plan.moves[#plan.moves + 1] = {
-					slot = slot,
-					start = Vector(slot.pos.X, slot.pos.Y),
-					target = next_pos,
+					slot = it.slot,
+					start = Vector(it.slot.pos.X, it.slot.pos.Y),
+					target = it.next_pos,
 				}
-				keep_preview[room:GetGridIndex(next_pos)] = true
+				if it.start_idx and it.start_idx >= 0 then
+					vacating[it.start_idx] = true
+					static_keys[it.start_idx] = nil
+				end
+				if nidx and nidx >= 0 then
+					claimed[nidx] = true
+					static_keys[nidx] = true
+				end
 			end
 		end
+		-- "blocked" intent: stay put (mid-column hole).
 	end
 	return plan
 end
 
-local function apply_visuals_for_plan(plan, height, transfer_t, land_t, phase)
+local function apply_visuals_for_plan(plan, height, transfer_t, land_t, phase, pose)
 	if not plan then
 		return
 	end
 	transfer_t = transfer_t or 0
 	land_t = land_t or 0
 
-	local function set_slot(slot, ground, h)
+	local function set_slot(slot, ground, h, skip_march)
 		if not slot then return end
 		slot.visual_pos = Vector(ground.X, ground.Y)
 		slot.visual_height = h or 0
+		apply_pose_to_slot(slot, pose, skip_march == true)
 		if slot.state ~= SLOT.EMPTY then
 			spawn_matte_at(slot, slot.visual_pos)
 		end
@@ -790,11 +1174,12 @@ local function apply_visuals_for_plan(plan, height, transfer_t, land_t, phase)
 		end
 		local h = height
 		if phase == PHASE.LAND then
-			h = height * (1 - ease_out(land_t))
+			-- Accelerate into the ground (heavy stomp), not ease-out float-down.
+			h = height * (1 - ease_in(land_t))
 		elseif phase == PHASE.SETTLE or phase == PHASE.IDLE then
 			h = 0
 		end
-		set_slot(mv.slot, ground, h)
+		set_slot(mv.slot, ground, h, false)
 	end
 
 	if plan.enter then
@@ -809,20 +1194,22 @@ local function apply_visuals_for_plan(plan, height, transfer_t, land_t, phase)
 		end
 		local h = height
 		if phase == PHASE.LAND then
-			h = height * (1 - ease_out(land_t))
+			h = height * (1 - ease_in(land_t))
 		elseif phase == PHASE.SETTLE or phase == PHASE.IDLE then
 			h = 0
 		end
-		set_slot(en.slot, ground, h)
+		-- Top refill shares the march clock while joining the column.
+		set_slot(en.slot, ground, h, false)
 	end
 
 	local function apply_exit(ex)
 		if not ex or not ex.slot then return end
 		local slot = ex.slot
 		if phase == PHASE.LIFT or phase == PHASE.HOVER then
-			set_slot(slot, ex.start, height)
+			-- Still with the column until logic commit — keep shared march pose.
+			set_slot(slot, ex.start, height, false)
 		elseif phase == PHASE.TRANSFER then
-			set_slot(slot, lerp_vec(ex.start, ex.transfer_target, transfer_t), height)
+			set_slot(slot, lerp_vec(ex.start, ex.transfer_target, transfer_t), height, false)
 		elseif phase == PHASE.LAND then
 			local ground = lerp_vec(ex.transfer_target, ex.fly_target, ease_in(math.min(1, land_t)))
 			-- Keep accelerating downward past fly_target.
@@ -830,7 +1217,8 @@ local function apply_visuals_for_plan(plan, height, transfer_t, land_t, phase)
 				local extra = (land_t - 1) * 120
 				ground = Vector(ex.fly_target.X, ex.fly_target.Y + extra)
 			end
-			set_slot(slot, ground, height * math.max(0, 1 - 0.35 * math.min(1, land_t)))
+			-- Exit flight: no stomp squash / march outline (screen-leave path).
+			set_slot(slot, ground, height * math.max(0, 1 - 0.35 * math.min(1, land_t)), true)
 		end
 	end
 
@@ -874,6 +1262,7 @@ local function commit_logic(plan, side, layout)
 	if not plan then return end
 	local n = #layout
 	local next_slots = {}
+	local old = side.slots
 
 	if plan.enter and plan.enter.slot then
 		local s = plan.enter.slot
@@ -900,6 +1289,14 @@ local function commit_logic(plan, side, layout)
 		s.exiting = true
 	end
 
+	-- Promote-locked / unmoved holdovers keep their row.
+	for i = 1, n do
+		local s = old[i]
+		if s and s.state == SLOT.TARGET_LOCKED and not next_slots[i] and not s.exiting then
+			next_slots[i] = s
+		end
+	end
+
 	local compact = {}
 	for i = 1, n do
 		compact[i] = next_slots[i]
@@ -915,26 +1312,40 @@ local function commit_logic(plan, side, layout)
 	refresh_blockers_side(side)
 end
 
+--- Persist all non-exiting strays. moves update pos; exits leave the list (fx → exit_pending).
+--- Blocked / idle strays must remain in state.strays or they become orphan Effects.
 local function commit_stray_logic(plan)
 	if not plan then return end
-	local exiting_ids = {}
+
+	local moved = {}
+	local exiting = {}
+	for _, mv in ipairs(plan.moves or {}) do
+		if mv.slot and mv.slot.id and mv.target then
+			moved[mv.slot.id] = mv.target
+		end
+	end
 	for _, ex in ipairs(plan.exits or {}) do
-		if ex.slot then
-			exiting_ids[ex.slot.id] = true
+		if ex.slot and ex.slot.id then
+			exiting[ex.slot.id] = true
 			occupancy.clear_blocker(stray_blocker_id(ex.slot.id))
 			ex.slot.exiting = true
 		end
 	end
+
 	local keep = {}
-	for _, mv in ipairs(plan.moves or {}) do
-		local s = mv.slot
-		if s and not exiting_ids[s.id] then
-			s.pos = Vector(mv.target.X, mv.target.Y)
-			s.visual_pos = Vector(mv.target.X, mv.target.Y)
-			keep[#keep + 1] = s
+	for _, slot in ipairs(state.strays) do
+		if exiting[slot.id] then
+			-- Leave list; flight continues on exit_pending until off-screen.
+		else
+			local target = moved[slot.id]
+			if target then
+				slot.pos = Vector(target.X, target.Y)
+				slot.visual_pos = Vector(target.X, target.Y)
+			end
+			keep[#keep + 1] = slot
 		end
 	end
-	-- Exiting strays leave the list; fx lives on exit_pending until off-screen.
+
 	state.strays = keep
 	refresh_stray_blockers()
 end
@@ -980,19 +1391,25 @@ local function tick_exit_flight(durs)
 	local keep = {}
 	for _, ex in ipairs(pending) do
 		ex.fly_elapsed = (ex.fly_elapsed or 0) + 1
-		local t = ex.fly_elapsed / 20
+		-- Refresh off-screen end so camera pans still clear the sprite.
+		if (ex.fly_elapsed % 8) == 1 then
+			ex.fly_target = offscreen_below(ex.transfer_target or ex.start)
+		end
+		local t = ex.fly_elapsed / 24
 		local ground = lerp_vec(ex.transfer_target, ex.fly_target, ease_in(math.min(1, t)))
 		if t > 1 then
-			ground = Vector(ex.fly_target.X, ex.fly_target.Y + (t - 1) * 140)
+			ground = Vector(ex.fly_target.X, ex.fly_target.Y + (t - 1) * 160)
 		end
 		local h = (durs.height or 32) * math.max(0, 1 - 0.5 * math.min(1, t))
 		if ex.slot and ex.slot.state ~= SLOT.EMPTY then
 			ex.slot.visual_pos = ground
 			ex.slot.visual_height = h
+			apply_pose_to_slot(ex.slot, nil, true)
 			spawn_matte_at(ex.slot, ground)
 		end
+		-- Remove only after the full sprite clears the screen (failsafe is very late).
 		local done = is_screen_fully_below(ground, h)
-			or ex.fly_elapsed >= (durs.exit_fly_max or 90)
+			or ex.fly_elapsed >= (durs.exit_fly_max or 300)
 		if done then
 			finish_exit(ex)
 		else
@@ -1013,6 +1430,11 @@ function columns.step_once()
 	if not state.entrance_done then
 		return false, "entrance"
 	end
+	-- Wait for promote cast / particle / morph (not chase NPCs). Keep step_elapsed.
+	local ok_p, promo = pcall(require, "Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_promotion")
+	if ok_p and promo and promo.is_board_busy and promo.is_board_busy() then
+		return false, "promo_busy"
+	end
 	local durs = motion_cfg_durations()
 	local layout = arena.p2_row_layout(durs.band)
 	if not layout or #layout < 1 then
@@ -1023,13 +1445,14 @@ function columns.step_once()
 	state.motion.logic_committed = false
 	state.motion.left_plan = build_side_plan(state.left, layout, durs)
 	state.motion.right_plan = build_side_plan(state.right, layout, durs)
-	state.motion.stray_plan = build_stray_plan(durs)
-	state.motion.exit_pending = {}
+	state.motion.stray_plan = build_stray_plan(durs, state.motion.left_plan, state.motion.right_plan)
+	-- Keep any in-flight screen exits; next march must not reclaim them.
 	state.step_elapsed = 0
 	set_motion_phase(PHASE.LIFT)
-	apply_visuals_for_plan(state.motion.left_plan, 0, 0, 0, PHASE.LIFT)
-	apply_visuals_for_plan(state.motion.right_plan, 0, 0, 0, PHASE.LIFT)
-	apply_visuals_for_plan(state.motion.stray_plan, 0, 0, 0, PHASE.LIFT)
+	local pose0 = compute_march_pose(PHASE.LIFT, 0, durs)
+	apply_visuals_for_plan(state.motion.left_plan, 0, 0, 0, PHASE.LIFT, pose0)
+	apply_visuals_for_plan(state.motion.right_plan, 0, 0, 0, PHASE.LIFT, pose0)
+	apply_visuals_for_plan(state.motion.stray_plan, 0, 0, 0, PHASE.LIFT, pose0)
 	return true
 end
 
@@ -1087,6 +1510,11 @@ end
 
 local function tick_motion()
 	local m = state.motion
+	local durs = motion_cfg_durations()
+	-- Screen exits are independent of LAND/SETTLE rebound.
+	if m.exit_pending and #m.exit_pending > 0 then
+		tick_exit_flight(durs)
+	end
 	if m.phase == PHASE.IDLE then
 		return
 	end
@@ -1095,17 +1523,21 @@ local function tick_motion()
 		return
 	end
 
-	local durs = motion_cfg_durations()
 	m.elapsed = (m.elapsed or 0) + 1
 	local e = m.elapsed
 	local height = durs.height
 
 	if m.phase == PHASE.LIFT then
-		local t = ease_out(e / math.max(1, durs.lift))
+		local ant_n = (march_cfg().ANTICIPATE_FRAMES or 3)
+		local t = ease_out(math.max(0, e - ant_n) / math.max(1, durs.lift - ant_n))
+		if e <= ant_n then
+			t = 0
+		end
 		local h = height * t
-		apply_visuals_for_plan(m.left_plan, h, 0, 0, PHASE.LIFT)
-		apply_visuals_for_plan(m.right_plan, h, 0, 0, PHASE.LIFT)
-		apply_visuals_for_plan(m.stray_plan, h, 0, 0, PHASE.LIFT)
+		local pose = compute_march_pose(PHASE.LIFT, e, durs)
+		apply_visuals_for_plan(m.left_plan, h, 0, 0, PHASE.LIFT, pose)
+		apply_visuals_for_plan(m.right_plan, h, 0, 0, PHASE.LIFT, pose)
+		apply_visuals_for_plan(m.stray_plan, h, 0, 0, PHASE.LIFT, pose)
 		if e >= durs.lift then
 			set_motion_phase(PHASE.HOVER)
 		end
@@ -1113,9 +1545,10 @@ local function tick_motion()
 	end
 
 	if m.phase == PHASE.HOVER then
-		apply_visuals_for_plan(m.left_plan, height, 0, 0, PHASE.HOVER)
-		apply_visuals_for_plan(m.right_plan, height, 0, 0, PHASE.HOVER)
-		apply_visuals_for_plan(m.stray_plan, height, 0, 0, PHASE.HOVER)
+		local pose = compute_march_pose(PHASE.HOVER, e, durs)
+		apply_visuals_for_plan(m.left_plan, height, 0, 0, PHASE.HOVER, pose)
+		apply_visuals_for_plan(m.right_plan, height, 0, 0, PHASE.HOVER, pose)
+		apply_visuals_for_plan(m.stray_plan, height, 0, 0, PHASE.HOVER, pose)
 		if e >= durs.hover then
 			set_motion_phase(PHASE.TRANSFER)
 		end
@@ -1123,13 +1556,18 @@ local function tick_motion()
 	end
 
 	if m.phase == PHASE.TRANSFER then
-		local t = ease_out(e / math.max(1, durs.transfer))
-		apply_visuals_for_plan(m.left_plan, height, t, 0, PHASE.TRANSFER)
-		apply_visuals_for_plan(m.right_plan, height, t, 0, PHASE.TRANSFER)
-		apply_visuals_for_plan(m.stray_plan, height, t, 0, PHASE.TRANSFER)
+		local t = ease_march_transfer(e / math.max(1, durs.transfer), durs.transfer)
+		local pose = compute_march_pose(PHASE.TRANSFER, e, durs)
+		apply_visuals_for_plan(m.left_plan, height, t, 0, PHASE.TRANSFER, pose)
+		apply_visuals_for_plan(m.right_plan, height, t, 0, PHASE.TRANSFER, pose)
+		apply_visuals_for_plan(m.stray_plan, height, t, 0, PHASE.TRANSFER, pose)
 		if e >= durs.transfer then
 			if not m.logic_committed then
-				m.exit_pending = collect_exits(m.left_plan, m.right_plan, m.stray_plan)
+				local fresh = collect_exits(m.left_plan, m.right_plan, m.stray_plan)
+				m.exit_pending = m.exit_pending or {}
+				for i = 1, #fresh do
+					m.exit_pending[#m.exit_pending + 1] = fresh[i]
+				end
 				commit_logic(m.left_plan, state.left, m.layout)
 				commit_logic(m.right_plan, state.right, m.layout)
 				commit_stray_logic(m.stray_plan)
@@ -1146,31 +1584,48 @@ local function tick_motion()
 
 	if m.phase == PHASE.LAND then
 		local t = e / math.max(1, durs.land)
-		apply_visuals_for_plan(m.left_plan, height, 1, math.min(1, t), PHASE.LAND)
-		apply_visuals_for_plan(m.right_plan, height, 1, math.min(1, t), PHASE.LAND)
-		apply_visuals_for_plan(m.stray_plan, height, 1, math.min(1, t), PHASE.LAND)
-		local exits_done = true
-		if m.exit_pending and #m.exit_pending > 0 then
-			exits_done = tick_exit_flight(durs)
-		end
-		if e >= durs.land and exits_done then
-			apply_visuals_for_plan(m.left_plan, 0, 1, 1, PHASE.SETTLE)
-			apply_visuals_for_plan(m.right_plan, 0, 1, 1, PHASE.SETTLE)
-			apply_visuals_for_plan(m.stray_plan, 0, 1, 1, PHASE.SETTLE)
+		local pose = compute_march_pose(PHASE.LAND, e, durs)
+		apply_visuals_for_plan(m.left_plan, height, 1, math.min(1, t), PHASE.LAND, pose)
+		apply_visuals_for_plan(m.right_plan, height, 1, math.min(1, t), PHASE.LAND, pose)
+		apply_visuals_for_plan(m.stray_plan, height, 1, math.min(1, t), PHASE.LAND, pose)
+		-- Rebound starts when LAND ends; do not wait for off-screen exits.
+		if e >= durs.land then
+			local pose_s = compute_march_pose(PHASE.SETTLE, 0, durs)
+			apply_visuals_for_plan(m.left_plan, 0, 1, 1, PHASE.SETTLE, pose_s)
+			apply_visuals_for_plan(m.right_plan, 0, 1, 1, PHASE.SETTLE, pose_s)
+			apply_visuals_for_plan(m.stray_plan, 0, 1, 1, PHASE.SETTLE, pose_s)
 			set_motion_phase(PHASE.SETTLE)
 		end
 		return
 	end
 
 	if m.phase == PHASE.SETTLE then
-		apply_visuals_for_plan(m.left_plan, 0, 1, 1, PHASE.SETTLE)
-		apply_visuals_for_plan(m.right_plan, 0, 1, 1, PHASE.SETTLE)
-		apply_visuals_for_plan(m.stray_plan, 0, 1, 1, PHASE.SETTLE)
+		local pose = compute_march_pose(PHASE.SETTLE, e, durs)
+		apply_visuals_for_plan(m.left_plan, 0, 1, 1, PHASE.SETTLE, pose)
+		apply_visuals_for_plan(m.right_plan, 0, 1, 1, PHASE.SETTLE, pose)
+		apply_visuals_for_plan(m.stray_plan, 0, 1, 1, PHASE.SETTLE, pose)
 		if e >= durs.settle then
+			-- Ensure idle scale / outline cleared.
+			local function clear_pose_side(side)
+				for _, slot in ipairs(side.slots or {}) do
+					apply_pose_to_slot(slot, nil, true)
+					if slot.state ~= SLOT.EMPTY then
+						spawn_matte_at(slot, slot.pos)
+					end
+				end
+			end
+			clear_pose_side(state.left)
+			clear_pose_side(state.right)
+			for _, slot in ipairs(state.strays) do
+				apply_pose_to_slot(slot, nil, true)
+				if slot.state ~= SLOT.EMPTY then
+					spawn_matte_at(slot, slot.pos)
+				end
+			end
 			m.left_plan = nil
 			m.right_plan = nil
 			m.stray_plan = nil
-			m.exit_pending = {}
+			-- exit_pending continues independently until off-screen.
 			m.logic_committed = false
 			set_motion_phase(PHASE.IDLE)
 			refresh_blockers_side(state.left)
@@ -1190,23 +1645,32 @@ local function contact_players()
 	local radius = soft_collision.default_radius()
 	local strength = soft_collision.default_strength()
 	local dmg = cfg().CONTACT_DAMAGE or 1
-	local marching = columns.is_motion_busy()
+	local cd = cfg().CONTACT_COOLDOWN or 30
+	local phase = state.motion.phase
+	-- Contact damage only while the shared march is in the air / transfer / land windows.
+	local damage_phase = phase == PHASE.LIFT
+		or phase == PHASE.HOVER
+		or phase == PHASE.TRANSFER
+		or phase == PHASE.LAND
 
 	local function slot_ground(slot)
+		-- Board-plane visual feet (march uses visual_pos during flight).
 		return slot.visual_pos or slot.pos
 	end
 
+	--- Solid obstacle whenever the matte is on the board (idle or marching).
 	local function can_push(slot)
 		if not slot or not slot_ground(slot) then return false end
+		if slot.exiting then return false end
 		if slot.state ~= SLOT.MATTE and slot.state ~= SLOT.TARGET_LOCKED then return false end
-		if marching then return true end
-		return (slot.visual_height or 0) <= 0.5
+		return true
 	end
 
+	--- Extra contact damage only during LIFT / HOVER / TRANSFER / LAND.
 	local function can_damage(slot)
-		if marching then return false end
-		if not slot or (slot.visual_height or 0) > 0.5 then return false end
-		return slot.state == SLOT.MATTE or slot.state == SLOT.TARGET_LOCKED
+		if not damage_phase then return false end
+		if not can_push(slot) then return false end
+		return true
 	end
 
 	local function try_list(list, player)
@@ -1215,7 +1679,7 @@ local function contact_players()
 			if can_push(slot) and soft_collision.push_player(player, ground, center_x, strength, radius) then
 				if can_damage(slot) then
 					local src = (slot.fx and EntityRef(slot.fx)) or EntityRef(nil)
-					player:TakeDamage(dmg, 0, src, 0)
+					player:TakeDamage(dmg, 0, src, cd)
 				end
 				return true
 			end
@@ -1226,6 +1690,7 @@ local function contact_players()
 	for i = 0, Game():GetNumPlayers() - 1 do
 		local player = Game():GetPlayer(i)
 		if player and player:Exists() and not player:IsDead() then
+			-- Left / right / central strays share the same push + damage rules.
 			if not try_list(state.left.slots, player) then
 				if not try_list(state.right.slots, player) then
 					try_list(state.strays, player)
@@ -1255,9 +1720,10 @@ function columns.tick()
 		if columns.is_entrance_busy() then
 			apply_entrance_visuals(1, h, m.phase)
 		else
-			apply_visuals_for_plan(m.left_plan, h, 1, 0, m.phase)
-			apply_visuals_for_plan(m.right_plan, h, 1, 0, m.phase)
-			apply_visuals_for_plan(m.stray_plan, h, 1, 0, m.phase)
+			local pose = compute_march_pose(m.phase, m.elapsed or 0, durs)
+			apply_visuals_for_plan(m.left_plan, h, 1, 0, m.phase, pose)
+			apply_visuals_for_plan(m.right_plan, h, 1, 0, m.phase, pose)
+			apply_visuals_for_plan(m.stray_plan, h, 1, 0, m.phase, pose)
 		end
 	else
 		for _, slot in ipairs(state.left.slots) do
@@ -1289,22 +1755,40 @@ function columns.tick()
 	end
 	state.step_elapsed = state.step_elapsed + 1
 	if state.step_elapsed >= state.step_interval then
+		-- On promo_busy, leave step_elapsed >= interval so march starts as soon as free.
 		columns.step_once()
 	end
+end
+
+local function is_promote_candidate(slot)
+	return slot
+		and slot.state == SLOT.MATTE
+		and (slot.visual_height or 0) <= 0.5
+		and not slot.promote_token
+		and not slot.exiting
+		and not slot.entering
 end
 
 function columns.pick_matte(side_name)
 	if columns.is_motion_busy() or not state.entrance_done then
 		return nil
 	end
+	if side_name == "stray" then
+		local candidates = {}
+		for _, slot in ipairs(state.strays) do
+			if is_promote_candidate(slot) then
+				candidates[#candidates + 1] = slot
+			end
+		end
+		if #candidates < 1 then
+			return nil
+		end
+		return candidates[math.ceil(#candidates / 2)]
+	end
 	local side = columns.get_side(side_name)
 	local candidates = {}
 	for _, slot in ipairs(side.slots) do
-		if slot.state == SLOT.MATTE
-			and (slot.visual_height or 0) <= 0.5
-			and not slot.promote_token
-			and not slot.exiting
-			and not slot.entering then
+		if is_promote_candidate(slot) then
 			candidates[#candidates + 1] = slot
 		end
 	end
@@ -1312,6 +1796,36 @@ function columns.pick_matte(side_name)
 		return nil
 	end
 	return candidates[math.ceil(#candidates / 2)]
+end
+
+--- Up to `count` matte targets from left + right + strays, preferring near the player.
+function columns.pick_promote_targets(count, toward)
+	count = math.max(1, math.floor(tonumber(count) or 2))
+	if columns.is_motion_busy() or not state.entrance_done then
+		return {}
+	end
+	toward = toward or Game():GetRoom():GetCenterPos()
+	local candidates = {}
+	local function collect(list)
+		for _, slot in ipairs(list or {}) do
+			if is_promote_candidate(slot) and slot.pos then
+				candidates[#candidates + 1] = slot
+			end
+		end
+	end
+	collect(state.left.slots)
+	collect(state.right.slots)
+	collect(state.strays)
+	table.sort(candidates, function(a, b)
+		local da = (a.pos - toward):LengthSquared()
+		local db = (b.pos - toward):LengthSquared()
+		return da < db
+	end)
+	local out = {}
+	for i = 1, math.min(count, #candidates) do
+		out[i] = candidates[i]
+	end
+	return out
 end
 
 function columns.debug_set_phase(phase_name)

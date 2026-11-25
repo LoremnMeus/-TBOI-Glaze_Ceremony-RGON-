@@ -186,10 +186,17 @@ local function clamp(v, lo, hi)
 end
 
 --- Distance-driven travel frames (30Hz). Long slides stay snappy; short hops keep profile default.
-function defs.travel_frames_for(kind, from, to)
+-- opts.is_gold: gold pawns use a snappier base travel.
+function defs.travel_frames_for(kind, from, to, opts)
+	opts = opts or {}
 	kind = tonumber(kind) or defs.KIND.PAWN
 	local profile = defs.get(kind)
 	local base = profile.travel_frames or 10
+	if opts.is_gold and kind == defs.KIND.PAWN then
+		local fdefs = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.defs")
+		local g = fdefs.P1_GOLD_PAWN_ACTION or {}
+		base = tonumber(g.travel_frames) or 6
+	end
 	if not from or not to then
 		return base
 	end
@@ -200,8 +207,30 @@ function defs.travel_frames_for(kind, from, to)
 		return math.floor(clamp(5 + 0.9 * cells, 6, 12) + 0.5)
 	elseif kind == defs.KIND.QUEEN then
 		return math.floor(clamp(5 + 1.0 * cells, 6, 13) + 0.5)
+	elseif opts.is_gold and kind == defs.KIND.PAWN then
+		return math.floor(clamp(base + 0.35 * (cells - 1), 4, 8) + 0.5)
 	end
 	return base
+end
+
+--- Runtime action timing for a live piece (gold pawn overrides only).
+function defs.action_timing(data)
+	local kind = data and data.kind or defs.KIND.PAWN
+	local profile = defs.get(kind)
+	if data and data.is_gold and kind == defs.KIND.PAWN then
+		local fdefs = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.defs")
+		local g = fdefs.P1_GOLD_PAWN_ACTION or {}
+		return {
+			windup_frames = tonumber(g.windup_frames) or 3,
+			travel_frames = tonumber(g.travel_frames) or 6,
+			land_frames = tonumber(g.land_frames) or 2,
+			recover_frames = tonumber(g.recover_frames) or 4,
+			jump_height = profile.jump_height,
+			tilt_max = profile.tilt_max,
+			motion = profile.motion,
+		}
+	end
+	return profile
 end
 
 return defs

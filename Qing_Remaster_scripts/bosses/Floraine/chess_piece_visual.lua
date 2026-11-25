@@ -3,9 +3,24 @@
 -- Native entity shadowSize (entities2.xml) owns ground shadows.
 
 local defs = require("Qing_Remaster_scripts.bosses.Floraine.chess_piece_defs")
+local fdefs = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.defs")
 local sound_tracker = require("Qing_Remaster_scripts.auxiliary.sound_tracker")
 
 local visual = {}
+
+local function gold_outline_rgb()
+	local cfg = fdefs.P1_GOLD_OUTLINE or {}
+	local c = cfg.color or { 1.0, 0.82, 0.28 }
+	return { c[1] or 1, c[2] or 0.82, c[3] or 0.28 }
+end
+
+local function gold_outline_alpha()
+	local cfg = fdefs.P1_GOLD_OUTLINE or {}
+	local base = tonumber(cfg.alpha) or 0.72
+	local pulse = tonumber(cfg.pulse) or 0.10
+	local t = Game():GetFrameCount() * 0.12
+	return base + pulse * math.sin(t)
+end
 
 local function set_outline_alpha(s, alpha, rgb)
 	if not s or not s.GetLayer then
@@ -22,11 +37,13 @@ local function set_outline_alpha(s, alpha, rgb)
 	if type(rgb) == "table" then
 		r, g, b = rgb[1] or 1, rgb[2] or 1, rgb[3] or 1
 	end
+	-- Match matte piece_matte_fx: alpha≈0 also SetVisible(false) to avoid white flash.
+	local visible = a > 0.01
 	if layer.SetVisible then
-		layer:SetVisible(true)
+		layer:SetVisible(visible)
 	end
 	if layer.SetColor then
-		layer:SetColor(Color(r, g, b, a, 0, 0, 0))
+		layer:SetColor(Color(r, g, b, visible and a or 0, 0, 0, 0))
 	end
 end
 
@@ -123,10 +140,15 @@ function visual.apply_pose(ent, data)
 			eo1 * cp,
 			eo2 * cp
 		))
-		set_outline_alpha(s, rdv.outline_alpha or 0, { 1.0, 0.16, 0.20 })
+		-- Gold identity keeps gold outline during royal motion (no red override).
+		if data.is_gold then
+			set_outline_alpha(s, rdv.outline_alpha or 0, gold_outline_rgb())
+		else
+			set_outline_alpha(s, rdv.outline_alpha or 0, { 1.0, 0.16, 0.20 })
+		end
 		s.Color = Color(1, 1, 1, 1, 0, 0, 0)
 	elseif data._deploy_settle and data._deploy_settle > 0 then
-		-- Deploy handoff: finish matte→normal and red outline fade on the NPC.
+		-- Deploy handoff: finish matte→normal; outline continuous (gold→persist / red→off).
 		local settle = reserve_defs_settle()
 		local total = settle > 0 and settle or 12
 		local left = data._deploy_settle
@@ -141,20 +163,63 @@ function visual.apply_pose(ent, data)
 			matte.B + (normal.B - matte.B) * progress,
 			1, 0, 0, 0
 		))
-		local oa = (data._deploy_outline_fade or 0) * (1 - t)
-		set_outline_alpha(s, oa, { 1.0, 0.22, 0.26 })
+		local start_a = data._deploy_outline_fade or 0
+		if data._deploy_gold_settle or data.is_gold then
+			local target_a = gold_outline_alpha()
+			local oa = start_a + (target_a - start_a) * t
+			set_outline_alpha(s, oa, gold_outline_rgb())
+		else
+			local oa = start_a * (1 - t)
+			set_outline_alpha(s, oa, { 1.0, 0.22, 0.26 })
+		end
 		data._deploy_settle = left - 1
 		if data._deploy_settle <= 0 then
 			data._deploy_settle = nil
 			data._deploy_color_progress = nil
 			data._deploy_outline_fade = nil
+			data._deploy_gold_settle = nil
 			set_body_color(s, normal)
-			set_outline_alpha(s, 0)
+			visual.restore_identity_outline(ent, data)
 		end
+	elseif data.is_gold then
+		-- Persistent gold identity outline (not the red command pulse).
+		set_outline_alpha(s, gold_outline_alpha(), gold_outline_rgb())
 	elseif data.action_state ~= "WINDUP" and data._flash_tint then
 		visual.clear_tint(ent)
 		data._flash_tint = false
 	end
+end
+
+--- Restore outline owned by piece identity (gold stay-on / normal off).
+function visual.restore_identity_outline(ent, data)
+	if not ent then
+		return
+	end
+	local s = ent:GetSprite()
+	if data and data.is_gold then
+		set_outline_alpha(s, gold_outline_alpha(), gold_outline_rgb())
+	else
+		set_outline_alpha(s, 0)
+	end
+end
+
+--- Exit royal-drop visual ownership: reset sprite layers, then restore identity.
+function visual.clear_royal_drop_visual(ent, data)
+	if not ent then
+		return
+	end
+	local s = ent:GetSprite()
+	set_body_color(s, Color(1, 1, 1, 1, 0, 0, 0))
+	s.Color = Color(1, 1, 1, 1, 0, 0, 0)
+	s.Rotation = 0
+	s.Scale = Vector(1, 1)
+	if data then
+		data.royal_drop_visual = nil
+		data.visual_height = 0
+		data.visual_tilt = 0
+		data.visual_squash = nil
+	end
+	visual.restore_identity_outline(ent, data)
 end
 
 --- Soft windup hint only (small Color offset). Does not write LayerState; keep mild.

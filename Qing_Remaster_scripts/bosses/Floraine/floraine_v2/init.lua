@@ -19,7 +19,9 @@ local royal_drop = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.ro
 local staff_transition = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.staff_transition")
 local p2_columns = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_columns")
 local p2_promotion = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_promotion")
+local p2_chess_drop = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.p2_chess_drop")
 local phase_transition = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.phase_transition")
+local opening_camera = require("Qing_Remaster_scripts.bosses.Floraine.floraine_v2.opening_camera")
 
 local v2 = {
 	ToCall = {},
@@ -41,7 +43,9 @@ local v2 = {
 	staff_transition = staff_transition,
 	p2_columns = p2_columns,
 	p2_promotion = p2_promotion,
+	p2_chess_drop = p2_chess_drop,
 	phase_transition = phase_transition,
+	opening_camera = opening_camera,
 }
 
 local FLORAINE_VARIANT = enums.Enemies.Floraine
@@ -162,13 +166,45 @@ table.insert(v2.ToCall, #v2.ToCall + 1, {
 		temp_piece.clear_all("new_room")
 		command_particles.clear()
 		royal_drop.clear("new_room")
+		p2_chess_drop.clear("new_room")
 		p2_promotion.clear("new_room")
 		p2_columns.clear("new_room")
 		staff_transition.clear(nil)
+		opening_camera.clear("new_room")
 	end,
 })
 
--- Command-soul red particles + royal-drop ground telegraph + staff proxy (module Sprite render).
+-- RGON Camera:SetFocusPosition must be reapplied each update frame.
+table.insert(v2.ToCall, #v2.ToCall + 1, {
+	CallBack = ModCallbacks.MC_POST_UPDATE,
+	params = nil,
+	Function = function(_)
+		if opening_camera.is_active() then
+			opening_camera.apply()
+		end
+	end,
+})
+
+-- Board cell overlays (royal-drop + P2 chess-drop) share stone_board after-tile path.
+do
+	local ok_b, stone_board = pcall(require, "Qing_Remaster_scripts.threads.stone.stone_board")
+	if ok_b and stone_board and stone_board.set_cell_overlay_provider then
+		stone_board.set_cell_overlay_provider(function(index)
+			if royal_drop.get_board_cell_overlay then
+				local o = royal_drop.get_board_cell_overlay(index)
+				if o then
+					return o
+				end
+			end
+			if p2_chess_drop.get_board_cell_overlay then
+				return p2_chess_drop.get_board_cell_overlay(index)
+			end
+			return nil
+		end)
+	end
+end
+
+-- Command-soul particles + royal air outline + staff proxy (ground mark is NOT here).
 table.insert(v2.ToCall, #v2.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_RENDER,
 	params = nil,
@@ -176,8 +212,8 @@ table.insert(v2.ToCall, #v2.ToCall + 1, {
 		if command_particles.count() > 0 then
 			command_particles.render()
 		end
-		if royal_drop.is_busy() then
-			royal_drop.render()
+		if royal_drop.is_busy() and royal_drop.render_air_cues then
+			royal_drop.render_air_cues()
 		end
 		if staff_transition.is_detached and staff_transition.is_detached() then
 			staff_transition.render()
@@ -185,7 +221,9 @@ table.insert(v2.ToCall, #v2.ToCall + 1, {
 	end,
 })
 
--- Redundant death notify path (Enemy_chess_pawn also registers). Deduped by generation.
+
+
+-- Redundant death notify path (Enemy_chess_pawn also registers). Deduped by generation / SFX flag.
 table.insert(v2.ToCall, #v2.ToCall + 1, {
 	CallBack = ModCallbacks.MC_POST_NPC_DEATH,
 	params = 996,
@@ -193,8 +231,13 @@ table.insert(v2.ToCall, #v2.ToCall + 1, {
 		if not ent or ent.Variant ~= enums.Enemies.chess_piece then
 			return
 		end
+		local piece_controller = require("Qing_Remaster_scripts.bosses.Floraine.chess_piece_controller")
+		if piece_controller.on_combat_death then
+			piece_controller.on_combat_death(ent)
+		end
 		command_souls.notify_npc_death(ent)
 	end,
 })
+
 
 return v2
